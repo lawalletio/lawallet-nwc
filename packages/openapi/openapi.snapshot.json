@@ -5455,7 +5455,7 @@
           "Cards"
         ],
         "summary": "Resolve a scanned card and return the LNURL-withdraw flow entry point.",
-        "description": "The first LNURL request on tap. Send the request header `x-request-action: info` to get the card’s public status JSON (design, image, owner, paired/used) instead of the LNURL withdraw request — so a client can show the card identity without running the withdraw flow. Non-sensitive only (never keys/OTC/SUN params).",
+        "description": "The first LNURL request on tap. `maxWithdrawable` is the bound wallet’s spendable balance in millisatoshis (a high ceiling when that balance cannot be read); the callback does not impose a fixed sats cap. Send the request header `x-request-action: info` to get the card’s public status JSON (design, image, owner, paired/used) instead of the LNURL withdraw request — so a client can show the card identity without running the withdraw flow. Non-sensitive only (never keys/OTC/SUN params).",
         "operationId": "cards.scan",
         "security": [],
         "parameters": [

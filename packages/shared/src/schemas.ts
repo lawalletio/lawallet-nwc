@@ -230,9 +230,18 @@ export const cardScanCallbackQuerySchema =
 export const cardScanActionSchema = z.enum(['pay', 'new-otc'])
 export type CardScanAction = z.infer<typeof cardScanActionSchema>
 
-/** LUD-03 limits advertised by /scan and enforced again by /scan/cb. */
+/** Smallest BoltCard spend the callback will accept, in millisatoshis. */
 export const CARD_MIN_WITHDRAWABLE_MSATS = 1
-export const CARD_MAX_WITHDRAWABLE_MSATS = 10_000_000
+
+/**
+ * LNURL-withdraw `maxWithdrawable` used only when the card's wallet balance
+ * cannot be read before the tap response. This is not a spend cap: the
+ * callback pays any exact invoice the wallet accepts. `Number.MAX_SAFE_INTEGER`
+ * (~90,000 BTC in msats) stays inside JSON numbers and signed 64-bit integers,
+ * so a point of sale that trusts the advertisement will not refuse a normal
+ * invoice while the balance probe is down.
+ */
+export const CARD_WITHDRAW_BALANCE_FALLBACK_MSATS = Number.MAX_SAFE_INTEGER
 
 export const otcParam = z.object({
   otc: z.string().min(1, 'OTC parameter is required')

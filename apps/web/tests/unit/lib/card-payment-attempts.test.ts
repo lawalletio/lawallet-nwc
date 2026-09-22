@@ -29,7 +29,7 @@ function attempt(
     walletId: input.walletId,
     paymentHash: input.paymentHash,
     bolt11: input.bolt11,
-    amountMsats: input.amountMsats,
+    amountMsats: BigInt(input.amountMsats),
     transport: input.transport,
     status: 'PENDING',
     preimage: null,
