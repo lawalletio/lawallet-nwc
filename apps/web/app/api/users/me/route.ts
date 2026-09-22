@@ -8,8 +8,14 @@ import { resolveAddressDomain } from '@/lib/public-url'
 import { resolveWalletRoute } from '@/lib/wallet/resolve-payment-route'
 import { getPrimaryRemoteWalletForUser } from '@/lib/wallet/primary-wallet'
 import { decryptRemoteWalletConfig } from '@/lib/wallet/remote-wallet-vault'
+import { currencyPrefsSchema } from '@/lib/validation/schemas'
 
 export const dynamic = 'force-dynamic'
+
+function publishedCurrencyPrefs(value: unknown) {
+  const parsed = currencyPrefsSchema.safeParse(value)
+  return parsed.success ? parsed.data : null
+}
 
 export const GET = withErrorHandling(async (request: Request) => {
   const { pubkey: authenticatedPubkey } = await authenticate(request)
@@ -99,6 +105,7 @@ export const GET = withErrorHandling(async (request: Request) => {
     // card without splitting `lightningAddress` on `@` or re-fetching
     // the address detail endpoint.
     primaryUsername: primaryAddress?.username ?? null,
-    primaryRedirect: primaryAddress?.redirect ?? null
+    primaryRedirect: primaryAddress?.redirect ?? null,
+    currencyPrefs: publishedCurrencyPrefs(user.currencyPrefs)
   })
 })

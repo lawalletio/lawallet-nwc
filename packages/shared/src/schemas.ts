@@ -1,4 +1,7 @@
+import { CURRENCY_CODES } from './currencies'
 import { z } from './zod'
+
+export { CURRENCY_CODES }
 
 // ── Common ──────────────────────────────────────────────────────────────────
 
@@ -452,6 +455,28 @@ export const updateUserRelaysSchema = z.object({
       }
       return out
     })
+})
+
+export const currencyPrefsSchema = z
+  .object({
+    active: z.array(z.enum(CURRENCY_CODES)).min(1).max(CURRENCY_CODES.length),
+    selected: z.enum(CURRENCY_CODES)
+  })
+  .refine(prefs => new Set(prefs.active).size === prefs.active.length, {
+    message: 'Active currencies must be unique',
+    path: ['active']
+  })
+  .refine(prefs => prefs.active.some(code => code === 'SAT'), {
+    message: 'SAT must remain in the active list',
+    path: ['active']
+  })
+  .refine(prefs => prefs.active.some(code => code === prefs.selected), {
+    message: 'Selected currency must be in the active list',
+    path: ['selected']
+  })
+
+export const updateUserCurrencyPrefsSchema = z.object({
+  currencyPrefs: currencyPrefsSchema
 })
 
 // ── Settings ────────────────────────────────────────────────────────────────

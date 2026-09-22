@@ -29,7 +29,12 @@ vi.mock('@/lib/settings', () => ({
   getSettings: vi.fn()
 }))
 
+vi.mock('@/lib/middleware/request-limits', () => ({
+  checkRequestLimits: vi.fn()
+}))
+
 import { GET } from '@/app/api/users/me/route'
+import { PUT } from '@/app/api/users/me/currency-prefs/route'
 import { authenticate } from '@/lib/auth/unified-auth'
 import { createNewUser } from '@/lib/user'
 import { getSettings } from '@/lib/settings'
@@ -80,6 +85,49 @@ describe('GET /api/users/me', () => {
       userId: user.id,
       lightningAddress: 'alice@test.com'
     })
+  })
+
+  it('returns saved currency preferences from the user record', async () => {
+    mockAuth()
+    const currencyPrefs = {
+      active: ['SAT', 'BTC', 'USD'],
+      selected: 'USD'
+    }
+    const user = createUserFixture({
+      pubkey: mockPubkey,
+      currencyPrefs,
+      lightningAddresses: [],
+      albySubAccount: null
+    })
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
+    vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com' })
+
+    const req = createNextRequest('/api/users/me')
+    const res = await GET(req)
+    const body = (await assertResponse(res, 200)) as {
+      currencyPrefs: unknown
+    }
+
+    expect(body.currencyPrefs).toEqual(currencyPrefs)
+  })
+
+  it('omits currency preferences that do not match the schema', async () => {
+    mockAuth()
+    const user = createUserFixture({
+      pubkey: mockPubkey,
+      currencyPrefs: { foo: 1 },
+      lightningAddresses: [],
+      albySubAccount: null
+    })
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
+    vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com' })
+
+    const res = await GET(createNextRequest('/api/users/me'))
+    const body = (await assertResponse(res, 200)) as {
+      currencyPrefs: unknown
+    }
+
+    expect(body.currencyPrefs).toBeNull()
   })
 
   it('creates new user if not existing', async () => {
@@ -372,5 +420,74 @@ describe('GET /api/users/me', () => {
     expect(body.primaryUsername).toBeNull()
     expect(body.primaryRedirect).toBeNull()
     expect(body.effectiveNwcString).toBeNull()
+  })
+})
+
+describe('PUT /api/users/me/currency-prefs', () => {
+  function mockOwner() {
+    mockAuth()
+    vi.mocked(prismaMock.nostrIdentity.findUnique).mockResolvedValue({
+      user: { id: 'user-1', pubkey: mockPubkey, role: 'USER' }
+    } as any)
+    vi.mocked(prismaMock.user.update).mockResolvedValue({ id: 'user-1' } as any)
+  }
+
+  function putPrefs(currencyPrefs: { active: string[]; selected: string }) {
+    return PUT(
+      createNextRequest('/api/users/me/currency-prefs', {
+        method: 'PUT',
+        body: { currencyPrefs }
+      }) as never
+    )
+  }
+
+  it('persists currency preferences on the authenticated user', async () => {
+    mockOwner()
+
+    const currencyPrefs = {
+      active: ['SAT', 'BTC', 'USD'],
+      selected: 'USD'
+    }
+    const res = await putPrefs(currencyPrefs)
+    const body = await assertResponse(res, 200)
+
+    expect(body).toEqual({ currencyPrefs })
+    expect(prismaMock.user.update).toHaveBeenCalledWith({
+      where: { id: 'user-1' },
+      data: { currencyPrefs }
+    })
+  })
+
+  it('rejects an active list that drops SAT', async () => {
+    mockOwner()
+
+    const res = await putPrefs({ active: ['USD'], selected: 'USD' })
+
+    expect(res.status).toBe(400)
+    expect(prismaMock.user.update).not.toHaveBeenCalled()
+  })
+
+  it('rejects a selected currency outside the active list', async () => {
+    mockOwner()
+
+    const res = await putPrefs({
+      active: ['SAT', 'BTC'],
+      selected: 'USD'
+    })
+
+    expect(res.status).toBe(400)
+    expect(prismaMock.user.update).not.toHaveBeenCalled()
+  })
+
+  it('rejects duplicate active currencies', async () => {
+    mockOwner()
+
+    const res = await putPrefs({
+      active: ['SAT', 'USD', 'USD'],
+      selected: 'USD'
+    })
+
+    expect(res.status).toBe(400)
+    expect(prismaMock.user.update).not.toHaveBeenCalled()
   })
 })

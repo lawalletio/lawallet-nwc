@@ -639,6 +639,118 @@
           "role"
         ]
       },
+      "CurrencyPrefs": {
+        "type": "object",
+        "properties": {
+          "active": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "SAT",
+                "BTC",
+                "ARS",
+                "BRL",
+                "CLP",
+                "COP",
+                "EUR",
+                "GBP",
+                "JPY",
+                "MXN",
+                "PEN",
+                "USD",
+                "UYU",
+                "VES"
+              ]
+            },
+            "minItems": 1,
+            "maxItems": 14
+          },
+          "selected": {
+            "type": "string",
+            "enum": [
+              "SAT",
+              "BTC",
+              "ARS",
+              "BRL",
+              "CLP",
+              "COP",
+              "EUR",
+              "GBP",
+              "JPY",
+              "MXN",
+              "PEN",
+              "USD",
+              "UYU",
+              "VES"
+            ]
+          }
+        },
+        "required": [
+          "active",
+          "selected"
+        ]
+      },
+      "UserCurrencyPrefsUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "currencyPrefs": {
+            "type": "object",
+            "properties": {
+              "active": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "SAT",
+                    "BTC",
+                    "ARS",
+                    "BRL",
+                    "CLP",
+                    "COP",
+                    "EUR",
+                    "GBP",
+                    "JPY",
+                    "MXN",
+                    "PEN",
+                    "USD",
+                    "UYU",
+                    "VES"
+                  ]
+                },
+                "minItems": 1,
+                "maxItems": 14
+              },
+              "selected": {
+                "type": "string",
+                "enum": [
+                  "SAT",
+                  "BTC",
+                  "ARS",
+                  "BRL",
+                  "CLP",
+                  "COP",
+                  "EUR",
+                  "GBP",
+                  "JPY",
+                  "MXN",
+                  "PEN",
+                  "USD",
+                  "UYU",
+                  "VES"
+                ]
+              }
+            },
+            "required": [
+              "active",
+              "selected"
+            ]
+          }
+        },
+        "required": [
+          "currencyPrefs"
+        ]
+      },
       "SettingsBody": {
         "type": "object",
         "additionalProperties": {
@@ -10220,16 +10332,117 @@
                     "createdAt": {
                       "type": "string",
                       "format": "date-time"
+                    },
+                    "currencyPrefs": {
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/CurrencyPrefs"
+                        },
+                        {
+                          "type": [
+                            "object",
+                            "null"
+                          ]
+                        }
+                      ]
                     }
                   },
                   "required": [
                     "id",
                     "pubkey",
                     "role",
-                    "createdAt"
+                    "createdAt",
+                    "currencyPrefs"
                   ],
                   "additionalProperties": {},
                   "description": "User record."
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/users/me/currency-prefs": {
+      "put": {
+        "x-required-role": "USER",
+        "tags": [
+          "Users"
+        ],
+        "summary": "Save the current user’s display currency preferences.",
+        "operationId": "users.me.currencyPrefs.set",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserCurrencyPrefsUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Currency preferences saved.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "currencyPrefs": {
+                      "$ref": "#/components/schemas/CurrencyPrefs"
+                    }
+                  },
+                  "required": [
+                    "currencyPrefs"
+                  ]
                 }
               }
             }

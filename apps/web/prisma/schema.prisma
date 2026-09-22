@@ -296,6 +296,7 @@ model User {
   /// deposit hot path is a plain array membership test.
   voucherSenderAllowlist             String[]                           @default([])
   cardActivationBonuses              CardActivationBonus[]
+  currencyPrefs                      Json?
 
   @@index([role])
 }
