@@ -53,31 +53,6 @@ export async function requireUserAddressRegistration(
 }
 
 /**
- * Shared gate for any endpoint that would create or swap a user's
- * Lightning Address. Throws `PaymentRequiredError` (402) when paid
- * registration is enabled and the actor does not qualify for the
- * admin/operator bypass. Callers should invoke this before writing
- * to `LightningAddress`.
- *
- * Paid mode is only considered "engaged" when both the toggle is on
- * AND a payment LN address is configured — matching the invoice route
- * which returns `{ free: true }` in that half-configured state.
- *
- * The paid path goes through POST /api/invoices → claim with preimage,
- * which bypasses this guard by construction (the claim route never
- * invokes it).
- */
-export async function requirePaidRegistration(actorRole: Role): Promise<void> {
-  const settings = await getSettings([
-    'registration_ln_enabled',
-    'registration_ln_address',
-    'registration_admin_bypass'
-  ])
-
-  assertPaidRegistrationSatisfied(actorRole, settings)
-}
-
-/**
  * Full Lightning Address creation policy. It first enforces the instance-wide
  * self-service toggle, then the optional paid-registration rule.
  */
