@@ -39,6 +39,17 @@ describe('resolveCardMaxWithdrawableMsats', () => {
     )
   })
 
+  it('reads the balance when the route has no wallet id', async () => {
+    balance(8)
+
+    await expect(
+      resolveCardMaxWithdrawableMsats({ ...route, walletId: null })
+    ).resolves.toBe(8_000)
+    expect(driverForWallet).toHaveBeenCalledWith(
+      expect.objectContaining({ id: undefined })
+    )
+  })
+
   it('advertises nothing when the wallet is empty or the balance is unusable', async () => {
     for (const balanceSats of [0, -5, 1.5, Number.POSITIVE_INFINITY]) {
       balance(balanceSats)

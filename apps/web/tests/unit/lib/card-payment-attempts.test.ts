@@ -117,7 +117,13 @@ describe('atomic card payment attempt claim', () => {
       claimCardPaymentAttempt({ ...input, amountMsats: 0 })
     ).rejects.toThrow('amountMsats must be a positive safe integer')
     await expect(
-      claimCardPaymentAttempt({ ...input, amountMsats: 1.5 })
+      claimCardPaymentAttempt({ ...input, amountMsats: -1 })
+    ).rejects.toThrow('amountMsats must be a positive safe integer')
+    await expect(
+      claimCardPaymentAttempt({
+        ...input,
+        amountMsats: Number.MAX_SAFE_INTEGER + 1
+      })
     ).rejects.toThrow('amountMsats must be a positive safe integer')
     expect(prismaMock.$queryRaw).not.toHaveBeenCalled()
   })
