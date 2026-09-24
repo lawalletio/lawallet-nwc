@@ -4,11 +4,11 @@ import { LUD03Request } from '@/types/lnurl'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { NotFoundError } from '@/types/server/errors'
 import {
-  CARD_MAX_WITHDRAWABLE_MSATS,
   CARD_MIN_WITHDRAWABLE_MSATS,
   idParam,
   scanCardQuerySchema
 } from '@/lib/validation/schemas'
+import { resolveCardMaxWithdrawableMsats } from '@/lib/card-payments/max-withdrawable'
 import { validateParams, validateQuery } from '@/lib/validation/middleware'
 import { rateLimit, RateLimitPresets } from '@/lib/middleware/rate-limit'
 import { resolveApiUrl } from '@/lib/public-url'
@@ -146,17 +146,31 @@ export const GET = withErrorHandling(
           config: route.config
         })))
 
+    // The advertised ceiling is the live spendable balance, not a fixed sats
+    // cap. A 0–0 range (no spendable wallet, or an empty one) tells the
+    // point of sale nothing is payable before it mints an invoice.
+    const maxWithdrawable =
+      configured && route.kind === 'wallet'
+        ? await resolveCardMaxWithdrawableMsats(route)
+        : 0
+    const minWithdrawable =
+      maxWithdrawable >= CARD_MIN_WITHDRAWABLE_MSATS
+        ? CARD_MIN_WITHDRAWABLE_MSATS
+        : 0
+
     // Trace the LNURL-withdraw request so the scan → scan/cb sequence is
     // correlatable in logs. `configured=false` means the card has no wallet it
-    // can spend from, so the advertised 0–0 range tells the wallet nothing is
-    // payable up front rather than letting the cb reject after the tap.
-    logger.info({ cardId, configured }, 'Card scan: LNURL-withdraw request')
+    // can spend from.
+    logger.info(
+      { cardId, configured, maxWithdrawable },
+      'Card scan: LNURL-withdraw request'
+    )
 
     const response = {
       tag: 'withdrawRequest',
       k1: 'k',
-      minWithdrawable: configured ? CARD_MIN_WITHDRAWABLE_MSATS : 0,
-      maxWithdrawable: configured ? CARD_MAX_WITHDRAWABLE_MSATS : 0,
+      minWithdrawable,
+      maxWithdrawable,
       defaultDescription: 'Boltcard + NWC',
       callback: `${url}/api/cards/${cardId}/scan/cb?p=${p}&c=${c}`
     } as LUD03Request

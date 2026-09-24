@@ -40,6 +40,11 @@ vi.mock('@/app/api/cards/[id]/scan/cb/actions/pay', () => ({
   default: payActionMock
 }))
 
+const resolveMaxWithdrawableMock = vi.hoisted(() => vi.fn())
+vi.mock('@/lib/card-payments/max-withdrawable', () => ({
+  resolveCardMaxWithdrawableMsats: resolveMaxWithdrawableMock
+}))
+
 import {
   GET as ScanGet,
   OPTIONS as ScanOptions
@@ -55,6 +60,7 @@ beforeEach(() => {
   resetPrismaMock()
   vi.clearAllMocks()
   vi.mocked(getSettings).mockResolvedValue({})
+  resolveMaxWithdrawableMock.mockResolvedValue(25_000_000)
   payActionMock.mockResolvedValue(
     new Response(JSON.stringify({ status: 'OK' }), {
       headers: { 'Content-Type': 'application/json' }
@@ -105,8 +111,9 @@ describe('GET /api/cards/[id]/scan', () => {
     expect(body.tag).toBe('withdrawRequest')
     expect(body.callback).toContain(`/api/cards/${card.id}/scan/cb`)
     expect(body.callback).toContain('p=' + 'A'.repeat(32))
-    expect(body.minWithdrawable).toBeGreaterThan(0)
-    expect(body.maxWithdrawable).toBeGreaterThan(0)
+    expect(body.minWithdrawable).toBe(1)
+    expect(body.maxWithdrawable).toBe(25_000_000)
+    expect(resolveMaxWithdrawableMock).toHaveBeenCalledTimes(1)
     expect(res.headers.get('Access-Control-Allow-Origin')).toBe('*')
 
     const query = vi.mocked(prismaMock.card.findUnique).mock.calls[0][0] as any
@@ -135,6 +142,35 @@ describe('GET /api/cards/[id]/scan', () => {
     })
   })
 
+  it('advertises a 0–0 range when the bound wallet has no spendable balance', async () => {
+    const card = {
+      ...createCardFixture(),
+      design: createCardDesignFixture(),
+      user: createUserFixture(),
+      remoteWallet: {
+        type: 'NWC',
+        config: { mode: 'SEND_RECEIVE' },
+        status: 'ACTIVE'
+      }
+    }
+    vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
+    vi.mocked(getSettings).mockResolvedValue({
+      domain: 'test.com',
+      endpoint: 'app'
+    })
+    resolveMaxWithdrawableMock.mockResolvedValue(0)
+
+    const req = createNextRequest(`/api/cards/${card.id}/scan`, {
+      searchParams: { p: 'A'.repeat(32), c: 'B'.repeat(16) }
+    })
+    const res = await ScanGet(req, createParamsPromise({ id: card.id }))
+    const body: any = await assertResponse(res, 200)
+
+    expect(body.minWithdrawable).toBe(0)
+    expect(body.maxWithdrawable).toBe(0)
+    expect(resolveMaxWithdrawableMock).toHaveBeenCalledTimes(1)
+  })
+
   it('advertises a 0–0 withdraw range for a receive-only wallet', async () => {
     // Regression: `configured` used to check only that a wallet was ACTIVE, so
     // a receive-only card advertised a payable range and the callback then
@@ -160,6 +196,7 @@ describe('GET /api/cards/[id]/scan', () => {
 
     expect(body.minWithdrawable).toBe(0)
     expect(body.maxWithdrawable).toBe(0)
+    expect(resolveMaxWithdrawableMock).not.toHaveBeenCalled()
   })
 
   it('returns public card status JSON when x-request-action: info', async () => {
@@ -222,6 +259,7 @@ describe('GET /api/cards/[id]/scan', () => {
     expect(body.tag).toBe('withdrawRequest')
     expect(body.minWithdrawable).toBe(0)
     expect(body.maxWithdrawable).toBe(0)
+    expect(resolveMaxWithdrawableMock).not.toHaveBeenCalled()
   })
 
   it('advertises a 0–0 withdraw range when the card is disabled', async () => {
@@ -246,6 +284,7 @@ describe('GET /api/cards/[id]/scan', () => {
     expect(body.tag).toBe('withdrawRequest')
     expect(body.minWithdrawable).toBe(0)
     expect(body.maxWithdrawable).toBe(0)
+    expect(resolveMaxWithdrawableMock).not.toHaveBeenCalled()
   })
 
   it('returns 404 for nonexistent card', async () => {
