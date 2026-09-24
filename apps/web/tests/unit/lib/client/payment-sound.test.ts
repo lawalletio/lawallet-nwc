@@ -62,4 +62,49 @@ describe('payment-sound', () => {
     playPaymentCueSound('incoming:once')
     expect(AudioMock).toHaveBeenCalledOnce()
   })
+
+  it('reuses one AudioContext and resumes it for each chime', () => {
+    const resume = vi.fn(() => Promise.resolve())
+    const close = vi.fn()
+    const contexts: { close: typeof close }[] = []
+
+    class FakeAudioContext {
+      state: AudioContextState = 'suspended'
+      currentTime = 0
+      destination = {}
+      resume = resume
+      close = close
+      constructor() {
+        contexts.push(this)
+      }
+      createOscillator() {
+        return {
+          type: 'sine',
+          frequency: {
+            setValueAtTime: vi.fn(),
+            exponentialRampToValueAtTime: vi.fn()
+          },
+          connect: vi.fn(),
+          start: vi.fn(),
+          stop: vi.fn()
+        }
+      }
+      createGain() {
+        return {
+          gain: {
+            setValueAtTime: vi.fn(),
+            exponentialRampToValueAtTime: vi.fn()
+          },
+          connect: vi.fn()
+        }
+      }
+    }
+
+    vi.stubGlobal('AudioContext', FakeAudioContext)
+    playPaymentSuccessSound('chime')
+    playPaymentSuccessSound('chime')
+    expect(contexts).toHaveLength(1)
+    expect(resume).toHaveBeenCalledTimes(2)
+    expect(close).not.toHaveBeenCalled()
+  })
 })

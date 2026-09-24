@@ -429,12 +429,14 @@ describe('AuthProvider visibility recheck', () => {
 
   it('does not drop a token written while an older check is in flight', async () => {
     let rejectValidate: (err: unknown) => void = () => {}
-    mocks.validateJwt.mockReturnValue(
-      new Promise((_resolve, reject) => {
+    const stale = jwtWithExp(60 * 60)
+    mocks.validateJwt.mockImplementation((token: string) => {
+      if (token !== stale) return Promise.resolve(validation())
+      return new Promise((_resolve, reject) => {
         rejectValidate = reject
       })
-    )
-    localStorage.setItem(JWT_KEY, jwtWithExp(60 * 60))
+    })
+    localStorage.setItem(JWT_KEY, stale)
     renderProvider()
     await flush()
 
@@ -443,9 +445,12 @@ describe('AuthProvider visibility recheck', () => {
     await act(async () => {
       rejectValidate(new Error('invalid token'))
     })
-    await flush()
 
+    await waitFor(() =>
+      expect(screen.getByTestId('status')).toHaveTextContent('authenticated')
+    )
     expect(localStorage.getItem(JWT_KEY)).toBe(fresh)
+    expect(mocks.validateJwt).toHaveBeenCalledWith(fresh)
   })
 })
 

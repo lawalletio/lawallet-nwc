@@ -105,13 +105,21 @@ function playFile(src: string) {
   void audio.play().catch(() => {})
 }
 
+let chimeContext: AudioContext | null = null
+
 function playChime() {
   const Ctx =
     window.AudioContext ??
     (window as Window & { webkitAudioContext?: typeof AudioContext })
       .webkitAudioContext
   if (!Ctx) return
-  const ctx = new Ctx()
+  if (!chimeContext || chimeContext.state === 'closed') {
+    chimeContext = new Ctx()
+  }
+  const ctx = chimeContext
+  // A settings click resumes this context. Later payment cues reuse it, so
+  // they are not stuck on a fresh suspended context with no user gesture.
+  void ctx.resume()
   const osc = ctx.createOscillator()
   const gain = ctx.createGain()
   const now = ctx.currentTime
@@ -125,7 +133,4 @@ function playChime() {
   gain.connect(ctx.destination)
   osc.start(now)
   osc.stop(now + 0.34)
-  osc.onended = () => {
-    void ctx.close()
-  }
 }

@@ -423,12 +423,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     let cancelled = false
     let inFlight: Promise<void> | null = null
+    let replacedToken = false
+
+    function noteIfTokenReplaced(expectedToken: string | null) {
+      if (localStorage.getItem(JWT_STORAGE_KEY) === expectedToken) return false
+      // A newer token landed mid-flight. Re-validate it once this check
+      // finishes, instead of leaving status on "loading".
+      replacedToken = true
+      return true
+    }
 
     function dropJwtKeepCredentials(expectedToken: string | null) {
       // A newer token may have been written while this check was in flight
       // (dev login replaces the JWT, then navigates). Only drop the one we
       // actually decided was unusable.
-      if (localStorage.getItem(JWT_STORAGE_KEY) !== expectedToken) return
+      if (noteIfTokenReplaced(expectedToken)) return
       endSessionKeepCredentials()
     }
 
@@ -574,6 +583,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } catch (err) {
           if (cancelled) return
           if (isNavigationAbort(err)) {
+            if (noteIfTokenReplaced(storedToken)) return
             // Keep the JWT. A navigation (Login as admin → /admin) aborts
             // this request; the next page validates the token it finds.
             setState(prev =>
@@ -605,6 +615,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await inFlight
       } finally {
         inFlight = null
+      }
+
+      if (replacedToken && !cancelled) {
+        replacedToken = false
+        await ensureFreshSession(source)
       }
     }
 
