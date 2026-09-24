@@ -78,7 +78,7 @@ export function PaymentSoundScreen() {
           })}
         </div>
       </main>
-      <NavTabbar active="settings" />
+      <NavTabbar />
     </div>
   )
 }
