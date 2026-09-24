@@ -179,6 +179,16 @@ export function useAuth(): AuthContextValue {
   return ctx
 }
 
+/**
+ * A document navigation aborts in-flight fetches with TypeError
+ * ("Failed to fetch") before the server answers. That is not an invalid
+ * session — dropping the JWT here wipes a token another flow just stored,
+ * which is what made "Login as admin" land on the sign-in dialog.
+ */
+function isNavigationAbort(err: unknown): boolean {
+  return err instanceof TypeError
+}
+
 function installHistoryRestoreGuard() {
   if (typeof window === 'undefined') return
   if (window.__lawalletHistoryRestoreGuardInstalled) return
@@ -414,7 +424,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false
     let inFlight: Promise<void> | null = null
 
-    function dropJwtKeepCredentials() {
+    function dropJwtKeepCredentials(expectedToken: string | null) {
+      // A newer token may have been written while this check was in flight
+      // (dev login replaces the JWT, then navigates). Only drop the one we
+      // actually decided was unusable.
+      if (localStorage.getItem(JWT_STORAGE_KEY) !== expectedToken) return
       endSessionKeepCredentials()
     }
 
@@ -474,7 +488,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 await remint(signer, storedMethod)
                 return
               } catch {
-                dropJwtKeepCredentials()
+                dropJwtKeepCredentials(storedToken)
                 return
               }
             }
@@ -492,7 +506,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const dueForRefresh = isJwtDueForRefresh(storedToken)
 
         if (expired && !canRemint) {
-          dropJwtKeepCredentials()
+          dropJwtKeepCredentials(storedToken)
           return
         }
 
@@ -504,13 +518,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               return
             } catch {
               if (expired) {
-                dropJwtKeepCredentials()
+                dropJwtKeepCredentials(storedToken)
                 return
               }
               // Token is still inside the buffer — fall through to validate.
             }
           } else if (expired) {
-            dropJwtKeepCredentials()
+            dropJwtKeepCredentials(storedToken)
             return
           }
         }
@@ -557,9 +571,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               // Keep the still-valid token; scheduleRefresh already armed.
             }
           }
-        } catch {
+        } catch (err) {
+          if (cancelled) return
+          if (isNavigationAbort(err)) {
+            // Keep the JWT. A navigation (Login as admin → /admin) aborts
+            // this request; the next page validates the token it finds.
+            setState(prev =>
+              prev.status === 'loading'
+                ? { ...prev, status: 'unauthenticated', signer: null }
+                : prev
+            )
+            return
+          }
           if (!canRemint) {
-            dropJwtKeepCredentials()
+            dropJwtKeepCredentials(storedToken)
             return
           }
           const signer = await resolveSigner()
@@ -568,11 +593,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               await remint(signer, storedMethod)
               return
             } catch {
-              dropJwtKeepCredentials()
+              dropJwtKeepCredentials(storedToken)
               return
             }
           }
-          dropJwtKeepCredentials()
+          dropJwtKeepCredentials(storedToken)
         }
       })()
 
