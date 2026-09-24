@@ -233,9 +233,8 @@ export const cardScanCallbackQuerySchema =
 export const cardScanActionSchema = z.enum(['pay', 'new-otc'])
 export type CardScanAction = z.infer<typeof cardScanActionSchema>
 
-/** LUD-03 limits advertised by /scan and enforced again by /scan/cb. */
+/** Smallest BoltCard spend the callback will accept, in millisatoshis. */
 export const CARD_MIN_WITHDRAWABLE_MSATS = 1
-export const CARD_MAX_WITHDRAWABLE_MSATS = 10_000_000
 
 export const otcParam = z.object({
   otc: z.string().min(1, 'OTC parameter is required')

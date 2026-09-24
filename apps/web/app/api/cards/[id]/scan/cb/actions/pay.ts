@@ -478,9 +478,17 @@ async function findExactAttempt(
   return attempt &&
     attempt.paymentHash.toLowerCase() === invoice.paymentHash &&
     attempt.bolt11 === invoice.bolt11 &&
-    attempt.amountMsats === invoice.amountMsats
+    sameAmountMsats(attempt.amountMsats, invoice.amountMsats)
     ? attempt
     : null
+}
+
+function sameAmountMsats(stored: bigint | number, expected: number): boolean {
+  return BigInt(stored) === BigInt(expected)
+}
+
+function amountSats(amountMsats: bigint | number): number {
+  return Number(amountMsats) / 1000
 }
 
 function recordSuccess(
@@ -491,7 +499,7 @@ function recordSuccess(
   logActivity.fireAndForget({
     category: 'CARD',
     event: ActivityEvent.CARD_PAYMENT,
-    message: `Card payment of ${attempt.amountMsats / 1000} sats`,
+    message: `Card payment of ${amountSats(attempt.amountMsats)} sats`,
     metadata: activityMetadata(attempt, walletType, 'success', transport)
   })
   eventBus.emit({ type: 'cards:updated', timestamp: Date.now() })
@@ -507,7 +515,7 @@ function recordFailure(
     category: 'CARD',
     event: ActivityEvent.CARD_PAYMENT,
     level: 'ERROR',
-    message: `Card payment failed (${attempt.amountMsats / 1000} sats)`,
+    message: `Card payment failed (${amountSats(attempt.amountMsats)} sats)`,
     metadata: {
       ...activityMetadata(attempt, walletType, 'failed', transport),
       error: error ?? 'Wallet rejected payment'
@@ -525,8 +533,8 @@ function activityMetadata(
   return {
     cardId: attempt.cardId,
     requestId: attempt.requestId,
-    amountSats: attempt.amountMsats / 1000,
-    amountMsats: attempt.amountMsats,
+    amountSats: amountSats(attempt.amountMsats),
+    amountMsats: Number(attempt.amountMsats),
     status,
     walletType,
     walletId: attempt.walletId,

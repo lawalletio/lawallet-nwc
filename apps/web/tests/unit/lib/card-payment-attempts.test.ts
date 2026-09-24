@@ -29,7 +29,7 @@ function attempt(
     walletId: input.walletId,
     paymentHash: input.paymentHash,
     bolt11: input.bolt11,
-    amountMsats: input.amountMsats,
+    amountMsats: BigInt(input.amountMsats),
     transport: input.transport,
     status: 'PENDING',
     preimage: null,
@@ -82,6 +82,44 @@ describe('atomic card payment attempt claim', () => {
       outcome: 'REPLAY',
       attempt: existing
     })
+  })
+
+  it('treats a different amount on the same counter as a replay', async () => {
+    const existing = attempt({ amountMsats: BigInt(1) })
+    vi.mocked(prismaMock.$queryRaw).mockResolvedValue([] as never)
+    vi.mocked(prismaMock.cardPaymentAttempt.findMany).mockResolvedValue([
+      existing
+    ] as never)
+
+    await expect(claimCardPaymentAttempt(input)).resolves.toEqual({
+      outcome: 'REPLAY',
+      attempt: existing
+    })
+  })
+
+  it('accepts an amount above the old 32-bit integer ceiling', async () => {
+    vi.mocked(prismaMock.$queryRaw).mockResolvedValue([] as never)
+    vi.mocked(prismaMock.cardPaymentAttempt.findMany).mockResolvedValue([])
+    vi.mocked(prismaMock.card.findFirst).mockResolvedValue({
+      ntag424: { ctr: 12 }
+    } as never)
+
+    await expect(
+      claimCardPaymentAttempt({ ...input, amountMsats: 3_000_000_000 })
+    ).resolves.toEqual({
+      outcome: 'STALE_COUNTER',
+      storedCounter: 12
+    })
+  })
+
+  it('rejects an amount that is not a positive safe integer', async () => {
+    await expect(
+      claimCardPaymentAttempt({ ...input, amountMsats: 0 })
+    ).rejects.toThrow('amountMsats must be a positive safe integer')
+    await expect(
+      claimCardPaymentAttempt({ ...input, amountMsats: 1.5 })
+    ).rejects.toThrow('amountMsats must be a positive safe integer')
+    expect(prismaMock.$queryRaw).not.toHaveBeenCalled()
   })
 
   it('keeps a newer tap unconsumed while an earlier payment is unresolved', async () => {

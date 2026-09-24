@@ -87,7 +87,7 @@ export const GET = withErrorHandling(
       return {
         id: row.id,
         createdAt: row.createdAt.toISOString(),
-        amountSats: row.amountMsats / 1000,
+        amountSats: Number(row.amountMsats) / 1000,
         status: row.status === 'SUCCEEDED' ? 'success' : 'failed',
         error: row.errorCode,
         walletType: walletTypes.get(row.walletId) ?? null,
