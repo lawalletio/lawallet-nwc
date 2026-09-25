@@ -219,11 +219,6 @@ function parseWithdrawParams(
   }
 }
 
-interface LnurlCallbackResponse {
-  status?: string
-  reason?: string
-}
-
 /**
  * Posts a minted bolt11 invoice to a withdraw callback (LUD-03). Resolves when
  * the service accepts the request (`{status:"OK"}`) — settlement is
@@ -252,14 +247,27 @@ export async function submitLnurlWithdraw(
   } catch {
     throw new LnurlError('Could not reach the withdraw service')
   }
+  const json = (await res.json().catch(() => null)) as LnurlCallbackBody | null
   if (!res.ok) {
-    throw new LnurlError(`Withdraw service returned ${res.status}`)
+    throw new LnurlError(
+      callbackErrorMessage(json) ?? `Withdraw service returned ${res.status}`
+    )
   }
-
-  const json = (await res
-    .json()
-    .catch(() => null)) as LnurlCallbackResponse | null
   if (json?.status === 'ERROR') {
     throw new LnurlError(json.reason || 'The withdraw request was rejected')
   }
+}
+
+interface LnurlCallbackBody {
+  status?: string
+  reason?: string
+  error?: { message?: string }
+}
+
+function callbackErrorMessage(json: LnurlCallbackBody | null): string | null {
+  if (!json) return null
+  if (typeof json.reason === 'string' && json.reason.trim()) return json.reason
+  const message = json.error?.message
+  if (typeof message === 'string' && message.trim()) return message
+  return null
 }

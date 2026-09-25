@@ -13,36 +13,14 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { formatCardId } from '@/lib/client/nfc-card-id'
+import {
+  getNDEFReader,
+  type NDEFReaderConstructor,
+  type NDEFReaderLike,
+  type NDEFReadingEvent
+} from '@/lib/client/web-nfc'
 import { trackEvent } from '@/lib/analytics/gtag'
 import { AnalyticsEvent } from '@/lib/analytics/events'
-
-/**
- * Web NFC types — only Chrome for Android ships `NDEFReader` at the moment,
- * so the type isn't in the default `lib.dom`. Declare the narrow surface we
- * use so TypeScript compiles everywhere and we can feature-detect at
- * runtime.
- */
-type NDEFReadingEvent = Event & {
-  serialNumber?: string
-}
-interface NDEFReaderLike {
-  scan(opts?: { signal?: AbortSignal }): Promise<void>
-  addEventListener(
-    type: 'reading',
-    listener: (event: NDEFReadingEvent) => void
-  ): void
-  addEventListener(type: 'readingerror', listener: (event: Event) => void): void
-  removeEventListener(type: string, listener: EventListener): void
-}
-interface NDEFReaderConstructor {
-  new (): NDEFReaderLike
-}
-
-function getNDEFReader(): NDEFReaderConstructor | null {
-  if (typeof window === 'undefined') return null
-  const w = window as unknown as { NDEFReader?: NDEFReaderConstructor }
-  return w.NDEFReader ?? null
-}
 
 type ScanState = 'idle' | 'scanning' | 'unsupported' | 'error'
 
@@ -206,10 +184,4 @@ export function NfcScanDialog({
   )
 }
 
-/**
- * Convenience helper for call-sites that want to show a friendly toast
- * without importing the detection function directly.
- */
-export function isWebNfcSupported(): boolean {
-  return getNDEFReader() !== null
-}
+export { isWebNfcSupported } from '@/lib/client/web-nfc'
