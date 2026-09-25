@@ -413,6 +413,45 @@ describe('AuthProvider visibility recheck', () => {
     expect(localStorage.getItem(METHOD_KEY)).toBe('bunker')
     expect(localStorage.getItem(SECRET_KEY)).toBe('bunker://relay.example')
   })
+
+  it('keeps a JWT when validation is aborted before the server answers', async () => {
+    const token = jwtWithExp(60 * 60)
+    localStorage.setItem(JWT_KEY, token)
+    mocks.validateJwt.mockRejectedValue(new TypeError('Failed to fetch'))
+
+    renderProvider()
+
+    await waitFor(() =>
+      expect(screen.getByTestId('status')).toHaveTextContent('unauthenticated')
+    )
+    expect(localStorage.getItem(JWT_KEY)).toBe(token)
+  })
+
+  it('does not drop a token written while an older check is in flight', async () => {
+    let rejectValidate: (err: unknown) => void = () => {}
+    const stale = jwtWithExp(60 * 60)
+    mocks.validateJwt.mockImplementation((token: string) => {
+      if (token !== stale) return Promise.resolve(validation())
+      return new Promise((_resolve, reject) => {
+        rejectValidate = reject
+      })
+    })
+    localStorage.setItem(JWT_KEY, stale)
+    renderProvider()
+    await flush()
+
+    const fresh = jwtWithExp(12 * 60 * 60)
+    localStorage.setItem(JWT_KEY, fresh)
+    await act(async () => {
+      rejectValidate(new Error('invalid token'))
+    })
+
+    await waitFor(() =>
+      expect(screen.getByTestId('status')).toHaveTextContent('authenticated')
+    )
+    expect(localStorage.getItem(JWT_KEY)).toBe(fresh)
+    expect(mocks.validateJwt).toHaveBeenCalledWith(fresh)
+  })
 })
 
 describe('AuthProvider silent JWT remint', () => {
