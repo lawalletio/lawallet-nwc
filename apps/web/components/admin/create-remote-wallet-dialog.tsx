@@ -6,7 +6,6 @@ import {
   ArrowDownToLine,
   ArrowLeftRight,
   Check,
-  Lock,
   Plus
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -23,18 +22,12 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { InputWithQrScanner } from '@/components/ui/input-with-qr-scanner'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Spinner } from '@/components/ui/spinner'
 import { cn } from '@/lib/utils'
 import {
   useRemoteWalletMutations,
+  useRemoteWallets,
   type RemoteWalletData
 } from '@/lib/client/hooks/use-remote-wallets'
 import { useSettings } from '@/lib/client/hooks/use-settings'
@@ -44,28 +37,6 @@ import {
   probeNwcCapabilities,
   type NwcCapabilities
 } from '@/lib/client/nwc/probe-capabilities'
-
-/**
- * Driver types known to the platform. `NWC` is the only one that's
- * implemented today — the others render as disabled preview options in
- * the picker so the user sees what's coming without us hiding the roadmap.
- */
-const DRIVER_OPTIONS: ReadonlyArray<{
-  value: RemoteWalletData['type']
-  label: string
-  enabled: boolean
-  hint?: string
-}> = [
-  { value: 'NWC', label: 'NWC (Nostr Wallet Connect)', enabled: true },
-  { value: 'LND', label: 'LND', enabled: false, hint: 'Coming soon' },
-  { value: 'CLN', label: 'CLN', enabled: false, hint: 'Coming soon' },
-  {
-    value: 'BTCPAY',
-    label: 'BTCPay Server',
-    enabled: false,
-    hint: 'Coming soon'
-  }
-]
 
 const NWC_SCHEMES = ['nostr+walletconnect://', 'nostrwalletconnect://']
 
@@ -97,11 +68,31 @@ interface CreateRemoteWalletDialogProps {
  */
 type ProbeState =
   | { status: 'idle' }
-  | { status: 'checking' }
-  | { status: 'success'; capabilities: NwcCapabilities }
-  | { status: 'error'; message: string }
+  | { status: 'checking'; uri: string }
+  | { status: 'success'; uri: string; capabilities: NwcCapabilities }
+  | { status: 'error'; uri: string; message: string }
 
 const PROBE_DEBOUNCE_MS = 600
+const WALLET_NAME_MAX = 120
+
+/**
+ * Display name for a pasted NWC pairing. Prefer the wallet's own `get_info`
+ * alias; otherwise a short label from the wallet pubkey in the URI.
+ */
+export function walletNameFromNwcConnection(
+  uri: string,
+  alias: string | null | undefined
+): string {
+  const cleaned = alias?.trim()
+  if (cleaned) return cleaned.slice(0, WALLET_NAME_MAX)
+
+  const withoutScheme = uri
+    .trim()
+    .replace(/^(?:nostr\+walletconnect|nostrwalletconnect):\/\//i, '')
+  const pubkey = withoutScheme.split(/[/?#]/)[0] ?? ''
+  const short = pubkey.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8)
+  return short ? `NWC ${short}` : 'NWC wallet'
+}
 
 /** Which connection method the dialog is currently in. */
 type CreateMethod = 'nwc' | 'lncurl'
@@ -114,11 +105,14 @@ export function CreateRemoteWalletDialog({
 }: CreateRemoteWalletDialogProps) {
   const { data: settings } = useSettings()
   const lncurlEnabled = settings?.lncurl_enabled === 'true'
+  const { data: wallets } = useRemoteWallets()
+  // A loaded empty list means this wallet will be the only one, so it is the
+  // primary address wallet. An in-flight list must not be treated as empty.
+  const onlyWallet = Array.isArray(wallets) && wallets.length === 0
 
   const [open, setOpen] = useState(false)
   const [method, setMethod] = useState<CreateMethod>('nwc')
   const [name, setName] = useState('')
-  const [type, setType] = useState<RemoteWalletData['type']>('NWC')
   const [connectionString, setConnectionString] = useState('')
   const [isDefault, setIsDefault] = useState(false)
   const [probe, setProbe] = useState<ProbeState>({ status: 'idle' })
@@ -130,17 +124,22 @@ export function CreateRemoteWalletDialog({
 
   const trimmedName = name.trim()
   const trimmedUri = connectionString.trim()
+  const probeForUri =
+    probe.status !== 'idle' && probe.uri === trimmedUri ? probe : null
+  const nwcName = walletNameFromNwcConnection(
+    trimmedUri,
+    probeForUri?.status === 'success' ? probeForUri.capabilities.alias : null
+  )
   // LNCurl mints the connection server-side, so the only requirement is "not
   // already submitting" (the name is optional — the server defaults it).
+  // NWC waits until the connection has been probed so the saved name can come
+  // from the wallet's alias.
   const canSubmit =
     method === 'lncurl'
       ? !creating
       : !creating &&
-        trimmedName.length > 0 &&
-        trimmedName.length <= 120 &&
-        type === 'NWC' && // only NWC writes today; switch unlocks once other drivers ship
-        trimmedUri.length > 0 &&
-        looksLikeNwcUri(trimmedUri)
+        looksLikeNwcUri(trimmedUri) &&
+        (probeForUri?.status === 'success' || probeForUri?.status === 'error')
 
   // ── Auto-probe ────────────────────────────────────────────────────────
   //
@@ -151,7 +150,7 @@ export function CreateRemoteWalletDialog({
   // previous probe if the user keeps editing.
   const abortRef = useRef<AbortController | null>(null)
   useEffect(() => {
-    if (type !== 'NWC' || !looksLikeNwcUri(trimmedUri)) {
+    if (!looksLikeNwcUri(trimmedUri)) {
       abortRef.current?.abort()
       abortRef.current = null
       // Functional update — React bails out when we're already idle, so
@@ -165,13 +164,14 @@ export function CreateRemoteWalletDialog({
     abortRef.current = controller
 
     const timer = setTimeout(async () => {
-      setProbe({ status: 'checking' })
+      const probedUri = trimmedUri
+      setProbe({ status: 'checking', uri: probedUri })
       try {
         const capabilities = await probeNwcCapabilities(trimmedUri, {
           signal: controller.signal
         })
         if (!controller.signal.aborted) {
-          setProbe({ status: 'success', capabilities })
+          setProbe({ status: 'success', uri: probedUri, capabilities })
         }
       } catch (err) {
         if (controller.signal.aborted) return
@@ -181,7 +181,7 @@ export function CreateRemoteWalletDialog({
               ? 'Wallet didn’t respond in time'
               : err.message
             : 'Couldn’t detect wallet capabilities'
-        setProbe({ status: 'error', message })
+        setProbe({ status: 'error', uri: probedUri, message })
       }
     }, PROBE_DEBOUNCE_MS)
 
@@ -189,14 +189,13 @@ export function CreateRemoteWalletDialog({
       clearTimeout(timer)
       controller.abort()
     }
-  }, [trimmedUri, type])
+  }, [trimmedUri])
 
   function resetForm() {
     // Default to the LNCurl flow when the operator has enabled it — that's the
     // frictionless path the feature exists to offer.
     setMethod(lncurlEnabled ? 'lncurl' : 'nwc')
     setName('')
-    setType('NWC')
     setConnectionString('')
     setIsDefault(false)
     setProbe({ status: 'idle' })
@@ -215,12 +214,14 @@ export function CreateRemoteWalletDialog({
    * third stored mode that existing consumers don't understand.
    */
   const submitMode: 'RECEIVE' | 'SEND_RECEIVE' =
-    probe.status === 'success' ? probe.capabilities.mode : 'RECEIVE'
+    probeForUri?.status === 'success'
+      ? probeForUri.capabilities.mode
+      : 'RECEIVE'
 
   const cannotReceive =
-    probe.status === 'success' && !probe.capabilities.canReceive
+    probeForUri?.status === 'success' && !probeForUri.capabilities.canReceive
   const primaryAllowed = !cannotReceive
-  const submitIsDefault = isDefault && primaryAllowed
+  const submitIsDefault = primaryAllowed && (onlyWallet || isDefault)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -236,8 +237,8 @@ export function CreateRemoteWalletDialog({
         toast.success('LNCurl wallet created')
       } else {
         created = await createWallet({
-          name: trimmedName,
-          type,
+          name: nwcName,
+          type: 'NWC',
           config: { connectionString: trimmedUri, mode: submitMode },
           isDefault: submitIsDefault
         })
@@ -331,136 +332,99 @@ export function CreateRemoteWalletDialog({
             </div>
           )}
 
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="wallet-name">
-              Name
-              {method === 'lncurl' && (
+          {method === 'lncurl' && (
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="wallet-name">
+                Name
                 <span className="font-normal text-muted-foreground">
                   {' '}
                   (optional)
                 </span>
-              )}
-            </Label>
-            <Input
-              id="wallet-name"
-              placeholder={
-                method === 'lncurl' ? 'LNCurl wallet' : 'e.g. Alby Hub'
-              }
-              value={name}
-              onChange={e => setName(e.target.value)}
-              maxLength={120}
-              autoFocus
-              disabled={creating}
-            />
-          </div>
+              </Label>
+              <Input
+                id="wallet-name"
+                placeholder="LNCurl wallet"
+                value={name}
+                onChange={e => setName(e.target.value)}
+                maxLength={120}
+                autoFocus
+                disabled={creating}
+              />
+            </div>
+          )}
 
           {method === 'nwc' ? (
             <>
               <div className="flex flex-col gap-2">
-                <Label htmlFor="wallet-type">Type</Label>
-                <Select
-                  value={type}
-                  onValueChange={v => setType(v as RemoteWalletData['type'])}
+                <Label htmlFor="wallet-uri">Connection string</Label>
+                <InputWithQrScanner
+                  id="wallet-uri"
+                  // `type="password"` masks the URI on screen (it carries a
+                  // shared secret) and disables browser autofill — matches
+                  // the existing NWC input pattern in `nwc-card.tsx`.
+                  type="password"
+                  placeholder="nostr+walletconnect://..."
+                  value={connectionString}
+                  onChange={setConnectionString}
+                  onScan={text => setConnectionString(text.trim())}
+                  onScanError={err => toast.error(err)}
+                  scanLabel="Scan NWC QR code"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  autoFocus
                   disabled={creating}
-                >
-                  <SelectTrigger id="wallet-type">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {DRIVER_OPTIONS.map(opt => (
-                      <SelectItem
-                        key={opt.value}
-                        value={opt.value}
-                        disabled={!opt.enabled}
-                      >
-                        <span className="flex items-center gap-2">
-                          {!opt.enabled && (
-                            <Lock className="size-3.5 text-muted-foreground" />
-                          )}
-                          <span>{opt.label}</span>
-                          {opt.hint && (
-                            <span className="text-xs text-muted-foreground">
-                              — {opt.hint}
-                            </span>
-                          )}
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                />
+                <p className="text-xs text-muted-foreground">
+                  Paste or scan the NWC pairing QR from your wallet (Alby,
+                  Mutiny, Phoenix, …). It’s stored encrypted and never displayed
+                  again.
+                </p>
               </div>
 
-              {type === 'NWC' && (
-                <>
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="wallet-uri">Connection string</Label>
-                    <InputWithQrScanner
-                      id="wallet-uri"
-                      // `type="password"` masks the URI on screen (it carries a
-                      // shared secret) and disables browser autofill — matches
-                      // the existing NWC input pattern in `nwc-card.tsx`.
-                      type="password"
-                      placeholder="nostr+walletconnect://..."
-                      value={connectionString}
-                      onChange={setConnectionString}
-                      onScan={text => setConnectionString(text.trim())}
-                      onScanError={err => toast.error(err)}
-                      scanLabel="Scan NWC QR code"
-                      autoComplete="off"
-                      autoCorrect="off"
-                      spellCheck={false}
-                      disabled={creating}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Paste or scan the NWC pairing QR from your wallet (Alby,
-                      Mutiny, Phoenix, …). It’s stored encrypted and never
-                      displayed again.
-                    </p>
-                  </div>
-
-                  {/* Only surface Capabilities once there's a URI worth probing —
-                      the section stays hidden while the field is empty or the
-                      input doesn't yet look like an NWC URI (probe `idle`). */}
-                  {probe.status !== 'idle' && (
-                    <div className="flex flex-col gap-2">
-                      <Label>Capabilities</Label>
-                      <CapabilitiesPanel probe={probe} />
-                      <p className="text-xs text-muted-foreground">
-                        Detected automatically from the wallet’s NIP-47{' '}
-                        <code>get_info</code> response. We use this to decide
-                        whether the wallet can both send and receive, or receive
-                        only.
-                      </p>
-                    </div>
-                  )}
-                </>
-              )}
-
-              <div className="flex items-center justify-between rounded-md border p-3">
-                <div className="flex flex-col gap-0.5">
-                  <Label
-                    htmlFor="wallet-default"
-                    className={
-                      primaryAllowed
-                        ? 'cursor-pointer'
-                        : 'cursor-not-allowed opacity-70'
-                    }
-                  >
-                    Use for primary address
-                  </Label>
+              {/* Only surface Capabilities once there's a URI worth probing —
+                  the section stays hidden while the field is empty or the
+                  input doesn't yet look like an NWC URI (probe `idle`). */}
+              {probeForUri ? (
+                <div className="flex flex-col gap-2">
+                  <Label>Capabilities</Label>
+                  <CapabilitiesPanel probe={probeForUri} />
                   <p className="text-xs text-muted-foreground">
-                    {cannotReceive
-                      ? 'This wallet cannot receive payments, so it cannot be used for your primary Lightning Address.'
-                      : 'If you have a primary address, it will be linked to this wallet.'}
+                    Detected automatically from the wallet’s NIP-47{' '}
+                    <code>get_info</code> response. We use this to decide
+                    whether the wallet can both send and receive, or receive
+                    only.
                   </p>
                 </div>
-                <Switch
-                  id="wallet-default"
-                  checked={isDefault && primaryAllowed}
-                  onCheckedChange={setIsDefault}
-                  disabled={creating || !primaryAllowed}
-                />
-              </div>
+              ) : null}
+
+              {!onlyWallet && (
+                <div className="flex items-center justify-between rounded-md border p-3">
+                  <div className="flex flex-col gap-0.5">
+                    <Label
+                      htmlFor="wallet-default"
+                      className={
+                        primaryAllowed
+                          ? 'cursor-pointer'
+                          : 'cursor-not-allowed opacity-70'
+                      }
+                    >
+                      Use for primary address
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      {cannotReceive
+                        ? 'This wallet cannot receive payments, so it cannot be used for your primary Lightning Address.'
+                        : 'If you have a primary address, it will be linked to this wallet.'}
+                    </p>
+                  </div>
+                  <Switch
+                    id="wallet-default"
+                    checked={isDefault && primaryAllowed}
+                    onCheckedChange={setIsDefault}
+                    disabled={creating || !primaryAllowed}
+                  />
+                </div>
+              )}
             </>
           ) : (
             <>
@@ -478,26 +442,28 @@ export function CreateRemoteWalletDialog({
                 Create an empty disposable wallet first, then fund it before
                 use.
               </p>
-              <div className="flex items-center justify-between rounded-md border p-3">
-                <div className="flex flex-col gap-0.5">
-                  <Label
-                    htmlFor="wallet-default-lncurl"
-                    className="cursor-pointer"
-                  >
-                    Use for primary address
-                  </Label>
-                  <p className="text-xs text-muted-foreground">
-                    If you have a primary address, it will be linked to this
-                    wallet.
-                  </p>
+              {!onlyWallet && (
+                <div className="flex items-center justify-between rounded-md border p-3">
+                  <div className="flex flex-col gap-0.5">
+                    <Label
+                      htmlFor="wallet-default-lncurl"
+                      className="cursor-pointer"
+                    >
+                      Use for primary address
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      If you have a primary address, it will be linked to this
+                      wallet.
+                    </p>
+                  </div>
+                  <Switch
+                    id="wallet-default-lncurl"
+                    checked={isDefault}
+                    onCheckedChange={setIsDefault}
+                    disabled={creating}
+                  />
                 </div>
-                <Switch
-                  id="wallet-default-lncurl"
-                  checked={isDefault}
-                  onCheckedChange={setIsDefault}
-                  disabled={creating}
-                />
-              </div>
+              )}
             </>
           )}
 

@@ -2,9 +2,12 @@ import { fireEvent, render, screen, waitFor, act } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { NwcCapabilities } from '@/lib/client/nwc/probe-capabilities'
 
-const { probeNwcCapabilities, createWallet } = vi.hoisted(() => ({
+const { probeNwcCapabilities, createWallet, walletList } = vi.hoisted(() => ({
   probeNwcCapabilities: vi.fn(),
-  createWallet: vi.fn()
+  createWallet: vi.fn(),
+  walletList: {
+    current: [{ id: 'existing' }] as Array<{ id: string }>
+  }
 }))
 
 vi.mock('@/lib/client/nwc/probe-capabilities', async () => {
@@ -22,6 +25,7 @@ vi.mock('@/lib/client/hooks/use-settings', () => ({
 }))
 
 vi.mock('@/lib/client/hooks/use-remote-wallets', () => ({
+  useRemoteWallets: () => ({ data: walletList.current, loading: false }),
   useRemoteWalletMutations: () => ({
     createWallet,
     createLncurlWallet: vi.fn(),
@@ -57,7 +61,10 @@ vi.mock('@/components/ui/input-with-qr-scanner', () => ({
   )
 }))
 
-import { CreateRemoteWalletDialog } from '@/components/admin/create-remote-wallet-dialog'
+import {
+  CreateRemoteWalletDialog,
+  walletNameFromNwcConnection
+} from '@/components/admin/create-remote-wallet-dialog'
 
 const NWC_URI = 'nostr+walletconnect://view-only-wallet'
 const PROBE_DEBOUNCE_MS = 600
@@ -84,9 +91,6 @@ function renderDialog() {
 }
 
 async function fillAndProbe() {
-  fireEvent.change(screen.getByLabelText('Name'), {
-    target: { value: 'Watch wallet' }
-  })
   fireEvent.change(screen.getByLabelText('Connection string'), {
     target: { value: NWC_URI }
   })
@@ -97,6 +101,7 @@ async function fillAndProbe() {
 
 beforeEach(() => {
   vi.useFakeTimers()
+  walletList.current = [{ id: 'existing' }]
   probeNwcCapabilities.mockReset()
   createWallet.mockReset()
   createWallet.mockResolvedValue({
@@ -110,6 +115,26 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers()
+})
+
+describe('walletNameFromNwcConnection', () => {
+  it('uses the wallet alias when the connection reports one', () => {
+    expect(
+      walletNameFromNwcConnection('nostr+walletconnect://abc', 'Alby Hub')
+    ).toBe('Alby Hub')
+  })
+
+  it('falls back to a short pubkey label when there is no alias', () => {
+    expect(
+      walletNameFromNwcConnection(
+        'nostrwalletconnect://abcdef0123456789?relay=wss%3A%2F%2Frelay.example&secret=ff',
+        null
+      )
+    ).toBe('NWC abcdef01')
+    expect(walletNameFromNwcConnection('nostr+walletconnect://', '   ')).toBe(
+      'NWC wallet'
+    )
+  })
 })
 
 describe('CreateRemoteWalletDialog view-only NWC', () => {
@@ -141,6 +166,7 @@ describe('CreateRemoteWalletDialog view-only NWC', () => {
   it('does not submit isDefault for a view-only pairing', async () => {
     probeNwcCapabilities.mockResolvedValue(
       caps({
+        alias: 'Watch wallet',
         methods: ['get_info'],
         canReceive: false,
         canSend: false,
@@ -205,5 +231,37 @@ describe('CreateRemoteWalletDialog view-only NWC', () => {
     expect(
       screen.getByRole('switch', { name: /use for primary address/i })
     ).toBeDisabled()
+  })
+
+  it('hides the primary switch and saves the first wallet as the default', async () => {
+    walletList.current = []
+    probeNwcCapabilities.mockResolvedValue(
+      caps({
+        alias: 'Only wallet',
+        methods: ['make_invoice', 'pay_invoice'],
+        canReceive: true,
+        canSend: true,
+        mode: 'SEND_RECEIVE'
+      })
+    )
+
+    renderDialog()
+    await fillAndProbe()
+
+    expect(
+      screen.queryByRole('switch', { name: /use for primary address/i })
+    ).toBeNull()
+
+    vi.useRealTimers()
+    fireEvent.submit(screen.getByRole('button', { name: 'Add wallet' }))
+
+    await waitFor(() => {
+      expect(createWallet).toHaveBeenCalledWith({
+        name: 'Only wallet',
+        type: 'NWC',
+        config: { connectionString: NWC_URI, mode: 'SEND_RECEIVE' },
+        isDefault: true
+      })
+    })
   })
 })
