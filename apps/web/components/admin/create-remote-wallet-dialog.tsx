@@ -113,6 +113,7 @@ export function CreateRemoteWalletDialog({
   const [open, setOpen] = useState(false)
   const [method, setMethod] = useState<CreateMethod>('nwc')
   const [name, setName] = useState('')
+  const [rename, setRename] = useState<string | null>(null)
   const [connectionString, setConnectionString] = useState('')
   const [isDefault, setIsDefault] = useState(false)
   const [probe, setProbe] = useState<ProbeState>({ status: 'idle' })
@@ -130,6 +131,7 @@ export function CreateRemoteWalletDialog({
     trimmedUri,
     probeForUri?.status === 'success' ? probeForUri.capabilities.alias : null
   )
+  const nwcSubmitName = (rename ?? nwcName).trim().slice(0, WALLET_NAME_MAX)
   // LNCurl mints the connection server-side, so the only requirement is "not
   // already submitting" (the name is optional — the server defaults it).
   // NWC waits until the connection has been probed so the saved name can come
@@ -139,6 +141,7 @@ export function CreateRemoteWalletDialog({
       ? !creating
       : !creating &&
         looksLikeNwcUri(trimmedUri) &&
+        nwcSubmitName.length > 0 &&
         (probeForUri?.status === 'success' || probeForUri?.status === 'error')
 
   // ── Auto-probe ────────────────────────────────────────────────────────
@@ -196,6 +199,7 @@ export function CreateRemoteWalletDialog({
     // frictionless path the feature exists to offer.
     setMethod(lncurlEnabled ? 'lncurl' : 'nwc')
     setName('')
+    setRename(null)
     setConnectionString('')
     setIsDefault(false)
     setProbe({ status: 'idle' })
@@ -219,7 +223,9 @@ export function CreateRemoteWalletDialog({
       : 'RECEIVE'
 
   const cannotReceive =
-    probeForUri?.status === 'success' && !probeForUri.capabilities.canReceive
+    method === 'nwc' &&
+    probeForUri?.status === 'success' &&
+    !probeForUri.capabilities.canReceive
   const primaryAllowed = !cannotReceive
   const submitIsDefault = primaryAllowed && (onlyWallet || isDefault)
 
@@ -237,7 +243,7 @@ export function CreateRemoteWalletDialog({
         toast.success('LNCurl wallet created')
       } else {
         created = await createWallet({
-          name: nwcName,
+          name: nwcSubmitName,
           type: 'NWC',
           config: { connectionString: trimmedUri, mode: submitMode },
           isDefault: submitIsDefault
@@ -253,7 +259,12 @@ export function CreateRemoteWalletDialog({
       // to a generic toast so we don't expose internals.
       if (err instanceof ApiClientError) {
         if (err.status === 409) {
-          toast.error('A wallet with that name already exists')
+          if (method === 'nwc') setRename(current => current ?? nwcName)
+          toast.error(
+            method === 'nwc'
+              ? 'A wallet with that name already exists. Choose another name.'
+              : 'A wallet with that name already exists'
+          )
           return
         }
         if (err.status === 400) {
@@ -355,6 +366,22 @@ export function CreateRemoteWalletDialog({
 
           {method === 'nwc' ? (
             <>
+              {rename !== null && (
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="wallet-name">Name</Label>
+                  <Input
+                    id="wallet-name"
+                    value={rename}
+                    onChange={e => setRename(e.target.value)}
+                    maxLength={WALLET_NAME_MAX}
+                    autoFocus
+                    disabled={creating}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    That name is already used. Pick another.
+                  </p>
+                </div>
+              )}
               <div className="flex flex-col gap-2">
                 <Label htmlFor="wallet-uri">Connection string</Label>
                 <InputWithQrScanner
@@ -365,8 +392,14 @@ export function CreateRemoteWalletDialog({
                   type="password"
                   placeholder="nostr+walletconnect://..."
                   value={connectionString}
-                  onChange={setConnectionString}
-                  onScan={text => setConnectionString(text.trim())}
+                  onChange={value => {
+                    setConnectionString(value)
+                    setRename(null)
+                  }}
+                  onScan={text => {
+                    setConnectionString(text.trim())
+                    setRename(null)
+                  }}
                   onScanError={err => toast.error(err)}
                   scanLabel="Scan NWC QR code"
                   autoComplete="off"
