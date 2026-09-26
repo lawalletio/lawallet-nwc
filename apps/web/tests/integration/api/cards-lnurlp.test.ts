@@ -76,6 +76,7 @@ vi.mock('light-bolt11-decoder', () => ({
   })
 }))
 
+import { decode } from 'light-bolt11-decoder'
 import { GET as ScanGet } from '@/app/api/cards/[id]/scan/route'
 import {
   GET as LnurlpGet,
@@ -85,8 +86,11 @@ import {
   GET as LnurlpCbGet,
   OPTIONS as LnurlpCbOptions
 } from '@/app/api/cards/[id]/lnurlp/cb/route'
+import { getConfig } from '@/lib/config'
 import { getSettings } from '@/lib/settings'
+import { logger } from '@/lib/logger'
 import { closeAllServerNwcClients } from '@/lib/wallet/drivers/nwc-client-cache'
+import { nwcDriver } from '@/lib/wallet/drivers'
 import { eventBus } from '@/lib/events/event-bus'
 
 function nwcUri(walletKey: string, secret: string, relay: string): string {
@@ -113,17 +117,49 @@ const PRIMARY_WALLET = {
   status: 'ACTIVE' as const
 }
 
+type ReceivableWallet = {
+  id?: string
+  type: 'NWC'
+  config: {
+    connectionString: string
+    mode: 'RECEIVE' | 'SEND_RECEIVE'
+  }
+  status: 'ACTIVE'
+}
+
+function defaultConfig() {
+  return {
+    maintenance: { enabled: false },
+    nwcVault: {
+      secret: 'test-card-lnurlp-vault-secret-0123456789abcd',
+      enabled: true
+    }
+  }
+}
+
+function decodedBolt11(paymentHash?: string) {
+  const sections: { name: string; value: number | string }[] = [
+    { name: 'timestamp', value: 1_700_000_000 },
+    { name: 'expiry', value: 600 }
+  ]
+  if (paymentHash) {
+    sections.push({ name: 'payment_hash', value: paymentHash })
+  }
+  return { sections }
+}
+
 function receivableCard(
   overrides: {
-    remoteWallet?: typeof CARD_WALLET | null
+    remoteWallet?: ReceivableWallet | null
     user?: ReturnType<typeof owner> | null
     blockedAt?: Date | null
     disabledAt?: Date | null
+    userId?: string | null
   } = {}
 ) {
   return {
     ...createCardFixture(),
-    userId: 'user-1',
+    userId: overrides.userId === undefined ? 'user-1' : overrides.userId,
     blockedAt: overrides.blockedAt ?? null,
     disabledAt: overrides.disabledAt ?? null,
     remoteWallet:
@@ -153,6 +189,8 @@ beforeEach(() => {
   resetPrismaMock()
   vi.clearAllMocks()
   closeAllServerNwcClients()
+  vi.mocked(getConfig).mockReturnValue(defaultConfig() as any)
+  vi.mocked(decode).mockReturnValue(decodedBolt11('ab'.repeat(32)) as any)
   makeInvoiceMock.mockResolvedValue({
     invoice: 'lnbc100n1cardtopup',
     payment_hash: 'ab'.repeat(32),
@@ -391,4 +429,307 @@ describe('card LUD-19 payLink', () => {
     })
     expect(makeInvoiceMock).not.toHaveBeenCalled()
   })
+
+  it('rejects an amount above the advertised maximum', async () => {
+    const card = receivableCard()
+    vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
+    const body: any = await assertResponse(
+      await callback(card.id, { amount: '1000000001' }),
+      200
+    )
+    expect(body).toEqual({
+      status: 'ERROR',
+      reason: 'Amount is outside the allowed range'
+    })
+    expect(makeInvoiceMock).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['zero', '0'],
+    ['a leading zero', '01000'],
+    ['a fractional amount', '1000.5'],
+    ['an unsafe integer', '9'.repeat(16)]
+  ])('rejects %s as an invalid amount', async (_label, amount) => {
+    const card = receivableCard()
+    vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
+    const body: any = await assertResponse(
+      await callback(card.id, { amount }),
+      200
+    )
+    expect(body).toEqual({ status: 'ERROR', reason: 'Invalid payment amount' })
+    expect(makeInvoiceMock).not.toHaveBeenCalled()
+  })
+
+  it('strips control characters from a payer comment', async () => {
+    const card = receivableCard()
+    vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
+    const body: any = await assertResponse(
+      await callback(card.id, { amount: '10000', comment: '  top\nup\x7f ' }),
+      200
+    )
+    expect(body.pr).toBe('lnbc100n1cardtopup')
+    expect(makeInvoiceMock).toHaveBeenCalledWith(
+      expect.objectContaining({ description: 'BoltCard top-up: topup' })
+    )
+    expect(prismaMock.invoice.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          description: 'BoltCard top-up: topup',
+          metadata: { cardId: card.id, comment: 'topup' }
+        })
+      })
+    )
+  })
+
+  it('drops a comment that is only whitespace', async () => {
+    const card = receivableCard()
+    vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
+    await assertResponse(
+      await callback(card.id, { amount: '10000', comment: '  \n  ' }),
+      200
+    )
+    expect(makeInvoiceMock).toHaveBeenCalledWith(
+      expect.objectContaining({ description: 'BoltCard top-up' })
+    )
+    const create = vi.mocked(prismaMock.invoice.upsert).mock.calls[0][0].create
+    expect(create.metadata).toEqual({ cardId: card.id })
+    expect(create.description).toBe('BoltCard top-up')
+  })
+
+  it('stores a top-up when the wallet has no id and the card has no userId', async () => {
+    const card = receivableCard({
+      userId: null,
+      remoteWallet: {
+        type: 'NWC',
+        config: {
+          connectionString: CARD_NWC_URI,
+          mode: 'SEND_RECEIVE'
+        },
+        status: 'ACTIVE'
+      }
+    })
+    vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
+    const body: any = await assertResponse(
+      await callback(card.id, { amount: '10000' }),
+      200
+    )
+    expect(body.pr).toBe('lnbc100n1cardtopup')
+    const saved = vi.mocked(prismaMock.invoice.upsert).mock.calls[0][0]
+    expect(saved.create.userId).toBeUndefined()
+    expect(saved.create.remoteWalletId).toBeUndefined()
+    expect(saved.update.remoteWalletId).toBeUndefined()
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cardId: card.id,
+        remoteWalletId: null,
+        hasComment: false
+      }),
+      'Card LNURL-pay invoice created'
+    )
+  })
+
+  it('returns 404 from the callback when the card does not exist', async () => {
+    vi.mocked(prismaMock.card.findUnique).mockResolvedValue(null)
+    const res = await callback('missing', { amount: '10000' })
+    expect(res.status).toBe(404)
+    expect((await res.json()) as any).toMatchObject({
+      error: { message: 'Card not found' }
+    })
+    expect(makeInvoiceMock).not.toHaveBeenCalled()
+  })
+
+  it('returns 503 when the bound wallet vault config cannot be decrypted', async () => {
+    const card = receivableCard({
+      remoteWallet: {
+        ...CARD_WALLET,
+        config: {
+          connectionString: 'lwrw1:not-a-valid-envelope',
+          mode: 'SEND_RECEIVE'
+        }
+      }
+    })
+    vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
+
+    const pay = await payRequest(card.id)
+    expect(pay.status).toBe(503)
+    expect(await errorMessage(pay)).toBe('Wallet is currently unavailable')
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.objectContaining({ cardId: card.id }),
+      'Card LNURL-pay wallet route resolution failed'
+    )
+
+    const cb = await callback(card.id, { amount: '10000' })
+    expect(cb.status).toBe(503)
+    expect(await errorMessage(cb)).toBe('Wallet is currently unavailable')
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.objectContaining({ cardId: card.id }),
+      'Card LNURL-pay callback wallet route resolution failed'
+    )
+    expect(makeInvoiceMock).not.toHaveBeenCalled()
+  })
+
+  it('does not map non-driver route errors to a 503', async () => {
+    const card = receivableCard({
+      remoteWallet: {
+        ...CARD_WALLET,
+        config: {
+          connectionString: 'lwrw1:not-a-valid-envelope',
+          mode: 'SEND_RECEIVE'
+        }
+      }
+    })
+    vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
+    vi.mocked(getConfig).mockReturnValue({
+      maintenance: { enabled: false },
+      nwcVault: { secret: '', enabled: false }
+    } as any)
+
+    const pay = await payRequest(card.id)
+    expect(pay.status).toBe(500)
+    expect(await errorMessage(pay)).toBe('Internal server error')
+
+    const cb = await callback(card.id, { amount: '10000' })
+    expect(cb.status).toBe(500)
+    expect(await errorMessage(cb)).toBe('Internal server error')
+    expect(makeInvoiceMock).not.toHaveBeenCalled()
+  })
+
+  it('returns 503 when the wallet driver fails to mint', async () => {
+    const card = receivableCard()
+    vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
+    makeInvoiceMock.mockRejectedValueOnce(new Error('relay timeout'))
+
+    const res = await callback(card.id, { amount: '10000' })
+    expect(res.status).toBe(503)
+    expect(await errorMessage(res)).toBe('Wallet is currently unavailable')
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.objectContaining({ cardId: card.id, walletType: 'NWC' }),
+      'Card LNURL-pay invoice mint failed'
+    )
+    expect(prismaMock.invoice.upsert).not.toHaveBeenCalled()
+  })
+
+  it('does not map non-driver mint failures to a 503', async () => {
+    const card = receivableCard()
+    vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
+    const original = nwcDriver.makeInvoice
+    nwcDriver.makeInvoice = (async () => {
+      throw new Error('unexpected mint failure')
+    }) as typeof nwcDriver.makeInvoice
+    try {
+      const res = await callback(card.id, { amount: '10000' })
+      expect(res.status).toBe(500)
+      expect(await errorMessage(res)).toBe('Internal server error')
+      expect(prismaMock.invoice.upsert).not.toHaveBeenCalled()
+    } finally {
+      nwcDriver.makeInvoice = original
+    }
+  })
+
+  it('returns 500 when the wallet returns an empty invoice', async () => {
+    const card = receivableCard()
+    vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
+    makeInvoiceMock.mockResolvedValueOnce({
+      invoice: '',
+      payment_hash: 'ab'.repeat(32),
+      amount: 10_000,
+      expires_at: 1_700_000_600
+    })
+    const res = await callback(card.id, { amount: '10000' })
+    expect(res.status).toBe(500)
+    expect(await errorMessage(res)).toBe('Failed to generate invoice')
+    expect(prismaMock.invoice.upsert).not.toHaveBeenCalled()
+  })
+
+  it('returns 503 when the minted invoice amount does not match', async () => {
+    const card = receivableCard()
+    vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
+    makeInvoiceMock.mockResolvedValueOnce({
+      invoice: 'lnbc100n1cardtopup',
+      payment_hash: 'ab'.repeat(32),
+      amount: 9_999,
+      expires_at: 1_700_000_600
+    })
+    const res = await callback(card.id, { amount: '10000' })
+    expect(res.status).toBe(503)
+    expect(await errorMessage(res)).toBe(
+      'Wallet returned an invoice with the wrong amount'
+    )
+    expect(prismaMock.invoice.upsert).not.toHaveBeenCalled()
+  })
+
+  it('accepts an invoice that does not echo the requested amount', async () => {
+    const card = receivableCard()
+    vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
+    makeInvoiceMock.mockResolvedValueOnce({
+      invoice: 'lnbc100n1cardtopup',
+      payment_hash: 'ab'.repeat(32),
+      expires_at: 1_700_000_600
+    })
+    const body: any = await assertResponse(
+      await callback(card.id, { amount: '10000' }),
+      200
+    )
+    expect(body.pr).toBe('lnbc100n1cardtopup')
+    expect(prismaMock.invoice.upsert).toHaveBeenCalled()
+  })
+
+  it('falls back to the bolt11 payment hash when the wallet omits one', async () => {
+    const card = receivableCard()
+    vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
+    const decodedHash = 'cd'.repeat(32)
+    vi.mocked(decode).mockReturnValue(decodedBolt11(decodedHash) as any)
+    makeInvoiceMock.mockResolvedValueOnce({
+      invoice: 'lnbc100n1cardtopup',
+      payment_hash: '',
+      amount: 10_000,
+      expires_at: 1_700_000_600
+    })
+    await assertResponse(await callback(card.id, { amount: '10000' }), 200)
+    expect(prismaMock.invoice.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { paymentHash: decodedHash },
+        create: expect.objectContaining({ paymentHash: decodedHash })
+      })
+    )
+  })
+
+  it('returns 500 when the invoice has no payment hash', async () => {
+    const card = receivableCard()
+    vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
+    vi.mocked(decode).mockReturnValue(decodedBolt11() as any)
+    makeInvoiceMock.mockResolvedValueOnce({
+      invoice: 'lnbc100n1cardtopup',
+      payment_hash: '',
+      amount: 10_000,
+      expires_at: 1_700_000_600
+    })
+    const res = await callback(card.id, { amount: '10000' })
+    expect(res.status).toBe(500)
+    expect(await errorMessage(res)).toBe('Invalid invoice returned from wallet')
+    expect(logger.error).toHaveBeenCalledWith(
+      { cardId: card.id },
+      'Failed to extract payment hash from bolt11'
+    )
+    expect(prismaMock.invoice.upsert).not.toHaveBeenCalled()
+  })
 })
+
+function payRequest(cardId: string) {
+  return LnurlpGet(
+    createNextRequest(`/api/cards/${cardId}/lnurlp`),
+    createParamsPromise({ id: cardId })
+  )
+}
+
+function callback(cardId: string, searchParams: Record<string, string>) {
+  return LnurlpCbGet(
+    createNextRequest(`/api/cards/${cardId}/lnurlp/cb`, { searchParams }),
+    createParamsPromise({ id: cardId })
+  )
+}
+
+async function errorMessage(res: Response) {
+  const body = (await res.json()) as { error: { message: string } }
+  return body.error.message
+}

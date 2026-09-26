@@ -105,11 +105,12 @@ export function decideCardReceive(card: CardReceiveInput): CardReceiveDecision {
     remoteWallet: card.remoteWallet,
     defaultRemoteWallet: derivePrimaryWallet(card.user.lightningAddresses?.[0])
   })
-  const reason = cardReceiveRefusal(card, route)
-  if (reason || route.kind !== 'wallet') {
+  // Unpaired, blocked, and disabled already returned above. The only refusal
+  // left is a route with nothing to invoice.
+  if (route.kind !== 'wallet') {
     return {
       ok: false,
-      reason: reason ?? 'Card is not configured to receive payments'
+      reason: 'Card is not configured to receive payments'
     }
   }
   return { ok: true, route }
