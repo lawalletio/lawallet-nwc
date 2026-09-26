@@ -2,9 +2,20 @@ import { fireEvent, render, screen, waitFor, act } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { NwcCapabilities } from '@/lib/client/nwc/probe-capabilities'
 
-const { probeNwcCapabilities, createWallet } = vi.hoisted(() => ({
+const {
+  probeNwcCapabilities,
+  createWallet,
+  createLncurlWallet,
+  walletList,
+  settings
+} = vi.hoisted(() => ({
   probeNwcCapabilities: vi.fn(),
-  createWallet: vi.fn()
+  createWallet: vi.fn(),
+  createLncurlWallet: vi.fn(),
+  walletList: {
+    current: [{ id: 'existing' }] as Array<{ id: string }> | null
+  },
+  settings: { current: {} as Record<string, string> }
 }))
 
 vi.mock('@/lib/client/nwc/probe-capabilities', async () => {
@@ -18,13 +29,17 @@ vi.mock('@/lib/client/nwc/probe-capabilities', async () => {
 })
 
 vi.mock('@/lib/client/hooks/use-settings', () => ({
-  useSettings: () => ({ data: {}, loading: false })
+  useSettings: () => ({ data: settings.current, loading: false })
 }))
 
 vi.mock('@/lib/client/hooks/use-remote-wallets', () => ({
+  useRemoteWallets: () => ({
+    data: walletList.current,
+    loading: walletList.current === null
+  }),
   useRemoteWalletMutations: () => ({
     createWallet,
-    createLncurlWallet: vi.fn(),
+    createLncurlWallet,
     loading: false
   })
 }))
@@ -57,7 +72,11 @@ vi.mock('@/components/ui/input-with-qr-scanner', () => ({
   )
 }))
 
-import { CreateRemoteWalletDialog } from '@/components/admin/create-remote-wallet-dialog'
+import {
+  CreateRemoteWalletDialog,
+  walletNameFromNwcConnection
+} from '@/components/admin/create-remote-wallet-dialog'
+import { ApiClientError } from '@/lib/client/api-client'
 
 const NWC_URI = 'nostr+walletconnect://view-only-wallet'
 const PROBE_DEBOUNCE_MS = 600
@@ -84,9 +103,6 @@ function renderDialog() {
 }
 
 async function fillAndProbe() {
-  fireEvent.change(screen.getByLabelText('Name'), {
-    target: { value: 'Watch wallet' }
-  })
   fireEvent.change(screen.getByLabelText('Connection string'), {
     target: { value: NWC_URI }
   })
@@ -97,8 +113,11 @@ async function fillAndProbe() {
 
 beforeEach(() => {
   vi.useFakeTimers()
+  walletList.current = [{ id: 'existing' }]
+  settings.current = {}
   probeNwcCapabilities.mockReset()
   createWallet.mockReset()
+  createLncurlWallet.mockReset()
   createWallet.mockResolvedValue({
     id: 'w1',
     name: 'Watch wallet',
@@ -110,6 +129,26 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers()
+})
+
+describe('walletNameFromNwcConnection', () => {
+  it('uses the wallet alias when the connection reports one', () => {
+    expect(
+      walletNameFromNwcConnection('nostr+walletconnect://abc', 'Alby Hub')
+    ).toBe('Alby Hub')
+  })
+
+  it('falls back to a short pubkey label when there is no alias', () => {
+    expect(
+      walletNameFromNwcConnection(
+        'nostrwalletconnect://abcdef0123456789?relay=wss%3A%2F%2Frelay.example&secret=ff',
+        null
+      )
+    ).toBe('NWC abcdef01')
+    expect(walletNameFromNwcConnection('nostr+walletconnect://', '   ')).toBe(
+      'NWC wallet'
+    )
+  })
 })
 
 describe('CreateRemoteWalletDialog view-only NWC', () => {
@@ -141,6 +180,7 @@ describe('CreateRemoteWalletDialog view-only NWC', () => {
   it('does not submit isDefault for a view-only pairing', async () => {
     probeNwcCapabilities.mockResolvedValue(
       caps({
+        alias: 'Watch wallet',
         methods: ['get_info'],
         canReceive: false,
         canSend: false,
@@ -205,5 +245,179 @@ describe('CreateRemoteWalletDialog view-only NWC', () => {
     expect(
       screen.getByRole('switch', { name: /use for primary address/i })
     ).toBeDisabled()
+  })
+
+  it('hides the primary switch and saves the first wallet as the default', async () => {
+    walletList.current = []
+    probeNwcCapabilities.mockResolvedValue(
+      caps({
+        alias: 'Only wallet',
+        methods: ['make_invoice', 'pay_invoice'],
+        canReceive: true,
+        canSend: true,
+        mode: 'SEND_RECEIVE'
+      })
+    )
+
+    renderDialog()
+    await fillAndProbe()
+
+    expect(
+      screen.queryByRole('switch', { name: /use for primary address/i })
+    ).toBeNull()
+
+    vi.useRealTimers()
+    fireEvent.submit(screen.getByRole('button', { name: 'Add wallet' }))
+
+    await waitFor(() => {
+      expect(createWallet).toHaveBeenCalledWith({
+        name: 'Only wallet',
+        type: 'NWC',
+        config: { connectionString: NWC_URI, mode: 'SEND_RECEIVE' },
+        isDefault: true
+      })
+    })
+  })
+
+  it('does not default a first wallet that cannot receive', async () => {
+    walletList.current = []
+    probeNwcCapabilities.mockResolvedValue(
+      caps({
+        alias: 'Spectator',
+        methods: ['get_info'],
+        canReceive: false,
+        canSend: false,
+        mode: 'RECEIVE'
+      })
+    )
+
+    renderDialog()
+    await fillAndProbe()
+
+    expect(
+      screen.queryByRole('switch', { name: /use for primary address/i })
+    ).toBeNull()
+
+    vi.useRealTimers()
+    fireEvent.submit(screen.getByRole('button', { name: 'Add wallet' }))
+
+    await waitFor(() => {
+      expect(createWallet).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'Spectator', isDefault: false })
+      )
+    })
+  })
+
+  it('does not treat a loading wallet list as empty', async () => {
+    walletList.current = null
+    probeNwcCapabilities.mockResolvedValue(
+      caps({
+        alias: 'Loading',
+        methods: ['make_invoice'],
+        canReceive: true,
+        canSend: false,
+        mode: 'RECEIVE'
+      })
+    )
+
+    renderDialog()
+    await fillAndProbe()
+
+    expect(
+      screen.getByRole('switch', { name: /use for primary address/i })
+    ).toBeTruthy()
+
+    vi.useRealTimers()
+    fireEvent.submit(screen.getByRole('button', { name: 'Add wallet' }))
+
+    await waitFor(() => {
+      expect(createWallet).toHaveBeenCalledWith(
+        expect.objectContaining({ isDefault: false })
+      )
+    })
+  })
+
+  it('names a failed probe from the pairing pubkey', async () => {
+    probeNwcCapabilities.mockRejectedValue(new Error('relay down'))
+
+    renderDialog()
+    await fillAndProbe()
+
+    vi.useRealTimers()
+    fireEvent.submit(screen.getByRole('button', { name: 'Add wallet' }))
+
+    await waitFor(() => {
+      expect(createWallet).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'NWC viewonly' })
+      )
+    })
+  })
+
+  it('asks for another name when the derived name is taken', async () => {
+    createWallet.mockRejectedValueOnce(
+      new ApiClientError(409, 'A wallet with that name already exists')
+    )
+    probeNwcCapabilities.mockResolvedValue(
+      caps({
+        alias: 'Alby Hub',
+        methods: ['make_invoice', 'pay_invoice'],
+        canReceive: true,
+        canSend: true,
+        mode: 'SEND_RECEIVE'
+      })
+    )
+
+    renderDialog()
+    await fillAndProbe()
+
+    vi.useRealTimers()
+    fireEvent.submit(screen.getByRole('button', { name: 'Add wallet' }))
+
+    const name = await screen.findByLabelText('Name')
+    expect((name as HTMLInputElement).value).toBe('Alby Hub')
+    fireEvent.change(name, { target: { value: 'Alby Hub 2' } })
+    fireEvent.submit(screen.getByRole('button', { name: 'Add wallet' }))
+
+    await waitFor(() => {
+      expect(createWallet).toHaveBeenLastCalledWith(
+        expect.objectContaining({ name: 'Alby Hub 2' })
+      )
+    })
+  })
+
+  it('still defaults an LNCurl wallet after a view-only NWC probe', async () => {
+    walletList.current = []
+    settings.current = { lncurl_enabled: 'true' }
+    probeNwcCapabilities.mockResolvedValue(
+      caps({
+        methods: ['get_info'],
+        canReceive: false,
+        canSend: false,
+        mode: 'RECEIVE'
+      })
+    )
+    createLncurlWallet.mockResolvedValue({
+      id: 'w2',
+      name: 'LNCurl wallet',
+      type: 'NWC',
+      status: 'ACTIVE',
+      isDefault: true
+    })
+
+    renderDialog()
+    await fillAndProbe()
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Create LNCurl wallet' })
+    )
+
+    vi.useRealTimers()
+    fireEvent.submit(screen.getByRole('button', { name: 'Create wallet' }))
+
+    await waitFor(() => {
+      expect(createLncurlWallet).toHaveBeenCalledWith({
+        name: undefined,
+        isDefault: true
+      })
+    })
   })
 })
