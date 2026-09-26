@@ -35,7 +35,8 @@ const activationTokenStatus = z.enum([
 const invoicePurpose = z.enum([
   'REGISTRATION',
   'WALLET_ADDRESS',
-  'LUD16_PAYMENT'
+  'LUD16_PAYMENT',
+  'CARD_TOPUP'
 ])
 const invoiceStatus = z.enum(['PENDING', 'PAID', 'EXPIRED'])
 const activityCategory = z.enum([

@@ -18,6 +18,9 @@ enum InvoicePurpose {
   REGISTRATION
   WALLET_ADDRESS
   LUD16_PAYMENT
+  /// BoltCard LUD-19 top-up: an invoice minted on the card's RemoteWallet
+  /// via the card-scoped LNURL-pay (`GET /api/cards/[id]/lnurlp`).
+  CARD_TOPUP
 }
 
 enum InvoiceStatus {

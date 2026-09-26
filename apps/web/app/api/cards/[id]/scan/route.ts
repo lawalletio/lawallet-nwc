@@ -17,6 +17,7 @@ import { buildCardInfo } from '@/lib/card-info'
 import { logger } from '@/lib/logger'
 import { derivePrimaryWallet } from '@/lib/wallet/primary-wallet'
 import { nwcWalletCanSend } from '@/lib/wallet/nwc-send-capability'
+import { cardScanPayLink } from '@/lib/card-payments/lnurl-pay'
 
 export const OPTIONS = withErrorHandling(async (_req: NextRequest) => {
   return new NextResponse(null, {
@@ -158,11 +159,30 @@ export const GET = withErrorHandling(
         ? CARD_MIN_WITHDRAWABLE_MSATS
         : 0
 
+    // LUD-19: a raw LUD-17 pay link so a wallet can top up the same card
+    // wallet this withdraw serves. Independent of spend capability — a
+    // receive-only wallet still advertises payLink, and an empty balance
+    // does not hide it. Omitted when the card is unpaired, blocked,
+    // disabled, or has no receivable wallet. BoltCard SPEC optional LUD-19:
+    // https://github.com/boltcard/boltcard/blob/main/docs/SPEC.md
+    // https://github.com/lnurl/luds/blob/luds/19.md
+    const payLink = cardScanPayLink(
+      url,
+      cardId,
+      {
+        blockedAt: card.blockedAt,
+        disabledAt: card.disabledAt,
+        remoteWallet: card.remoteWallet,
+        user: card.user
+      },
+      route
+    )
+
     // Trace the LNURL-withdraw request so the scan → scan/cb sequence is
     // correlatable in logs. `configured=false` means the card has no wallet it
     // can spend from.
     logger.info(
-      { cardId, configured, maxWithdrawable },
+      { cardId, configured, maxWithdrawable, payLink: Boolean(payLink) },
       'Card scan: LNURL-withdraw request'
     )
 
@@ -172,7 +192,8 @@ export const GET = withErrorHandling(
       minWithdrawable,
       maxWithdrawable,
       defaultDescription: 'Boltcard + NWC',
-      callback: `${url}/api/cards/${cardId}/scan/cb?p=${p}&c=${c}`
+      callback: `${url}/api/cards/${cardId}/scan/cb?p=${p}&c=${c}`,
+      ...(payLink ? { payLink } : {})
     } as LUD03Request
 
     return NextResponse.json(response, {
