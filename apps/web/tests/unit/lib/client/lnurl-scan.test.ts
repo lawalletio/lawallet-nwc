@@ -192,4 +192,15 @@ describe('submitLnurlWithdraw', () => {
       submitLnurlWithdraw('https://example.com/cb', 'k', 'lnbc1')
     ).rejects.toBeInstanceOf(LnurlError)
   })
+
+  it('surfaces an API error message from a non-ok callback', async () => {
+    mockFetchOnce(
+      { success: false, error: { message: 'Card is blocked' } },
+      false,
+      400
+    )
+    await expect(
+      submitLnurlWithdraw('https://example.com/cb', 'k', 'lnbc1')
+    ).rejects.toThrow(/Card is blocked/)
+  })
 })
