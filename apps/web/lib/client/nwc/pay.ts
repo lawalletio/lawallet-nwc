@@ -17,6 +17,8 @@ export interface PaymentQuote {
   feeSats: number | null
   feeQuoteStatus: 'unavailable'
   feeQuoteMessage: string
+  /** LUD-12 comment embedded in this invoice. Null when none was sent. */
+  comment: string | null
 }
 
 const NWC_FEE_QUOTE_UNAVAILABLE =
@@ -58,12 +60,12 @@ export async function payLnurl(
   amountSats: number,
   comment?: string
 ): Promise<PayResult> {
-  const pr = await requestLnurlInvoice(
+  const invoice = await requestLnurlInvoice(
     destination.lnurlpUrl,
     amountSats,
     comment
   )
-  return payInvoice(nwcString, pr)
+  return payInvoice(nwcString, invoice.paymentRequest)
 }
 
 /**
@@ -91,32 +93,34 @@ export async function quotePayment(
       expiresAt: destination.expiresAt,
       feeSats: null,
       feeQuoteStatus: 'unavailable',
-      feeQuoteMessage: NWC_FEE_QUOTE_UNAVAILABLE
+      feeQuoteMessage: NWC_FEE_QUOTE_UNAVAILABLE,
+      comment: null
     }
   }
 
   if (destination.kind === 'lnurl-pay') {
     if (amountSats === null || amountSats <= 0)
       throw new Error('Enter an amount')
-    const paymentRequest = await requestLnurlInvoice(
+    const invoice = await requestLnurlInvoice(
       destination.lnurlpUrl,
       amountSats,
       comment
     )
-    const invoice = parseDestination(paymentRequest)
+    const decoded = parseDestination(invoice.paymentRequest)
     const invoiceAmount =
-      invoice.kind === 'invoice'
-        ? (invoice.amountSats ?? amountSats)
+      decoded.kind === 'invoice'
+        ? (decoded.amountSats ?? amountSats)
         : amountSats
-    const expiresAt = invoice.kind === 'invoice' ? invoice.expiresAt : null
+    const expiresAt = decoded.kind === 'invoice' ? decoded.expiresAt : null
 
     return {
-      paymentRequest,
+      paymentRequest: invoice.paymentRequest,
       amountSats: invoiceAmount,
       expiresAt,
       feeSats: null,
       feeQuoteStatus: 'unavailable',
-      feeQuoteMessage: NWC_FEE_QUOTE_UNAVAILABLE
+      feeQuoteMessage: NWC_FEE_QUOTE_UNAVAILABLE,
+      comment: invoice.comment
     }
   }
 

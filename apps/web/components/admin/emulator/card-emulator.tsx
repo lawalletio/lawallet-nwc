@@ -36,6 +36,9 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   buildScanUrl,
+  inspectPayLink,
+  inspectPayRequest,
+  payLinkFetchUrl,
   randomUid,
   type TapPC
 } from '@/lib/client/card-emulator-crypto'
@@ -89,6 +92,7 @@ export function CardEmulator() {
   const [invoice, setInvoice] = useState('')
 
   const [emulatedCtr, setEmulatedCtr] = useState(0)
+  const [inspecting, setInspecting] = useState(false)
   const [paying, setPaying] = useState(false)
   const [steps, setSteps] = useState<TapStep[]>([])
   const [verdict, setVerdict] = useState<Verdict | null>(null)
@@ -176,7 +180,100 @@ export function CardEmulator() {
     if (!Number.isFinite(sats) || sats <= 0) {
       throw new Error('Enter an amount in sats')
     }
-    return requestLnurlInvoice(parsed.lnurlpUrl, sats, 'Card emulator tap')
+    const minted = await requestLnurlInvoice(
+      parsed.lnurlpUrl,
+      sats,
+      'Card emulator tap'
+    )
+    return minted.paymentRequest
+  }
+
+  /**
+   * Read-only tap: sign a SUN, GET `/scan`, and check the LUD-19 `payLink`.
+   * Does not call the withdraw callback, so the counter is not consumed and
+   * the card's wallet does not pay.
+   */
+  async function handleSimpleTap() {
+    if (!selected?.ntag424) return
+    setInspecting(true)
+    setVerdict(null)
+    const collected: TapStep[] = []
+    try {
+      const tap = await apiClient.post<{ p: string; c: string; ctr: number }>(
+        `/api/cards/${selected.id}/emulate-tap`,
+        {}
+      )
+      const scanUrl = buildScanUrl(origin, selected.id, {
+        p: tap.p,
+        c: tap.c
+      })
+      const scanRes = await fetch(scanUrl)
+      const scanBody = await scanRes.json().catch(() => null)
+      collected.push({
+        label: 'GET /scan — LNURL-withdraw request',
+        status: scanRes.status,
+        ok: scanRes.ok,
+        body: scanBody
+      })
+      setSteps([...collected])
+
+      if (!scanRes.ok) {
+        setVerdict({
+          kind: 'error',
+          title: 'Invalid scan',
+          text:
+            (scanBody as { error?: { message?: string } } | null)?.error
+              ?.message ?? `Scan failed (HTTP ${scanRes.status})`
+        })
+        toast.error('Invalid scan')
+        return
+      }
+
+      const link = inspectPayLink(scanBody, selected.id)
+      if (!link.ok || !link.payLink) {
+        setVerdict({
+          kind: 'error',
+          title: 'payLink missing',
+          text: link.reason
+        })
+        toast.error(link.reason)
+        return
+      }
+
+      const payUrl = payLinkFetchUrl(link.payLink, origin)
+      const payRes = await fetch(payUrl)
+      const payBody = await payRes.json().catch(() => null)
+      collected.push({
+        label: 'GET payLink — LUD-06 payRequest',
+        status: payRes.status,
+        ok: payRes.ok,
+        body: payBody
+      })
+      setSteps([...collected])
+
+      const pay = inspectPayRequest(payBody, selected.id)
+      if (!payRes.ok || !pay.ok) {
+        const text = pay.ok
+          ? `payLink returned HTTP ${payRes.status}`
+          : pay.reason
+        setVerdict({ kind: 'error', title: 'payLink failed', text })
+        toast.error(text)
+        return
+      }
+
+      setVerdict({
+        kind: 'ok',
+        title: 'payLink ok',
+        text: link.payLink
+      })
+      toast.success('payLink ok')
+    } catch (err) {
+      const text = err instanceof Error ? err.message : 'Tap failed'
+      setVerdict({ kind: 'error', title: 'Failed', text })
+      toast.error(text)
+    } finally {
+      setInspecting(false)
+    }
   }
 
   /**
@@ -309,8 +406,9 @@ export function CardEmulator() {
   }
 
   const usableSelected = !!selected?.ntag424
+  const busy = paying || inspecting
   const payDisabled =
-    paying ||
+    busy ||
     !usableSelected ||
     (destKind === 'invoice'
       ? !invoice.trim()
@@ -428,7 +526,34 @@ export function CardEmulator() {
                 !usableSelected && 'pointer-events-none opacity-50'
               )}
             >
-              <div className="space-y-1">
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <h2 className="flex items-center gap-2 text-sm font-semibold">
+                    <Nfc className="size-4" /> Simple tap
+                  </h2>
+                  <p className="text-xs text-muted-foreground">
+                    Sign a SUN and read the scan response. Checks that{' '}
+                    <code>payLink</code> is a raw <code>lnurlp://</code> URL for
+                    this card, then follows it. Does not pay or advance the
+                    counter.
+                  </p>
+                </div>
+                <Button
+                  variant="secondary"
+                  onClick={handleSimpleTap}
+                  disabled={!usableSelected || busy}
+                  className="w-full"
+                >
+                  {inspecting ? (
+                    <Spinner size={16} />
+                  ) : (
+                    <Nfc className="size-4" />
+                  )}
+                  {inspecting ? 'Tapping…' : 'Simple tap'}
+                </Button>
+              </div>
+
+              <div className="space-y-1 border-t border-border pt-4">
                 <h2 className="flex items-center gap-2 text-sm font-semibold">
                   <Radio className="size-4" /> Tap &amp; pay
                 </h2>

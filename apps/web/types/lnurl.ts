@@ -11,6 +11,15 @@ export interface LUD03Request extends LnurlRequest {
   minWithdrawable: number
   maxWithdrawable: number
   defaultDescription: string
+  /**
+   * LUD-19 pay link: a raw LUD-17 `lnurlp://` URL (not bech32) for receiving
+   * into the same service. BoltCard SPEC lists this as an optional extension
+   * on the withdraw response. Omitted when the card cannot receive.
+   *
+   * https://github.com/lnurl/luds/blob/luds/19.md
+   * https://github.com/boltcard/boltcard/blob/main/docs/SPEC.md
+   */
+  payLink?: string
 }
 
 export interface LUD03CallbackSuccess {

@@ -1,10 +1,12 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef, type RefObject } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { cn } from '@/lib/utils'
 import { AmountKeypad } from '@/components/wallet/shared/amount-keypad'
 import { AmountDisplay } from '@/components/wallet/shared/amount-display'
 import { CurrencyToggle } from '@/components/wallet/shared/currency-toggle'
@@ -52,6 +54,11 @@ export function SendAmountStep() {
     maxDecimalDigits
   } = useAmountCurrencyInput()
   const [details, setDetails] = useState<RecipientDetails | null>(null)
+  const [note, setNote] = useState(flow.comment)
+  const [commentAllowed, setCommentAllowed] = useState<number | null>(() =>
+    flow.recipient?.destination.kind === 'lnurl-pay' ? null : 0
+  )
+  const noteRef = useRef<HTMLInputElement>(null)
   const savedContact = useMemo(() => {
     const address = getLightningAddress(flow.recipient)
     if (!address) return null
@@ -91,16 +98,24 @@ export function SendAmountStep() {
 
     setDetails(snapshot)
 
-    if (!address || !lnurlpUrl) return
+    if (!lnurlpUrl) {
+      setCommentAllowed(0)
+      return
+    }
 
-    setDetails({ ...snapshot, loading: true })
+    if (address) setDetails({ ...snapshot, loading: true })
 
     void Promise.all([
-      fetchLud16Profile(lnurlpUrl),
-      contactsActions.hydrateNip05Profile(address)
-    ]).then(([lud16Profile, nip05Contact]) => {
+      fetchPayRequest(lnurlpUrl),
+      address
+        ? contactsActions.hydrateNip05Profile(address)
+        : Promise.resolve(null)
+    ]).then(([payRequest, nip05Contact]) => {
       if (cancelled) return
+      setCommentAllowed(payRequest.commentAllowed)
+      if (!address) return
 
+      const lud16Profile = payRequest.profile
       const displayName = firstUseful(
         nip05Contact?.displayName,
         nip05Contact?.name,
@@ -143,8 +158,25 @@ export function SendAmountStep() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recipientAddress, lnurlpUrl])
 
+  useEffect(() => {
+    if (!commentAllowed) return
+    setNote(current =>
+      current.length > commentAllowed ? current.slice(0, commentAllowed) : current
+    )
+  }, [commentAllowed])
+
+  const showNote =
+    flow.recipient?.destination.kind === 'lnurl-pay' && commentAllowed !== 0
+
   function next() {
     if (canonicalAmount === null) return
+    if (!showNote) {
+      sendActions.setComment('')
+    } else if (commentAllowed && commentAllowed > 0) {
+      sendActions.setComment(note.trim().slice(0, commentAllowed))
+    } else {
+      sendActions.setComment(note.trim())
+    }
     sendActions.setAmount(canonicalAmount)
     router.push('/wallet/send/preview')
   }
@@ -173,13 +205,22 @@ export function SendAmountStep() {
           integerOnly={integerOnly}
           fixedDecimalDigits={fixedDecimalDigits}
           maxDecimalDigits={maxDecimalDigits}
+          noteRef={showNote ? noteRef : undefined}
           onSubmit={next}
           className="min-h-0 flex-1 grid-rows-4 gap-3"
           buttonClassName="h-full min-h-[58px] rounded-2xl bg-card/90 text-3xl"
         />
       </div>
 
-      <div className="pt-1">
+      <div className="flex flex-col gap-3 pt-1">
+        {showNote ? (
+          <PayerNoteField
+            noteRef={noteRef}
+            value={note}
+            maxLength={commentAllowed}
+            onChange={setNote}
+          />
+        ) : null}
         <Button
           type="button"
           onClick={next}
@@ -189,6 +230,69 @@ export function SendAmountStep() {
           Continue
           <ArrowRight className="size-4" />
         </Button>
+      </div>
+    </div>
+  )
+}
+
+function PayerNoteField({
+  noteRef,
+  value,
+  maxLength,
+  onChange
+}: {
+  noteRef: RefObject<HTMLInputElement | null>
+  value: string
+  /** Null until the recipient's LUD-12 budget is known. */
+  maxLength: number | null
+  onChange: (value: string) => void
+}) {
+  const budget = maxLength !== null && maxLength > 0 ? maxLength : null
+  const remaining = budget === null ? null : budget - value.length
+  const atLimit = remaining === 0
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Input
+        ref={noteRef}
+        id="send-payer-note"
+        value={value}
+        maxLength={budget ?? undefined}
+        placeholder="Add a note (optional)"
+        aria-label="Note for recipient"
+        aria-describedby={
+          budget === null
+            ? 'send-payer-note-hint'
+            : 'send-payer-note-hint send-payer-note-count'
+        }
+        autoComplete="off"
+        autoCapitalize="sentences"
+        spellCheck
+        onChange={event =>
+          onChange(budget === null ? event.target.value : event.target.value.slice(0, budget))
+        }
+        className="h-11"
+      />
+      <div className="flex items-baseline justify-between gap-3 px-0.5">
+        <p
+          id="send-payer-note-hint"
+          className="text-xs text-muted-foreground"
+        >
+          The recipient will see this.
+        </p>
+        {remaining !== null && (
+          <p
+            id="send-payer-note-count"
+            className={cn(
+              'shrink-0 text-xs tabular-nums',
+              atLimit
+                ? 'font-medium text-foreground'
+                : 'text-muted-foreground'
+            )}
+          >
+            {value.length === 0 ? `${budget} max` : `${remaining} left`}
+          </p>
+        )}
       </div>
     </div>
   )
@@ -268,28 +372,46 @@ function getRecipientDomain(
     : null
 }
 
-async function fetchLud16Profile(
-  lnurlpUrl: string
-): Promise<LightweightProfile | null> {
+interface PayRequestSnapshot {
+  profile: LightweightProfile | null
+  commentAllowed: number
+}
+
+async function fetchPayRequest(lnurlpUrl: string): Promise<PayRequestSnapshot> {
   try {
     const res = await fetch(lnurlpUrl, {
       headers: { accept: 'application/json' }
     })
-    if (!res.ok) return null
+    if (!res.ok) return { profile: null, commentAllowed: 0 }
     const meta = await res.json()
-    if (!meta || typeof meta.metadata !== 'string') return null
+    const commentAllowed = normalizeCommentAllowed(meta?.commentAllowed)
+    if (!meta || typeof meta.metadata !== 'string') {
+      return { profile: null, commentAllowed }
+    }
     const metaArr = safeParseMetadata(meta.metadata)
     const textPlain = metaArr.find(
       ([k]) => k === 'text/plain' || k === 'text/identifier'
     )?.[1]
     const imageEntry = metaArr.find(([k]) => k.startsWith('image/'))
     return {
-      name: textPlain,
-      image: imageEntry ? `data:${imageEntry[0]};base64,${imageEntry[1]}` : null
+      profile: {
+        name: textPlain,
+        image: imageEntry
+          ? `data:${imageEntry[0]};base64,${imageEntry[1]}`
+          : null
+      },
+      commentAllowed
     }
   } catch {
-    return null
+    return { profile: null, commentAllowed: 0 }
   }
+}
+
+function normalizeCommentAllowed(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
+    return 0
+  }
+  return Math.floor(value)
 }
 
 function firstUseful(...values: Array<string | null | undefined>): string {
