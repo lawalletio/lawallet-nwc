@@ -38,6 +38,8 @@ describe('getOpenApiDocument', () => {
       '/api/account/merge',
       '/api/cards',
       '/api/cards/{id}',
+      '/api/cards/{id}/lnurlp',
+      '/api/cards/{id}/lnurlp/cb',
       '/api/card-designs',
       '/api/lightning-addresses',
       '/api/lightning-addresses/verify-protocols',

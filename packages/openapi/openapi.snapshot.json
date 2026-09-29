@@ -5567,7 +5567,7 @@
           "Cards"
         ],
         "summary": "Resolve a scanned card and return the LNURL-withdraw flow entry point.",
-        "description": "The first LNURL request on tap. `maxWithdrawable` is the bound wallet’s spendable balance in millisatoshis. When that balance cannot be read in time, the response advertises a high ceiling so a point of sale will not refuse a normal invoice; the callback does not impose a fixed sats cap. Send the request header `x-request-action: info` to get the card’s public status JSON (design, image, owner, paired/used) instead of the LNURL withdraw request — so a client can show the card identity without running the withdraw flow. Non-sensitive only (never keys/OTC/SUN params).",
+        "description": "The first LNURL request on tap (LUD-03). `maxWithdrawable` is the bound wallet’s spendable balance in millisatoshis. When that balance cannot be read in time, the response advertises a high ceiling so a point of sale will not refuse a normal invoice; the callback does not impose a fixed sats cap. A receivable card also includes LUD-19 `payLink`, a raw LUD-17 `lnurlp://` URL (not bech32) whose payRequest mints an invoice on the card’s RemoteWallet — BoltCard SPEC’s optional pay-link extension (https://github.com/boltcard/boltcard/blob/main/docs/SPEC.md, https://github.com/lnurl/luds/blob/luds/19.md). Send the request header `x-request-action: info` to get the card’s public status JSON (design, image, owner, paired/used) instead of the LNURL withdraw request — so a client can show the card identity without running the withdraw flow. Non-sensitive only (never keys/OTC/SUN params).",
         "operationId": "cards.scan",
         "security": [],
         "parameters": [
@@ -5630,6 +5630,10 @@
                           "enum": [
                             "withdrawRequest"
                           ]
+                        },
+                        "payLink": {
+                          "type": "string",
+                          "description": "LUD-19 raw LUD-17 LNURL-pay URL (`lnurlp://…`, not bech32) for topping up the card’s RemoteWallet. Omitted when the card is unpaired, blocked, disabled, or has no receivable wallet. See https://github.com/lnurl/luds/blob/luds/19.md and the BoltCard SPEC optional LUD-19 extension."
                         }
                       },
                       "required": [
@@ -5882,6 +5886,248 @@
           },
           "400": {
             "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cards/{id}/lnurlp": {
+      "get": {
+        "x-required-role": "PUBLIC",
+        "tags": [
+          "Cards"
+        ],
+        "summary": "LUD-19 pay link: LUD-06 payRequest for a card top-up.",
+        "description": "Target of the raw LUD-17 `payLink` advertised on `GET /api/cards/{id}/scan`. Returns a LUD-06 payRequest whose callback mints a BOLT11 invoice on the card’s RemoteWallet (NWC `make_invoice`). This is not the owner’s Lightning Address. Unpaired, blocked, disabled, or non-receivable cards return `{ status: \"ERROR\", reason }`. Specs: LUD-06, LUD-17, LUD-19, BoltCard SPEC optional LUD-19.",
+        "operationId": "cards.lnurlp",
+        "security": [],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "LUD-06 payRequest, or an LNURL ERROR when the card cannot receive.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "tag": {
+                          "type": "string",
+                          "enum": [
+                            "payRequest"
+                          ]
+                        },
+                        "callback": {
+                          "type": "string",
+                          "format": "uri"
+                        },
+                        "minSendable": {
+                          "type": "integer"
+                        },
+                        "maxSendable": {
+                          "type": "integer"
+                        },
+                        "metadata": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "tag",
+                        "callback",
+                        "minSendable",
+                        "maxSendable",
+                        "metadata"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "ERROR"
+                          ]
+                        },
+                        "reason": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "status",
+                        "reason"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cards/{id}/lnurlp/cb": {
+      "get": {
+        "x-required-role": "PUBLIC",
+        "tags": [
+          "Cards"
+        ],
+        "summary": "LUD-06 callback that mints a card top-up invoice.",
+        "description": "Creates a BOLT11 invoice on the card’s bound RemoteWallet (or the owner’s primary-address wallet when the card has no explicit binding) and stores it with purpose `CARD_TOPUP`. Paying the invoice credits that wallet. Amount is millisatoshis, within the payRequest min/max. An optional LUD-12 `comment` is appended to the invoice description.",
+        "operationId": "cards.lnurlp.callback",
+        "security": [],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "amount",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "required": false,
+            "name": "comment",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 65536
+            },
+            "required": false,
+            "name": "nostr",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "BOLT11 invoice, or an LNURL ERROR when the card cannot receive or the amount is rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "pr": {
+                          "type": "string"
+                        },
+                        "routes": {
+                          "type": "array",
+                          "items": {}
+                        }
+                      },
+                      "required": [
+                        "pr",
+                        "routes"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "ERROR"
+                          ]
+                        },
+                        "reason": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "status",
+                        "reason"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
             "content": {
               "application/json": {
                 "schema": {
