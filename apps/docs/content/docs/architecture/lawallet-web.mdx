@@ -85,8 +85,10 @@ Not implemented in the current repo:
 - `GET /api/cards/:id` and `DELETE /api/cards/:id` — Card detail and deletion
 - `POST /api/cards/:id/write-token` — Mint a single-use BoltCard programming URL (only while the card is fresh/never-tapped; 409 otherwise). Returns `{ token, url, expiresAt }`
 - `GET /api/cards/:id/write` — Card write payload (NTAG424 keys). **Requires** the single-use `?token=` from `/write-token`; replay-protected (403 without it or once tapped), consumes the token, and unpairs the card
-- `GET /api/cards/:id/scan` — LNURL-withdraw style card scan response
-- `GET /api/cards/:id/scan/cb` — Card scan callback
+- `GET /api/cards/:id/scan` — LUD-03 withdraw response. A receivable card also includes LUD-19 `payLink`, a raw LUD-17 `lnurlp://` URL (not bech32) for topping up the card wallet. See the [BoltCard SPEC](https://github.com/boltcard/boltcard/blob/main/docs/SPEC.md) optional LUD-19 extension and [LUD-19](https://github.com/lnurl/luds/blob/luds/19.md).
+- `GET /api/cards/:id/scan/cb` — Card scan callback (spend; unchanged)
+- `GET /api/cards/:id/lnurlp` — LUD-06 payRequest targeted by `payLink`. Mints invoices on the card’s RemoteWallet, not the owner’s Lightning Address.
+- `GET /api/cards/:id/lnurlp/cb` — Callback that creates the top-up invoice (`CARD_TOPUP`)
 - `GET /api/cards/otc/:otc` — OTC lookup
 - `POST /api/cards/otc/:otc/activate` — OTC activation
 - `GET /api/card-designs/list` — Card designs
