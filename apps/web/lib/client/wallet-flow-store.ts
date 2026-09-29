@@ -158,7 +158,9 @@ export const sendActions = {
   setRecipient(recipient: ResolvedRecipient | null) {
     state = {
       ...state,
-      send: { ...state.send, recipient, error: null }
+      // A new destination starts a new payment. A note from the previous
+      // payee must not ride along onto an invoice or another address.
+      send: { ...state.send, recipient, comment: '', error: null }
     }
     emit()
   },

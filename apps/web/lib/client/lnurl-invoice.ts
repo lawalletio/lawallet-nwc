@@ -22,11 +22,52 @@ interface LnurlPayCallbackResponse {
   reason?: string
 }
 
+export interface LnurlInvoice {
+  paymentRequest: string
+  /**
+   * LUD-12 comment actually attached to the callback. Null when the payer
+   * left none, the recipient does not accept comments, or the recipient
+   * rejected the comment and the invoice was requested again without it.
+   */
+  comment: string | null
+}
+
+/**
+ * Comment the callback will accept. LUD-12: omit the param entirely when
+ * `commentAllowed` is missing or 0 — sending one anyway is a spec violation
+ * that many providers answer with HTTP 400.
+ */
+function commentWithinBudget(
+  comment: string | undefined,
+  commentAllowed: number | undefined
+): string | null {
+  const trimmed = comment?.trim()
+  if (!trimmed) return null
+  if (!Number.isFinite(commentAllowed) || (commentAllowed ?? 0) <= 0) {
+    return null
+  }
+  return trimmed.slice(0, commentAllowed) || null
+}
+
+async function fetchCallbackInvoice(url: string): Promise<string> {
+  const cbRes = await fetch(url, {
+    headers: { accept: 'application/json' }
+  })
+  if (!cbRes.ok) {
+    throw new Error(`Recipient callback returned ${cbRes.status}`)
+  }
+  const cbJson = (await cbRes.json()) as LnurlPayCallbackResponse
+  if (cbJson.status === 'ERROR' || !cbJson.pr) {
+    throw new Error(cbJson.reason || 'Recipient refused the invoice request')
+  }
+  return cbJson.pr
+}
+
 export async function requestLnurlInvoice(
   lnurlpUrl: string,
   amountSats: number,
   comment?: string
-): Promise<string> {
+): Promise<LnurlInvoice> {
   if (!Number.isFinite(amountSats) || amountSats <= 0) {
     throw new Error('Enter an amount')
   }
@@ -51,20 +92,19 @@ export async function requestLnurlInvoice(
 
   const cbUrl = new URL(meta.callback)
   cbUrl.searchParams.set('amount', String(amountMsats))
-  if (comment && meta.commentAllowed && meta.commentAllowed > 0) {
-    cbUrl.searchParams.set('comment', comment.slice(0, meta.commentAllowed))
-  }
+  let sentComment = commentWithinBudget(comment, meta.commentAllowed)
+  if (sentComment) cbUrl.searchParams.set('comment', sentComment)
 
-  const cbRes = await fetch(cbUrl.toString(), {
-    headers: { accept: 'application/json' }
-  })
-  if (!cbRes.ok) {
-    throw new Error(`Recipient callback returned ${cbRes.status}`)
+  try {
+    const paymentRequest = await fetchCallbackInvoice(cbUrl.toString())
+    return { paymentRequest, comment: sentComment }
+  } catch (err) {
+    // A recipient that advertised a comment budget can still refuse the
+    // note. Drop it and mint again so the payment itself can proceed.
+    if (!sentComment) throw err
+    cbUrl.searchParams.delete('comment')
+    sentComment = null
+    const paymentRequest = await fetchCallbackInvoice(cbUrl.toString())
+    return { paymentRequest, comment: null }
   }
-  const cbJson = (await cbRes.json()) as LnurlPayCallbackResponse
-  if (cbJson.status === 'ERROR' || !cbJson.pr) {
-    throw new Error(cbJson.reason || 'Recipient refused the invoice request')
-  }
-
-  return cbJson.pr
 }

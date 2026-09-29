@@ -174,6 +174,15 @@ export function SendPreviewStep() {
     }
   }, [quoteKey, flow.recipient, flow.amountSats, flow.comment])
 
+  const typedNote = flow.comment.trim()
+  const acceptedNote =
+    currentQuote.status === 'ready'
+      ? currentQuote.quote.comment
+      : typedNote || null
+  const noteOmitted =
+    currentQuote.status === 'ready' &&
+    typedNote.length > 0 &&
+    !currentQuote.quote.comment
   const recipientLabel =
     recipientDetails?.displayName ??
     flow.recipient?.profile?.name ??
@@ -213,7 +222,7 @@ export function SendPreviewStep() {
         recipient: recipientLabel,
         paymentHash: paymentHashFromBolt11(currentQuote.quote.paymentRequest),
         destination: destinationForReceipt(flow.recipient),
-        comment: flow.comment.trim() ? flow.comment.trim() : null,
+        comment: currentQuote.quote.comment,
         settledAt: Date.now()
       })
       router.replace('/wallet/send/summary')
@@ -288,12 +297,7 @@ export function SendPreviewStep() {
                   label="Type"
                   value={labelForKind(flow.recipient.destination.kind)}
                 />
-                {flow.comment && (
-                  <>
-                    <div className="my-3 border-t border-border/60" />
-                    <DetailRow label="Note" value={flow.comment} />
-                  </>
-                )}
+                <PaymentNote comment={acceptedNote} omitted={noteOmitted} />
               </div>
             </div>
           )}
@@ -314,12 +318,7 @@ export function SendPreviewStep() {
               label="Type"
               value={labelForKind(flow.recipient.destination.kind)}
             />
-          </div>
-        )}
-
-        {flow.comment && !recipientDetails && (
-          <div className="rounded-2xl border border-border bg-card p-4">
-            <DetailRow label="Note" value={flow.comment} />
+            <PaymentNote comment={acceptedNote} omitted={noteOmitted} />
           </div>
         )}
 
@@ -515,6 +514,29 @@ function QuoteLine({
         {value}
       </span>
     </div>
+  )
+}
+
+function PaymentNote({
+  comment,
+  omitted
+}: {
+  comment: string | null
+  omitted: boolean
+}) {
+  if (!comment && !omitted) return null
+  return (
+    <>
+      <div className="my-3 border-t border-border/60" />
+      {comment ? (
+        <DetailRow label="Note" value={comment} />
+      ) : (
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          The recipient did not accept the note. This payment will be sent
+          without it.
+        </p>
+      )}
+    </>
   )
 }
 
