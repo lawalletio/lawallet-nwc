@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { ScreenHeader } from '@/components/wallet/shared/screen-header'
 import { useAuth } from '@/components/admin/auth-context'
+import { useSettings } from '@/lib/client/hooks/use-settings'
 import { createNsecSigner } from '@/lib/client/nostr-signer'
 import {
   registerPasskeyAccount,
@@ -25,8 +26,10 @@ import {
 export function PasskeyCreateFlow() {
   const router = useRouter()
   const { login } = useAuth()
+  const { data: settings } = useSettings()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const community = settings?.community_name?.trim() || null
 
   async function handleCreate() {
     setError(null)
@@ -39,7 +42,9 @@ export function PasskeyCreateFlow() {
       router.replace('/wallet/welcome')
     } catch (err) {
       const passkeyError = translatePasskeyError(err)
-      if (passkeyError.kind !== 'cancelled') {
+      if (passkeyError.kind === 'cancelled') {
+        setError('Passkey prompt was closed — try again')
+      } else {
         setError(passkeyError.message)
         toast.error(passkeyError.message)
       }
@@ -57,8 +62,9 @@ export function PasskeyCreateFlow() {
               Create with a passkey
             </h1>
             <p className="text-sm leading-relaxed text-muted-foreground">
-              Your device creates a passkey — Face ID, Touch ID, or screen lock.
-              No passwords, nothing to write down.
+              {community
+                ? `Your device creates a passkey for ${community} — Face ID, Touch ID, or screen lock. No passwords, nothing to write down.`
+                : 'Your device creates a passkey — Face ID, Touch ID, or screen lock. No passwords, nothing to write down.'}
             </p>
           </div>
 

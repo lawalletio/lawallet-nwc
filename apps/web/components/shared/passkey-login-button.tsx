@@ -29,6 +29,16 @@ interface PasskeyLoginButtonProps {
   /** Renders the cross-device hint copy under the button. */
   showCrossDeviceHint?: boolean
   disabled?: boolean
+  /**
+   * Show the "prompt was closed" line so a cancelled ceremony has an obvious
+   * retry. Login surfaces stay silent — a cancel there is just "not now".
+   */
+  surfaceCancel?: boolean
+  /**
+   * Replaces the default duplicate-credential copy. Card activation uses this
+   * to point at the "I already have a passkey" button on the same screen.
+   */
+  duplicateMessage?: string
 }
 
 /**
@@ -48,7 +58,9 @@ export function PasskeyLoginButton({
   variant = 'default',
   className,
   showCrossDeviceHint = false,
-  disabled = false
+  disabled = false,
+  surfaceCancel = false,
+  duplicateMessage
 }: PasskeyLoginButtonProps) {
   const { login } = useAuth()
   const [busy, setBusy] = useState(false)
@@ -78,10 +90,16 @@ export function PasskeyLoginButton({
       onSuccess?.()
     } catch (err) {
       const passkeyError = translatePasskeyError(err)
-      if (passkeyError.kind !== 'cancelled') {
-        setError(passkeyError.message)
-        toast.error(passkeyError.message)
+      if (passkeyError.kind === 'cancelled') {
+        if (surfaceCancel) setError(passkeyError.message)
+        return
       }
+      const message =
+        passkeyError.kind === 'duplicate' && duplicateMessage
+          ? duplicateMessage
+          : passkeyError.message
+      setError(message)
+      toast.error(message)
     } finally {
       setBusy(false)
     }

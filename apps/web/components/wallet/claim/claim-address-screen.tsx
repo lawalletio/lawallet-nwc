@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback } from 'react'
+import { useCallback, useSyncExternalStore } from 'react'
 import { useRouter } from 'next/navigation'
 import { Check, Copy, RefreshCw, Wallet } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
@@ -12,6 +12,11 @@ import { ScreenHeader } from '@/components/wallet/shared/screen-header'
 import { SuccessHeroCard } from '@/components/wallet/new-address-dialog'
 import { useNewAddressFlow } from '@/components/wallet/claim/use-new-address-flow'
 import { invalidateApiPath } from '@/lib/client/hooks/use-api'
+import {
+  readActivationBonus,
+  serverActivationBonus,
+  subscribeActivationBonus
+} from '@/lib/client/activation-bonus-notice'
 
 /**
  * Full-screen, mobile-first "claim a lightning address" flow for the wallet.
@@ -29,6 +34,12 @@ export function ClaimAddressScreen({
   freeBonus?: boolean
 }) {
   const router = useRouter()
+  const storedBonus = useSyncExternalStore(
+    subscribeActivationBonus,
+    readActivationBonus,
+    serverActivationBonus
+  )
+  const cardBonus = fromActivate ? storedBonus : null
 
   // Refresh the endpoints the home screen reads so it shows the new address
   // (and drops the claim CTA) on return. The free path's create mutation
@@ -87,6 +98,12 @@ export function ClaimAddressScreen({
                     : 'Your card is ready. Pick a username so you can receive Lightning payments.'
                   : 'Pick a username — this is where you’ll receive Lightning payments. It’s free.'}
               </p>
+              {cardBonus != null && (
+                <p className="text-sm text-muted-foreground">
+                  {cardBonus.toLocaleString('en-US')} sats from this card are
+                  already in your balance.
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
