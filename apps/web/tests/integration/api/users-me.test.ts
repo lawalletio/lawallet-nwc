@@ -34,7 +34,8 @@ vi.mock('@/lib/middleware/request-limits', () => ({
 }))
 
 vi.mock('@/lib/wallet/lncurl-wallet', () => ({
-  replaceDeadLncurlPrimaryWallet: vi.fn()
+  replaceDeadLncurlPrimaryWallet: vi.fn(),
+  mintCourtesyLncurlWallet: vi.fn(async () => null)
 }))
 
 vi.mock('@/lib/events/event-bus', () => ({
@@ -46,7 +47,10 @@ import { PUT } from '@/app/api/users/me/currency-prefs/route'
 import { authenticate } from '@/lib/auth/unified-auth'
 import { createNewUser } from '@/lib/user'
 import { getSettings } from '@/lib/settings'
-import { replaceDeadLncurlPrimaryWallet } from '@/lib/wallet/lncurl-wallet'
+import {
+  mintCourtesyLncurlWallet,
+  replaceDeadLncurlPrimaryWallet
+} from '@/lib/wallet/lncurl-wallet'
 
 const mockPubkey = 'a'.repeat(64)
 
@@ -65,6 +69,7 @@ function mockAuthReject() {
 beforeEach(() => {
   resetPrismaMock()
   vi.clearAllMocks()
+  vi.mocked(mintCourtesyLncurlWallet).mockResolvedValue(null)
 })
 
 describe('GET /api/users/me', () => {
@@ -461,6 +466,48 @@ describe('GET /api/users/me', () => {
 
     expect(body.primaryAddressMode).toBe('IDLE')
     expect(body.effectiveNwcString).toBeNull()
+    expect(mintCourtesyLncurlWallet).toHaveBeenCalledWith(user.id, {
+      bindPrimary: true
+    })
+  })
+
+  it('binds a courtesy LNCurl wallet onto an IDLE primary that has none', async () => {
+    mockAuth()
+    const user = createUserFixture({
+      pubkey: mockPubkey,
+      lightningAddresses: [
+        {
+          username: 'alice',
+          isPrimary: true,
+          mode: 'IDLE',
+          redirect: null,
+          remoteWalletId: null,
+          remoteWallet: null
+        }
+      ]
+    })
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
+    vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com' })
+    vi.mocked(mintCourtesyLncurlWallet).mockResolvedValue({
+      id: 'curl-1'
+    } as never)
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
+      username: 'alice',
+      isPrimary: true,
+      mode: 'CUSTOM_NWC',
+      redirect: null,
+      remoteWalletId: 'curl-1',
+      remoteWallet: null
+    } as any)
+
+    const res = await GET(createNextRequest('/api/users/me'))
+    const body: any = await assertResponse(res, 200)
+
+    expect(mintCourtesyLncurlWallet).toHaveBeenCalledWith(user.id, {
+      bindPrimary: true
+    })
+    expect(body.primaryAddressMode).toBe('CUSTOM_NWC')
+    expect(body.primaryUsername).toBe('alice')
   })
 
   it('no primary address: every primary* field is null', async () => {

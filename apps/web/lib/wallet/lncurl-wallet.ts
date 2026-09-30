@@ -14,6 +14,7 @@ import type {
 } from '@/lib/generated/prisma'
 import {
   bindPrimaryAddressToWallet,
+  findInitialPrimaryWalletCandidate,
   syncPrimaryRemoteWalletFlag
 } from '@/lib/wallet/primary-wallet'
 import { encryptRemoteWalletConfig } from '@/lib/wallet/remote-wallet-vault'
@@ -282,5 +283,40 @@ export async function createLncurlRemoteWallet(
       where: { id: created.id }
     })
     return boundPrimaryAddress ? { ...persisted, isDefault: true } : persisted
+  })
+}
+
+/**
+ * Mint a courtesy LNCurl wallet for an account that has none.
+ *
+ * Returns null when an ACTIVE wallet already exists, or when LNCurl
+ * auto-create is off — callers must not replace a wallet the user already
+ * chose, and must not undo an address that was left IDLE on purpose while a
+ * wallet is still attached.
+ *
+ * `bindPrimary` attaches the new wallet to the account's existing primary
+ * Lightning Address in the same transaction. Pass it when that address
+ * already exists (a claim that finished as IDLE). Omit it when the address
+ * is about to be inserted and the caller will store the binding itself.
+ */
+export async function mintCourtesyLncurlWallet(
+  userId: string,
+  options?: { bindPrimary?: boolean }
+): Promise<RemoteWallet | null> {
+  const existing = await findInitialPrimaryWalletCandidate(userId)
+  if (existing) return null
+
+  const { lncurl_enabled, lncurl_auto_create, lncurl_server_url } =
+    await getSettings([
+      'lncurl_enabled',
+      'lncurl_auto_create',
+      'lncurl_server_url'
+    ])
+  if (lncurl_enabled !== 'true' || lncurl_auto_create !== 'true') return null
+
+  return createLncurlRemoteWallet({
+    userId,
+    serverUrl: lncurl_server_url || undefined,
+    isDefault: options?.bindPrimary === true
   })
 }

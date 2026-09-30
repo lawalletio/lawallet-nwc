@@ -7,6 +7,7 @@ import {
   AuthorizationError,
   ConflictError,
   NotFoundError,
+  ServiceUnavailableError,
   ValidationError
 } from '@/types/server/errors'
 import { authenticate } from '@/lib/auth/unified-auth'
@@ -22,6 +23,8 @@ import {
   invoiceLogMetadata,
   logActivity
 } from '@/lib/activity-log'
+import { logger } from '@/lib/logger'
+import { mintCourtesyLncurlWallet } from '@/lib/wallet/lncurl-wallet'
 import { resolveDefaultAddressRouting } from '@/lib/wallet/default-address-mode'
 import {
   findInitialPrimaryWalletCandidate,
@@ -143,6 +146,31 @@ export const POST = withErrorHandling(
           ? await resolveDefaultAddressRouting(user.id)
           : null
 
+      // First address (registration): bind an existing ACTIVE wallet, or mint
+      // a courtesy LNCurl one when the operator auto-creates them. Doing this
+      // before the paid flip means a provider outage leaves the invoice
+      // PENDING so the user can retry instead of owning an unpayable name.
+      let courtesyWalletId: string | null = null
+      if (invoice.purpose === 'REGISTRATION') {
+        const candidate = await findInitialPrimaryWalletCandidate(user.id)
+        if (candidate) {
+          courtesyWalletId = candidate.id
+        } else {
+          try {
+            courtesyWalletId =
+              (await mintCourtesyLncurlWallet(user.id))?.id ?? null
+          } catch (err) {
+            logger.error(
+              { userId: user.id, err: String(err) },
+              'LNCurl auto-create failed while claiming a Lightning Address'
+            )
+            throw new ServiceUnavailableError(
+              'LNCurl could not provision a courtesy wallet, so the Lightning Address was not created. Retry when the LNCurl server is reachable.'
+            )
+          }
+        }
+      }
+
       // The PAID flip and the address creation commit or roll back TOGETHER:
       // a failed insert (e.g. the username was taken concurrently) must never
       // strand a paid invoice with no address — the user paid and is entitled
@@ -163,13 +191,13 @@ export const POST = withErrorHandling(
           }
 
           if (invoice.purpose === 'REGISTRATION') {
-            const currentPrimaryWallet = await getPrimaryRemoteWalletForUser(
-              user.id,
-              tx
-            )
-            const candidate =
-              currentPrimaryWallet ??
-              (await findInitialPrimaryWalletCandidate(user.id, tx))
+            const currentPrimaryWallet = courtesyWalletId
+              ? null
+              : await getPrimaryRemoteWalletForUser(user.id, tx)
+            const candidate = courtesyWalletId
+              ? { id: courtesyWalletId }
+              : (currentPrimaryWallet ??
+                (await findInitialPrimaryWalletCandidate(user.id, tx)))
 
             // Primary swap: delete the existing primary first so the
             // partial-unique index on (userId) WHERE isPrimary=true

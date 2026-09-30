@@ -36,6 +36,7 @@ vi.mock('@/lib/lncurl', () => ({
 import {
   createLncurlRemoteWallet,
   lncurlHealTarget,
+  mintCourtesyLncurlWallet,
   replaceDeadLncurlPrimaryWallet
 } from '@/lib/wallet/lncurl-wallet'
 import { createLncurlWallet } from '@/lib/lncurl'
@@ -248,6 +249,58 @@ describe('createLncurlRemoteWallet', () => {
     await createLncurlRemoteWallet({ userId: USER_ID })
 
     expect(prismaMock.lightningAddress.update).not.toHaveBeenCalled()
+  })
+})
+
+describe('mintCourtesyLncurlWallet', () => {
+  const enabled = {
+    lncurl_enabled: 'true',
+    lncurl_auto_create: 'true',
+    lncurl_server_url: 'https://lncurl.example'
+  }
+
+  it('does not mint when the account already has an ACTIVE wallet', async () => {
+    vi.mocked(prismaMock.remoteWallet.findFirst).mockResolvedValue({
+      id: 'already'
+    } as never)
+
+    await expect(mintCourtesyLncurlWallet(USER_ID)).resolves.toBeNull()
+    expect(createLncurlWallet).not.toHaveBeenCalled()
+  })
+
+  it('does not mint when auto-create is off', async () => {
+    vi.mocked(prismaMock.remoteWallet.findFirst).mockResolvedValue(null)
+    vi.mocked(getSettings).mockResolvedValue({
+      lncurl_enabled: 'true',
+      lncurl_auto_create: 'false'
+    })
+
+    await expect(mintCourtesyLncurlWallet(USER_ID)).resolves.toBeNull()
+    expect(createLncurlWallet).not.toHaveBeenCalled()
+  })
+
+  it('mints a courtesy wallet and can bind the existing primary address', async () => {
+    vi.mocked(prismaMock.remoteWallet.findFirst).mockResolvedValue(null)
+    vi.mocked(getSettings).mockResolvedValue(enabled)
+    vi.mocked(prismaMock.lightningAddress.findFirst).mockResolvedValue({
+      username: 'alice'
+    } as never)
+
+    const created = await mintCourtesyLncurlWallet(USER_ID, {
+      bindPrimary: true
+    })
+
+    expect(created?.id).toBe('new-wallet')
+    expect(createLncurlWallet).toHaveBeenCalledWith('https://lncurl.example')
+    expect(prismaMock.lightningAddress.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { username: 'alice' },
+        data: expect.objectContaining({
+          mode: 'CUSTOM_NWC',
+          remoteWalletId: 'new-wallet'
+        })
+      })
+    )
   })
 })
 
