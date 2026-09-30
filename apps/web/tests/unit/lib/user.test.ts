@@ -107,4 +107,18 @@ describe('createNewUser — LNCurl auto-create', () => {
       where: { id: expect.any(String) }
     })
   })
+
+  it('still surfaces the mint failure when rolling the user back fails', async () => {
+    vi.mocked(getSettings).mockResolvedValue({
+      lncurl_auto_create: 'true'
+    })
+    vi.mocked(createLncurlRemoteWallet).mockRejectedValue(
+      new Error('LNCurl down')
+    )
+    vi.mocked(prismaMock.user.delete).mockRejectedValue(new Error('db down'))
+
+    await expect(createNewUser(PUBKEY)).rejects.toMatchObject({
+      statusCode: 503
+    })
+  })
 })

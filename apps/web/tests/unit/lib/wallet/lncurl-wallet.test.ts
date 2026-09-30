@@ -41,6 +41,7 @@ import {
   courtesyReviveTarget,
   createLncurlRemoteWallet,
   findCourtesyReviveTarget,
+  isLncurlWalletConfig,
   lncurlHealTarget,
   reviveDeadCourtesyWallet
 } from '@/lib/wallet/lncurl-wallet'
@@ -345,6 +346,16 @@ describe('lncurlHealTarget', () => {
   })
 })
 
+describe('isLncurlWalletConfig', () => {
+  it('accepts only an object tagged provider lncurl', () => {
+    expect(isLncurlWalletConfig({ provider: 'lncurl' })).toBe(true)
+    expect(isLncurlWalletConfig({ provider: 'alby' })).toBe(false)
+    expect(isLncurlWalletConfig(null)).toBe(false)
+    expect(isLncurlWalletConfig(['lncurl'])).toBe(false)
+    expect(isLncurlWalletConfig('lncurl')).toBe(false)
+  })
+})
+
 describe('courtesyReviveTarget', () => {
   const ON = { lncurl_enabled: 'true', lncurl_auto_recreate: 'true' }
   const deadLncurl = {
@@ -429,6 +440,61 @@ describe('courtesyReviveTarget', () => {
           hasActiveWallet: false
         },
         { lncurl_enabled: 'true', lncurl_auto_recreate: 'false' }
+      )
+    ).toBeNull()
+    expect(
+      courtesyReviveTarget(
+        {
+          mode: 'IDLE',
+          boundWallet: null,
+          archivedCourtesy: deadLncurl,
+          hasActiveWallet: false
+        },
+        { lncurl_enabled: 'false', lncurl_auto_recreate: 'true' }
+      )
+    ).toBeNull()
+    expect(
+      courtesyReviveTarget(
+        {
+          mode: 'PROXY_ALIAS',
+          boundWallet: null,
+          archivedCourtesy: deadLncurl,
+          hasActiveWallet: false
+        },
+        ON
+      )
+    ).toBeNull()
+    expect(
+      courtesyReviveTarget(
+        {
+          mode: 'CUSTOM_NWC',
+          boundWallet: { ...deadLncurl, status: 'ACTIVE' },
+          archivedCourtesy: null,
+          hasActiveWallet: false
+        },
+        ON
+      )
+    ).toBeNull()
+    expect(
+      courtesyReviveTarget(
+        {
+          mode: 'IDLE',
+          boundWallet: null,
+          archivedCourtesy: null,
+          hasActiveWallet: false
+        },
+        ON
+      )
+    ).toBeNull()
+    expect(
+      courtesyReviveTarget(
+        {
+          mode: 'IDLE',
+          boundWallet: null,
+          archivedCourtesy: { ...deadLncurl, status: 'ACTIVE' },
+          hasActiveWallet: false
+        },
+        ON
       )
     ).toBeNull()
   })
@@ -526,6 +592,13 @@ describe('reviveDeadCourtesyWallet', () => {
         config: { provider: 'alby' }
       }
     } as never)
+
+    await expect(findCourtesyReviveTarget(USER_ID)).resolves.toBeNull()
+    expect(createLncurlWallet).not.toHaveBeenCalled()
+  })
+
+  it('does not mint when the account has no primary address', async () => {
+    vi.mocked(prismaMock.lightningAddress.findFirst).mockResolvedValue(null)
 
     await expect(findCourtesyReviveTarget(USER_ID)).resolves.toBeNull()
     expect(createLncurlWallet).not.toHaveBeenCalled()

@@ -132,25 +132,18 @@ export function courtesyReviveTarget(
 
   const bound = args.boundWallet
   if (bound) {
-    if (bound.status !== 'DEAD' || !isLncurlWalletConfig(bound.config)) {
-      return null
-    }
+    if (bound.status !== 'DEAD') return null
+    if (!isLncurlWalletConfig(bound.config)) return null
     return { previousWalletId: bound.id }
   }
 
   // Archive clears the primary link to IDLE. That is not the holder disabling
   // the address — the courtesy wallet died. Recreate only when nothing else
   // is already ACTIVE, so a wallet the holder connected themselves stays put.
-  if (args.mode !== 'IDLE' && args.mode !== 'CUSTOM_NWC') return null
   if (args.hasActiveWallet) return null
   const archived = args.archivedCourtesy
-  if (
-    !archived ||
-    archived.status !== 'DEAD' ||
-    !isLncurlWalletConfig(archived.config)
-  ) {
-    return null
-  }
+  if (!archived || !isLncurlWalletConfig(archived.config)) return null
+  if (archived.status !== 'DEAD') return null
   return { previousWalletId: archived.id }
 }
 
