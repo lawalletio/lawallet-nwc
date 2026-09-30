@@ -7,6 +7,7 @@ import {
   AuthorizationError,
   ConflictError,
   NotFoundError,
+  ServiceUnavailableError,
   ValidationError
 } from '@/types/server/errors'
 import { authenticate } from '@/lib/auth/unified-auth'
@@ -22,6 +23,8 @@ import {
   invoiceLogMetadata,
   logActivity
 } from '@/lib/activity-log'
+import { logger } from '@/lib/logger'
+import { mintCourtesyLncurlWallet } from '@/lib/wallet/lncurl-wallet'
 import { resolveDefaultAddressRouting } from '@/lib/wallet/default-address-mode'
 import {
   findInitialPrimaryWalletCandidate,
@@ -136,12 +139,46 @@ export const POST = withErrorHandling(
         throw new ConflictError('Username was taken while payment was pending')
       }
 
+      // The wallet claim screen always pays a `wallet-address` invoice, even
+      // for someone's first name. That invoice is a secondary add only when
+      // the account already has an address; with none left it is the primary.
+      const addressCount = await prisma.lightningAddress.count({
+        where: { userId: user.id }
+      })
+      const claimsPrimary =
+        invoice.purpose === 'REGISTRATION' || addressCount === 0
+
       // Read-only routing defaults for a secondary add — computed outside the
       // transaction since they don't take a tx client.
       const secondaryRouting =
-        invoice.purpose === 'WALLET_ADDRESS'
+        invoice.purpose === 'WALLET_ADDRESS' && !claimsPrimary
           ? await resolveDefaultAddressRouting(user.id)
           : null
+
+      // First address: bind an existing ACTIVE wallet, or mint a courtesy
+      // LNCurl one when that feature is on. Doing this before the paid flip
+      // means a provider outage leaves the invoice PENDING so the user can
+      // retry instead of owning an unpayable name.
+      let courtesyWalletId: string | null = null
+      if (claimsPrimary) {
+        const candidate = await findInitialPrimaryWalletCandidate(user.id)
+        if (candidate) {
+          courtesyWalletId = candidate.id
+        } else {
+          try {
+            courtesyWalletId =
+              (await mintCourtesyLncurlWallet(user.id))?.id ?? null
+          } catch (err) {
+            logger.error(
+              { userId: user.id, err: String(err) },
+              'LNCurl auto-create failed while claiming a Lightning Address'
+            )
+            throw new ServiceUnavailableError(
+              'LNCurl could not provision a courtesy wallet, so the Lightning Address was not created. Retry when the LNCurl server is reachable.'
+            )
+          }
+        }
+      }
 
       // The PAID flip and the address creation commit or roll back TOGETHER:
       // a failed insert (e.g. the username was taken concurrently) must never
@@ -162,25 +199,26 @@ export const POST = withErrorHandling(
             throw new ConflictError('Invoice has already been claimed')
           }
 
-          if (invoice.purpose === 'REGISTRATION') {
-            const currentPrimaryWallet = await getPrimaryRemoteWalletForUser(
-              user.id,
-              tx
-            )
-            const candidate =
-              currentPrimaryWallet ??
-              (await findInitialPrimaryWalletCandidate(user.id, tx))
+          if (claimsPrimary) {
+            const currentPrimaryWallet = courtesyWalletId
+              ? null
+              : await getPrimaryRemoteWalletForUser(user.id, tx)
+            const candidate = courtesyWalletId
+              ? { id: courtesyWalletId }
+              : (currentPrimaryWallet ??
+                (await findInitialPrimaryWalletCandidate(user.id, tx)))
 
-            // Primary swap: delete the existing primary first so the
-            // partial-unique index on (userId) WHERE isPrimary=true
-            // doesn't conflict, then insert the new primary row.
-            const existingPrimary = await tx.lightningAddress.findFirst({
-              where: { userId: user.id, isPrimary: true }
-            })
-            if (existingPrimary) {
-              await tx.lightningAddress.delete({
-                where: { username: existingPrimary.username }
+            // Registration replaces the current primary. A first
+            // wallet-address claim has nothing to replace.
+            if (invoice.purpose === 'REGISTRATION') {
+              const existingPrimary = await tx.lightningAddress.findFirst({
+                where: { userId: user.id, isPrimary: true }
               })
+              if (existingPrimary) {
+                await tx.lightningAddress.delete({
+                  where: { username: existingPrimary.username }
+                })
+              }
             }
             await tx.lightningAddress.create({
               data: {

@@ -9,6 +9,12 @@ import { resolveWalletRoute } from '@/lib/wallet/resolve-payment-route'
 import { getPrimaryRemoteWalletForUser } from '@/lib/wallet/primary-wallet'
 import { decryptRemoteWalletConfig } from '@/lib/wallet/remote-wallet-vault'
 import { currencyPrefsSchema } from '@/lib/validation/schemas'
+import {
+  mintCourtesyLncurlWallet,
+  replaceDeadLncurlPrimaryWallet
+} from '@/lib/wallet/lncurl-wallet'
+import { eventBus } from '@/lib/events/event-bus'
+import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
 
@@ -50,7 +56,78 @@ export const GET = withErrorHandling(async (request: Request) => {
   // domain directly rather than `resolvePublicEndpoint`, which mixes the
   // two concerns.
   const addressDomain = await resolveAddressDomain(request)
-  const primaryAddress = user.lightningAddresses[0]
+  let primaryAddress = user.lightningAddresses[0]
+  const boundWallet = primaryAddress?.remoteWallet
+  const replaced =
+    primaryAddress && boundWallet?.status === 'DEAD' && boundWallet.id
+      ? await replaceDeadLncurlPrimaryWallet({
+          userId: user.id,
+          mode: primaryAddress.mode,
+          boundWallet: {
+            id: boundWallet.id,
+            status: boundWallet.status,
+            config: boundWallet.config
+          }
+        })
+      : null
+  if (replaced && primaryAddress) {
+    primaryAddress = {
+      ...primaryAddress,
+      remoteWalletId: replaced.id,
+      remoteWallet: replaced
+    }
+    eventBus.emit({ type: 'listener:updated', timestamp: Date.now() })
+    eventBus.emit({ type: 'addresses:updated', timestamp: Date.now() })
+    eventBus.emit({ type: 'users:updated', timestamp: Date.now() })
+  }
+
+  // A paid claim that ran when the account had no address used to insert a
+  // non-primary row. The account then has names and no primary, so nothing
+  // here can bind a wallet. Promote the oldest one; the block below mints.
+  if (!primaryAddress) {
+    const stray = await prisma.lightningAddress.findFirst({
+      where: { userId: user.id },
+      orderBy: { createdAt: 'asc' },
+      include: { remoteWallet: true }
+    })
+    if (stray) {
+      await prisma.lightningAddress.update({
+        where: { username: stray.username },
+        data: { isPrimary: true }
+      })
+      primaryAddress = { ...stray, isPrimary: true }
+    }
+  }
+
+  // A claim that finished with no wallet is stored as IDLE and only publishes
+  // NIP-05. When LNCurl is on and the account still has no ACTIVE wallet,
+  // mint one and bind this primary address now.
+  if (
+    primaryAddress &&
+    primaryAddress.mode === 'IDLE' &&
+    !primaryAddress.remoteWalletId
+  ) {
+    try {
+      const minted = await mintCourtesyLncurlWallet(user.id, {
+        bindPrimary: true
+      })
+      if (minted) {
+        const refreshed = await prisma.lightningAddress.findUnique({
+          where: { username: primaryAddress.username },
+          include: { remoteWallet: true }
+        })
+        if (refreshed) primaryAddress = refreshed
+        eventBus.emit({ type: 'listener:updated', timestamp: Date.now() })
+        eventBus.emit({ type: 'addresses:updated', timestamp: Date.now() })
+        eventBus.emit({ type: 'users:updated', timestamp: Date.now() })
+      }
+    } catch (err) {
+      logger.error(
+        { userId: user.id, err: String(err) },
+        'LNCurl auto-create failed for an unconfigured primary address'
+      )
+    }
+  }
   const lightningAddress = primaryAddress?.username
     ? `${primaryAddress.username}@${addressDomain}`
     : null
@@ -58,7 +135,8 @@ export const GET = withErrorHandling(async (request: Request) => {
   // The account primary wallet is derived from the primary address's
   // CUSTOM_NWC binding. The legacy/display isDefault flag is synchronized from
   // that link, but is no longer the source of truth.
-  const primaryWallet = await getPrimaryRemoteWalletForUser(user.id)
+  const primaryWallet =
+    replaced ?? (await getPrimaryRemoteWalletForUser(user.id))
   const primaryWalletConfig = primaryWallet
     ? decryptRemoteWalletConfig(
         primaryWallet.id,
