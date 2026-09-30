@@ -13,6 +13,10 @@ vi.mock('@/lib/config', () => ({
   }))
 }))
 
+vi.mock('@/lib/settings', () => ({
+  getSettings: vi.fn()
+}))
+
 vi.mock('@/lib/logger', () => ({
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
   withRequestLogging: (fn: unknown) => fn
@@ -31,9 +35,11 @@ vi.mock('@/lib/lncurl', () => ({
 
 import {
   createLncurlRemoteWallet,
-  lncurlHealTarget
+  lncurlHealTarget,
+  replaceDeadLncurlPrimaryWallet
 } from '@/lib/wallet/lncurl-wallet'
 import { createLncurlWallet } from '@/lib/lncurl'
+import { getSettings } from '@/lib/settings'
 
 const USER_ID = 'user-1'
 
@@ -330,5 +336,71 @@ describe('lncurlHealTarget', () => {
     expect(
       lncurlHealTarget({ mode: 'CUSTOM_NWC', boundWallet: deadLncurl }, ON)
     ).toEqual({ previousWalletId: 'w-dead' })
+  })
+})
+
+describe('replaceDeadLncurlPrimaryWallet', () => {
+  it('replaces a DEAD LNCurl wallet and leaves the old row as a tombstone', async () => {
+    vi.mocked(getSettings).mockResolvedValue({
+      lncurl_enabled: 'true',
+      lncurl_auto_recreate: 'true',
+      lncurl_server_url: 'https://lncurl.example'
+    })
+
+    const replaced = await replaceDeadLncurlPrimaryWallet({
+      userId: USER_ID,
+      mode: 'CUSTOM_NWC',
+      boundWallet: {
+        id: 'w-dead',
+        status: 'DEAD',
+        config: { provider: 'lncurl' }
+      }
+    })
+
+    expect(replaced).toBeTruthy()
+    expect(createLncurlWallet).toHaveBeenCalledWith('https://lncurl.example')
+    expect(prismaMock.lightningAddress.updateMany).toHaveBeenCalledWith({
+      where: { userId: USER_ID, remoteWalletId: 'w-dead' },
+      data: { remoteWalletId: 'new-wallet' }
+    })
+    expect(prismaMock.remoteWallet.updateMany).toHaveBeenCalledWith({
+      where: { id: 'w-dead', userId: USER_ID },
+      data: expect.objectContaining({ status: 'DEAD', isDefault: false })
+    })
+  })
+
+  it('leaves a DEAD non-LNCurl wallet in place', async () => {
+    vi.mocked(getSettings).mockResolvedValue({
+      lncurl_enabled: 'true',
+      lncurl_auto_recreate: 'true'
+    })
+
+    await expect(
+      replaceDeadLncurlPrimaryWallet({
+        userId: USER_ID,
+        mode: 'CUSTOM_NWC',
+        boundWallet: {
+          id: 'w-own',
+          status: 'DEAD',
+          config: { provider: 'custom' }
+        }
+      })
+    ).resolves.toBeNull()
+    expect(createLncurlWallet).not.toHaveBeenCalled()
+  })
+
+  it('does not touch an ACTIVE LNCurl wallet', async () => {
+    await expect(
+      replaceDeadLncurlPrimaryWallet({
+        userId: USER_ID,
+        mode: 'CUSTOM_NWC',
+        boundWallet: {
+          id: 'w-live',
+          status: 'ACTIVE',
+          config: { provider: 'lncurl' }
+        }
+      })
+    ).resolves.toBeNull()
+    expect(getSettings).not.toHaveBeenCalled()
   })
 })

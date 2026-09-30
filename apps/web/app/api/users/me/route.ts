@@ -9,6 +9,8 @@ import { resolveWalletRoute } from '@/lib/wallet/resolve-payment-route'
 import { getPrimaryRemoteWalletForUser } from '@/lib/wallet/primary-wallet'
 import { decryptRemoteWalletConfig } from '@/lib/wallet/remote-wallet-vault'
 import { currencyPrefsSchema } from '@/lib/validation/schemas'
+import { replaceDeadLncurlPrimaryWallet } from '@/lib/wallet/lncurl-wallet'
+import { eventBus } from '@/lib/events/event-bus'
 
 export const dynamic = 'force-dynamic'
 
@@ -50,7 +52,30 @@ export const GET = withErrorHandling(async (request: Request) => {
   // domain directly rather than `resolvePublicEndpoint`, which mixes the
   // two concerns.
   const addressDomain = await resolveAddressDomain(request)
-  const primaryAddress = user.lightningAddresses[0]
+  let primaryAddress = user.lightningAddresses[0]
+  const boundWallet = primaryAddress?.remoteWallet
+  const replaced =
+    primaryAddress && boundWallet?.status === 'DEAD' && boundWallet.id
+      ? await replaceDeadLncurlPrimaryWallet({
+          userId: user.id,
+          mode: primaryAddress.mode,
+          boundWallet: {
+            id: boundWallet.id,
+            status: boundWallet.status,
+            config: boundWallet.config
+          }
+        })
+      : null
+  if (replaced && primaryAddress) {
+    primaryAddress = {
+      ...primaryAddress,
+      remoteWalletId: replaced.id,
+      remoteWallet: replaced
+    }
+    eventBus.emit({ type: 'listener:updated', timestamp: Date.now() })
+    eventBus.emit({ type: 'addresses:updated', timestamp: Date.now() })
+    eventBus.emit({ type: 'users:updated', timestamp: Date.now() })
+  }
   const lightningAddress = primaryAddress?.username
     ? `${primaryAddress.username}@${addressDomain}`
     : null
@@ -58,7 +83,8 @@ export const GET = withErrorHandling(async (request: Request) => {
   // The account primary wallet is derived from the primary address's
   // CUSTOM_NWC binding. The legacy/display isDefault flag is synchronized from
   // that link, but is no longer the source of truth.
-  const primaryWallet = await getPrimaryRemoteWalletForUser(user.id)
+  const primaryWallet =
+    replaced ?? (await getPrimaryRemoteWalletForUser(user.id))
   const primaryWalletConfig = primaryWallet
     ? decryptRemoteWalletConfig(
         primaryWallet.id,
