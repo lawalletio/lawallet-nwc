@@ -20,7 +20,10 @@ import {
   resolveWalletRoute
 } from '@/lib/wallet/resolve-payment-route'
 import { getSettings } from '@/lib/settings'
-import { lncurlHealTarget } from '@/lib/wallet/lncurl-wallet'
+import {
+  findCourtesyReviveTarget,
+  lncurlHealTarget
+} from '@/lib/wallet/lncurl-wallet'
 import {
   getLud16AvatarMetadataEntry,
   warmNostrProfileForLud16
@@ -160,13 +163,25 @@ export const GET = withErrorHandling(
         remoteWallet: lightningAddress.remoteWallet
       })
 
-      // IDLE (disabled by the owner) is always a dead end — no LNURL here.
+      // IDLE is a dead end when the holder disabled the address. A courtesy
+      // LNCurl wallet archived by the listener also lands here (the primary
+      // link is cleared). Promise a callback and replace the wallet on /cb
+      // when auto-recreate is on — a bare lookup still does not mint.
       if (route.kind === 'idle') {
+        const revivable =
+          lightningAddress.isPrimary &&
+          (await findCourtesyReviveTarget(lightningAddress.user.id))
+        if (!revivable) {
+          logger.info(
+            { username, mode: lightningAddress.mode, reason: route.kind },
+            'LUD16 lookup rejected'
+          )
+          throw new NotFoundError('User not configured for payments')
+        }
         logger.info(
-          { username, mode: lightningAddress.mode, reason: route.kind },
-          'LUD16 lookup rejected'
+          { username, mode: lightningAddress.mode },
+          'LUD16 lookup deferred courtesy wallet replacement'
         )
-        throw new NotFoundError('User not configured for payments')
       }
 
       // `unconfigured` (no usable wallet) normally 404s too — UNLESS the operator

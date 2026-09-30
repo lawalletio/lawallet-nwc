@@ -90,20 +90,21 @@ describe('createNewUser — LNCurl auto-create', () => {
     expect(createLncurlRemoteWallet).not.toHaveBeenCalled()
   })
 
-  it('swallows an LNCurl failure — signup still succeeds with no wallet', async () => {
+  it('rolls the user back and surfaces an LNCurl mint failure', async () => {
     vi.mocked(getSettings).mockResolvedValue({
       lncurl_auto_create: 'true'
     })
     vi.mocked(createLncurlRemoteWallet).mockRejectedValue(
       new Error('LNCurl down')
     )
-    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.mocked(prismaMock.user.delete).mockResolvedValue({} as never)
 
-    const user = await createNewUser(PUBKEY)
-
-    // The user record is returned despite the wallet provisioning failure.
-    expect(user.id).toBeTruthy()
-    expect((user as { remoteWallets: unknown[] }).remoteWallets).toEqual([])
-    errSpy.mockRestore()
+    await expect(createNewUser(PUBKEY)).rejects.toMatchObject({
+      statusCode: 503,
+      message: 'Could not create a wallet. Try again.'
+    })
+    expect(prismaMock.user.delete).toHaveBeenCalledWith({
+      where: { id: expect.any(String) }
+    })
   })
 })

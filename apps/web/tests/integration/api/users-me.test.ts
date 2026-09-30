@@ -33,6 +33,13 @@ vi.mock('@/lib/middleware/request-limits', () => ({
   checkRequestLimits: vi.fn()
 }))
 
+const reviveDeadCourtesyWallet = vi.hoisted(() =>
+  vi.fn<() => Promise<unknown | null>>(async () => null)
+)
+vi.mock('@/lib/wallet/lncurl-wallet', () => ({
+  reviveDeadCourtesyWallet
+}))
+
 import { GET } from '@/app/api/users/me/route'
 import { PUT } from '@/app/api/users/me/currency-prefs/route'
 import { authenticate } from '@/lib/auth/unified-auth'
@@ -56,6 +63,7 @@ function mockAuthReject() {
 beforeEach(() => {
   resetPrismaMock()
   vi.clearAllMocks()
+  reviveDeadCourtesyWallet.mockResolvedValue(null)
 })
 
 describe('GET /api/users/me', () => {
@@ -315,6 +323,46 @@ describe('GET /api/users/me', () => {
     const body: any = await assertResponse(res, 200)
 
     expect(body.effectiveNwcString).toBeNull()
+  })
+
+  it('replaces a dead courtesy wallet before returning the connection string', async () => {
+    mockAuth()
+    const freshUri = 'nostr+walletconnect://fresh-lncurl'
+    const user = createUserFixture({
+      pubkey: mockPubkey,
+      lightningAddresses: [
+        {
+          username: 'alice',
+          isPrimary: true,
+          mode: 'IDLE',
+          redirect: null,
+          remoteWalletId: null,
+          remoteWallet: null
+        }
+      ]
+    })
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
+    vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com' })
+    reviveDeadCourtesyWallet.mockResolvedValue({
+      id: 'fresh-wallet',
+      type: 'NWC',
+      status: 'ACTIVE',
+      isDefault: true,
+      updatedAt: new Date('2026-01-02T00:00:00Z'),
+      config: {
+        connectionString: freshUri,
+        mode: 'SEND_RECEIVE',
+        provider: 'lncurl'
+      }
+    })
+
+    const res = await GET(createNextRequest('/api/users/me'))
+    const body: any = await assertResponse(res, 200)
+
+    expect(reviveDeadCourtesyWallet).toHaveBeenCalledWith(user.id)
+    expect(body.primaryAddressMode).toBe('CUSTOM_NWC')
+    expect(body.nwcString).toBe(freshUri)
+    expect(body.effectiveNwcString).toBe(freshUri)
   })
 
   it('CUSTOM_NWC primary: effectiveNwcString = the address-bound wallet', async () => {

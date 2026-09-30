@@ -1,6 +1,8 @@
 import { prisma } from '@/lib/prisma'
 import { randomUUID } from 'node:crypto'
 import { logger } from '@/lib/logger'
+import { getSettings } from '@/lib/settings'
+import { eventBus } from '@/lib/events/event-bus'
 import {
   createLncurlWallet,
   DEFAULT_LNCURL_SERVER,
@@ -87,12 +89,172 @@ export function lncurlHealTarget(
   // An existing wallet only gets auto-recreated when it's a DEAD disposable
   // LNCurl wallet AND recreation is enabled. Anything else (DISABLED/REVOKED,
   // or a non-LNCurl provider) is deliberately left alone.
-  const isLncurl =
-    (relevant.config as { provider?: string } | null)?.provider === 'lncurl'
-  if (autoRecreate && relevant.status === 'DEAD' && isLncurl) {
+  if (
+    autoRecreate &&
+    relevant.status === 'DEAD' &&
+    isLncurlWalletConfig(relevant.config)
+  ) {
     return { previousWalletId: relevant.id }
   }
   return null
+}
+
+/** True when a RemoteWallet config was minted by LNCurl. Provider stays plaintext. */
+export function isLncurlWalletConfig(config: unknown): boolean {
+  return (
+    !!config &&
+    typeof config === 'object' &&
+    !Array.isArray(config) &&
+    (config as { provider?: unknown }).provider === 'lncurl'
+  )
+}
+
+/**
+ * A DEAD courtesy LNCurl wallet that should be replaced before the holder
+ * sends or receives, including after archival unlinked the primary address
+ * to IDLE. Returns null when the account is using anything else — a user's
+ * own NWC is never swapped out.
+ */
+export function courtesyReviveTarget(
+  args: {
+    mode: LightningAddressMode
+    boundWallet: LncurlHealWalletRef | null
+    /** DEAD LNCurl row left behind when the primary address was unbound. */
+    archivedCourtesy: LncurlHealWalletRef | null
+    /** The account still has some ACTIVE wallet. */
+    hasActiveWallet: boolean
+  },
+  settings: LncurlAutoHealSettings
+): { previousWalletId: string } | null {
+  if (settings.lncurl_enabled !== 'true') return null
+  if (settings.lncurl_auto_recreate !== 'true') return null
+  if (args.mode === 'ALIAS' || args.mode === 'PROXY_ALIAS') return null
+
+  const bound = args.boundWallet
+  if (bound) {
+    if (bound.status !== 'DEAD' || !isLncurlWalletConfig(bound.config)) {
+      return null
+    }
+    return { previousWalletId: bound.id }
+  }
+
+  // Archive clears the primary link to IDLE. That is not the holder disabling
+  // the address — the courtesy wallet died. Recreate only when nothing else
+  // is already ACTIVE, so a wallet the holder connected themselves stays put.
+  if (args.mode !== 'IDLE' && args.mode !== 'CUSTOM_NWC') return null
+  if (args.hasActiveWallet) return null
+  const archived = args.archivedCourtesy
+  if (
+    !archived ||
+    archived.status !== 'DEAD' ||
+    !isLncurlWalletConfig(archived.config)
+  ) {
+    return null
+  }
+  return { previousWalletId: archived.id }
+}
+
+/**
+ * Read-only: would {@link reviveDeadCourtesyWallet} replace the account's
+ * courtesy wallet? LUD-16 metadata uses this to promise a callback without
+ * minting.
+ */
+export async function findCourtesyReviveTarget(userId: string): Promise<{
+  previousWalletId: string
+  serverUrl: string | undefined
+} | null> {
+  const settings = await getSettings([
+    'lncurl_enabled',
+    'lncurl_auto_recreate',
+    'lncurl_server_url'
+  ])
+  if (
+    settings.lncurl_enabled !== 'true' ||
+    settings.lncurl_auto_recreate !== 'true'
+  ) {
+    return null
+  }
+
+  const address = await prisma.lightningAddress.findFirst({
+    where: { userId, isPrimary: true },
+    include: { remoteWallet: true }
+  })
+  if (!address) return null
+
+  const bound = address.remoteWallet
+    ? {
+        id: address.remoteWallet.id,
+        status: address.remoteWallet.status,
+        config: address.remoteWallet.config
+      }
+    : null
+
+  let archivedCourtesy: LncurlHealWalletRef | null = null
+  let hasActiveWallet = false
+  if (!bound) {
+    const [active, dead] = await Promise.all([
+      prisma.remoteWallet.findFirst({
+        where: { userId, status: 'ACTIVE' },
+        select: { id: true }
+      }),
+      prisma.remoteWallet.findFirst({
+        where: {
+          userId,
+          status: 'DEAD',
+          config: { path: ['provider'], equals: 'lncurl' }
+        },
+        orderBy: { diedAt: 'desc' },
+        select: { id: true, status: true, config: true }
+      })
+    ])
+    hasActiveWallet = active != null
+    if (dead) archivedCourtesy = dead
+  }
+
+  const target = courtesyReviveTarget(
+    {
+      mode: address.mode,
+      boundWallet: bound,
+      archivedCourtesy,
+      hasActiveWallet
+    },
+    settings
+  )
+  if (!target) return null
+  return {
+    previousWalletId: target.previousWalletId,
+    serverUrl: settings.lncurl_server_url || undefined
+  }
+}
+
+/**
+ * Replace a DEAD courtesy LNCurl wallet with a fresh one, point the primary
+ * Lightning Address at it, and leave the old row as a DEAD tombstone.
+ * No-op for any non-LNCurl wallet. Call this before the holder sends or
+ * receives — not only when a payer hits the LUD-16 callback.
+ */
+export async function reviveDeadCourtesyWallet(
+  userId: string
+): Promise<RemoteWallet | null> {
+  const target = await findCourtesyReviveTarget(userId)
+  if (!target) return null
+
+  const created = await createLncurlRemoteWallet({
+    userId,
+    previousWalletId: target.previousWalletId,
+    revokePrevious: true,
+    serverUrl: target.serverUrl,
+    isDefault: true
+  })
+
+  eventBus.emit({ type: 'listener:updated', timestamp: Date.now() })
+  eventBus.emit({ type: 'addresses:updated', timestamp: Date.now() })
+  eventBus.emit({ type: 'users:updated', timestamp: Date.now() })
+  logger.info(
+    { userId, walletId: created.id, previousWalletId: target.previousWalletId },
+    'LNCurl courtesy wallet replaced before use'
+  )
+  return created
 }
 
 export interface CreateLncurlRemoteWalletInput {
