@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Download, X } from 'lucide-react'
+import { usePathname } from 'next/navigation'
+import { Download, Share, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 // Chrome fires `beforeinstallprompt` with this non-standard event shape.
@@ -64,17 +65,36 @@ function shouldHideInstallPrompt(): boolean {
 }
 
 /**
+ * iPhone, iPod, iPad, and iPadOS (which reports as MacIntel with touch).
+ * Those browsers never fire `beforeinstallprompt`, so the wallet shows a
+ * Share-sheet hint instead of a native install button.
+ */
+export function isIosInstallTarget(nav: {
+  userAgent: string
+  platform?: string
+  maxTouchPoints?: number
+}): boolean {
+  if (/iPad|iPhone|iPod/.test(nav.userAgent)) return true
+  return nav.platform === 'MacIntel' && (nav.maxTouchPoints ?? 0) > 1
+}
+
+/**
  * Registers the service worker and renders a dismissible "Install app" prompt.
  *
  * Mounted inside the authenticated wallet layout so registration is scoped to
- * wallet sessions and the prompt only reaches signed-in users. The install
- * banner shows once the browser fires `beforeinstallprompt`, unless the user
- * already installed the app or dismissed the banner before.
+ * wallet sessions and the prompt only reaches signed-in users. The banner is
+ * rendered on the wallet home only, above the tab bar, so it never covers the
+ * address-claim or send/receive actions. Chrome/Android use
+ * `beforeinstallprompt`. iOS never fires that event, so those browsers get a
+ * dismissible Share-sheet hint instead. One dismissal (or an install) keeps
+ * it quiet on this device.
  */
 export function PwaManager() {
+  const pathname = usePathname()
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(
     null
   )
+  const [iosHint, setIosHint] = useState(false)
   const [visible, setVisible] = useState(false)
 
   // Register the service worker.
@@ -99,6 +119,7 @@ export function PwaManager() {
     const hide = () => {
       setVisible(false)
       setDeferred(null)
+      setIosHint(false)
     }
 
     // Running inside the installed app: never prompt, and remember so a later
@@ -106,6 +127,11 @@ export function PwaManager() {
     if (shouldHideInstallPrompt()) {
       if (isInstalledDisplayMode()) rememberInstallDismissed()
       return
+    }
+
+    if (isIosInstallTarget(window.navigator)) {
+      setIosHint(true)
+      setVisible(true)
     }
 
     const onPrompt = (e: Event) => {
@@ -161,25 +187,41 @@ export function PwaManager() {
     setVisible(false)
   }
 
-  if (!visible) return null
+  // Captured during claim-username (or any other route) and shown once the
+  // user reaches home, so the nudge does not cover that screen's CTA.
+  if (!visible || pathname !== '/wallet') return null
+  if (!deferred && !iosHint) return null
+
+  const native = deferred != null
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex justify-center p-4">
+    <div
+      className="pointer-events-none fixed inset-x-0 z-40 flex justify-center px-4"
+      style={{ bottom: 'calc(7.5rem + env(safe-area-inset-bottom))' }}
+    >
       <div className="pointer-events-auto flex w-full max-w-md items-center gap-3 rounded-xl border border-border bg-card p-3 shadow-lg">
         <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted">
-          <Download className="size-5 text-foreground" />
+          {native ? (
+            <Download className="size-5 text-foreground" />
+          ) : (
+            <Share className="size-5 text-foreground" />
+          )}
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium leading-tight">
-            Install the wallet
+            {native ? 'Install the wallet' : 'Add to your Home Screen'}
           </p>
-          <p className="truncate text-xs text-muted-foreground">
-            Add it to your home screen for quick access.
+          <p className="text-xs text-muted-foreground">
+            {native
+              ? 'Add it to your home screen for quick access.'
+              : 'Tap Share, then Add to Home Screen. You can keep using the wallet either way.'}
           </p>
         </div>
-        <Button size="sm" onClick={install}>
-          Install
-        </Button>
+        {native && (
+          <Button size="sm" onClick={install}>
+            Install
+          </Button>
+        )}
         <button
           type="button"
           onClick={dismiss}
