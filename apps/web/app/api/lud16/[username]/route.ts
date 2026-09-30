@@ -171,17 +171,18 @@ export const GET = withErrorHandling(
         const revivable =
           lightningAddress.isPrimary &&
           (await findCourtesyReviveTarget(lightningAddress.user.id))
-        if (!revivable) {
+        if (revivable) {
+          logger.info(
+            { username, mode: lightningAddress.mode },
+            'LUD16 lookup deferred courtesy wallet replacement'
+          )
+        } else {
           logger.info(
             { username, mode: lightningAddress.mode, reason: route.kind },
             'LUD16 lookup rejected'
           )
           throw new NotFoundError('User not configured for payments')
         }
-        logger.info(
-          { username, mode: lightningAddress.mode },
-          'LUD16 lookup deferred courtesy wallet replacement'
-        )
       }
 
       // `unconfigured` (no usable wallet) normally 404s too — UNLESS the operator

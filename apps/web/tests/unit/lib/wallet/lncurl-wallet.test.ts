@@ -597,6 +597,17 @@ describe('reviveDeadCourtesyWallet', () => {
     expect(createLncurlWallet).not.toHaveBeenCalled()
   })
 
+  it('does not mint when the address is unbound and no dead courtesy wallet remains', async () => {
+    vi.mocked(prismaMock.lightningAddress.findFirst).mockResolvedValue({
+      mode: 'IDLE',
+      remoteWallet: null
+    } as never)
+    vi.mocked(prismaMock.remoteWallet.findFirst).mockResolvedValue(null)
+
+    await expect(findCourtesyReviveTarget(USER_ID)).resolves.toBeNull()
+    expect(createLncurlWallet).not.toHaveBeenCalled()
+  })
+
   it('does not mint when the account has no primary address', async () => {
     vi.mocked(prismaMock.lightningAddress.findFirst).mockResolvedValue(null)
 
