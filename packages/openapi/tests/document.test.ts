@@ -40,6 +40,7 @@ describe('getOpenApiDocument', () => {
       '/api/cards/{id}',
       '/api/cards/{id}/lnurlp',
       '/api/cards/{id}/lnurlp/cb',
+      '/api/cards/{id}/transactions',
       '/api/card-designs',
       '/api/lightning-addresses',
       '/api/lightning-addresses/verify-protocols',
@@ -53,14 +54,27 @@ describe('getOpenApiDocument', () => {
       '/api/users/{userId}',
       '/api/invoices',
       '/api/settings',
+      '/api/settings/domain-probe',
+      '/api/settings/listener-probe',
+      '/api/plugins',
+      '/api/plugins/{plugin}',
       '/api/admin/assign',
       '/api/setup/status',
       '/api/version',
+      '/api/health',
       '/api/remote-connections/{externalDeviceKey}',
       '/api/remote-wallets',
       '/api/remote-wallets/{id}',
       '/api/activity',
-      '/api/events'
+      '/api/events',
+      '/api/mcp',
+      '/api/mcp/public',
+      '/api/oauth/register',
+      '/api/oauth/authorize',
+      '/api/oauth/token',
+      '/api/oauth/revoke',
+      '/api/oauth/grants',
+      '/api/oauth/grants/{id}'
     ]
     for (const expected of expectations) {
       expect(paths).toContain(expected)

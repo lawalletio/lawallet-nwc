@@ -145,6 +145,10 @@ export function getOpenApiDocument(
       { name: 'Admin', description: 'Admin role assignment and bootstrap.' },
       { name: 'Setup', description: 'Initial setup status checks.' },
       {
+        name: 'Health',
+        description: 'Liveness and database reachability check.'
+      },
+      {
         name: 'Remote Connections',
         description: 'External device pairing for cards.'
       },
@@ -155,6 +159,16 @@ export function getOpenApiDocument(
           'services (lacrypta/coupons protocol).'
       },
       { name: 'Activity', description: 'Activity log access.' },
+      {
+        name: 'MCP',
+        description:
+          'Model Context Protocol endpoint: lets AI agents operate this instance through tools.'
+      },
+      {
+        name: 'OAuth',
+        description:
+          'OAuth 2.1 authorization server that MCP clients use to obtain scoped access tokens.'
+      },
       {
         name: 'Events',
         description: 'Server-Sent Events for real-time updates.'

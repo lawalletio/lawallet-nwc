@@ -58,6 +58,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { AdminTopbar } from '@/components/admin/admin-topbar'
 import { MergeDialog } from '@/components/admin/account/merge-dialog'
 import { PasskeysSection } from '@/components/wallet/settings/passkeys-section'
+import { ConnectedApps } from '@/components/oauth/connected-apps'
 import { useAuth } from '@/components/admin/auth-context'
 import { useAccount } from '@/lib/client/hooks/use-account'
 import { useNostrProfile } from '@/lib/client/nostr-profile'
@@ -237,6 +238,19 @@ export function AccountScreen() {
                     )
                   }
                 />
+              </CardContent>
+            </Card>
+
+            {/* ── Connected apps (MCP / OAuth grants) ──────────────────── */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Connected apps</CardTitle>
+                <CardDescription>
+                  AI assistants and other apps you allowed to use this account.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ConnectedApps />
               </CardContent>
             </Card>
 

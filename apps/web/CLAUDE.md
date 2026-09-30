@@ -83,6 +83,21 @@ Migrations run against the per-checkout DB from `.env.local`
 - App Router params: `createParamsPromise()` from route-helpers
 - Coverage gates: statements 60 / branches 70 / functions 70 / lines 60
 
+## MCP server + OAuth (reference: `docs/MCP.md`)
+
+- `app/api/mcp/` (`/api/mcp` authenticated, `/api/mcp/public` anonymous) →
+  `lib/mcp/protocol.ts` (JSON-RPC, both protocol eras) → `caller.ts` (OAuth
+  `lwat_` token or session/device JWT) → `tools.ts`. REST operations run
+  in-process via `dispatch.ts`; `wallet-tools.ts` holds the only spend path
+  (`wallet_pay_invoice` + ledger); `redact.ts` scrubs every result.
+- OAuth 2.1 server: `lib/oauth/`, `app/api/oauth/**`, `app/.well-known/oauth-*`;
+  consent page `app/oauth/authorize` + `components/oauth/`.
+- **Classify every new OpenAPI operation** in `OPERATION_POLICY`
+  (`lib/mcp/policy.ts`) as read, write or excluded — `policy.test.ts` fails
+  otherwise. Exclude anything that moves funds or changes where they go.
+- `lib/mcp/route-manifest.ts` is generated: run `pnpm docs:sync` (repo root)
+  after adding, moving or deleting a route; `pnpm docs:check` fails when stale.
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 # This is NOT the Next.js you know

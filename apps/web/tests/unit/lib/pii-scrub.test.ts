@@ -40,6 +40,14 @@ describe('scrubPii', () => {
     expect(out).toBe('pubkey [redacted] rejected')
   })
 
+  it('redacts OAuth codes, access tokens and refresh tokens', () => {
+    const secret = 'A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8S9t0U1v'
+    for (const prefix of ['lwac_', 'lwat_', 'lwrt_']) {
+      const out = scrubPii(`token ${prefix}${secret} rejected`)
+      expect(out).toBe('token [redacted] rejected')
+    }
+  })
+
   it('redacts email-shaped addresses', () => {
     const out = scrubPii('LUD-16 lookup for alice@example.com failed')
     expect(out).toBe('LUD-16 lookup for [redacted] failed')

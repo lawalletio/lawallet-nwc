@@ -80,6 +80,10 @@
       "description": "Initial setup status checks."
     },
     {
+      "name": "Health",
+      "description": "Liveness and database reachability check."
+    },
+    {
       "name": "Remote Connections",
       "description": "External device pairing for cards."
     },
@@ -90,6 +94,14 @@
     {
       "name": "Activity",
       "description": "Activity log access."
+    },
+    {
+      "name": "MCP",
+      "description": "Model Context Protocol endpoint: lets AI agents operate this instance through tools."
+    },
+    {
+      "name": "OAuth",
+      "description": "OAuth 2.1 authorization server that MCP clients use to obtain scoped access tokens."
     },
     {
       "name": "Events",
@@ -392,7 +404,8 @@
         "properties": {
           "amount": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "description": "Amount in millisatoshis (LUD-06): 1 sat = 1000."
           },
           "comment": {
             "type": "string",
@@ -5052,6 +5065,195 @@
         }
       }
     },
+    "/api/cards/{id}/transactions": {
+      "get": {
+        "x-required-role": "VIEWER",
+        "tags": [
+          "Cards"
+        ],
+        "summary": "List the spends made by tapping a card.",
+        "description": "Returns the card’s 100 most recent payment attempts (LNURL-withdraw spends), newest first, including unresolved ones.",
+        "operationId": "cards.transactions.list",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Card spends, newest first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "amountSats": {
+                            "type": "number",
+                            "description": "Invoice amount; fractional for sub-sat amounts."
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "success",
+                              "failed"
+                            ],
+                            "description": "Compatibility summary: `success` only when `paymentStatus` is SUCCEEDED, so PENDING and UNKNOWN attempts also read `failed`."
+                          },
+                          "error": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "description": "Error code recorded for the attempt."
+                          },
+                          "walletType": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "enum": [
+                              "NWC",
+                              "LND",
+                              "CLN",
+                              "BTCPAY",
+                              null
+                            ],
+                            "description": "Type of the wallet that paid; null when that wallet no longer exists."
+                          },
+                          "bolt11": {
+                            "type": "string",
+                            "description": "The invoice the card paid."
+                          },
+                          "description": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "description": "Description decoded from `bolt11`."
+                          },
+                          "paymentHash": {
+                            "type": "string"
+                          },
+                          "paymentStatus": {
+                            "type": "string",
+                            "enum": [
+                              "PENDING",
+                              "SUCCEEDED",
+                              "REJECTED",
+                              "UNKNOWN"
+                            ]
+                          },
+                          "transport": {
+                            "type": "string",
+                            "enum": [
+                              "DIRECT",
+                              "LISTENER"
+                            ],
+                            "description": "Whether web paid directly or delegated to the NWC listener."
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "createdAt",
+                          "amountSats",
+                          "status",
+                          "error",
+                          "walletType",
+                          "bolt11",
+                          "description",
+                          "paymentHash",
+                          "paymentStatus",
+                          "transport"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/cards/{id}/write": {
       "get": {
         "x-required-role": "PUBLIC",
@@ -6052,9 +6254,11 @@
           {
             "schema": {
               "type": "string",
-              "minLength": 1
+              "minLength": 1,
+              "description": "Amount in millisatoshis (LUD-06): 1 sat = 1000."
             },
             "required": true,
+            "description": "Amount in millisatoshis (LUD-06): 1 sat = 1000.",
             "name": "amount",
             "in": "query"
           },
@@ -8274,38 +8478,53 @@
     },
     "/api/lightning-addresses/relays": {
       "get": {
-        "x-required-role": "PUBLIC",
+        "x-required-role": "ADMIN",
         "tags": [
           "Lightning Addresses"
         ],
         "summary": "List relays advertised for the platform.",
         "operationId": "lightningAddresses.relays",
-        "security": [],
+        "security": [
+          {
+            "NIP98": []
+          }
+        ],
         "responses": {
           "200": {
             "description": "Relay list.",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "relays": {
-                      "type": "array",
-                      "items": {
-                        "type": "string",
-                        "format": "uri"
-                      }
-                    }
-                  },
-                  "required": [
-                    "relays"
-                  ]
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
                 }
               }
             }
           },
           "400": {
             "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
             "content": {
               "application/json": {
                 "schema": {
@@ -8416,9 +8635,11 @@
           {
             "schema": {
               "type": "string",
-              "minLength": 1
+              "minLength": 1,
+              "description": "Amount in millisatoshis (LUD-06): 1 sat = 1000."
             },
             "required": true,
+            "description": "Amount in millisatoshis (LUD-06): 1 sat = 1000.",
             "name": "amount",
             "in": "query"
           },
@@ -10968,6 +11189,113 @@
       }
     },
     "/api/users/{userId}/role": {
+      "get": {
+        "x-required-role": "USER",
+        "tags": [
+          "Users"
+        ],
+        "summary": "Get a user’s role (self, or with `users:read`).",
+        "operationId": "users.role.get",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "userId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The user’s role.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "userId": {
+                      "type": "string"
+                    },
+                    "role": {
+                      "type": "string",
+                      "enum": [
+                        "ADMIN",
+                        "OPERATOR",
+                        "VIEWER",
+                        "USER"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "userId",
+                    "role"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
       "put": {
         "x-required-role": "ADMIN",
         "tags": [
@@ -11754,6 +12082,749 @@
         }
       }
     },
+    "/api/settings/domain-probe": {
+      "post": {
+        "x-required-role": "ADMIN",
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Check that a domain routes Lightning Address discovery here.",
+        "description": "Requires `settings:write`. Fetches the domain’s root page, `/.well-known/lawallet.json`, `/.well-known/lnurlp/…` and `/.well-known/nostr.json`, then stores `domain_verified` (`true` only when the result is `ready`). Returns rewrite instructions for the detected hosting platform.",
+        "operationId": "settings.domainProbe",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "domain": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Domain to check, without protocol.",
+                    "example": "example.com"
+                  },
+                  "endpoint": {
+                    "type": "string",
+                    "description": "Origin LNURL callbacks must point at; defaults to the domain."
+                  },
+                  "apiGatewayEndpoint": {
+                    "type": "string",
+                    "description": "Callback origin to expect instead when the domain is not itself served by LaWallet."
+                  }
+                },
+                "required": [
+                  "domain"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Probe result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "domain": {
+                      "type": "string"
+                    },
+                    "endpoint": {
+                      "type": "string"
+                    },
+                    "direct": {
+                      "type": "boolean"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "ready",
+                        "rewrite-needed",
+                        "pending"
+                      ]
+                    },
+                    "checks": {
+                      "type": "object",
+                      "properties": {
+                        "instance": {
+                          "type": "object",
+                          "properties": {
+                            "state": {
+                              "type": "string",
+                              "enum": [
+                                "pass",
+                                "fail",
+                                "skip"
+                              ]
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "label": {
+                              "type": "string"
+                            },
+                            "detail": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "state",
+                            "url",
+                            "label",
+                            "detail"
+                          ]
+                        },
+                        "lnurl": {
+                          "type": "object",
+                          "properties": {
+                            "state": {
+                              "type": "string",
+                              "enum": [
+                                "pass",
+                                "fail",
+                                "skip"
+                              ]
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "label": {
+                              "type": "string"
+                            },
+                            "detail": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "state",
+                            "url",
+                            "label",
+                            "detail"
+                          ]
+                        },
+                        "nip05": {
+                          "type": "object",
+                          "properties": {
+                            "state": {
+                              "type": "string",
+                              "enum": [
+                                "pass",
+                                "fail",
+                                "skip"
+                              ]
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "label": {
+                              "type": "string"
+                            },
+                            "detail": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "state",
+                            "url",
+                            "label",
+                            "detail"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "instance",
+                        "lnurl",
+                        "nip05"
+                      ]
+                    },
+                    "platform": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "lawallet",
+                            "wordpress",
+                            "nextjs",
+                            "vite",
+                            "php",
+                            "nginx",
+                            "vercel",
+                            "netlify",
+                            "cloudflare",
+                            "static",
+                            "unknown"
+                          ]
+                        },
+                        "label": {
+                          "type": "string"
+                        },
+                        "confidence": {
+                          "type": "string",
+                          "enum": [
+                            "high",
+                            "medium",
+                            "low"
+                          ]
+                        },
+                        "evidence": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "label",
+                        "confidence",
+                        "evidence"
+                      ]
+                    },
+                    "instructions": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "lawallet",
+                            "wordpress",
+                            "htaccess",
+                            "nextjs",
+                            "vite",
+                            "php",
+                            "nginx",
+                            "vercel",
+                            "netlify",
+                            "cloudflare",
+                            "caddy",
+                            "static",
+                            "unknown"
+                          ]
+                        },
+                        "label": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "summary": {
+                          "type": "string"
+                        },
+                        "snippet": {
+                          "type": "string"
+                        },
+                        "tip": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "title",
+                        "summary",
+                        "snippet",
+                        "tip"
+                      ]
+                    },
+                    "instructionOptions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "lawallet",
+                              "wordpress",
+                              "htaccess",
+                              "nextjs",
+                              "vite",
+                              "php",
+                              "nginx",
+                              "vercel",
+                              "netlify",
+                              "cloudflare",
+                              "caddy",
+                              "static",
+                              "unknown"
+                            ]
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "summary": {
+                            "type": "string"
+                          },
+                          "snippet": {
+                            "type": "string"
+                          },
+                          "tip": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "title",
+                          "summary",
+                          "snippet",
+                          "tip"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "domain",
+                    "endpoint",
+                    "direct",
+                    "status",
+                    "checks",
+                    "platform",
+                    "instructions",
+                    "instructionOptions"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request body exceeds the configured limit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/settings/listener-probe": {
+      "post": {
+        "x-required-role": "ADMIN",
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Test the connection to an NWC listener.",
+        "description": "Requires `settings:write`. Calls `GET <url>/status` with the shared secret as a Bearer token; when `secret` is omitted it sends the stored or env secret. Probe outcomes are always 200 with `ok: false` and a `code` on failure.",
+        "operationId": "settings.listenerProbe",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "secret": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "url"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Probe outcome.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "ok": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        },
+                        "uptimeSeconds": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "connections": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "relays": {
+                          "type": "integer",
+                          "minimum": 0
+                        }
+                      },
+                      "required": [
+                        "ok",
+                        "uptimeSeconds",
+                        "connections",
+                        "relays"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "ok": {
+                          "type": "boolean",
+                          "enum": [
+                            false
+                          ]
+                        },
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "unreachable",
+                            "unauthorized",
+                            "invalid_response",
+                            "no_secret"
+                          ]
+                        },
+                        "error": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "ok",
+                        "code",
+                        "error"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins": {
+      "get": {
+        "x-required-role": "USER",
+        "tags": [
+          "Plugins"
+        ],
+        "summary": "List registered plugins and whether each is enabled.",
+        "operationId": "plugins.list",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Registered plugins.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "plugins": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "version": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "type": "string"
+                          },
+                          "enabled": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "version",
+                          "enabled"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "plugins"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/{plugin}": {
+      "patch": {
+        "x-required-role": "ADMIN",
+        "tags": [
+          "Plugins"
+        ],
+        "summary": "Enable or disable a plugin.",
+        "description": "Requires `settings:write`. Stores the `plugin.<id>.enabled` setting, runs the plugin’s idempotent `migrate()` when enabling, and dispatches the `plugin:toggled` hook.",
+        "operationId": "plugins.update",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "badges"
+            },
+            "required": true,
+            "name": "plugin",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "enabled"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The plugin’s resulting state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "enabled": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "enabled"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/admin/assign": {
       "get": {
         "x-required-role": "PUBLIC",
@@ -12125,6 +13196,98 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/health": {
+      "get": {
+        "x-required-role": "PUBLIC",
+        "tags": [
+          "Health"
+        ],
+        "summary": "Check that the web app is up and can reach its database.",
+        "description": "Runs `SELECT 1` against the database. Both outcomes use this bespoke shape, not the standard error envelope.",
+        "operationId": "health.get",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "The app and its database are up.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "ok"
+                      ]
+                    },
+                    "service": {
+                      "type": "string",
+                      "enum": [
+                        "web"
+                      ]
+                    },
+                    "database": {
+                      "type": "string",
+                      "enum": [
+                        "up"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "service",
+                    "database"
+                  ]
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The database query failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "error"
+                      ]
+                    },
+                    "service": {
+                      "type": "string",
+                      "enum": [
+                        "web"
+                      ]
+                    },
+                    "database": {
+                      "type": "string",
+                      "enum": [
+                        "down"
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "The database error message; omitted in production."
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "service",
+                    "database",
+                    "message"
+                  ]
                 }
               }
             }
@@ -18950,6 +20113,7 @@
         ],
         "summary": "Deposit a voucher to a member’s npub.",
         "description": "Public deposit endpoint for external coupon-manager services. The caller authenticates with NIP-98 (or a Bearer session) but does **not** need an account on this instance. The write is gated by the *recipient’s* deposit policy, and a signer the recipient does not accept gets the same 403 as an unknown npub — this endpoint is deliberately not an account-existence oracle.\n\nIdempotent on `(servicePubkey, nonce)`: a redeposit refreshes the row and returns 200 rather than conflicting.",
+        "operationId": "vouchers.deposit",
         "security": [
           {
             "BearerJWT": []
@@ -19098,6 +20262,7 @@
           "Vouchers"
         ],
         "summary": "List the caller’s vouchers.",
+        "operationId": "wallet.vouchers.list",
         "security": [
           {
             "BearerJWT": []
@@ -19338,6 +20503,7 @@
         ],
         "summary": "Get one of the caller’s vouchers.",
         "description": "A voucher belonging to another account is reported as missing rather than forbidden, so ids cannot be probed.",
+        "operationId": "wallet.vouchers.get",
         "security": [
           {
             "BearerJWT": []
@@ -19565,6 +20731,7 @@
         ],
         "summary": "Remove a voucher from the caller’s stash.",
         "description": "Local only — the coupon stays valid at the merchant for anyone holding the nonce. Voiding is the merchant’s call, not ours.",
+        "operationId": "wallet.vouchers.delete",
         "security": [
           {
             "BearerJWT": []
@@ -19663,6 +20830,7 @@
         ],
         "summary": "Re-read a voucher’s status from its coupon service.",
         "description": "Polls `GET {claimUrl}?nonce=`. Status is monotonic: a voucher already CLAIMED or VOIDED is never walked back, and is not polled at all. `checked: false` means the poll was skipped (terminal status, or a recent check still within the cooldown).",
+        "operationId": "wallet.vouchers.refresh",
         "security": [
           {
             "BearerJWT": []
@@ -19923,6 +21091,7 @@
           "Vouchers"
         ],
         "summary": "Get the caller’s voucher deposit policy.",
+        "operationId": "wallet.vouchers.settings.get",
         "security": [
           {
             "BearerJWT": []
@@ -20036,6 +21205,7 @@
         ],
         "summary": "Set who may deposit vouchers to the caller.",
         "description": "Allowlist entries may be hex, npub, or NIP-05, and are resolved to hex here so deposits stay a plain membership test. An entry that cannot be resolved fails the whole save — a silently shortened list would leave the owner believing a sender is allowed when they are not.",
+        "operationId": "wallet.vouchers.settings.update",
         "security": [
           {
             "BearerJWT": []
@@ -20160,6 +21330,7 @@
         ],
         "summary": "Hand a voucher to a lightning address.",
         "description": "Resolves the recipient’s LUD-16 payRequest, requires `allowVouchers`, and POSTs the signed voucher to their callback. The recipient swaps the nonce at the coupon service to take it, so this is **irreversible** once accepted.\n\nThe claim is a conditional `MINTED → TRANSFER_PENDING` update, so a double send cannot start two deliveries of one nonce. On refusal the coupon service — not the recipient’s answer — decides the final status: a recipient can swap the nonce and then reply with an error.",
+        "operationId": "wallet.vouchers.send",
         "security": [
           {
             "BearerJWT": []
@@ -20417,6 +21588,1830 @@
           },
           "503": {
             "description": "Upstream service unavailable or maintenance mode active.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/oauth/register": {
+      "post": {
+        "x-required-role": "PUBLIC",
+        "tags": [
+          "OAuth"
+        ],
+        "summary": "Register an OAuth client (RFC 7591).",
+        "description": "Dynamic client registration for MCP hosts. Only `redirect_uris` is required: `https:` URIs, `http:` on a loopback host, or a native app scheme such as `cursor://`. Every client is registered as a public PKCE client whatever it asks for — `token_endpoint_auth_method`, `grant_types`, `application_type` and other metadata are ignored, and the response states what was registered. Clients older than 30 days that never obtained a grant are removed.",
+        "operationId": "oauth.register",
+        "security": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "redirect_uris": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 2000
+                    },
+                    "minItems": 1,
+                    "maxItems": 10
+                  },
+                  "client_name": {
+                    "type": "string",
+                    "maxLength": 1000
+                  }
+                },
+                "required": [
+                  "redirect_uris"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Client registered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "client_id": {
+                      "type": "string"
+                    },
+                    "client_id_issued_at": {
+                      "type": "integer"
+                    },
+                    "client_name": {
+                      "type": "string"
+                    },
+                    "redirect_uris": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "token_endpoint_auth_method": {
+                      "type": "string",
+                      "enum": [
+                        "none"
+                      ]
+                    },
+                    "grant_types": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "authorization_code",
+                          "refresh_token"
+                        ]
+                      }
+                    },
+                    "response_types": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "code"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "client_id",
+                    "client_id_issued_at",
+                    "client_name",
+                    "redirect_uris",
+                    "token_endpoint_auth_method",
+                    "grant_types",
+                    "response_types"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`invalid_redirect_uri` or `invalid_client_metadata`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "error_description": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request body exceeds the configured limit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded; check the Retry-After header.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/oauth/authorize": {
+      "get": {
+        "x-required-role": "PUBLIC",
+        "tags": [
+          "OAuth"
+        ],
+        "summary": "Validate an authorization request for the consent screen.",
+        "description": "Called by the consent page (`/oauth/authorize`, the advertised `authorization_endpoint`) with the OAuth query it received. Checks the client, that `redirect_uri` is registered (loopback URIs match on any port), `response_type=code`, PKCE S256 and the `resource`, then describes the request. `scopes` lists the requested scopes this server knows (all of them when none is known); `read` is implied by `write` and `spend`. A parameter sent twice is rejected.",
+        "operationId": "oauth.authorize.validate",
+        "security": [],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            },
+            "required": true,
+            "name": "client_id",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2000
+            },
+            "required": true,
+            "name": "redirect_uri",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "required": true,
+            "name": "response_type",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{43}$"
+            },
+            "required": true,
+            "name": "code_challenge",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "S256"
+              ]
+            },
+            "required": true,
+            "name": "code_challenge_method",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 1000
+            },
+            "required": false,
+            "name": "scope",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 4096
+            },
+            "required": false,
+            "name": "state",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "required": false,
+            "name": "resource",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The request is valid; what to show on the consent screen.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "client": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name"
+                      ]
+                    },
+                    "redirectUri": {
+                      "type": "string"
+                    },
+                    "redirectHost": {
+                      "type": "string"
+                    },
+                    "scopes": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "read",
+                          "write",
+                          "spend"
+                        ]
+                      }
+                    },
+                    "resource": {
+                      "type": "string"
+                    },
+                    "defaultSpendLimitSats": {
+                      "type": "integer"
+                    },
+                    "maxSpendLimitSats": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "client",
+                    "redirectUri",
+                    "redirectHost",
+                    "scopes",
+                    "resource",
+                    "defaultSpendLimitSats",
+                    "maxSpendLimitSats"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`invalid_client`, `invalid_request`, `unsupported_response_type` or `invalid_target`. Shown in place — never redirected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "error_description": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "x-required-role": "USER",
+        "tags": [
+          "OAuth"
+        ],
+        "summary": "Approve or deny an authorization request.",
+        "description": "The signed-in user’s decision. Answers with `redirectTo`: the client’s redirect URI carrying a single-use `code` (valid 5 minutes) or `error=access_denied`, plus `state` and `iss` (RFC 9207). Approving needs at least one scope out of those offered; `spend` requires `spendLimitSats`, a rolling 24-hour budget. A new approval replaces the account’s earlier grant for the same client. Requires a full session: device tokens get 403.",
+        "operationId": "oauth.authorize.decide",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "client_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                  },
+                  "redirect_uri": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  },
+                  "response_type": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                  },
+                  "code_challenge": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_-]{43}$"
+                  },
+                  "code_challenge_method": {
+                    "type": "string",
+                    "enum": [
+                      "S256"
+                    ]
+                  },
+                  "scope": {
+                    "type": "string",
+                    "maxLength": 1000
+                  },
+                  "state": {
+                    "type": "string",
+                    "maxLength": 4096
+                  },
+                  "resource": {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "approve": {
+                    "type": "boolean"
+                  },
+                  "scopes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "read",
+                        "write",
+                        "spend"
+                      ]
+                    },
+                    "maxItems": 10
+                  },
+                  "spendLimitSats": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": 1,
+                    "maximum": 10000000
+                  }
+                },
+                "required": [
+                  "client_id",
+                  "redirect_uri",
+                  "response_type",
+                  "code_challenge",
+                  "code_challenge_method",
+                  "approve"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Where to send the browser.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "redirectTo": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "redirectTo"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown `client_id`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request body exceeds the configured limit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/oauth/token": {
+      "post": {
+        "x-required-role": "PUBLIC",
+        "tags": [
+          "OAuth"
+        ],
+        "summary": "Exchange a code or refresh token for tokens.",
+        "description": "`authorization_code` takes the single-use code, its `code_verifier` (PKCE S256), the same `redirect_uri` and `client_id`; presenting a code twice revokes the grant. `refresh_token` takes the refresh token and `client_id`. Every success rotates both tokens: the previous ones stop working at once. Access tokens (`lwat_…`) last one hour and are only accepted by `/api/mcp`; refresh tokens (`lwrt_…`) expire after 30 days without use. `resource`, when sent, must be the MCP URL or its origin.",
+        "operationId": "oauth.token",
+        "security": [],
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "grant_type": {
+                        "type": "string",
+                        "enum": [
+                          "authorization_code"
+                        ]
+                      },
+                      "code": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 512
+                      },
+                      "redirect_uri": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 2000
+                      },
+                      "client_id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 255
+                      },
+                      "code_verifier": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9\\-._~]{43,128}$"
+                      },
+                      "resource": {
+                        "type": "string",
+                        "maxLength": 2000
+                      }
+                    },
+                    "required": [
+                      "grant_type",
+                      "code",
+                      "redirect_uri",
+                      "client_id",
+                      "code_verifier"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "grant_type": {
+                        "type": "string",
+                        "enum": [
+                          "refresh_token"
+                        ]
+                      },
+                      "refresh_token": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 512
+                      },
+                      "client_id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 255
+                      },
+                      "resource": {
+                        "type": "string",
+                        "maxLength": 2000
+                      }
+                    },
+                    "required": [
+                      "grant_type",
+                      "refresh_token",
+                      "client_id"
+                    ]
+                  }
+                ]
+              }
+            },
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "grant_type": {
+                        "type": "string",
+                        "enum": [
+                          "authorization_code"
+                        ]
+                      },
+                      "code": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 512
+                      },
+                      "redirect_uri": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 2000
+                      },
+                      "client_id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 255
+                      },
+                      "code_verifier": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9\\-._~]{43,128}$"
+                      },
+                      "resource": {
+                        "type": "string",
+                        "maxLength": 2000
+                      }
+                    },
+                    "required": [
+                      "grant_type",
+                      "code",
+                      "redirect_uri",
+                      "client_id",
+                      "code_verifier"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "grant_type": {
+                        "type": "string",
+                        "enum": [
+                          "refresh_token"
+                        ]
+                      },
+                      "refresh_token": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 512
+                      },
+                      "client_id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 255
+                      },
+                      "resource": {
+                        "type": "string",
+                        "maxLength": 2000
+                      }
+                    },
+                    "required": [
+                      "grant_type",
+                      "refresh_token",
+                      "client_id"
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "New token pair.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "access_token": {
+                      "type": "string"
+                    },
+                    "token_type": {
+                      "type": "string",
+                      "enum": [
+                        "Bearer"
+                      ]
+                    },
+                    "expires_in": {
+                      "type": "integer"
+                    },
+                    "refresh_token": {
+                      "type": "string"
+                    },
+                    "scope": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "access_token",
+                    "token_type",
+                    "expires_in",
+                    "refresh_token",
+                    "scope"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`invalid_request`, `invalid_client`, `invalid_grant`, `unsupported_grant_type` or `invalid_target`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "error_description": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request body exceeds the configured limit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded; check the Retry-After header.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/oauth/revoke": {
+      "post": {
+        "x-required-role": "PUBLIC",
+        "tags": [
+          "OAuth"
+        ],
+        "summary": "Revoke a token (RFC 7009).",
+        "description": "Revokes the whole grant the access or refresh token belongs to. Always 200 with an empty object, even for an unknown token.",
+        "operationId": "oauth.revoke",
+        "security": [],
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 512
+                  }
+                },
+                "required": [
+                  "token"
+                ]
+              }
+            },
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 512
+                  }
+                },
+                "required": [
+                  "token"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`invalid_request`: no token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "error_description": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request body exceeds the configured limit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded; check the Retry-After header.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/oauth/grants": {
+      "get": {
+        "x-required-role": "USER",
+        "tags": [
+          "OAuth"
+        ],
+        "summary": "List the caller’s connected apps.",
+        "description": "OAuth grants of the caller that are in use: code exchanged, not revoked, refresh token not expired. Newest first. Requires a full session.",
+        "operationId": "oauth.grants.list",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The caller’s active grants.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "grants": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "clientName": {
+                            "type": "string"
+                          },
+                          "scopes": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "enum": [
+                                "read",
+                                "write",
+                                "spend"
+                              ]
+                            }
+                          },
+                          "spendLimitSats": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ]
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          },
+                          "lastUsedAt": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "clientName",
+                          "scopes",
+                          "spendLimitSats",
+                          "createdAt",
+                          "lastUsedAt"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "grants"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/oauth/grants/{id}": {
+      "delete": {
+        "x-required-role": "USER",
+        "tags": [
+          "OAuth"
+        ],
+        "summary": "Disconnect an app.",
+        "description": "Revokes one of the caller’s grants; its tokens stop working at once. The record is kept for the MCP payment ledger. A grant that is not the caller’s is reported as missing. Requires a full session.",
+        "operationId": "oauth.grants.revoke",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Revoked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/mcp": {
+      "post": {
+        "x-required-role": "USER",
+        "tags": [
+          "MCP"
+        ],
+        "summary": "MCP endpoint for signed-in agents.",
+        "description": "Model Context Protocol over Streamable HTTP, stateless: every POST gets one `application/json` answer, with no SSE stream and no session. Serves the 2026-07-28 revision (per-request `_meta`, `server/discover`) and the initialize-based revisions 2025-11-25, 2025-06-18, 2025-03-26 and 2024-11-05 on the same URL. Takes an OAuth access token issued by this instance (scopes `read`, `write`, `spend`) or a session/device JWT (`read` + `write`). Without valid credentials it answers 401 with a `WWW-Authenticate` challenge pointing at the protected-resource metadata, which starts the OAuth flow. Tools are derived from this OpenAPI document and run the real REST handlers; secrets are redacted from every result.",
+        "operationId": "mcp.call",
+        "security": [
+          {
+            "BearerJWT": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "jsonrpc": {
+                        "type": "string",
+                        "enum": [
+                          "2.0"
+                        ]
+                      },
+                      "id": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "number"
+                          }
+                        ],
+                        "description": "Absent for a notification."
+                      },
+                      "method": {
+                        "type": "string",
+                        "example": "tools/call",
+                        "description": "`initialize`, `ping`, `server/discover`, `tools/list` or `tools/call`."
+                      },
+                      "params": {
+                        "type": "object",
+                        "additionalProperties": {}
+                      }
+                    },
+                    "required": [
+                      "jsonrpc",
+                      "method"
+                    ],
+                    "description": "A JSON-RPC 2.0 request or notification."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "jsonrpc": {
+                          "type": "string",
+                          "enum": [
+                            "2.0"
+                          ]
+                        },
+                        "id": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "number"
+                            }
+                          ],
+                          "description": "Absent for a notification."
+                        },
+                        "method": {
+                          "type": "string",
+                          "example": "tools/call",
+                          "description": "`initialize`, `ping`, `server/discover`, `tools/list` or `tools/call`."
+                        },
+                        "params": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        }
+                      },
+                      "required": [
+                        "jsonrpc",
+                        "method"
+                      ],
+                      "description": "A JSON-RPC 2.0 request or notification."
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "JSON-RPC response (an array for a batch). Tool failures are results with `isError: true`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "jsonrpc": {
+                          "type": "string",
+                          "enum": [
+                            "2.0"
+                          ]
+                        },
+                        "id": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "result": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "error": {
+                          "type": "object",
+                          "properties": {
+                            "code": {
+                              "type": "integer"
+                            },
+                            "message": {
+                              "type": "string"
+                            },
+                            "data": {}
+                          },
+                          "required": [
+                            "code",
+                            "message"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "jsonrpc",
+                        "id"
+                      ],
+                      "description": "A JSON-RPC 2.0 response."
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "jsonrpc": {
+                            "type": "string",
+                            "enum": [
+                              "2.0"
+                            ]
+                          },
+                          "id": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "result": {
+                            "type": "object",
+                            "additionalProperties": {}
+                          },
+                          "error": {
+                            "type": "object",
+                            "properties": {
+                              "code": {
+                                "type": "integer"
+                              },
+                              "message": {
+                                "type": "string"
+                              },
+                              "data": {}
+                            },
+                            "required": [
+                              "code",
+                              "message"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "jsonrpc",
+                          "id"
+                        ],
+                        "description": "A JSON-RPC 2.0 response."
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Notification accepted."
+          },
+          "400": {
+            "description": "Malformed JSON-RPC, a header that disagrees with the body (`-32020`), an unsupported protocol version (`-32022`) or missing request metadata.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "jsonrpc": {
+                      "type": "string",
+                      "enum": [
+                        "2.0"
+                      ]
+                    },
+                    "id": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "result": {
+                      "type": "object",
+                      "additionalProperties": {}
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "integer"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "data": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "jsonrpc",
+                    "id"
+                  ],
+                  "description": "A JSON-RPC 2.0 response."
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or rejected Bearer token. `WWW-Authenticate` names the protected-resource metadata, which starts OAuth.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "enum": [
+                        "invalid_token",
+                        "unauthorized"
+                      ]
+                    },
+                    "error_description": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error",
+                    "error_description"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown method of the 2026-07-28 revision (`-32601`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "jsonrpc": {
+                      "type": "string",
+                      "enum": [
+                        "2.0"
+                      ]
+                    },
+                    "id": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "result": {
+                      "type": "object",
+                      "additionalProperties": {}
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "integer"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "data": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "jsonrpc",
+                    "id"
+                  ],
+                  "description": "A JSON-RPC 2.0 response."
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request body exceeds the configured limit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded; check the Retry-After header.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/mcp/public": {
+      "post": {
+        "x-required-role": "PUBLIC",
+        "tags": [
+          "MCP"
+        ],
+        "summary": "MCP endpoint for anonymous agents.",
+        "description": "Model Context Protocol over Streamable HTTP, stateless: every POST gets one `application/json` answer, with no SSE stream and no session. Serves the 2026-07-28 revision (per-request `_meta`, `server/discover`) and the initialize-based revisions 2025-11-25, 2025-06-18, 2025-03-26 and 2024-11-05 on the same URL. Anonymous: only public tools are listed — lightning-address lookups and instance information. Credentials are ignored, never rejected. Tools are derived from this OpenAPI document and run the real REST handlers; secrets are redacted from every result.",
+        "operationId": "mcp.public.call",
+        "security": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "jsonrpc": {
+                        "type": "string",
+                        "enum": [
+                          "2.0"
+                        ]
+                      },
+                      "id": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "number"
+                          }
+                        ],
+                        "description": "Absent for a notification."
+                      },
+                      "method": {
+                        "type": "string",
+                        "example": "tools/call",
+                        "description": "`initialize`, `ping`, `server/discover`, `tools/list` or `tools/call`."
+                      },
+                      "params": {
+                        "type": "object",
+                        "additionalProperties": {}
+                      }
+                    },
+                    "required": [
+                      "jsonrpc",
+                      "method"
+                    ],
+                    "description": "A JSON-RPC 2.0 request or notification."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "jsonrpc": {
+                          "type": "string",
+                          "enum": [
+                            "2.0"
+                          ]
+                        },
+                        "id": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "number"
+                            }
+                          ],
+                          "description": "Absent for a notification."
+                        },
+                        "method": {
+                          "type": "string",
+                          "example": "tools/call",
+                          "description": "`initialize`, `ping`, `server/discover`, `tools/list` or `tools/call`."
+                        },
+                        "params": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        }
+                      },
+                      "required": [
+                        "jsonrpc",
+                        "method"
+                      ],
+                      "description": "A JSON-RPC 2.0 request or notification."
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "JSON-RPC response (an array for a batch). Tool failures are results with `isError: true`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "jsonrpc": {
+                          "type": "string",
+                          "enum": [
+                            "2.0"
+                          ]
+                        },
+                        "id": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "result": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "error": {
+                          "type": "object",
+                          "properties": {
+                            "code": {
+                              "type": "integer"
+                            },
+                            "message": {
+                              "type": "string"
+                            },
+                            "data": {}
+                          },
+                          "required": [
+                            "code",
+                            "message"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "jsonrpc",
+                        "id"
+                      ],
+                      "description": "A JSON-RPC 2.0 response."
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "jsonrpc": {
+                            "type": "string",
+                            "enum": [
+                              "2.0"
+                            ]
+                          },
+                          "id": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "result": {
+                            "type": "object",
+                            "additionalProperties": {}
+                          },
+                          "error": {
+                            "type": "object",
+                            "properties": {
+                              "code": {
+                                "type": "integer"
+                              },
+                              "message": {
+                                "type": "string"
+                              },
+                              "data": {}
+                            },
+                            "required": [
+                              "code",
+                              "message"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "jsonrpc",
+                          "id"
+                        ],
+                        "description": "A JSON-RPC 2.0 response."
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Notification accepted."
+          },
+          "400": {
+            "description": "Malformed JSON-RPC, a header that disagrees with the body (`-32020`), an unsupported protocol version (`-32022`) or missing request metadata.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "jsonrpc": {
+                      "type": "string",
+                      "enum": [
+                        "2.0"
+                      ]
+                    },
+                    "id": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "result": {
+                      "type": "object",
+                      "additionalProperties": {}
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "integer"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "data": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "jsonrpc",
+                    "id"
+                  ],
+                  "description": "A JSON-RPC 2.0 response."
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown method of the 2026-07-28 revision (`-32601`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "jsonrpc": {
+                      "type": "string",
+                      "enum": [
+                        "2.0"
+                      ]
+                    },
+                    "id": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "result": {
+                      "type": "object",
+                      "additionalProperties": {}
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "integer"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "data": {}
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "jsonrpc",
+                    "id"
+                  ],
+                  "description": "A JSON-RPC 2.0 response."
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request body exceeds the configured limit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded; check the Retry-After header.",
             "content": {
               "application/json": {
                 "schema": {

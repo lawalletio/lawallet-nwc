@@ -44,6 +44,10 @@ export const ActivityEvent = {
   ACCOUNT_PUBKEY_UNLINKED: 'user.account_pubkey_unlinked',
   ACCOUNT_PRIMARY_CHANGED: 'user.account_primary_changed',
   ACCOUNT_MERGED: 'user.account_merged',
+  // OAuth grants handed to MCP clients (Claude, ChatGPT, …). A grant carrying
+  // the `spend` scope logs at WARN.
+  OAUTH_GRANT_CREATED: 'user.oauth_grant_created',
+  OAUTH_GRANT_REVOKED: 'user.oauth_grant_revoked',
   // ADDRESS
   ADDRESS_CREATED: 'address.created',
   ADDRESS_UPDATED: 'address.updated',
@@ -61,6 +65,9 @@ export const ActivityEvent = {
   NWC_PAYMENT_SENT: 'nwc.payment_sent',
   NWC_LISTENER_ERROR: 'nwc.listener_error',
   NWC_WALLET_DEAD: 'nwc.wallet_dead',
+  // Payments sent by an MCP client through `wallet_pay_invoice`.
+  MCP_PAYMENT_SENT: 'nwc.mcp_payment_sent',
+  MCP_PAYMENT_FAILED: 'nwc.mcp_payment_failed',
   PROXY_DESTINATION_CHANGED: 'proxy.destination_changed',
   PROXY_FORWARD_RETRY_REQUESTED: 'proxy.forward_retry_requested',
   // INVOICE

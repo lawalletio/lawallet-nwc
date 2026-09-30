@@ -67,6 +67,7 @@ registry.registerPath({
     'unknown npub — this endpoint is deliberately not an account-existence oracle.\n\n' +
     'Idempotent on `(servicePubkey, nonce)`: a redeposit refreshes the row and ' +
     'returns 200 rather than conflicting.',
+  operationId: 'vouchers.deposit',
   security: protectedSecurity,
   request: { body: { content: jsonContent('DepositVoucher') } },
   responses: {
@@ -90,6 +91,7 @@ registry.registerPath({
   path: '/api/wallet/vouchers',
   tags: [TAG],
   summary: 'List the caller’s vouchers.',
+  operationId: 'wallet.vouchers.list',
   security: protectedSecurity,
   request: { query: z.object({ status: voucherStatusSchema.optional() }) },
   responses: {
@@ -111,6 +113,7 @@ registry.registerPath({
   description:
     'A voucher belonging to another account is reported as missing rather ' +
     'than forbidden, so ids cannot be probed.',
+  operationId: 'wallet.vouchers.get',
   security: protectedSecurity,
   request: { params: z.object({ id: z.string() }) },
   responses: {
@@ -129,6 +132,7 @@ registry.registerPath({
   description:
     'Local only — the coupon stays valid at the merchant for anyone holding ' +
     'the nonce. Voiding is the merchant’s call, not ours.',
+  operationId: 'wallet.vouchers.delete',
   security: protectedSecurity,
   request: { params: z.object({ id: z.string() }) },
   responses: {
@@ -149,6 +153,7 @@ registry.registerPath({
     'CLAIMED or VOIDED is never walked back, and is not polled at all. ' +
     '`checked: false` means the poll was skipped (terminal status, or a ' +
     'recent check still within the cooldown).',
+  operationId: 'wallet.vouchers.refresh',
   security: protectedSecurity,
   request: { params: z.object({ id: z.string() }) },
   responses: {
@@ -169,6 +174,7 @@ registry.registerPath({
   path: '/api/wallet/vouchers/settings',
   tags: [TAG],
   summary: 'Get the caller’s voucher deposit policy.',
+  operationId: 'wallet.vouchers.settings.get',
   security: protectedSecurity,
   responses: {
     200: inlineJsonResponse('Deposit policy.', voucherSettingsSchema),
@@ -188,6 +194,7 @@ registry.registerPath({
     'here so deposits stay a plain membership test. An entry that cannot be ' +
     'resolved fails the whole save — a silently shortened list would leave ' +
     'the owner believing a sender is allowed when they are not.',
+  operationId: 'wallet.vouchers.settings.update',
   security: protectedSecurity,
   request: { body: { content: jsonContent('UpdateVoucherSettings') } },
   responses: {
@@ -211,6 +218,7 @@ registry.registerPath({
     'send cannot start two deliveries of one nonce. On refusal the coupon ' +
     'service — not the recipient’s answer — decides the final status: a ' +
     'recipient can swap the nonce and then reply with an error.',
+  operationId: 'wallet.vouchers.send',
   security: protectedSecurity,
   request: {
     params: z.object({ id: z.string() }),

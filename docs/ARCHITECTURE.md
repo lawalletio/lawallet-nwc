@@ -109,6 +109,7 @@ The web application is organized into clearly separated modules:
 | **NTAG424**       | `lib/ntag424.ts`            | NFC card crypto, signature validation      |
 | **Logger**        | `lib/logger.ts`             | Pino structured logging, request IDs       |
 | **Errors**        | `types/server/`             | Error hierarchy, error handler HOF         |
+| **MCP / OAuth**   | `lib/mcp/` + `lib/oauth/`   | MCP server for AI agents; OAuth 2.1 server |
 | **Client Hooks**  | `lib/client/hooks/`         | React hooks for API consumption            |
 | **Client Auth**   | `lib/client/`               | Nostr signers, JWT exchange, API client    |
 | **UI Components** | `components/`               | shadcn/ui components, admin dashboard      |
@@ -854,6 +855,7 @@ See: [DOCKER.md](./DOCKER.md)
 - [DOCKER.md](./DOCKER.md) — Docker build and deployment
 - [JWT_USAGE.md](./JWT_USAGE.md) — JWT implementation details
 - [SDK.md](./SDK.md) — Client SDK documentation
+- [MCP.md](./MCP.md) — MCP server for AI agents and its OAuth sign-in
 - [ROADMAP.md](./ROADMAP.md) — Development timeline
 - [services/LAWALLET-WEB.md](./services/LAWALLET-WEB.md) — Web service details
 - [services/NWC-LISTENER.md](./services/NWC-LISTENER.md) — Listener service details
