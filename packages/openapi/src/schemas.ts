@@ -194,7 +194,7 @@ export const schemas = {
     'WalletCardUpdateRequest',
     updateWalletCardSchema.openapi({
       description:
-        'Owner-scoped card update. Provide exactly one action: set `enabled` to enable or disable the card, set `linkDefaultWallet` to true to bind it to the caller’s primary remote wallet, or set `kind` to designate this card as the caller’s MASTER (account-recovery) card — which demotes whichever card previously held that designation.'
+        'Owner-scoped card update. Provide exactly one action: set `enabled` to enable or disable the card, set `linkDefaultWallet` to true to bind it to the caller’s primary remote wallet, set `remoteWalletId` to bind a specific wallet the caller owns (or null to unbind), or set `kind` to designate this card as the caller’s MASTER (account-recovery) card — which demotes whichever card previously held that designation.'
     })
   ),
 

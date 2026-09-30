@@ -162,16 +162,27 @@ export const updateCardSchema = z
     message: 'No fields to update'
   })
 
+/**
+ * Owner-scoped card update. Exactly one action per request:
+ *   - `enabled` — reversible enable/disable.
+ *   - `linkDefaultWallet: true` — bind to the caller's primary wallet.
+ *   - `remoteWalletId` — bind to that wallet, or `null` to unbind. The
+ *     wallet must belong to the caller and must not be REVOKED or DEAD
+ *     (enforced in the route; it depends on database state).
+ *   - `kind` — promote/demote the caller's MASTER card.
+ */
 export const updateWalletCardSchema = z
   .object({
     enabled: z.boolean().optional(),
     linkDefaultWallet: z.boolean().optional(),
+    remoteWalletId: z.string().min(1).nullable().optional(),
     kind: cardKindSchema.optional()
   })
   .refine(
     v =>
       (v.enabled !== undefined ? 1 : 0) +
         (v.linkDefaultWallet === true ? 1 : 0) +
+        (v.remoteWalletId !== undefined ? 1 : 0) +
         (v.kind !== undefined ? 1 : 0) ===
       1,
     { message: 'Provide exactly one card update action' }

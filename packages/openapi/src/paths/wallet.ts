@@ -209,7 +209,7 @@ registry.registerPath({
   tags: [TAG],
   summary: 'Update one of the caller’s cards.',
   description:
-    'Enables or disables an owner-scoped card, or binds it to the caller’s active primary remote wallet. Blocked cards cannot be updated.',
+    'Enables or disables an owner-scoped card, binds it to one of the caller’s wallets (`remoteWalletId`, or null to unbind), or binds it to the caller’s active primary remote wallet. The target wallet must belong to the caller and must not be REVOKED or DEAD. Blocked cards cannot be updated.',
   operationId: 'wallet.cards.update',
   security: protectedSecurity,
   request: {

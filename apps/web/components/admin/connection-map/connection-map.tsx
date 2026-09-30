@@ -29,7 +29,7 @@ import {
 } from '@/lib/client/hooks/use-wallet-addresses'
 import {
   useMyCards,
-  useCardMutations,
+  useMyCardMutations,
   type CardData
 } from '@/lib/client/hooks/use-cards'
 import { useSettings } from '@/lib/client/hooks/use-settings'
@@ -91,9 +91,8 @@ const edgeTypes = { highlight: HighlightEdge }
  *   - Drag from an LA handle to a wallet handle: bind (CUSTOM_NWC).
  *   - Drag the wallet end of an LA edge to a different wallet: rebind.
  *   - Drag the wallet end of an LA edge into empty space: disconnect → IDLE.
- *
- * Card↔Wallet rebinding ships in a follow-up commit (the card PATCH
- * endpoint isn't there yet); the card source handle is inert today.
+ *   - Drag a wallet onto a card, or drop a card edge in empty space:
+ *     bind or unbind via the owner-scoped wallet-card endpoint.
  *
  * Positions are deterministic (no auto-layout) so the canvas stays stable
  * across re-renders / SSE refreshes — each row computes its y from its
@@ -169,7 +168,7 @@ function ConnectionMapInner() {
   const edgeReconnectSuccessful = useRef(true)
 
   const { updateAddress } = useAddressMutations()
-  const { updateCard } = useCardMutations()
+  const { setCardWallet } = useMyCardMutations()
 
   /** Primary-address wallet, highlighted in the canvas. */
   const defaultWallet = useMemo(
@@ -327,27 +326,27 @@ function ConnectionMapInner() {
   const bindCardToWallet = useCallback(
     async (cardId: string, walletId: string) => {
       try {
-        await updateCard(cardId, { remoteWalletId: walletId })
+        await setCardWallet(cardId, walletId)
         toast.success('Card bound to wallet')
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Could not bind card'
         toast.error(msg)
       }
     },
-    [updateCard]
+    [setCardWallet]
   )
 
   const disconnectCard = useCallback(
     async (cardId: string) => {
       try {
-        await updateCard(cardId, { remoteWalletId: null })
+        await setCardWallet(cardId, null)
         toast.success('Card unbound')
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Could not unbind card'
         toast.error(msg)
       }
     },
-    [updateCard]
+    [setCardWallet]
   )
 
   const handleConnectStart = useCallback(() => setIsConnecting(true), [])

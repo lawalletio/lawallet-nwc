@@ -32,6 +32,7 @@ vi.mock('@/lib/activity-log', () => ({
   ActivityEvent: {
     CARD_STATUS_UPDATED: 'card.status_updated',
     CARD_WALLET_BOUND: 'card.wallet_bound',
+    CARD_WALLET_UNBOUND: 'card.wallet_unbound',
     CARD_MASTER_SET: 'card.master_set',
     CARD_MASTER_CLEARED: 'card.master_cleared',
     NWC_ASSIGNED_TO_CARD: 'nwc.assigned_to_card'
@@ -42,6 +43,7 @@ vi.mock('@/lib/activity-log', () => ({
 import { GET as ListGet } from '@/app/api/wallet/cards/route'
 import { PATCH as UpdateCard } from '@/app/api/wallet/cards/[id]/route'
 import { authenticate } from '@/lib/auth/unified-auth'
+import { logActivity } from '@/lib/activity-log'
 import { createParamsPromise } from '@/tests/helpers/route-helpers'
 
 const mockPubkey = 'a'.repeat(64)
@@ -456,5 +458,197 @@ describe('PATCH /api/wallet/cards/[id] — master card designation', () => {
     )
 
     expect(res.status).toBe(400)
+  })
+})
+
+describe('PATCH /api/wallet/cards/[id] — bind a specific wallet', () => {
+  function mockOwnerCard(cardOverrides: Partial<any> = {}) {
+    mockAuth()
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
+      id: 'user-1',
+      pubkey: mockPubkey,
+      remoteWallets: [{ id: 'wallet-default' }]
+    } as any)
+    vi.mocked(prismaMock.card.findUnique).mockResolvedValue({
+      id: 'card-1',
+      userId: 'user-1',
+      remoteWalletId: null,
+      kind: 'SIMPLE',
+      blockedAt: null,
+      disabledAt: null,
+      ...cardOverrides
+    } as any)
+  }
+
+  function patchWallet(body: Record<string, unknown>) {
+    return UpdateCard(
+      createNextRequest('/api/wallet/cards/card-1', {
+        method: 'PATCH',
+        body
+      }),
+      createParamsPromise({ id: 'card-1' })
+    )
+  }
+
+  it('binds the caller’s card to a wallet they own', async () => {
+    mockOwnerCard()
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue({
+      id: 'wallet-2',
+      userId: 'user-1',
+      status: 'ACTIVE'
+    } as any)
+    vi.mocked(prismaMock.card.update).mockResolvedValue(
+      makeCardRow({ remoteWalletId: 'wallet-2' }) as any
+    )
+
+    const body: any = await assertResponse(
+      await patchWallet({ remoteWalletId: 'wallet-2' }),
+      200
+    )
+
+    expect(body.remoteWalletId).toBe('wallet-2')
+    expect(prismaMock.card.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'card-1' },
+        data: { remoteWalletId: 'wallet-2' }
+      })
+    )
+    expect(logActivity.fireAndForget).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'card.wallet_bound',
+        metadata: expect.objectContaining({
+          cardId: 'card-1',
+          remoteWalletId: 'wallet-2'
+        })
+      })
+    )
+    expect(logActivity.fireAndForget).toHaveBeenCalledWith(
+      expect.objectContaining({ event: 'nwc.assigned_to_card' })
+    )
+  })
+
+  it('unbinds when remoteWalletId is null', async () => {
+    mockOwnerCard({ remoteWalletId: 'wallet-old' })
+    vi.mocked(prismaMock.card.update).mockResolvedValue(
+      makeCardRow({ remoteWalletId: null }) as any
+    )
+
+    const body: any = await assertResponse(
+      await patchWallet({ remoteWalletId: null }),
+      200
+    )
+
+    expect(body.remoteWalletId).toBeNull()
+    expect(prismaMock.remoteWallet.findUnique).not.toHaveBeenCalled()
+    expect(prismaMock.card.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { remoteWalletId: null } })
+    )
+    expect(logActivity.fireAndForget).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'card.wallet_unbound',
+        metadata: expect.objectContaining({
+          previousRemoteWalletId: 'wallet-old',
+          remoteWalletId: null
+        })
+      })
+    )
+  })
+
+  it('does not log when the card is already bound to that wallet', async () => {
+    mockOwnerCard({ remoteWalletId: 'wallet-2' })
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue({
+      id: 'wallet-2',
+      userId: 'user-1',
+      status: 'ACTIVE'
+    } as any)
+    vi.mocked(prismaMock.card.update).mockResolvedValue(
+      makeCardRow({ remoteWalletId: 'wallet-2' }) as any
+    )
+
+    await assertResponse(await patchWallet({ remoteWalletId: 'wallet-2' }), 200)
+
+    expect(logActivity.fireAndForget).not.toHaveBeenCalled()
+  })
+
+  it('404s on another user’s card', async () => {
+    mockOwnerCard({ userId: 'user-2' })
+
+    expect((await patchWallet({ remoteWalletId: 'wallet-2' })).status).toBe(404)
+    expect(prismaMock.card.update).not.toHaveBeenCalled()
+    expect(prismaMock.remoteWallet.findUnique).not.toHaveBeenCalled()
+  })
+
+  it('rejects a missing wallet', async () => {
+    mockOwnerCard()
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(null)
+
+    const res = await patchWallet({ remoteWalletId: 'wallet-missing' })
+
+    expect(res.status).toBe(400)
+    expect(prismaMock.card.update).not.toHaveBeenCalled()
+  })
+
+  it.each(['REVOKED', 'DEAD'] as const)(
+    'rejects a %s wallet',
+    async status => {
+      mockOwnerCard()
+      vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue({
+        id: 'wallet-2',
+        userId: 'user-1',
+        status
+      } as any)
+
+      const res = await patchWallet({ remoteWalletId: 'wallet-2' })
+
+      expect(res.status).toBe(400)
+      expect(prismaMock.card.update).not.toHaveBeenCalled()
+    }
+  )
+
+  it('rejects a wallet owned by someone else', async () => {
+    mockOwnerCard()
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue({
+      id: 'wallet-2',
+      userId: 'user-2',
+      status: 'ACTIVE'
+    } as any)
+
+    const res = await patchWallet({ remoteWalletId: 'wallet-2' })
+    const body: any = await res.json()
+
+    expect(res.status).toBe(400)
+    expect(body.error.message).toBe('Wallet does not belong to the card owner')
+    expect(prismaMock.card.update).not.toHaveBeenCalled()
+  })
+
+  it('rejects rebinding a blocked card', async () => {
+    mockOwnerCard({ blockedAt: new Date('2026-01-02T00:00:00Z') })
+
+    const res = await patchWallet({ remoteWalletId: null })
+
+    expect(res.status).toBe(409)
+    expect(prismaMock.card.update).not.toHaveBeenCalled()
+    expect(prismaMock.remoteWallet.findUnique).not.toHaveBeenCalled()
+  })
+
+  it('rejects combining a wallet bind with another action', async () => {
+    mockOwnerCard()
+
+    const res = await patchWallet({
+      remoteWalletId: 'wallet-2',
+      enabled: false
+    })
+
+    expect(res.status).toBe(400)
+    expect(prismaMock.card.update).not.toHaveBeenCalled()
+  })
+
+  it('rejects an empty wallet id', async () => {
+    mockOwnerCard()
+
+    const res = await patchWallet({ remoteWalletId: '' })
+
+    expect(res.status).toBe(400)
+    expect(prismaMock.remoteWallet.findUnique).not.toHaveBeenCalled()
   })
 })
