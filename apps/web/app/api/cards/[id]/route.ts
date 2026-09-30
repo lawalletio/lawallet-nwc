@@ -121,10 +121,12 @@ export const GET = withErrorHandling(
  * the LA PUT — the rules depend on database state, not just the body
  * shape.
  *
- * The cards routes are admin-scoped (`Permission.CARDS_WRITE`); the
- * Connection Map only shows the cards section to users with that
- * permission, so the rebind UI matches what the caller can actually do.
- * Cardholders set their own master card via `PATCH /api/wallet/cards/[id]`.
+ * Operator-scoped (`Permission.CARDS_WRITE`). The Connection Map is open to
+ * every authenticated role and only lists the caller's own cards, so
+ * cardholders rebind those through `PATCH /api/wallet/cards/[id]`
+ * (`remoteWalletId`). This route stays the operator path for inventory
+ * cards and other holders' cards. Cardholders also set their own master
+ * card via `PATCH /api/wallet/cards/[id]`.
  */
 export const PATCH = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ id: string }> }) => {

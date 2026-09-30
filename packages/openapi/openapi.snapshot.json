@@ -612,6 +612,13 @@
           "linkDefaultWallet": {
             "type": "boolean"
           },
+          "remoteWalletId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1
+          },
           "kind": {
             "type": "string",
             "enum": [
@@ -620,7 +627,7 @@
             ]
           }
         },
-        "description": "Owner-scoped card update. Provide exactly one action: set `enabled` to enable or disable the card, set `linkDefaultWallet` to true to bind it to the caller’s primary remote wallet, or set `kind` to designate this card as the caller’s MASTER (account-recovery) card — which demotes whichever card previously held that designation."
+        "description": "Owner-scoped card update. Provide exactly one action: set `enabled` to enable or disable the card, set `linkDefaultWallet` to true to bind it to the caller’s primary remote wallet, set `remoteWalletId` to bind a specific wallet the caller owns (or null to unbind), or set `kind` to designate this card as the caller’s MASTER (account-recovery) card — which demotes whichever card previously held that designation."
       },
       "UserRoleUpdateRequest": {
         "type": "object",
@@ -4822,7 +4829,7 @@
           "Cards"
         ],
         "summary": "Update a card.",
-        "description": "Rebinds the card’s spending wallet and/or changes its kind. Setting `kind` to MASTER designates the card as its holder’s account-recovery card and demotes whichever of their cards previously held that designation; the card must be paired (400 otherwise) and not blocked (409 otherwise). Cardholders can set their own via PATCH /api/wallet/cards/{id}.",
+        "description": "Rebinds the card’s spending wallet and/or changes its kind. Setting `kind` to MASTER designates the card as its holder’s account-recovery card and demotes whichever of their cards previously held that designation; the card must be paired (400 otherwise) and not blocked (409 otherwise). Cardholders rebind their own card’s wallet and set their own master card via PATCH /api/wallet/cards/{id}.",
         "operationId": "cards.update",
         "security": [
           {
@@ -9554,7 +9561,7 @@
           "Wallet"
         ],
         "summary": "Update one of the caller’s cards.",
-        "description": "Enables or disables an owner-scoped card, or binds it to the caller’s active primary remote wallet. Blocked cards cannot be updated.",
+        "description": "Enables or disables an owner-scoped card, binds it to one of the caller’s wallets (`remoteWalletId`, or null to unbind), or binds it to the caller’s active primary remote wallet. The target wallet must belong to the caller and must not be REVOKED or DEAD. Blocked cards cannot be updated.",
         "operationId": "wallet.cards.update",
         "security": [
           {

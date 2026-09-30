@@ -149,8 +149,8 @@ registry.registerPath({
     '`kind` to MASTER designates the card as its holder’s account-recovery ' +
     'card and demotes whichever of their cards previously held that ' +
     'designation; the card must be paired (400 otherwise) and not blocked ' +
-    '(409 otherwise). Cardholders can set their own via ' +
-    'PATCH /api/wallet/cards/{id}.',
+    '(409 otherwise). Cardholders rebind their own card’s wallet and set ' +
+    'their own master card via PATCH /api/wallet/cards/{id}.',
   operationId: 'cards.update',
   security: protectedSecurity,
   request: {
