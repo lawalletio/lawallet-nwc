@@ -81,9 +81,27 @@ export const GET = withErrorHandling(async (request: Request) => {
     eventBus.emit({ type: 'users:updated', timestamp: Date.now() })
   }
 
-  // A claim that finished before a courtesy wallet existed is stored as IDLE
-  // and only publishes NIP-05. When auto-create is on and the account still
-  // has no ACTIVE wallet, mint one and bind this primary address now.
+  // A paid claim that ran when the account had no address used to insert a
+  // non-primary row. The account then has names and no primary, so nothing
+  // here can bind a wallet. Promote the oldest one; the block below mints.
+  if (!primaryAddress) {
+    const stray = await prisma.lightningAddress.findFirst({
+      where: { userId: user.id },
+      orderBy: { createdAt: 'asc' },
+      include: { remoteWallet: true }
+    })
+    if (stray) {
+      await prisma.lightningAddress.update({
+        where: { username: stray.username },
+        data: { isPrimary: true }
+      })
+      primaryAddress = { ...stray, isPrimary: true }
+    }
+  }
+
+  // A claim that finished with no wallet is stored as IDLE and only publishes
+  // NIP-05. When LNCurl is on and the account still has no ACTIVE wallet,
+  // mint one and bind this primary address now.
   if (
     primaryAddress &&
     primaryAddress.mode === 'IDLE' &&

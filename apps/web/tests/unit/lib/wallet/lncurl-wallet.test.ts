@@ -268,15 +268,29 @@ describe('mintCourtesyLncurlWallet', () => {
     expect(createLncurlWallet).not.toHaveBeenCalled()
   })
 
-  it('does not mint when auto-create is off', async () => {
+  it('does not mint when LNCurl is disabled', async () => {
     vi.mocked(prismaMock.remoteWallet.findFirst).mockResolvedValue(null)
     vi.mocked(getSettings).mockResolvedValue({
-      lncurl_enabled: 'true',
-      lncurl_auto_create: 'false'
+      lncurl_enabled: 'false',
+      lncurl_auto_create: 'true'
     })
 
     await expect(mintCourtesyLncurlWallet(USER_ID)).resolves.toBeNull()
     expect(createLncurlWallet).not.toHaveBeenCalled()
+  })
+
+  it('mints when LNCurl is enabled even if signup auto-create is off', async () => {
+    vi.mocked(prismaMock.remoteWallet.findFirst).mockResolvedValue(null)
+    vi.mocked(getSettings).mockResolvedValue({
+      lncurl_enabled: 'true',
+      lncurl_auto_create: 'false',
+      lncurl_server_url: ''
+    })
+
+    const created = await mintCourtesyLncurlWallet(USER_ID)
+
+    expect(created?.id).toBe('new-wallet')
+    expect(createLncurlWallet).toHaveBeenCalled()
   })
 
   it('mints a courtesy wallet and can bind the existing primary address', async () => {
