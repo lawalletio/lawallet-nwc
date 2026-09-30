@@ -28,7 +28,8 @@ import { eventBus } from '@/lib/events/event-bus'
 import { getSettings } from '@/lib/settings'
 import {
   createLncurlRemoteWallet,
-  lncurlHealTarget
+  lncurlHealTarget,
+  reviveDeadCourtesyWallet
 } from '@/lib/wallet/lncurl-wallet'
 import {
   bindPrimaryAddressToWallet,
@@ -151,13 +152,36 @@ export default async function pay(
     } satisfies LUD06CallbackSuccess)
   }
 
+  // The listener archives a dead courtesy wallet and unlinks the primary
+  // address to IDLE. Replace it before minting so a payer is not the only
+  // path that notices — and so this callback can still collect.
+  let mintRoute = route
+  if (route.kind === 'idle' && lightningAddress.isPrimary) {
+    try {
+      const revived = await reviveDeadCourtesyWallet(lightningAddress.user.id)
+      if (revived) {
+        mintRoute = {
+          kind: 'wallet',
+          walletId: revived.id,
+          type: revived.type,
+          config: revived.config
+        }
+      }
+    } catch (reviveErr) {
+      logger.error(
+        { username, err: String(reviveErr) },
+        'LNCurl courtesy revive failed on invoice request'
+      )
+      throw new ServiceUnavailableError('Wallet is currently unavailable')
+    }
+  }
+
   // Lazy LNCurl self-heal: an address that can't currently route — no wallet
   // yet (e.g. signup with auto-create off), or a dead disposable wallet —
   // provisions a fresh LNCurl wallet NOW, on the real invoice request, when
   // the operator runs LNCurl + auto-recreate. This is what the metadata route
   // promised when it served a callback for such addresses instead of 404ing.
-  let mintRoute = route
-  if (route.kind === 'unconfigured') {
+  if (mintRoute.kind === 'unconfigured') {
     const {
       lncurl_enabled,
       lncurl_auto_create,

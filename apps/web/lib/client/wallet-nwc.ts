@@ -25,3 +25,23 @@ export function resolveUserNwc(
 ): string | null {
   return me?.effectiveNwcString || me?.nwcString || null
 }
+
+type UserNwcFields = {
+  effectiveNwcString?: string | null
+  nwcString?: string | null
+}
+
+/**
+ * Re-read `/api/users/me` immediately before a send or receive. That request
+ * replaces a DEAD courtesy LNCurl wallet, so the NWC URI used for
+ * `pay_invoice` / `make_invoice` is the replacement. A missing response
+ * (tests, or a transport glitch before any body) keeps the cached URI.
+ */
+export async function resolveFreshUserNwc(
+  load: () => Promise<UserNwcFields | null | undefined>,
+  cached: string | null
+): Promise<string | null> {
+  const fresh = await load()
+  if (!fresh) return cached
+  return resolveUserNwc(fresh)
+}

@@ -83,7 +83,10 @@ vi.mock('@/lib/wallet/resolve-payment-route', async importActual => {
 // call before 404ing / self-healing) and stub only the network+DB writer.
 vi.mock('@/lib/wallet/lncurl-wallet', async importActual => ({
   ...(await importActual<typeof import('@/lib/wallet/lncurl-wallet')>()),
-  createLncurlRemoteWallet: vi.fn()
+  createLncurlRemoteWallet: vi.fn(),
+  // The real helper calls createLncurlRemoteWallet internally, so the export
+  // stub above would not stop a live mint. Stub the helper the routes call.
+  reviveDeadCourtesyWallet: vi.fn()
 }))
 
 // The cb route now mints through the driver registry → NWC driver →
@@ -132,7 +135,10 @@ import {
 import { LNURL_VERIFY_USERNAME } from '@/lib/domain-onboarding'
 import { closeAllServerNwcClients } from '@/lib/wallet/drivers/nwc-client-cache'
 import { getSettings } from '@/lib/settings'
-import { createLncurlRemoteWallet } from '@/lib/wallet/lncurl-wallet'
+import {
+  createLncurlRemoteWallet,
+  reviveDeadCourtesyWallet
+} from '@/lib/wallet/lncurl-wallet'
 import { DEV_ADMIN_USER_ID } from '@/lib/dev-identity'
 import { logger } from '@/lib/logger'
 
@@ -191,6 +197,7 @@ beforeEach(() => {
   // a cache hit from a prior test.
   closeAllServerNwcClients()
   mockPrimaryAddressWallet()
+  vi.mocked(reviveDeadCourtesyWallet).mockResolvedValue(null)
 })
 
 describe('GET /api/lud16/[username]', () => {
@@ -402,6 +409,69 @@ describe('GET /api/lud16/[username]', () => {
       remoteWallet: null,
       user: { id: 'user-1', remoteWallets: [DEFAULT_WALLET] }
     } as any)
+
+    const req = createNextRequest('/api/lud16/alice')
+    const res = await Lud16Get(req, createParamsPromise({ username: 'alice' }))
+
+    expect(res.status).toBe(404)
+  })
+
+  it('serves a callback for an IDLE primary whose courtesy LNCurl wallet died', async () => {
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
+      username: 'alice',
+      isPrimary: true,
+      mode: 'IDLE',
+      redirect: null,
+      remoteWallet: null,
+      user: { id: 'user-1', pubkey: 'ab'.repeat(32), allowVouchers: false }
+    } as any)
+    vi.mocked(prismaMock.lightningAddress.findFirst).mockResolvedValue({
+      mode: 'IDLE',
+      remoteWallet: null
+    } as any)
+    vi.mocked(prismaMock.remoteWallet.findFirst).mockImplementation(
+      (async (args: { where?: { status?: string } }) => {
+        if (args?.where?.status === 'DEAD') {
+          return {
+            id: 'wallet-dead',
+            status: 'DEAD',
+            config: { provider: 'lncurl' }
+          }
+        }
+        return null
+      }) as never
+    )
+    vi.mocked(getSettings).mockResolvedValue({
+      domain: 'test.com',
+      endpoint: 'https://app.test.com',
+      lncurl_enabled: 'true',
+      lncurl_auto_recreate: 'true'
+    })
+
+    const req = createNextRequest('/api/lud16/alice')
+    const res = await Lud16Get(req, createParamsPromise({ username: 'alice' }))
+    const body: any = await assertResponse(res, 200)
+
+    expect(body.tag).toBe('payRequest')
+    expect(body.callback).toContain('/api/lud16/alice/cb')
+    expect(createLncurlRemoteWallet).not.toHaveBeenCalled()
+  })
+
+  it('returns 404 for an IDLE primary when courtesy replacement is off', async () => {
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
+      username: 'alice',
+      isPrimary: true,
+      mode: 'IDLE',
+      redirect: null,
+      remoteWallet: null,
+      user: { id: 'user-1', pubkey: 'ab'.repeat(32) }
+    } as any)
+    vi.mocked(getSettings).mockResolvedValue({
+      domain: 'test.com',
+      endpoint: 'https://app.test.com',
+      lncurl_enabled: 'true',
+      lncurl_auto_recreate: 'false'
+    })
 
     const req = createNextRequest('/api/lud16/alice')
     const res = await Lud16Get(req, createParamsPromise({ username: 'alice' }))
@@ -1346,5 +1416,114 @@ describe('GET /api/lud16/[username]/cb', () => {
 
     expect(res.status).toBe(503)
     expect(prismaMock.invoice.upsert).not.toHaveBeenCalled()
+  })
+
+  it('replaces an archived courtesy wallet before minting the payer invoice', async () => {
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
+      username: 'alice',
+      isPrimary: true,
+      mode: 'IDLE',
+      redirect: null,
+      remoteWallet: null,
+      user: { id: 'user-1', pubkey: 'ab'.repeat(32) }
+    } as any)
+    vi.mocked(prismaMock.lightningAddress.findFirst).mockResolvedValue({
+      mode: 'IDLE',
+      remoteWallet: null
+    } as any)
+    vi.mocked(prismaMock.remoteWallet.findFirst).mockImplementation(
+      (async (args: { where?: { status?: string } }) => {
+        if (args?.where?.status === 'DEAD') {
+          return {
+            id: 'wallet-dead',
+            status: 'DEAD',
+            config: { provider: 'lncurl' }
+          }
+        }
+        return null
+      }) as never
+    )
+    vi.mocked(getSettings).mockResolvedValue({
+      domain: 'test.com',
+      endpoint: 'https://app.test.com',
+      lncurl_enabled: 'true',
+      lncurl_auto_recreate: 'true',
+      lncurl_server_url: 'https://my.lncurl.example'
+    })
+    vi.mocked(reviveDeadCourtesyWallet).mockResolvedValue({
+      id: 'wallet-fresh',
+      type: 'NWC',
+      config: {
+        connectionString: FRESH_LNCURL_NWC_URI,
+        mode: 'SEND_RECEIVE',
+        provider: 'lncurl'
+      },
+      status: 'ACTIVE'
+    } as any)
+    vi.mocked(prismaMock.invoice.upsert).mockResolvedValue({
+      id: 'invoice-1',
+      paymentHash: 'a'.repeat(64)
+    } as any)
+
+    const req = createNextRequest('/api/lud16/alice/cb', {
+      searchParams: { amount: '10000' }
+    })
+    const res = await Lud16CbGet(
+      req,
+      createParamsPromise({ username: 'alice' })
+    )
+    const body: any = await assertResponse(res, 200)
+
+    expect(body.pr).toBe('lnbc100n1test')
+    expect(reviveDeadCourtesyWallet).toHaveBeenCalledWith('user-1')
+    expect(makeInvoiceMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('returns 503 when courtesy replacement fails on the invoice request', async () => {
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
+      username: 'alice',
+      isPrimary: true,
+      mode: 'IDLE',
+      redirect: null,
+      remoteWallet: null,
+      user: { id: 'user-1' }
+    } as any)
+    vi.mocked(reviveDeadCourtesyWallet).mockRejectedValue(
+      new Error('LNCurl unreachable')
+    )
+
+    const req = createNextRequest('/api/lud16/alice/cb', {
+      searchParams: { amount: '10000' }
+    })
+    const res = await Lud16CbGet(
+      req,
+      createParamsPromise({ username: 'alice' })
+    )
+
+    expect(res.status).toBe(503)
+    expect(prismaMock.invoice.upsert).not.toHaveBeenCalled()
+  })
+
+  it('returns 404 when an IDLE primary cannot be replaced', async () => {
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
+      username: 'alice',
+      isPrimary: true,
+      mode: 'IDLE',
+      redirect: null,
+      remoteWallet: null,
+      user: { id: 'user-1' }
+    } as any)
+    vi.mocked(reviveDeadCourtesyWallet).mockResolvedValue(null)
+
+    const req = createNextRequest('/api/lud16/alice/cb', {
+      searchParams: { amount: '10000' }
+    })
+    const res = await Lud16CbGet(
+      req,
+      createParamsPromise({ username: 'alice' })
+    )
+
+    expect(res.status).toBe(404)
+    expect(makeInvoiceMock).not.toHaveBeenCalled()
   })
 })
