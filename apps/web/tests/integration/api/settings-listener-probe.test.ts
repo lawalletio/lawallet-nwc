@@ -216,6 +216,21 @@ describe('POST /api/settings/listener-probe', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
+  it('never sends the stored secret when the configured URL is unparseable', async () => {
+    listenerState.url = 'not a url'
+    listenerState.secret = SECRET
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    const body = (await assertResponse(
+      await POST(probeRequest({ url: 'http://listener.test:4100' })),
+      200
+    )) as { code: string }
+
+    expect(body.code).toBe('no_secret')
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('still probes any URL with a secret the caller typed', async () => {
     listenerState.url = 'http://listener.test:4100'
     listenerState.secret = SECRET

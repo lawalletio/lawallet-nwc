@@ -36,9 +36,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   try {
     normalizeDomainProbeInput(parsed.data)
   } catch (error) {
-    throw new ValidationError(
-      error instanceof Error ? error.message : 'Invalid domain'
-    )
+    throw new ValidationError((error as Error).message)
   }
 
   const result = await probeDomainRouting(parsed.data)
