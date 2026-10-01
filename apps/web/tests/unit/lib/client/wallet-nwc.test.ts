@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { resolveUserNwc } from '@/lib/client/wallet-nwc'
+import { resolveFreshUserNwc, resolveUserNwc } from '@/lib/client/wallet-nwc'
 
 describe('resolveUserNwc', () => {
   const EFFECTIVE = 'nostr+walletconnect://effective'
@@ -37,5 +37,25 @@ describe('resolveUserNwc', () => {
   it('returns null when `me` has not loaded yet', () => {
     expect(resolveUserNwc(null)).toBeNull()
     expect(resolveUserNwc(undefined)).toBeNull()
+  })
+})
+
+describe('resolveFreshUserNwc', () => {
+  it('uses the fresh connection string when /me answers', async () => {
+    await expect(
+      resolveFreshUserNwc(
+        async () => ({
+          effectiveNwcString: 'nostr+walletconnect://fresh',
+          nwcString: ''
+        }),
+        'nostr+walletconnect://stale'
+      )
+    ).resolves.toBe('nostr+walletconnect://fresh')
+  })
+
+  it('keeps the cached string when the refresh has no body', async () => {
+    await expect(
+      resolveFreshUserNwc(async () => undefined, 'nostr+walletconnect://cached')
+    ).resolves.toBe('nostr+walletconnect://cached')
   })
 })

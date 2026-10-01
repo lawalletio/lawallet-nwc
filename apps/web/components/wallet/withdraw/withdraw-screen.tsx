@@ -12,8 +12,12 @@ import {
   parseKeypadValue
 } from '@/components/wallet/shared/amount-keypad'
 import { AmountDisplay } from '@/components/wallet/shared/amount-display'
-import { useApi } from '@/lib/client/hooks/use-api'
-import { resolveUserNwc } from '@/lib/client/wallet-nwc'
+import { invalidateApiPath, useApi } from '@/lib/client/hooks/use-api'
+import {
+  resolveFreshUserNwc,
+  resolveUserNwc
+} from '@/lib/client/wallet-nwc'
+import { useAuth } from '@/components/admin/auth-context'
 import { makeInvoice, lookupInvoice, describeNwcError } from '@/lib/client/nwc'
 import { submitLnurlWithdraw, LnurlError } from '@/lib/client/lnurl-scan'
 import {
@@ -43,6 +47,7 @@ let pendingWithdrawReset: ReturnType<typeof setTimeout> | null = null
 export function WithdrawScreen() {
   const router = useRouter()
   const flow = useWithdrawFlow()
+  const { apiClient } = useAuth()
   const { data: me } = useApi<UserMeResponse>('/api/users/me')
   const nwc = resolveUserNwc(me)
 
@@ -100,7 +105,7 @@ export function WithdrawScreen() {
 
   async function claim() {
     if (!params || amountSats === null || !amountValid) return
-    if (!nwc || flow.result || claimingRef.current) return
+    if (flow.result || claimingRef.current) return
 
     claimingRef.current = true
     setError(null)
@@ -108,11 +113,19 @@ export function WithdrawScreen() {
     withdrawActions.setAmount(amountSats)
 
     try {
+      const liveNwc = await resolveFreshUserNwc(
+        () => apiClient.get<UserMeResponse>('/api/users/me'),
+        nwc
+      )
+      invalidateApiPath('/api/users/me')
+      if (!liveNwc) {
+        throw new Error('No wallet connected')
+      }
       const description = params.defaultDescription || 'LNURL withdraw'
-      const invoice = await makeInvoice(nwc, amountSats, description)
+      const invoice = await makeInvoice(liveNwc, amountSats, description)
       await submitLnurlWithdraw(params.callback, params.k1, invoice.bolt11)
 
-      const settled = await waitForSettlement(nwc, invoice.paymentHash)
+      const settled = await waitForSettlement(liveNwc, invoice.paymentHash)
       if (cancelledRef.current) return
 
       withdrawActions.setResult({ amountSats, settled })

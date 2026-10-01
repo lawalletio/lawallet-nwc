@@ -4,8 +4,12 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowRight } from 'lucide-react'
 import { toast } from 'sonner'
-import { useApi } from '@/lib/client/hooks/use-api'
-import { resolveUserNwc } from '@/lib/client/wallet-nwc'
+import { invalidateApiPath, useApi } from '@/lib/client/hooks/use-api'
+import {
+  resolveFreshUserNwc,
+  resolveUserNwc
+} from '@/lib/client/wallet-nwc'
+import { useAuth } from '@/components/admin/auth-context'
 import {
   useSendFlow,
   sendActions,
@@ -64,6 +68,7 @@ export function SendPreviewStep() {
   const contacts = useContacts()
   const activeCurrencies = useActiveCurrencies()
   const { rates } = useYadioRates()
+  const { apiClient } = useAuth()
   const { data: me } = useApi<UserMeResponse>('/api/users/me')
   const effectiveNwc = resolveUserNwc(me)
   const [paying, setPaying] = useState(false)
@@ -200,10 +205,6 @@ export function SendPreviewStep() {
 
   async function confirm() {
     if (paying) return
-    if (!effectiveNwc) {
-      toast.error('No wallet connected')
-      return
-    }
     if (currentQuote.status !== 'ready') {
       toast.error(
         currentQuote.status === 'error'
@@ -214,7 +215,17 @@ export function SendPreviewStep() {
     }
     setPaying(true)
     try {
-      const result = await payQuotedInvoice(effectiveNwc, currentQuote.quote)
+      const nwc = await resolveFreshUserNwc(
+        () => apiClient.get<UserMeResponse>('/api/users/me'),
+        effectiveNwc
+      )
+      invalidateApiPath('/api/users/me')
+      if (!nwc) {
+        toast.error('No wallet connected')
+        setPaying(false)
+        return
+      }
+      const result = await payQuotedInvoice(nwc, currentQuote.quote)
       sendActions.setResult({
         preimage: result.preimage,
         feesPaidSats: result.feesPaidSats,

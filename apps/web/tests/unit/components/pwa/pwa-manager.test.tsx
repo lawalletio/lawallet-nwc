@@ -1,8 +1,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, act, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+
+const pathnameRef = vi.hoisted(() => ({ current: '/wallet' }))
+
+vi.mock('next/navigation', () => ({
+  usePathname: () => pathnameRef.current
+}))
+
 import {
   PwaManager,
+  isIosInstallTarget,
   resetPwaInstallDismissalForTests
 } from '@/components/pwa/pwa-manager'
 
@@ -65,10 +73,24 @@ function fireBeforeInstallPrompt(
 describe('PwaManager', () => {
   beforeEach(() => {
     currentDisplayMode = 'browser'
+    pathnameRef.current = '/wallet'
     mediaListeners.clear()
     localStorage.clear()
     resetPwaInstallDismissalForTests()
     mockMatchMedia()
+    Object.defineProperty(window.navigator, 'userAgent', {
+      configurable: true,
+      value:
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36'
+    })
+    Object.defineProperty(window.navigator, 'platform', {
+      configurable: true,
+      value: 'Linux'
+    })
+    Object.defineProperty(window.navigator, 'maxTouchPoints', {
+      configurable: true,
+      value: 0
+    })
     Object.defineProperty(window.navigator, 'standalone', {
       configurable: true,
       value: undefined
@@ -207,5 +229,59 @@ describe('PwaManager', () => {
       fireBeforeInstallPrompt()
     })
     expect(screen.queryByText('Install the wallet')).toBeNull()
+  })
+
+  it('holds the banner until the user reaches the wallet home', async () => {
+    pathnameRef.current = '/wallet/claim-username'
+    const { rerender } = render(<PwaManager />)
+    act(() => {
+      fireBeforeInstallPrompt()
+    })
+    expect(screen.queryByText('Install the wallet')).toBeNull()
+
+    pathnameRef.current = '/wallet'
+    rerender(<PwaManager />)
+    expect(await screen.findByText('Install the wallet')).toBeTruthy()
+  })
+
+  it('shows a Home Screen hint on iOS instead of a native install button', async () => {
+    Object.defineProperty(window.navigator, 'userAgent', {
+      configurable: true,
+      value:
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1'
+    })
+    render(<PwaManager />)
+    expect(await screen.findByText('Add to your Home Screen')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Install' })).toBeNull()
+    expect(screen.getByText(/Tap Share, then Add to Home Screen/)).toBeTruthy()
+  })
+
+  it('does not show the iOS hint after a previous dismissal', () => {
+    localStorage.setItem(DISMISS_KEY, '1')
+    Object.defineProperty(window.navigator, 'userAgent', {
+      configurable: true,
+      value: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)'
+    })
+    render(<PwaManager />)
+    expect(screen.queryByText('Add to your Home Screen')).toBeNull()
+  })
+})
+
+describe('isIosInstallTarget', () => {
+  it('treats iPadOS desktop UA as an install target', () => {
+    expect(
+      isIosInstallTarget({
+        userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15)',
+        platform: 'MacIntel',
+        maxTouchPoints: 5
+      })
+    ).toBe(true)
+    expect(
+      isIosInstallTarget({
+        userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15)',
+        platform: 'MacIntel',
+        maxTouchPoints: 0
+      })
+    ).toBe(false)
   })
 })

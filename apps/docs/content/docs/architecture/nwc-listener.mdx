@@ -369,7 +369,8 @@ app, which probes the listener's authenticated `/status`:
 
 ```ts
 // Request
-{ url: string, secret?: string }  // secret omitted → the stored/env secret
+{ url: string, secret?: string }  // secret omitted → the stored/env secret,
+                                   // only for the configured listener URL
 
 // Response
 { ok: true, uptimeSeconds: number, connections: number, relays: number }

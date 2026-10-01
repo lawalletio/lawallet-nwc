@@ -31,6 +31,13 @@ vi.mock('@/lib/client/hooks/use-api', () => ({
     loading: false,
     error: null,
     refetch: async () => undefined
+  }),
+  invalidateApiPath: vi.fn()
+}))
+
+vi.mock('@/components/admin/auth-context', () => ({
+  useAuth: () => ({
+    apiClient: { get: vi.fn(async () => undefined) }
   })
 }))
 

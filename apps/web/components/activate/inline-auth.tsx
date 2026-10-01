@@ -12,9 +12,11 @@ import { useAuth } from '@/components/admin/auth-context'
 import { NostrConnectForm } from '@/components/shared/nostr-connect-form'
 import { PasskeyLoginButton } from '@/components/shared/passkey-login-button'
 import { SecretKeyReveal } from '@/components/shared/secret-key-reveal'
+import { useSettings } from '@/lib/client/hooks/use-settings'
+import { isPasskeySupported } from '@/lib/client/passkey-api'
 import { createNsecSigner } from '@/lib/client/nostr-signer'
 
-type Mode = 'choose' | 'create' | 'existing'
+type Mode = 'choose' | 'nostr' | 'create' | 'existing'
 
 /**
  * Compact connect/register panel rendered inline on the activate page so the
@@ -25,9 +27,12 @@ type Mode = 'choose' | 'create' | 'existing'
  */
 export function InlineAuth({ onAuthStart }: { onAuthStart: () => void }) {
   const { login } = useAuth()
+  const { data: settings } = useSettings()
   const [mode, setMode] = useState<Mode>('choose')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [passkeySupported] = useState(() => isPasskeySupported())
+  const community = settings?.community_name?.trim() || null
 
   // Freshly-generated key for the create flow
   const { nsec, hex } = useMemo(() => {
@@ -51,28 +56,25 @@ export function InlineAuth({ onAuthStart }: { onAuthStart: () => void }) {
     }
   }
 
-  if (mode === 'choose') {
+  if (mode === 'choose' || mode === 'nostr') {
     return (
       <div className="w-full space-y-3">
-        <p className="text-center text-sm text-muted-foreground">
-          Connect a wallet to activate this card.
-        </p>
-        <PasskeyLoginButton
-          mode="authenticate"
-          className="h-12 w-full"
-          onSuccess={onAuthStart}
-        />
-        <Button className="h-12 w-full" onClick={() => setMode('create')}>
-          <Plus className="size-4" />
-          Create a new wallet
-        </Button>
-        <Button
-          variant="secondary"
-          className="h-12 w-full"
-          onClick={() => setMode('existing')}
-        >
-          <KeyRound className="size-4" />I already have a wallet
-        </Button>
+        {mode === 'nostr' && (
+          <BackButton onClick={() => setMode('choose')} disabled={loading} />
+        )}
+        {passkeySupported && mode === 'choose' ? (
+          <PasskeyEnroll
+            community={community}
+            onAuthStart={onAuthStart}
+            onNostr={() => setMode('nostr')}
+          />
+        ) : (
+          <NostrFallback
+            unsupported={!passkeySupported && mode === 'choose'}
+            onCreate={() => setMode('create')}
+            onExisting={() => setMode('existing')}
+          />
+        )}
       </div>
     )
   }
@@ -141,6 +143,81 @@ export function InlineAuth({ onAuthStart }: { onAuthStart: () => void }) {
         onSuccess={onAuthStart}
       />
     </div>
+  )
+}
+
+/**
+ * New accounts register with a passkey and stay on this page — the parent
+ * claims the card as soon as the session exists, so the user never drops
+ * onto a generic login screen. Existing passkeys use the login button.
+ */
+function PasskeyEnroll({
+  community,
+  onAuthStart,
+  onNostr
+}: {
+  community: string | null
+  onAuthStart: () => void
+  onNostr: () => void
+}) {
+  return (
+    <>
+      <p className="text-center text-sm text-muted-foreground">
+        {community
+          ? `Create a passkey for ${community} to activate this card.`
+          : 'Create a passkey to activate this card.'}
+      </p>
+      <PasskeyLoginButton
+        mode="register"
+        variant="theme"
+        className="h-12 w-full"
+        label="Create a passkey"
+        surfaceCancel
+        duplicateMessage="This device already has a passkey. Sign in with it below."
+        onSuccess={onAuthStart}
+      />
+      <PasskeyLoginButton
+        mode="authenticate"
+        variant="secondary"
+        className="h-12 w-full"
+        label="I already have a passkey"
+        onSuccess={onAuthStart}
+      />
+      <button
+        type="button"
+        onClick={onNostr}
+        className="w-full py-1 text-center text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+      >
+        Use a Nostr key instead
+      </button>
+    </>
+  )
+}
+
+function NostrFallback({
+  unsupported,
+  onCreate,
+  onExisting
+}: {
+  unsupported: boolean
+  onCreate: () => void
+  onExisting: () => void
+}) {
+  return (
+    <>
+      <p className="text-center text-sm text-muted-foreground">
+        {unsupported
+          ? 'This browser cannot create a passkey. Open this page in Safari or Chrome, or continue with a Nostr key.'
+          : 'Sign in with a Nostr key to activate this card.'}
+      </p>
+      <Button className="h-12 w-full" onClick={onCreate}>
+        <Plus className="size-4" />
+        Create a new key
+      </Button>
+      <Button variant="secondary" className="h-12 w-full" onClick={onExisting}>
+        <KeyRound className="size-4" />I already have a key
+      </Button>
+    </>
   )
 }
 

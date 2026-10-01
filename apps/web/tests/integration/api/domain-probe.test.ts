@@ -27,7 +27,9 @@ vi.mock('@/lib/settings-auth', () => ({
   authenticateSettingsWriteRequest: vi.fn()
 }))
 
-vi.mock('@/lib/domain-onboarding', () => ({
+// Keep the real input normalization: the route uses it to reject a bad domain.
+vi.mock('@/lib/domain-onboarding', async importOriginal => ({
+  ...(await importOriginal<typeof import('@/lib/domain-onboarding')>()),
   probeDomainRouting: vi.fn()
 }))
 
@@ -105,6 +107,11 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.mocked(authenticateSettingsWriteRequest).mockResolvedValue('a'.repeat(64))
   vi.mocked(prismaMock.settings.upsert).mockResolvedValue({} as any)
+  // The instance's configured domain — what the probes below ask about.
+  vi.mocked(prismaMock.settings.findUnique).mockResolvedValue({
+    name: 'domain',
+    value: 'example.com'
+  } as any)
 })
 
 describe('POST /api/settings/domain-probe', () => {
@@ -173,5 +180,40 @@ describe('POST /api/settings/domain-probe', () => {
       update: { value: 'false' },
       create: { name: 'domain_verified', value: 'false' }
     })
+  })
+  it('leaves domain_verified alone when another domain is probed', async () => {
+    vi.mocked(prismaMock.settings.findUnique).mockResolvedValue({
+      name: 'domain',
+      value: 'configured.example'
+    } as any)
+    vi.mocked(probeDomainRouting).mockResolvedValue(
+      probeResult({ status: 'rewrite-needed' })
+    )
+
+    const res = await POST(
+      createNextRequest('/api/settings/domain-probe', {
+        method: 'POST',
+        body: { domain: 'example.com' }
+      })
+    )
+
+    await assertResponse(res, 200)
+    expect(prismaMock.settings.upsert).not.toHaveBeenCalled()
+  })
+
+  it('answers 400 with the reason for an invalid domain, without probing', async () => {
+    const res = await POST(
+      createNextRequest('/api/settings/domain-probe', {
+        method: 'POST',
+        body: { domain: 'not a domain' }
+      })
+    )
+
+    const body = (await assertResponse(res, 400)) as {
+      error: { message: string }
+    }
+    expect(body.error.message).toBe('Enter a valid domain without protocol')
+    expect(probeDomainRouting).not.toHaveBeenCalled()
+    expect(prismaMock.settings.upsert).not.toHaveBeenCalled()
   })
 })
