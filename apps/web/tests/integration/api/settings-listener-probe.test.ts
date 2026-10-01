@@ -28,13 +28,14 @@ vi.mock('@/lib/settings-auth', () => ({
 }))
 
 const listenerState = vi.hoisted(() => ({
+  url: null as string | null,
   secret: null as string | null
 }))
 
 vi.mock('@/lib/listener-config', () => ({
   getListenerConfig: async () => ({
     enabled: !!listenerState.secret,
-    url: null,
+    url: listenerState.url,
     secret: listenerState.secret,
     requestTimeoutMs: 10000,
     urlSource: 'none',
@@ -71,6 +72,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.mocked(authenticateSettingsWriteRequest).mockReset()
   vi.mocked(authenticateSettingsWriteRequest).mockResolvedValue('a'.repeat(64))
+  listenerState.url = null
   listenerState.secret = null
 })
 
@@ -158,7 +160,8 @@ describe('POST /api/settings/listener-probe', () => {
     expect(body.code).toBe('invalid_response')
   })
 
-  it('falls back to the resolved stored/env secret when none is posted', async () => {
+  it('falls back to the stored/env secret for the configured listener URL', async () => {
+    listenerState.url = 'http://listener.test:4100/'
     listenerState.secret = SECRET
     const fetchMock = vi.fn().mockResolvedValue(Response.json(validStatus))
     vi.stubGlobal('fetch', fetchMock)
@@ -179,5 +182,56 @@ describe('POST /api/settings/listener-probe', () => {
       200
     )) as { ok: boolean; code: string }
     expect(body.code).toBe('no_secret')
+  })
+  it.each([
+    ['another host', 'http://attacker.test:4100'],
+    ['another port', 'http://listener.test:9999'],
+    ['another scheme', 'https://listener.test:4100']
+  ])('never sends the stored secret to %s', async (_label, url) => {
+    listenerState.url = 'http://listener.test:4100'
+    listenerState.secret = SECRET
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    const body = (await assertResponse(
+      await POST(probeRequest({ url })),
+      200
+    )) as { ok: boolean; code: string }
+
+    expect(body).toMatchObject({ ok: false, code: 'no_secret' })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('never sends the stored secret when no listener URL is configured', async () => {
+    listenerState.secret = SECRET
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    const body = (await assertResponse(
+      await POST(probeRequest({ url: 'http://listener.test:4100' })),
+      200
+    )) as { code: string }
+
+    expect(body.code).toBe('no_secret')
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('still probes any URL with a secret the caller typed', async () => {
+    listenerState.url = 'http://listener.test:4100'
+    listenerState.secret = SECRET
+    const typed = 'typed-secret-0123456789abcdef-0123456789'
+    const fetchMock = vi.fn().mockResolvedValue(Response.json(validStatus))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await assertResponse(
+      await POST(
+        probeRequest({ url: 'http://candidate.test:4100', secret: typed })
+      ),
+      200
+    )
+    const [, init] = fetchMock.mock.calls[0]
+    expect((init.headers as Record<string, string>).authorization).toBe(
+      `Bearer ${typed}`
+    )
   })
 })

@@ -452,7 +452,10 @@ export type ListenerStatusProxyResponse = z.infer<
 
 export const listenerProbeRequestSchema = z.object({
   url: z.string().min(1),
-  /** Omitted → the server falls back to the stored/env secret. */
+  /**
+   * Omitted → the server falls back to the stored/env secret, but only when
+   * `url` is the configured listener (same origin).
+   */
   secret: z.string().min(1).optional()
 })
 export type ListenerProbeRequest = z.infer<typeof listenerProbeRequestSchema>
