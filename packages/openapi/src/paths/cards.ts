@@ -182,6 +182,57 @@ registry.registerPath({
   }
 })
 
+const cardTransactionSchema = z.object({
+  id: z.string(),
+  createdAt: z.string().datetime(),
+  amountSats: z.number().openapi({
+    description: 'Invoice amount; fractional for sub-sat amounts.'
+  }),
+  status: z.enum(['success', 'failed']).openapi({
+    description:
+      'Compatibility summary: `success` only when `paymentStatus` is ' +
+      'SUCCEEDED, so PENDING and UNKNOWN attempts also read `failed`.'
+  }),
+  error: z.string().nullable().openapi({
+    description: 'Error code recorded for the attempt.'
+  }),
+  walletType: z.enum(['NWC', 'LND', 'CLN', 'BTCPAY']).nullable().openapi({
+    description:
+      'Type of the wallet that paid; null when that wallet no longer exists.'
+  }),
+  bolt11: z.string().openapi({ description: 'The invoice the card paid.' }),
+  description: z.string().nullable().openapi({
+    description: 'Description decoded from `bolt11`.'
+  }),
+  paymentHash: z.string(),
+  paymentStatus: z.enum(['PENDING', 'SUCCEEDED', 'REJECTED', 'UNKNOWN']),
+  transport: z.enum(['DIRECT', 'LISTENER']).openapi({
+    description: 'Whether web paid directly or delegated to the NWC listener.'
+  })
+})
+
+registry.registerPath({
+  ...withRole('VIEWER'),
+  method: 'get',
+  path: '/api/cards/{id}/transactions',
+  tags: [TAG],
+  summary: 'List the spends made by tapping a card.',
+  description:
+    'Returns the card’s 100 most recent payment attempts (LNURL-withdraw ' +
+    'spends), newest first, including unresolved ones.',
+  operationId: 'cards.transactions.list',
+  security: protectedSecurity,
+  request: { params: schemas.IdParam },
+  responses: {
+    200: inlineJsonResponse(
+      'Card spends, newest first.',
+      z.object({ items: z.array(cardTransactionSchema) })
+    ),
+    ...commonErrorResponses,
+    404: responses.notFound
+  }
+})
+
 const cardSecretsResponse = inlineJsonResponse(
   'NTAG424 secrets and write payload for NFC programming.',
   z

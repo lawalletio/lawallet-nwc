@@ -60,6 +60,9 @@ function createPrismaMock(): PrismaClient {
     remoteWalletNotificationAttempt: createModelMock(),
     voucher: createModelMock(),
     voucherTransfer: createModelMock(),
+    oAuthClient: createModelMock(),
+    oAuthGrant: createModelMock(),
+    mcpPayment: createModelMock(),
     $transaction: vi.fn(fn => {
       if (typeof fn === 'function') {
         return fn(prismaMock)
@@ -119,7 +122,10 @@ export function resetPrismaMock() {
     'remoteWalletForwardAttempt',
     'remoteWalletNotification',
     'remoteWalletNotificationDelivery',
-    'remoteWalletNotificationAttempt'
+    'remoteWalletNotificationAttempt',
+    'oAuthClient',
+    'oAuthGrant',
+    'mcpPayment'
   ] as const
   for (const model of models) {
     const m = (prismaMock as any)[model] as Record<

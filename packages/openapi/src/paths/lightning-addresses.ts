@@ -10,6 +10,7 @@ import {
 import { registry } from '../registry'
 import { responses } from '../responses'
 import { schemas } from '../schemas'
+import { NIP98 } from '../security'
 
 const TAG = 'Lightning Addresses'
 
@@ -162,18 +163,17 @@ registry.registerPath({
 })
 
 registry.registerPath({
-  ...withRole('PUBLIC'),
+  // Not public: the handler calls `validateAdminAuth` (NIP-98 only, ADMIN),
+  // so it accepts no Bearer JWT.
+  ...withRole('ADMIN'),
   method: 'get',
   path: '/api/lightning-addresses/relays',
   tags: [TAG],
   summary: 'List relays advertised for the platform.',
   operationId: 'lightningAddresses.relays',
-  security: publicSecurity,
+  security: [{ [NIP98]: [] }],
   responses: {
-    200: inlineJsonResponse(
-      'Relay list.',
-      z.object({ relays: z.array(z.string().url()) })
-    ),
-    ...publicErrorResponses
+    200: inlineJsonResponse('Relay list.', z.array(z.string())),
+    ...commonErrorResponses
   }
 })

@@ -47,6 +47,36 @@ describe('CORS proxy', () => {
     }
   })
 
+  it('lets MCP clients send Mcp-* headers and read the OAuth challenge', () => {
+    for (const path of ['/api/mcp', '/api/mcp/public']) {
+      const preflight = proxy(req(path, 'OPTIONS'))
+      expect(preflight.status).toBe(204)
+      const allowed = preflight.headers.get('Access-Control-Allow-Headers')
+      for (const header of [
+        'Authorization',
+        'Content-Type',
+        'Mcp-Protocol-Version',
+        'Mcp-Method',
+        'Mcp-Name',
+        'Mcp-Session-Id',
+        'Last-Event-ID'
+      ]) {
+        expect(allowed).toContain(header)
+      }
+      const res = proxy(req(path, 'POST'))
+      expect(res.headers.get('Access-Control-Allow-Origin')).toBe('*')
+      expect(res.headers.get('Access-Control-Expose-Headers')).toBe(
+        'WWW-Authenticate'
+      )
+    }
+    // Other routes keep the narrow header list.
+    expect(
+      proxy(req('/api/mcpx', 'OPTIONS')).headers.get(
+        'Access-Control-Expose-Headers'
+      )
+    ).toBeNull()
+  })
+
   it('still covers authenticated card admin routes', () => {
     const res = proxy(req('/api/cards', 'OPTIONS'))
     expect(res.status).toBe(204)

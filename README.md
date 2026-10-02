@@ -92,6 +92,7 @@ for what each value does and where to place it.
 ### Developer Surface
 
 - OpenAPI 3.1 spec + interactive [Scalar Playground](https://beta.lawallet.io/api-docs)
+- Remote MCP server at `/api/mcp` — connect Claude, ChatGPT, Cursor or Claude Code to an instance with OAuth sign-in and an opt-in daily spend limit ([guide](https://docs.lawallet.io/docs/guides/mcp))
 - TypeScript SDK + `@lawallet-nwc/react` hooks — package extraction in progress (Month 7)
 - One-click deploy to Vercel or Netlify; Docker, Umbrel, and Start9 targets available
 
@@ -279,6 +280,7 @@ The full rendered docs live at **[docs.lawallet.io](https://docs.lawallet.io)**.
 | [ROADMAP.md](./docs/ROADMAP.md)           | 8-month development timeline and current progress             |
 | [ONBOARDING.md](./docs/ONBOARDING.md)     | Progressive self-custody: alias → NWC → self-hosted           |
 | [SDK.md](./docs/SDK.md)                   | TypeScript Client SDK + React Hooks reference                 |
+| [MCP.md](./docs/MCP.md)                   | MCP server for AI agents: clients, permissions, tools         |
 | [TESTING.md](./docs/TESTING.md)           | Testing strategy (Vitest, MSW, Playwright)                    |
 | [DOCKER.md](./docs/DOCKER.md)             | Docker setup and containerized deployment                     |
 | [VISION.md](./docs/VISION.md)             | Long-term vision: CRM + AI + Nostr communications (Beyond M8) |

@@ -128,6 +128,11 @@ self.addEventListener('fetch', event => {
   const url = new URL(request.url)
   if (url.origin !== self.location.origin) return
 
+  // The OAuth consent page is useless offline and its URL carries a fresh
+  // `state` and PKCE challenge on every visit, so caching it would only grow
+  // the page cache by one entry per authorization.
+  if (url.pathname.startsWith('/oauth/')) return
+
   // HTML navigations — network-first with cache fallback.
   if (request.mode === 'navigate') {
     event.respondWith(

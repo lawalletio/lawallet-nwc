@@ -117,6 +117,25 @@ registry.registerPath({
 })
 
 registry.registerPath({
+  ...withRole('USER'),
+  method: 'get',
+  path: '/api/users/{userId}/role',
+  tags: [TAG],
+  summary: 'Get a user’s role (self, or with `users:read`).',
+  operationId: 'users.role.get',
+  security: protectedSecurity,
+  request: { params: schemas.UserIdParam },
+  responses: {
+    200: inlineJsonResponse(
+      'The user’s role.',
+      z.object({ userId: z.string(), role: userSchema.shape.role })
+    ),
+    ...commonErrorResponses,
+    404: responses.notFound
+  }
+})
+
+registry.registerPath({
   ...withRole('ADMIN'),
   method: 'put',
   path: '/api/users/{userId}/role',

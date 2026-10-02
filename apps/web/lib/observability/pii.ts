@@ -31,7 +31,9 @@ const SCRUB_PATTERNS: RegExp[] = [
   /\blnbc[0-9a-z]{20,}/gi,
   /\blnurl1[ac-hj-np-z02-9]+/gi,
   /\b[0-9a-f]{64}\b/gi,
-  /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gi
+  /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gi,
+  // OAuth authorization codes, access and refresh tokens (lib/oauth).
+  /\blw(?:ac|at|rt)_[\w-]{20,}/g
 ]
 
 export function scrubPii(text: string): string {
