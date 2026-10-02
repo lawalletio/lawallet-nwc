@@ -191,6 +191,16 @@ describe('POST /api/oauth/register', () => {
         },
         'invalid_redirect_uri'
       )
+      // Ten individually valid URIs that together exceed 4096 characters.
+      await expectRejected(
+        {
+          redirect_uris: Array.from(
+            { length: 10 },
+            (_, i) => `https://app.example.com/${i}/${'a'.repeat(450)}`
+          )
+        },
+        'invalid_redirect_uri'
+      )
     })
 
     it('refuses unusable metadata', async () => {

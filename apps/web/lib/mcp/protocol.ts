@@ -343,11 +343,15 @@ export async function handleMcpPost(
   if (parsed.some(p => p.kind !== 'reply')) {
     try {
       caller = await endpoint.resolveCaller(request)
-      await rateLimit(request, {
-        bucket: 'mcp',
-        identifier: caller.user?.pubkey,
-        isAuthenticated: !!caller.user
-      })
+      // Every call in a batch counts: a batch must not multiply the limit.
+      for (const p of parsed) {
+        if (p.kind !== 'call') continue
+        await rateLimit(request, {
+          bucket: 'mcp',
+          identifier: caller.user?.pubkey,
+          isAuthenticated: !!caller.user
+        })
+      }
     } catch (error) {
       if (error instanceof McpAuthError) return unauthorizedResponse(error)
       if (error instanceof ApiError && error.statusCode < 500) {

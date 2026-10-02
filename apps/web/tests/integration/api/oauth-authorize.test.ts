@@ -405,49 +405,18 @@ describe('POST /api/oauth/authorize', () => {
     expect(res.status).toBe(200)
   })
 
-  it('replaces the account’s earlier grant for the same client only', async () => {
-    seedClient('client_2')
-    store.users.set('user_2', { id: 'user_2', pubkey: 'b'.repeat(64) })
-    store.grants.push(
-      {
-        id: 'mine_same_client',
-        clientId: 'client_1',
-        userId: 'user_1',
-        revokedAt: null,
-        createdAt: new Date(0)
-      },
-      {
-        id: 'mine_other_client',
-        clientId: 'client_2',
-        userId: 'user_1',
-        revokedAt: null,
-        createdAt: new Date(0)
-      },
-      {
-        id: 'theirs_same_client',
-        clientId: 'client_1',
-        userId: 'user_2',
-        revokedAt: null,
-        createdAt: new Date(0)
-      }
-    )
+  it('keeps earlier grants working until the new code is exchanged', async () => {
+    store.grants.push({
+      id: 'earlier',
+      clientId: 'client_1',
+      userId: 'user_1',
+      revokedAt: null,
+      createdAt: new Date(0)
+    })
 
     await decide({ ...REQUEST, approve: true, scopes: ['read'] })
 
-    const revoked = Object.fromEntries(
-      store.grants.map(g => [g.id, g.revokedAt !== null])
-    )
-    expect(revoked).toMatchObject({
-      mine_same_client: true,
-      mine_other_client: false,
-      theirs_same_client: false
-    })
-    expect(store.grants.at(-1)!.revokedAt).toBeNull()
-    expect(logActivity.fireAndForget).toHaveBeenCalledWith(
-      expect.objectContaining({
-        metadata: expect.objectContaining({ replacedGrants: 1 })
-      })
-    )
+    expect(store.grants.find(g => g.id === 'earlier')!.revokedAt).toBeNull()
   })
 
   it('creates the account of a first-time pubkey', async () => {

@@ -384,6 +384,16 @@ describe('authentication and failures', () => {
     expect(limited.headers.get('Retry-After')).toBe('30')
   })
 
+  it('charges every call in a batch, but not notifications', async () => {
+    await post([
+      rpc('ping', undefined, 1),
+      rpc('ping', undefined, 2),
+      { jsonrpc: '2.0', method: 'notifications/initialized' },
+      rpc('ping', undefined, 3)
+    ])
+    expect(rateLimit).toHaveBeenCalledTimes(3)
+  })
+
   it('never answers a well-formed request with a 5xx', async () => {
     vi.mocked(endpoint.resolveCaller).mockRejectedValueOnce(
       new Error('db down')

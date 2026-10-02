@@ -106,7 +106,18 @@ describe('exposure policy vs the live OpenAPI document', () => {
       'lud16Proxy.payments.retry',
       'settings.update',
       'users.role.set',
-      'wallet.vouchers.send'
+      'wallet.vouchers.send',
+      'remoteWallets.notifications.create',
+      'wallet.cards.update',
+      'cards.update',
+      'cards.otc.activate',
+      'activationTokens.claim',
+      'cards.create',
+      'cards.activationTokens.create',
+      'cards.activationTokens.list',
+      'cards.rescue',
+      'wallet.addresses.delete',
+      'users.lightningAddress.set'
     ]) {
       const op = findOperation(id)
       expect(op, id).toBeDefined()

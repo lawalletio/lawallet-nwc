@@ -48,7 +48,11 @@ vi.mock('@/lib/activity-log', () => ({
 import { Role } from '@/lib/auth/permissions'
 import { logger } from '@/lib/logger'
 import { McpToolError, type McpCaller } from '@/lib/mcp/types'
-import { readSpendBudget, walletTools } from '@/lib/mcp/wallet-tools'
+import {
+  feeReserveSats,
+  readSpendBudget,
+  walletTools
+} from '@/lib/mcp/wallet-tools'
 import type { OAuthScope } from '@/lib/oauth/constants'
 import {
   DriverRemoteError,
@@ -998,9 +1002,9 @@ describe('wallet_pay_invoice', () => {
   })
 
   describe('budget', () => {
-    it('allows a payment that exactly reaches the limit', async () => {
+    it('allows a payment that exactly reaches the limit with its fee reserve', async () => {
       ledger({ spent: 850, fees: 50 })
-      const inv = invoice({ sats: 100 })
+      const inv = invoice({ sats: 90 })
       driver.payInvoice.mockResolvedValue({
         preimage: inv.preimage,
         feesPaidSats: 0
@@ -1015,14 +1019,14 @@ describe('wallet_pay_invoice', () => {
       ledger({ spent: 850, fees: 50 })
 
       const error = await toolError(
-        call('wallet_pay_invoice', { bolt11: invoice({ sats: 101 }).bolt11 })
+        call('wallet_pay_invoice', { bolt11: invoice({ sats: 91 }).bolt11 })
       )
 
       expect(error.message).toMatch(
-        /would exceed this connection's daily budget: 100 of 1000 sats left/
+        /plus up to 10 sats reserved for routing fees\) would exceed this connection's daily budget: 100 of 1000 sats left/
       )
       expect(error.data).toEqual({
-        amountSats: 101,
+        amountSats: 91,
         budget: { limitSats: 1000, spentLast24hSats: 900, remainingSats: 100 }
       })
       expect(prismaMock.mcpPayment.create).not.toHaveBeenCalled()
@@ -1367,14 +1371,32 @@ describe('wallet_pay_invoice', () => {
       expect(driver.payInvoice).toHaveBeenCalledTimes(1)
     })
 
-    it('uses a generic code when the wallet gives none', async () => {
-      ledger()
-      driver.payInvoice.mockRejectedValue(new PaymentRejectedError('nope'))
-      const error = await toolError(
-        call('wallet_pay_invoice', { bolt11: invoice().bolt11 })
-      )
-      expect(error.data).toMatchObject({ error: 'WALLET_REJECTED' })
-    })
+    it.each([
+      ['no code', new PaymentRejectedError('nope')],
+      [
+        'PAYMENT_FAILED',
+        new PaymentRejectedError('timed out', { code: 'PAYMENT_FAILED' })
+      ],
+      ['INTERNAL', new PaymentRejectedError('hm', { code: 'INTERNAL' })]
+    ])(
+      'keeps the budget for an ambiguous rejection (%s)',
+      async (_, failure) => {
+        ledger()
+        driver.payInvoice.mockRejectedValue(failure)
+
+        const result = await call('wallet_pay_invoice', {
+          bolt11: invoice().bolt11
+        })
+
+        expect(updates()).toEqual([
+          {
+            where: { id: 'pay-new', status: { in: ['PENDING'] } },
+            data: { status: 'UNKNOWN', error: 'OUTCOME_UNKNOWN' }
+          }
+        ])
+        expect(result).toMatchObject({ status: 'UNKNOWN', alreadyPaid: false })
+      }
+    )
 
     it.each([
       ['an unknown outcome', new PaymentOutcomeUnknownError('lost', 'DIRECT')],
@@ -1721,5 +1743,14 @@ describe('wallet_list_payments', () => {
     )
     expect(error.message).toMatch(/per OAuth app connection/)
     expect(prismaMock.mcpPayment.findMany).not.toHaveBeenCalled()
+  })
+})
+
+describe('feeReserveSats', () => {
+  it('reserves 1% of the amount, at least 10 sats', () => {
+    expect(feeReserveSats(1)).toBe(10)
+    expect(feeReserveSats(1000)).toBe(10)
+    expect(feeReserveSats(1001)).toBe(11)
+    expect(feeReserveSats(250_000)).toBe(2500)
   })
 })

@@ -381,9 +381,9 @@ describe('callTool — generic gateway', () => {
   })
 
   it('keeps reads and writes apart', async () => {
-    const write = await call('api_read', { operationId: 'cards.create' }, admin)
+    const write = await call('api_read', { operationId: 'cards.delete' }, admin)
     expect(json(write.text).error).toBe(
-      'cards.create is a write operation: call it with api_write.'
+      'cards.delete is a write operation: call it with api_write.'
     )
     const read = await call('api_write', { operationId: 'cards.get' }, admin)
     expect(json(read.text).error).toBe(
@@ -494,7 +494,7 @@ describe('callTool — api_list_operations', () => {
     const adminIds = (await list({ limit: 100 }, admin)).operations.map(
       (op: { operationId: string }) => op.operationId
     )
-    expect(adminIds).toContain('cards.create')
+    expect(adminIds).toContain('cards.delete')
     for (const id of [
       'settings.update',
       'wallet.addresses.update',

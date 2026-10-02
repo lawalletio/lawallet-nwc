@@ -44,7 +44,7 @@ const SCOPE_COPY: Record<OAuthScope, { label: string; detail: string }> = {
     detail: "Read-only: it can't change anything."
   },
   write: {
-    label: 'Create, change and delete addresses, invoices and cards',
+    label: 'Create and change addresses, invoices and wallet settings',
     detail:
       'Includes choosing which of your own wallets receives payments. It cannot send funds.'
   },

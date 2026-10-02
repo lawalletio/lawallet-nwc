@@ -301,6 +301,47 @@ describe('POST /api/oauth/token — authorization_code', () => {
     )
   })
 
+  it('replaces the account’s earlier grants for the client only once the new code is exchanged', async () => {
+    const earlier = await connect()
+    const otherClient = {
+      id: 'other_client',
+      clientId: 'client_2',
+      userId: 'user_1',
+      revokedAt: null,
+      createdAt: new Date(0)
+    }
+    const otherUser = {
+      id: 'other_user',
+      clientId: 'client_1',
+      userId: 'user_2',
+      revokedAt: null,
+      createdAt: new Date(0)
+    }
+    store.grants.push(otherClient, otherUser)
+    const first = store.grants.find(g => g.codeUsedAt)!
+
+    const code = await approve()
+    // Consent alone changes nothing: the earlier connection keeps working.
+    expect(first.revokedAt).toBeNull()
+
+    const res = await token(exchangeBody(code))
+    expect(res.status).toBe(200)
+    expect(first.revokedAt).toBeInstanceOf(Date)
+    expect(grant().revokedAt).toBeNull()
+    expect(otherClient.revokedAt).toBeNull()
+    expect(otherUser.revokedAt).toBeNull()
+    const refresh = await token(refreshBody(earlier.refresh_token))
+    await expectOAuthError(refresh, 'invalid_grant')
+    expect(logActivity.fireAndForget).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          reason: 'replaced',
+          replacedGrants: 1
+        })
+      })
+    )
+  })
+
   it('lets exactly one of two concurrent exchanges win, then revokes', async () => {
     const code = await approve()
     const results = await Promise.all([

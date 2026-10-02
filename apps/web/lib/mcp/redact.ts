@@ -13,6 +13,8 @@
 
 const NWC_URI = /nostr\+?walletconnect:/i
 const NSEC = /nsec1[02-9ac-hj-np-z]{20,}/i
+/** A card activation link: possession plus any account claims the card. */
+const ACTIVATION_URL = /\/wallet\/activate\/[0-9a-f]{16,}/i
 
 /** Normalized (lower-case, alphanumerics only) fragments of secret key names. */
 const SECRET_KEY_FRAGMENTS = [
@@ -31,8 +33,8 @@ const SECRET_KEY_FRAGMENTS = [
 
 /**
  * Exact (normalized) secret key names too short or generic for a fragment:
- * NTAG424 card keys, the card's one-time claim code, and a voucher's coupon
- * code (bare, and inside its signed event's tags).
+ * NTAG424 card keys, the card's one-time claim code, card activation tokens,
+ * and a voucher's coupon code (bare, and inside its signed event's tags).
  */
 const SECRET_KEYS = new Set([
   'k0',
@@ -42,7 +44,9 @@ const SECRET_KEYS = new Set([
   'k4',
   'otc',
   'nonce',
-  'voucherevent'
+  'voucherevent',
+  'tokenid',
+  'qrpayload'
 ])
 
 export const REDACTED = '[redacted]'
@@ -67,6 +71,7 @@ function carriesSecret(value: unknown): boolean {
 function redactString(value: string): string {
   if (NWC_URI.test(value)) return '[redacted NWC connection string]'
   if (NSEC.test(value)) return '[redacted nsec key]'
+  if (ACTIVATION_URL.test(value)) return '[redacted card activation link]'
   return value
 }
 

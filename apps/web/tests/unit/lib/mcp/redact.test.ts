@@ -190,4 +190,22 @@ describe('redactSecrets — realistic REST payloads', () => {
       }
     ])
   })
+  it('card activation tokens and links never reach the model', () => {
+    const token = 'f'.repeat(32)
+    expect(
+      redactSecrets({
+        id: 'act_1',
+        tokenId: token,
+        qrPayload: `https://example.org/wallet/activate/${token}`,
+        metadata: { note: `scan https://example.org/wallet/activate/${token}` },
+        status: 'ACTIVE'
+      })
+    ).toEqual({
+      id: 'act_1',
+      tokenId: REDACTED,
+      qrPayload: REDACTED,
+      metadata: { note: '[redacted card activation link]' },
+      status: 'ACTIVE'
+    })
+  })
 })

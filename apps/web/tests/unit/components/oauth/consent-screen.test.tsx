@@ -198,7 +198,7 @@ describe('ConsentScreen', () => {
     await renderReady()
 
     const read = scopeBox(/view balances/i)
-    const write = scopeBox(/create, change and delete/i)
+    const write = scopeBox(/create and change addresses/i)
     const spend = scopeBox(/send payments/i)
     expect(read).toBeChecked()
     expect(read).toBeDisabled()
@@ -256,7 +256,7 @@ describe('ConsentScreen', () => {
     mocks.auth.apiClient.post.mockResolvedValue({ redirectTo: CODE_REDIRECT })
     await renderReady()
 
-    await user.click(scopeBox(/create, change and delete/i))
+    await user.click(scopeBox(/create and change addresses/i))
     await user.click(scopeBox(/send payments/i))
     const approve = screen.getByRole('button', { name: 'Approve' })
     const limit = screen.getByLabelText('Daily limit (sats)')
@@ -307,7 +307,7 @@ describe('ConsentScreen', () => {
     const user = userEvent.setup()
     await renderReady()
 
-    await user.click(scopeBox(/create, change and delete/i))
+    await user.click(scopeBox(/create and change addresses/i))
     await user.click(scopeBox(/view balances/i))
 
     expect(screen.getByRole('button', { name: 'Approve' })).toBeDisabled()

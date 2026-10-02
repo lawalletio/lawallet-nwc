@@ -94,7 +94,9 @@ export function resolveApproval(
 
 /**
  * Records an approval as a grant holding a single-use authorization code.
- * Re-authorizing a client replaces the account's earlier grant for it.
+ * The account's earlier grant for the same client is replaced only once this
+ * code is exchanged (see {@link exchangeAuthorizationCode}), so an abandoned
+ * reconnect never leaves the user disconnected.
  *
  * @returns The authorization code — shown once, never stored in clear.
  */
@@ -109,30 +111,20 @@ export async function createAuthorizationGrant(input: {
 }): Promise<string> {
   const code = generateCredential(AUTH_CODE_PREFIX)
   const now = new Date()
-  const [replaced, grant] = await prisma.$transaction([
-    prisma.oAuthGrant.updateMany({
-      where: {
-        userId: input.userId,
-        clientId: input.client.id,
-        revokedAt: null
-      },
-      data: { revokedAt: now }
-    }),
-    prisma.oAuthGrant.create({
-      data: {
-        clientId: input.client.id,
-        userId: input.userId,
-        scopes: input.scopes,
-        resource: input.resource,
-        spendLimitSats: input.spendLimitSats,
-        codeHash: hashCredential(code),
-        codeChallenge: input.codeChallenge,
-        redirectUri: input.redirectUri,
-        codeExpiresAt: new Date(now.getTime() + AUTH_CODE_TTL_SECONDS * 1000)
-      },
-      select: { id: true }
-    })
-  ])
+  const grant = await prisma.oAuthGrant.create({
+    data: {
+      clientId: input.client.id,
+      userId: input.userId,
+      scopes: input.scopes,
+      resource: input.resource,
+      spendLimitSats: input.spendLimitSats,
+      codeHash: hashCredential(code),
+      codeChallenge: input.codeChallenge,
+      redirectUri: input.redirectUri,
+      codeExpiresAt: new Date(now.getTime() + AUTH_CODE_TTL_SECONDS * 1000)
+    },
+    select: { id: true }
+  })
 
   const spend = input.scopes.includes('spend')
   logActivity.fireAndForget({
@@ -148,8 +140,7 @@ export async function createAuthorizationGrant(input: {
       clientId: input.client.id,
       clientName: input.client.name,
       scopes: input.scopes,
-      spendLimitSats: input.spendLimitSats,
-      replacedGrants: replaced.count
+      spendLimitSats: input.spendLimitSats
     }
   })
 
@@ -329,7 +320,38 @@ export async function exchangeAuthorizationCode(params: {
     await revokeGrant(grant, 'code_replay')
     throw invalidGrant('Authorization code was already used')
   }
+  await replaceEarlierGrants(grant, now)
   return tokens.response
+}
+
+/**
+ * A reconnect takes effect when its code is exchanged: the account's other
+ * grants for the same client stop working then, not when consent was given.
+ */
+async function replaceEarlierGrants(grant: GrantForLog, now: Date) {
+  const { count } = await prisma.oAuthGrant.updateMany({
+    where: {
+      userId: grant.userId,
+      clientId: grant.clientId,
+      revokedAt: null,
+      id: { not: grant.id }
+    },
+    data: { revokedAt: now }
+  })
+  if (count === 0) return
+  logActivity.fireAndForget({
+    category: 'USER',
+    event: ActivityEvent.OAUTH_GRANT_REVOKED,
+    message: `Replaced ${count} earlier authorization of "${grant.client.name}"`,
+    userId: grant.userId,
+    metadata: {
+      grantId: grant.id,
+      clientId: grant.clientId,
+      clientName: grant.client.name,
+      reason: 'replaced',
+      replacedGrants: count
+    }
+  })
 }
 
 /**

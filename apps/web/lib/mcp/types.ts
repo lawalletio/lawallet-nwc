@@ -71,7 +71,10 @@ export interface NativeTool extends McpToolDescriptor {
    */
   scope: OAuthScope | 'public'
   /** Returns a JSON-serializable result. Throw {@link McpToolError} to fail. */
-  handler: (args: Record<string, unknown>, caller: McpCaller) => Promise<unknown>
+  handler: (
+    args: Record<string, unknown>,
+    caller: McpCaller
+  ) => Promise<unknown>
 }
 
 /**

@@ -319,6 +319,15 @@ function decodePayableInvoice(
   }
 }
 
+/**
+ * Routing fees count against the budget but are only known afterwards, and
+ * NWC takes no fee cap, so a payment must leave room for them: 1% of the
+ * amount, at least 10 sats.
+ */
+export function feeReserveSats(amountSats: number): number {
+  return Math.max(10, Math.ceil(amountSats / 100))
+}
+
 type Claim =
   | { kind: 'claimed'; payment: McpPayment }
   | { kind: 'existing'; payment: McpPayment }
@@ -370,7 +379,10 @@ async function claimPayment(
       if (prior) return { kind: 'existing', payment: prior }
 
       const budget = await readSpendBudget(grant.id, locked.spendLimitSats, tx)
-      if (invoice.amountSats > budget.remainingSats) {
+      if (
+        invoice.amountSats + feeReserveSats(invoice.amountSats) >
+        budget.remainingSats
+      ) {
         return { kind: 'over_budget', budget }
       }
       // A retry after a definitive failure replaces the FAILED row: the new
@@ -409,13 +421,30 @@ type Outcome =
   | { status: 'SUCCEEDED'; preimage: string; feesPaidSats: number }
   | { status: 'FAILED' | 'UNKNOWN'; error: string }
 
+/**
+ * NIP-47 errors a wallet returns before any HTLC leaves it. Only these release
+ * the budget. Everything else — PAYMENT_FAILED, INTERNAL, OTHER, no code — may
+ * come from a wallet that gave up waiting while the payment was still in
+ * flight (a payee can hold an HTLC open on purpose), so it stays UNKNOWN until
+ * a lookup proves it failed (see {@link reconcile}).
+ */
+const PRE_FLIGHT_REJECTIONS = new Set([
+  'INSUFFICIENT_BALANCE',
+  'QUOTA_EXCEEDED',
+  'RESTRICTED',
+  'UNAUTHORIZED',
+  'NOT_IMPLEMENTED',
+  'RATE_LIMITED'
+])
+
 function outcomeOf(error: unknown): Outcome {
   if (error instanceof PaymentRejectedError) {
     const code = (error.code ?? '').toUpperCase().replace(/[^A-Z0-9_]/g, '_')
-    return { status: 'FAILED', error: code.slice(0, 64) || 'WALLET_REJECTED' }
+    if (PRE_FLIGHT_REJECTIONS.has(code))
+      return { status: 'FAILED', error: code }
   }
-  // PaymentOutcomeUnknownError, or anything else once the driver was invoked:
-  // the payment may be out there.
+  // PaymentOutcomeUnknownError, an ambiguous rejection, or anything else once
+  // the driver was invoked: the payment may be out there.
   logger.error({ err: error }, 'mcp.payment_outcome_unknown')
   return { status: 'UNKNOWN', error: 'OUTCOME_UNKNOWN' }
 }
@@ -647,7 +676,7 @@ async function payWithinBudget(
   if (claim.kind === 'over_budget') {
     const { budget } = claim
     throw new McpToolError(
-      `Paying ${invoice.amountSats} sats would exceed this connection's daily budget: ${budget.remainingSats} of ${budget.limitSats} sats left in the last 24 hours. Nothing was sent. The user can reconnect the app with a higher limit, or wait for earlier payments to leave the 24-hour window.`,
+      `Paying ${invoice.amountSats} sats (plus up to ${feeReserveSats(invoice.amountSats)} sats reserved for routing fees) would exceed this connection's daily budget: ${budget.remainingSats} of ${budget.limitSats} sats left in the last 24 hours. Nothing was sent. The user can reconnect the app with a higher limit, or wait for earlier payments to leave the 24-hour window.`,
       { amountSats: invoice.amountSats, budget }
     )
   }

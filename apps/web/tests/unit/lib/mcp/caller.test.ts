@@ -37,7 +37,7 @@ import { authenticate } from '@/lib/auth/unified-auth'
 import { resolveAccountByPubkey } from '@/lib/auth/account'
 import { resolveRole } from '@/lib/auth/resolve-role'
 import { verifyJwtToken } from '@/lib/jwt'
-import { Role, getRolePermissions } from '@/lib/auth/permissions'
+import { Permission, Role, getRolePermissions } from '@/lib/auth/permissions'
 
 const PUBKEY = 'a'.repeat(64)
 
@@ -168,17 +168,29 @@ describe('resolveCaller — session and device JWTs', () => {
     expect(verifyAccessToken).not.toHaveBeenCalled()
   })
 
-  it('accepts a device token for a pubkey without an account', async () => {
+  it('accepts a session for a pubkey without an account', async () => {
     vi.mocked(authenticate).mockResolvedValue({
       pubkey: PUBKEY,
       role: Role.USER,
-      method: 'jwt',
-      scopes: []
+      method: 'jwt'
     })
     vi.mocked(resolveAccountByPubkey).mockResolvedValue(null)
 
-    const caller = await resolveCaller(request('Bearer eyJ.device.jwt'))
+    const caller = await resolveCaller(request('Bearer eyJ.session.jwt'))
     expect(caller.user).toEqual({ pubkey: PUBKEY, userId: null, role: 'USER' })
+  })
+
+  it('refuses a device token, whatever its scopes', async () => {
+    vi.mocked(authenticate).mockResolvedValue({
+      pubkey: PUBKEY,
+      role: Role.ADMIN,
+      method: 'jwt',
+      scopes: [Permission.CARDS_WRITE]
+    })
+
+    const error = await authError(resolveCaller(request('Bearer eyJ.device')))
+    expect(error.code).toBe('invalid_token')
+    expect(error.message).toMatch(/Device tokens cannot be used here/)
   })
 
   it('answers invalid_token when the JWT is rejected', async () => {

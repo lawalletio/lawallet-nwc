@@ -38,6 +38,12 @@ const DOMAIN_SETUP =
   'domain-verification callback for instance setup, not an agent operation'
 const DEVICE_PAIRING =
   'device pairing: the external device key in the path is a bearer credential'
+const CARD_BINDING =
+  'binds a physical card to a wallet: whoever holds the card can then spend from it by tapping'
+const CARD_CLAIM_CREDENTIAL =
+  'mints or exposes a card claim credential (activation QR); claiming it binds the card to a wallet'
+const ADDRESS_RELEASE =
+  'frees the username, so anyone can register it and receive the payments sent to it'
 
 /** Explicit classification of every non-structural operation, by operationId. */
 export const OPERATION_POLICY: Record<string, OperationPolicy> = {
@@ -71,10 +77,10 @@ export const OPERATION_POLICY: Record<string, OperationPolicy> = {
 
   // Cards
   'cards.list': READ,
-  'cards.create': WRITE,
+  'cards.create': exclude(CARD_CLAIM_CREDENTIAL),
   'cards.counts': READ,
   'cards.get': READ,
-  'cards.update': WRITE,
+  'cards.update': exclude(CARD_BINDING),
   'cards.delete': WRITE,
   'cards.transactions.list': READ,
   'cards.write': exclude(
@@ -98,12 +104,12 @@ export const OPERATION_POLICY: Record<string, OperationPolicy> = {
   'cards.otc.get': exclude(
     'the one-time code in the path is a bearer credential for claiming the card'
   ),
-  'cards.otc.activate': WRITE,
-  'cards.activationTokens.create': WRITE,
-  'cards.activationTokens.list': READ,
-  'cards.rescue': WRITE,
+  'cards.otc.activate': exclude(CARD_BINDING),
+  'cards.activationTokens.create': exclude(CARD_CLAIM_CREDENTIAL),
+  'cards.activationTokens.list': exclude(CARD_CLAIM_CREDENTIAL),
+  'cards.rescue': exclude(CARD_CLAIM_CREDENTIAL),
   'activationTokens.preview': READ,
-  'activationTokens.claim': WRITE,
+  'activationTokens.claim': exclude(CARD_BINDING),
 
   // Card designs
   'cardDesigns.create': WRITE,
@@ -137,14 +143,16 @@ export const OPERATION_POLICY: Record<string, OperationPolicy> = {
   'wallet.addresses.invoices.forwarding.recover': exclude(
     'retries or re-targets the forwarding payment of a received invoice'
   ),
-  'wallet.cards.update': WRITE,
+  'wallet.cards.update': exclude(
+    'rebinds which wallet a card spends from, or moves the account-recovery (MASTER) card designation'
+  ),
   // A POST, but it only probes the target address.
   'wallet.addresses.probeAlias': READ,
   'wallet.addresses.get': READ,
   'wallet.addresses.update': exclude(
     'repoints the address: ALIAS and PROXY_ALIAS forward its incoming payments to any external lightning address'
   ),
-  'wallet.addresses.delete': WRITE,
+  'wallet.addresses.delete': exclude(ADDRESS_RELEASE),
   'wallet.addresses.setPrimary': WRITE,
   'wallet.addresses.invoices': READ,
 
@@ -159,7 +167,9 @@ export const OPERATION_POLICY: Record<string, OperationPolicy> = {
     'privilege change: a new role hands another pubkey the settings and fund-routing powers withheld here'
   ),
   'users.relays.set': WRITE,
-  'users.lightningAddress.set': WRITE,
+  'users.lightningAddress.set': exclude(
+    'replaces the primary address by deleting the old one, which frees that username for anyone to register'
+  ),
 
   // Invoices
   'invoices.create': WRITE,
@@ -212,7 +222,9 @@ export const OPERATION_POLICY: Record<string, OperationPolicy> = {
   'remoteWallets.forwardingReceipts.get': READ,
   'remoteWallets.forwardingReceipts.retry': exclude(MOVES_FUNDS),
   'remoteWallets.notifications.list': READ,
-  'remoteWallets.notifications.create': WRITE,
+  'remoteWallets.notifications.create': exclude(
+    'sends details of every incoming payment to any webhook URL or Nostr key the caller names'
+  ),
   'remoteWallets.notifications.toggle': WRITE,
   'remoteWallets.notificationDeliveries.list': READ,
   'remoteWallets.notificationDeliveries.retry': WRITE,

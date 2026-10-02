@@ -1641,7 +1641,11 @@ export const oauthClientRegistrationSchema = z.object({
   redirect_uris: z
     .array(oauthRedirectUriSchema)
     .min(1, 'At least one redirect URI is required')
-    .max(10, 'At most 10 redirect URIs'),
+    .max(10, 'At most 10 redirect URIs')
+    // Registration is anonymous: bound what one client row can store.
+    .refine(uris => uris.join('').length <= 4096, {
+      message: 'Redirect URIs may total at most 4096 characters'
+    }),
   /** Normalized server-side: control characters stripped, cut to 100. */
   client_name: z.string().max(1000).optional()
 })

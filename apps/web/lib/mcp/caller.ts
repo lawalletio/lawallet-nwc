@@ -15,7 +15,7 @@ import {
 import { AuthenticationError, InternalServerError } from '@/types/server/errors'
 import type { McpCaller } from '@/lib/mcp/types'
 
-/** Session and device JWTs predate MCP scopes: they read and write, never spend. */
+/** Session JWTs predate MCP scopes: they read and write, never spend. */
 const JWT_SCOPES: ReadonlySet<OAuthScope> = new Set(['read', 'write'])
 
 /**
@@ -122,6 +122,14 @@ async function oauthCaller(
 
 async function jwtCaller(request: Request, apiUrl: string): Promise<McpCaller> {
   const auth = await authenticate(request)
+  // A device token is narrowed to a few permissions for one device. The
+  // wallet tools never consult those permissions, so on this endpoint it would
+  // read balances and mint invoices it cannot touch over REST.
+  if (auth.scopes) {
+    throw new AuthenticationError(
+      'Device tokens cannot be used here; connect through OAuth or use a session token'
+    )
+  }
   const account = await resolveAccountByPubkey(auth.pubkey)
   return {
     user: {
