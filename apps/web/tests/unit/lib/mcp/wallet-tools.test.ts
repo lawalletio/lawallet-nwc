@@ -725,7 +725,7 @@ describe('wallet_pay_invoice preconditions', () => {
     [
       'a caller without an OAuth grant',
       makeCaller({ grant: null }),
-      /session and device tokens can never spend/
+      /session tokens can never spend/
     ],
     [
       'a grant without the spend scope',

@@ -219,7 +219,7 @@ function requireSpendGrant(caller: McpCaller): SpendGrant {
   const { grant } = caller
   if (!grant) {
     throw new McpToolError(
-      'Sending payments needs an app connected through OAuth with the "Send payments" permission; session and device tokens can never spend.'
+      'Sending payments needs an app connected through OAuth with the "Send payments" permission; session tokens can never spend.'
     )
   }
   if (!caller.scopes.has('spend')) {

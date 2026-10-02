@@ -67,7 +67,8 @@ export async function resolvePublicCaller(
 
 /**
  * Resolves the caller of the authenticated endpoint from its `Bearer` token:
- * an OAuth access token issued by this instance, or a session/device JWT.
+ * an OAuth access token issued by this instance, or a session JWT (device
+ * tokens are refused).
  *
  * @throws {McpAuthError} When the credential is missing or rejected.
  */

@@ -306,11 +306,11 @@ says **Can't connect this app**, shows the reason, and nothing is authorized.
 
 ### Permissions
 
-| Permission | Shown as                                                | Lets the app                                                                                                                                                                                                                          |
-| ---------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `read`     | View balances, addresses, cards and activity            | Read your data. It cannot change anything.                                                                                                                                                                                            |
-| `write`    | Create, change and delete addresses, invoices and cards | Create, change and delete things: lightning addresses, invoices, cards, wallet names and defaults, payment notifications, your preferences. This includes which of your own wallets receives incoming payments. It cannot send funds. |
-| `spend`    | Send payments from your wallets                         | Pay Lightning invoices from your wallets, up to the daily limit.                                                                                                                                                                      |
+| Permission | Shown as                                                  | Lets the app                                                                                                                                                                                                                                                                                             |
+| ---------- | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `read`     | View balances, addresses, cards and activity              | Read your data. It cannot change anything.                                                                                                                                                                                                                                                               |
+| `write`    | Create and change addresses, invoices and wallet settings | Create and change things: new lightning addresses and which one is primary, invoices, wallet names and defaults, removing a wallet, vouchers, your preferences. This includes which of your own wallets receives incoming payments. It cannot send funds, link a card to a wallet, or delete an address. |
+| `spend`    | Send payments from your wallets                           | Pay Lightning invoices from your wallets, up to the daily limit.                                                                                                                                                                                                                                         |
 
 - `read` is included automatically with `write` or `spend`: its checkbox stays
   ticked and locked.
@@ -328,8 +328,10 @@ says **Can't connect this app**, shows the reason, and nothing is authorized.
 
 - It covers a **rolling 24 hours**, not a calendar day.
 - It counts the amount **and the routing fees** of every payment the
-  connection made in that window that did not fail. Fees are counted once
-  known, so the total can end a few sats above the limit.
+  connection made in that window that did not fail.
+- A payment needs room for its amount plus a **fee reserve** of 1%, at least
+  10 sats: paying 500 sats needs 510 left. Only the fee actually paid is
+  counted, so the total can still end a few sats above the limit.
 - **Each connection has its own limit.** Two apps with `spend` can each spend
   their full limit.
 - **An agent cannot raise its limit.** Only you can, by approving a new
@@ -352,18 +354,18 @@ says **Can't connect this app**, shows the reason, and nothing is authorized.
   Connected apps.
 - **To change permissions**, revoke the app and connect it again, choosing new
   permissions. In ChatGPT, press **Refresh** afterwards.
+- Approving the same app again replaces its old connection only once the app
+  finishes connecting. If you abandon a reconnect, the old connection keeps
+  working.
 
 ## Using a token instead of OAuth
 
-For scripts and API integrations, `/api/mcp` also accepts an existing token in
-an `Authorization: Bearer` header:
+For scripts and API integrations, `/api/mcp` also accepts a **session token**
+from `POST /api/jwt` in an `Authorization: Bearer` header. It is valid for up
+to 24 hours — see [JWT Authentication](/docs/guides/jwt-authentication).
+**Device tokens** (from **Settings → Device Tokens**) are refused.
 
-- a **session token** from `POST /api/jwt`, valid for up to 24 hours — see
-  [JWT Authentication](/docs/guides/jwt-authentication);
-- a **device token** an admin creates under **Settings → Device Tokens**. It
-  only works while the instance's `endpoint` setting is set and unchanged.
-
-These tokens get `read` and `write`, **never `spend`**: payments always need
+A session token gets `read` and `write`, **never `spend`**: payments always need
 an OAuth connection with a limit you approved. Claude Code, Cursor, the MCP
 Inspector and the two APIs can send a token; ChatGPT cannot.
 
@@ -432,6 +434,14 @@ These stay in the web app, whatever the permissions:
   **sends incoming payments somewhere outside your account** — address aliases
   and redirects, adding an external wallet, auto-forwarding, forwarding
   retries, sending vouchers;
+- **deleting a lightning address** or replacing your primary one, which frees
+  the username for anyone to register and receive its payments;
+- **payment notifications**, which send details of your incoming payments to a
+  web address or Nostr key;
+- **linking a card to a wallet** — activating or claiming a card, changing
+  which wallet a card spends from, or moving the account-recovery card — and
+  **card activation QRs**: creating cards, creating or listing activation
+  codes, card rescue;
 - **instance settings** and **user roles**;
 - **credentials and account security** — device tokens, passkeys, linking or
   merging Nostr identities, and connecting other apps;
@@ -449,29 +459,30 @@ Only `wallet_pay_invoice` spends, and only for an OAuth connection with the
 - An invoice without an amount needs `amountSats`; expired invoices are
   refused.
 
-| Status      | Meaning                                                     | Limit    | What to do                                                                                 |
-| ----------- | ----------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------ |
-| `SUCCEEDED` | Paid; includes the proof of payment and the fee             | Used     | Nothing                                                                                    |
-| `FAILED`    | The wallet refused; no funds left                           | Released | Fix the cause (for example the balance); paying again retries                              |
-| `PENDING`   | Another call is paying this invoice right now               | Used     | Do not retry; check `wallet_list_payments` in a few minutes                                |
-| `UNKNOWN`   | The wallet did not confirm in time; the funds may have left | Used     | Do not retry or pay another invoice for the same thing; check `wallet_list_payments` later |
+| Status      | Meaning                                                                                                                                   | Limit    | What to do                                                                                 |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------ |
+| `SUCCEEDED` | Paid; includes the proof of payment and the fee                                                                                           | Used     | Nothing                                                                                    |
+| `FAILED`    | The wallet refused before sending anything (for example, insufficient balance), or a later check proved the payment failed; no funds left | Released | Fix the cause (for example the balance); paying again retries                              |
+| `PENDING`   | Another call is paying this invoice right now                                                                                             | Used     | Do not retry; check `wallet_list_payments` in a few minutes                                |
+| `UNKNOWN`   | The wallet did not confirm in time, or reported an error that does not prove nothing was sent; the funds may have left                    | Used     | Do not retry or pay another invoice for the same thing; check `wallet_list_payments` later |
 
 `wallet_list_payments` re-checks unresolved payments with the wallet and
-updates their status.
+updates their status. An `UNKNOWN` payment keeps its share of the limit until
+that check shows it failed.
 
 ## Security
 
 - **Secrets never reach the agent.** Wallet connection strings (NWC), `nsec`
-  keys, card keys and other secret values are replaced with a `[redacted …]`
+  keys, card keys, card activation codes and links, and other secret values
+  are replaced with a `[redacted …]`
   marker in every result. The agent never needs them: the instance uses your stored
   wallet connection for it.
 - **Never paste an NWC connection string, an nsec or an admin token into a
   chat or a shared agent configuration.** Anything the model reads can be
   repeated or leaked, and a connection string spends without any limit.
 - **Grant the least you can.** Connect with `read` when that is enough. `write`
-  is broad: it can, for example, create payment notifications that send
-  details of your incoming payments to a web address the agent chooses, or
-  change your default wallet. Add `spend` only with a limit you can afford to
+  is broad: it can, for example, change your default wallet or remove a wallet
+  from your account. Add `spend` only with a limit you can afford to
   lose. Admins hand their admin powers to the agent; use a separate member
   account for everyday agent use.
 - **Treat what tools return as untrusted.** Payment comments, invoice
@@ -487,7 +498,8 @@ updates their status.
 **Sign-in loops, or 401 errors.** Your connection is no longer valid: it was
 revoked, replaced by a newer approval, unused for 30 days, or the instance's
 `endpoint` setting changed. Connect the app again. With a static token, the
-token expired or belongs to another instance.
+token expired or belongs to another instance, or it is a device token, which
+is refused: use OAuth or a session token.
 
 **"Wrong instance URL" or "resource does not match".** The URL given to the
 client differs from the canonical one — `http` versus `https`, `www` versus
@@ -497,14 +509,14 @@ must fix the `endpoint` setting.
 
 **Payments are refused.** The error says why:
 
-| Error mentions                          | Fix                                                                                                                                  |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| only an OAuth connection can grant it   | You are using a static token. Connect with OAuth and tick **Send payments**.                                                         |
-| the `spend` scope                       | The connection was approved without **Send payments**. Revoke it and connect again with a daily limit.                               |
-| no daily spend limit                    | Connect again and set a limit.                                                                                                       |
-| would exceed the daily budget           | The limit is used up. Wait for older payments to leave the 24-hour window, or connect again with a higher limit.                     |
-| wallet cannot send payments             | The wallet's connection is receive-only, or the wallet is unreachable. Use another wallet, or replace the connection in the web app. |
-| no primary wallet, or wallet not active | Pass a `walletId` from `list_wallets` that is active.                                                                                |
+| Error mentions                          | Fix                                                                                                                                                      |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| only an OAuth connection can grant it   | You are using a session token. Connect with OAuth and tick **Send payments**.                                                                            |
+| the `spend` scope                       | The connection was approved without **Send payments**. Revoke it and connect again with a daily limit.                                                   |
+| no daily spend limit                    | Connect again and set a limit.                                                                                                                           |
+| would exceed the daily budget           | The amount plus the fee reserve does not fit in what is left. Wait for older payments to leave the 24-hour window, or connect again with a higher limit. |
+| wallet cannot send payments             | The wallet's connection is receive-only, or the wallet is unreachable. Use another wallet, or replace the connection in the web app.                     |
+| no primary wallet, or wallet not active | Pass a `walletId` from `list_wallets` that is active.                                                                                                    |
 
 **Tools are missing.** The connection lacks a permission (`write` for
 `api_write`, `wallet_make_invoice` and `create_lightning_address`; `spend` for
@@ -525,7 +537,7 @@ the agent to run `wallet_list_payments` after a few minutes; the instance asks
 the wallet what happened. Your wallet's own history is the final word.
 
 **HTTP 429 (too many requests).** Wait for the number of seconds in the
-`Retry-After` header. Anonymous requests are limited per IP address, and
+`Retry-After` header. Every call in a JSON-RPC batch counts. Anonymous requests are limited per IP address, and
 hosted clients share their providers' addresses, so the public endpoint can
 hit the limit sooner through them.
 

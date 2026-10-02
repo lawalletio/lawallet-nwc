@@ -29,7 +29,7 @@ public URL — the value of its `endpoint` setting, for example
 
 | URL                                 | Who can call                                                                         | Tools                                                                                                                                    |
 | ----------------------------------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `https://<instance>/api/mcp`        | A signed-in agent: an OAuth access token, or a session or device JWT                 | Every tool the connection's permissions and the account's role allow                                                                     |
+| `https://<instance>/api/mcp`        | A signed-in agent: an OAuth access token or a session JWT (never a device token)     | Every tool the connection's permissions and the account's role allow                                                                     |
 | `https://<instance>/api/mcp/public` | Anyone. No credentials needed; credentials that are sent are ignored, never rejected | Public tools only: instance information, and lookups of this instance's lightning addresses (including requesting an invoice to pay one) |
 
 Both accept `POST` only.
@@ -333,8 +333,8 @@ EOF
 
 - Only tool calls are supported, and the instance must be on a public HTTPS
   URL.
-- Your code supplies the token and renews it: a session or device JWT (`read`
-  and `write`), or an access token from an OAuth flow your code runs (required
+- Your code supplies the token and renews it: a session JWT (`read` and
+  `write`), or an access token from an OAuth flow your code runs (required
   for `spend`; it expires after an hour, renew it with the refresh token).
 - Available on the Claude API, Claude Platform on AWS and Foundry; not on
   Amazon Bedrock or Google Cloud Vertex AI.
@@ -445,11 +445,11 @@ The page cannot be embedded in another site (`X-Frame-Options: DENY`,
 
 ### Scopes
 
-| Scope   | Consent screen label                                    | Allows                                                                                                                                                                                                                                            |
-| ------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `read`  | View balances, addresses, cards and activity            | Read-only tools.                                                                                                                                                                                                                                  |
-| `write` | Create, change and delete addresses, invoices and cards | Tools that create, change or delete data: lightning addresses, invoices, cards, wallet names and defaults, payment notifications, your own preferences. This includes which of your own wallets receives incoming payments. It cannot send funds. |
-| `spend` | Send payments from your wallets                         | `wallet_pay_invoice`, within the daily limit.                                                                                                                                                                                                     |
+| Scope   | Consent screen label                                      | Allows                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `read`  | View balances, addresses, cards and activity              | Read-only tools.                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `write` | Create and change addresses, invoices and wallet settings | Tools that create or change data: new lightning addresses and the primary one, invoices, wallet names and defaults, removing a wallet, LNCurl wallets, vouchers, your own preferences; for operators and admins also card designs, address provisioning and deleting cards. This includes which of your own wallets receives incoming payments. It cannot send funds, bind a card to a wallet, or free a username. |
+| `spend` | Send payments from your wallets                           | `wallet_pay_invoice`, within the daily limit.                                                                                                                                                                                                                                                                                                                                                                      |
 
 - **`read` comes with `write` and `spend`.** On the consent screen it is
   ticked and locked while either is ticked, and the instance adds it to the
@@ -476,9 +476,11 @@ The page cannot be embedded in another site (`X-Frame-Options: DENY`,
   with an unknown outcome count; failed ones do not.
 - The limit is **per connection**. Two connected apps with `spend` have two
   limits, and the amounts add up.
-- Fees are not reserved in advance: a payment is allowed when its amount fits
-  in what remains, and its fee is counted once known. The total can therefore
-  end a few sats above the limit.
+- A payment needs room for its amount **plus a routing-fee reserve** of 1% of
+  the amount, at least 10 sats: paying 500 sats needs 510 left, paying 5,000
+  needs 5,050. The reserve is only headroom; the fee actually paid is counted
+  once known. A fee above the reserve, or fees of payments still in flight,
+  can still put the total a few sats over the limit.
 - **An agent cannot change its own limit.** Only you can, by approving a new
   connection on the consent page. A new connection starts with nothing spent
   (see [Revoking and changing access](#revoking-and-changing-access) for when
@@ -518,7 +520,9 @@ See [Payments](#payments) for how the limit is enforced.
 - **To change an app's permissions**, revoke it and connect it again, choosing
   the new permissions on the consent screen. Then refresh the tool list in the
   client if it keeps a snapshot (ChatGPT: **Refresh**).
-- Approving the same app registration again replaces its previous connection.
+- Approving the same app registration again replaces its previous connection
+  once the app exchanges the new authorization code. Until then the old
+  connection keeps working, so an abandoned reconnect leaves you connected.
   Some clients (claude.ai among them) register anew for every fresh
   connection, so their old entry stays until you revoke it or it expires.
 - Payment records of revoked connections are kept.
@@ -526,19 +530,18 @@ See [Payments](#payments) for how the limit is enforced.
 ## Bearer tokens instead of OAuth
 
 For scripts, CI and API integrations, where a browser sign-in is impractical,
-`/api/mcp` also accepts two kinds of existing tokens in an
-`Authorization: Bearer` header:
+`/api/mcp` also accepts a **session JWT** in an `Authorization: Bearer`
+header. Get one from `POST /api/jwt` with a NIP-98-signed request; it is valid
+for up to 24 hours — see the
+[JWT guide](https://docs.lawallet.io/docs/guides/jwt-authentication).
 
-- a **session JWT**, from `POST /api/jwt` with a NIP-98-signed request, valid
-  for up to 24 hours — see the
-  [JWT guide](https://docs.lawallet.io/docs/guides/jwt-authentication);
-- a **device token**, which an admin mints under **Settings → Device Tokens**
-  (`POST /api/auth/qr-jwt/generate`). Device tokens work only while the
-  `endpoint` setting is set and matches the URL they were minted for, and their
-  permission list narrows REST access as usual.
+A session JWT gets the `read` and `write` scopes — **never `spend`**. Payments
+always need an OAuth connection with a daily limit you approved, and
+`wallet_list_payments` has nothing to show for these tokens.
 
-Both get the `read` and `write` scopes — **never `spend`**. Payments always need an OAuth connection with a daily limit you
-approved, and `wallet_list_payments` has nothing to show for these tokens.
+**Device tokens** (minted under **Settings → Device Tokens**) are refused with
+401 `invalid_token`: they are narrowed to a few permissions for one device,
+which the wallet tools would not honor.
 
 Clients that can send the header: Claude Code, Cursor, the MCP Inspector, the
 Claude API and the OpenAI Responses API. ChatGPT cannot; claude.ai only
@@ -549,7 +552,7 @@ A token in a configuration file is a credential:
 - It carries your account's full read and write access — an admin's token
   carries admin powers. Prefer OAuth: its access is scoped, revocable, and
   refreshes itself.
-- Session JWTs and device tokens cannot be revoked before they expire (only
+- Session JWTs cannot be revoked before they expire (only
   rotating `JWT_SECRET` ends them all). Use the shortest workable lifetime.
 - Keep tokens out of shared or committed configuration: reference an
   environment variable (`${LAWALLET_MCP_TOKEN}` in Claude Code's `.mcp.json`,
@@ -691,8 +694,8 @@ maintenance mode and activity logging are exactly those of the REST API.
 - For an OAuth connection, the handler is called with an internal session JWT
   for the connected account, valid for 60 seconds and never sent outside the
   process. Its role is re-read from the database on every request, so a
-  demoted account loses its privileges at once. For a session or device JWT,
-  the caller's own token is passed through.
+  demoted account loses its privileges at once. For a session JWT, the
+  caller's own token is passed through.
 - Wallet tools and `get_instance_info` run without a REST round-trip and apply
   maintenance mode themselves.
 - Every result is one text block holding JSON. Results longer than 80,000
@@ -705,16 +708,20 @@ classified as read or write in `lib/mcp/policy.ts`; anything new is refused
 until someone classifies it. These are excluded on purpose and stay in the web
 app:
 
-| What                                                  | Operations                                                                                                                                                                                                                                                                                                                   | Why                                                                                                                                       |
-| ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| Moving funds out of a wallet                          | `wallet.addresses.proxyBalance.forward`, `remoteWallets.receiveAction.force`, `remoteWallets.forwardingReceipts.retry`, `lud16Proxy.payments.retry`, `cards.scan.callback`, `cards.emulateTap`, `wallet.vouchers.send`                                                                                                       | Spending happens only in `wallet_pay_invoice`, inside the daily limit                                                                     |
-| Changing where incoming funds go, outside the account | `wallet.addresses.update` (alias and proxy modes forward to any external address), `remoteWallets.create` (adds an external wallet, which can become the default), `remoteWallets.receiveAction.configure`, `remoteWallets.receiveAction.toggle`, `wallet.addresses.invoices.forwarding.recover`, `lud16Proxy.config.update` | An agent that could repoint an address could take future payments without touching the daily limit                                        |
-| Instance configuration and privileges                 | `settings.update`, `users.role.set`, `lud16Proxy.config.test`                                                                                                                                                                                                                                                                | They reach the root admin, secrets and payment destinations, hand another account those powers, or use the stored proxy-wallet credential |
-| Credential minting and session plumbing               | `auth.qrJwt.generate`, `auth.validate`, `auth.protected.get`, `auth.protected.post`; everything under `/api/oauth` and `/api/mcp`                                                                                                                                                                                            | An agent must not mint or manage credentials, including a broader connection for itself                                                   |
-| Account security                                      | `passkey.registration.options`, `passkey.registration.verify`, `passkey.credentials.update`, `passkey.credentials.delete`, `account.link.*`, `account.merge*`, `account.identities.*`                                                                                                                                        | These need the user's own authenticator or keys                                                                                           |
-| BoltCard device protocol and key material             | `cards.write`, `cards.writeToken`, `cards.wipe`, `cards.scan`, `cards.lnurlp`, `cards.lnurlp.callback`, `cards.otc.get`                                                                                                                                                                                                      | Called by the card or a paying wallet; some return or mint card keys, and the one-time code is a claim credential                         |
-| Device pairing, setup callbacks, voucher delivery     | `remoteConnections.get`, `remoteConnections.cards.create`, `setup.verify.get`, `setup.verify.post`, `lud16.callbackAction`                                                                                                                                                                                                   | Protocol endpoints for devices and other servers; the device key in the path is a credential                                              |
-| Operations that do not take a Bearer token            | `POST /api/jwt` (`auth.exchange`), `admin.assign.*`, `cardDesigns.getById` (NIP-98 only); CORS preflights; everything under `/api/internal`, `/api/dev`, `/api/webhooks`, `/api/events`                                                                                                                                      | Agents hold no NIP-98 signature, listener secret or SSE token                                                                             |
+| What                                                  | Operations                                                                                                                                                                                                                                                                                                                   | Why                                                                                                                                                                             |
+| ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Moving funds out of a wallet                          | `wallet.addresses.proxyBalance.forward`, `remoteWallets.receiveAction.force`, `remoteWallets.forwardingReceipts.retry`, `lud16Proxy.payments.retry`, `cards.scan.callback`, `cards.emulateTap`, `wallet.vouchers.send`                                                                                                       | Spending happens only in `wallet_pay_invoice`, inside the daily limit                                                                                                           |
+| Changing where incoming funds go, outside the account | `wallet.addresses.update` (alias and proxy modes forward to any external address), `remoteWallets.create` (adds an external wallet, which can become the default), `remoteWallets.receiveAction.configure`, `remoteWallets.receiveAction.toggle`, `wallet.addresses.invoices.forwarding.recover`, `lud16Proxy.config.update` | An agent that could repoint an address could take future payments without touching the daily limit                                                                              |
+| Freeing a username                                    | `wallet.addresses.delete`, `users.lightningAddress.set` (replaces the primary address by deleting the old one)                                                                                                                                                                                                               | Anyone could then register the username and receive the payments sent to it                                                                                                     |
+| Leaking incoming-payment details                      | `remoteWallets.notifications.create`                                                                                                                                                                                                                                                                                         | Sends details of every incoming payment to any webhook URL or Nostr key the caller names                                                                                        |
+| Binding a card to a wallet                            | `cards.update`, `cards.otc.activate`, `activationTokens.claim`, `wallet.cards.update` (also moves the account-recovery MASTER card)                                                                                                                                                                                          | Whoever holds the card can then spend from the wallet by tapping                                                                                                                |
+| Card claim credentials (activation QRs)               | `cards.create`, `cards.activationTokens.create`, `cards.activationTokens.list`, `cards.rescue`                                                                                                                                                                                                                               | They mint or expose a credential; claiming it binds the card to a wallet                                                                                                        |
+| Instance configuration and privileges                 | `settings.update`, `settings.domainProbe`, `settings.listenerProbe`, `plugins.update`, `users.role.set`, `lud16Proxy.config.test`                                                                                                                                                                                            | They change instance-wide settings and plugins, reach the root admin, secrets and payment destinations, hand another account those powers, or send stored credentials elsewhere |
+| Credential minting and session plumbing               | `auth.qrJwt.generate`, `auth.validate`, `auth.protected.get`, `auth.protected.post`; everything under `/api/oauth` and `/api/mcp`                                                                                                                                                                                            | An agent must not mint or manage credentials, including a broader connection for itself                                                                                         |
+| Account security                                      | `passkey.registration.options`, `passkey.registration.verify`, `passkey.credentials.update`, `passkey.credentials.delete`, `account.link.*`, `account.merge*`, `account.identities.*`                                                                                                                                        | These need the user's own authenticator or keys                                                                                                                                 |
+| BoltCard device protocol and key material             | `cards.write`, `cards.writeToken`, `cards.wipe`, `cards.scan`, `cards.lnurlp`, `cards.lnurlp.callback`, `cards.otc.get`                                                                                                                                                                                                      | Called by the card or a paying wallet; some return or mint card keys, and the one-time code is a claim credential                                                               |
+| Device pairing, setup callbacks, voucher delivery     | `remoteConnections.get`, `remoteConnections.cards.create`, `setup.verify.get`, `setup.verify.post`, `lud16.callbackAction`                                                                                                                                                                                                   | Protocol endpoints for devices and other servers; the device key in the path is a credential                                                                                    |
+| Operations that do not take a Bearer token            | `POST /api/jwt` (`auth.exchange`), `admin.assign.*`, `cardDesigns.getById` (NIP-98 only); CORS preflights; everything under `/api/internal`, `/api/dev`, `/api/webhooks`, `/api/events`                                                                                                                                      | Agents hold no NIP-98 signature, listener secret or SSE token                                                                                                                   |
 
 `passkey.credentials.list` and `account.get` stay readable. An agent cannot
 add an external wallet (an NWC connection string) — add those in the web app.
@@ -726,8 +733,8 @@ lightning address to it.
 ## Payments
 
 Spending exists in exactly one place: `wallet_pay_invoice`. It needs an OAuth
-connection with the `spend` scope and a daily limit; session and device tokens
-are refused.
+connection with the `spend` scope and a daily limit; session tokens are
+refused.
 
 ### What happens on a call
 
@@ -743,7 +750,9 @@ are refused.
    Expired invoices are refused.
 5. In one database transaction, holding a lock on the connection, the instance
    checks that the connection is still valid, sums its last 24 hours, refuses
-   the payment if it does not fit, and records it as `PENDING`. Nothing reaches
+   the payment if its amount plus the fee reserve (see
+   [The daily spend limit](#the-daily-spend-limit)) does not fit, and records
+   it as `PENDING`. Nothing reaches
    the wallet before this record exists.
 6. The wallet pays. The tool waits up to 45 seconds for the answer.
 
@@ -761,19 +770,23 @@ elsewhere.
 
 ### Payment status
 
-| Status      | Meaning                                                                                                                                                              | Daily limit | What the agent must do                                                                                |
-| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- | ----------------------------------------------------------------------------------------------------- |
-| `SUCCEEDED` | Paid. The result includes `preimage` (proof of payment, only to the connection that paid) and `feesPaidSats`.                                                        | Charged     | Nothing. Repeating returns the stored result.                                                         |
-| `FAILED`    | The wallet refused the payment; no funds left. Returned as an error result with the wallet's error code.                                                             | Released    | Fix the cause (for example the balance). Calling again retries the payment.                           |
-| `PENDING`   | Another call is paying this invoice right now.                                                                                                                       | Charged     | Do not retry. Check `wallet_list_payments` in a few minutes.                                          |
-| `UNKNOWN`   | The outcome could not be confirmed: no answer within 45 seconds, a lost connection, an unexpected error, or a preimage that does not match. The funds may have left. | Charged     | Do not retry and do not pay another invoice for the same purpose. Check `wallet_list_payments` later. |
+| Status      | Meaning                                                                                                                                                                                                                                                                   | Daily limit | What the agent must do                                                                                |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- | ----------------------------------------------------------------------------------------------------- |
+| `SUCCEEDED` | Paid. The result includes `preimage` (proof of payment, only to the connection that paid) and `feesPaidSats`.                                                                                                                                                             | Charged     | Nothing. Repeating returns the stored result.                                                         |
+| `FAILED`    | The wallet refused the payment before sending anything (`INSUFFICIENT_BALANCE`, `QUOTA_EXCEEDED`, `RESTRICTED`, `UNAUTHORIZED`, `NOT_IMPLEMENTED` or `RATE_LIMITED`), or a later lookup proved it failed. No funds left. Returned as an error result with the error code. | Released    | Fix the cause (for example the balance). Calling again retries the payment.                           |
+| `PENDING`   | Another call is paying this invoice right now.                                                                                                                                                                                                                            | Charged     | Do not retry. Check `wallet_list_payments` in a few minutes.                                          |
+| `UNKNOWN`   | The outcome could not be confirmed: no answer within 45 seconds, a lost connection, any other wallet rejection (including `PAYMENT_FAILED`, `INTERNAL` or no error code), an unexpected error, or a preimage that does not match. The funds may have left.                | Charged     | Do not retry and do not pay another invoice for the same purpose. Check `wallet_list_payments` later. |
 
 The instance re-checks unresolved payments with the wallet — a read-only
 lookup, for payments older than a minute — when the agent calls
 `wallet_list_payments` (up to five per call) or repeats `wallet_pay_invoice`
 with the same invoice. A payment the wallet reports as settled becomes
 `SUCCEEDED`; one it reports as failed becomes `FAILED` and releases its share
-of the limit. A late answer from the original payment is recorded too.
+of the limit. A late answer from the original payment is recorded too. A
+rejection other than the pre-flight codes above is not proof of failure — a
+wallet can report `PAYMENT_FAILED` while the payment is still in flight (a
+payee can hold it open on purpose) — so such a payment stays `UNKNOWN`, its
+budget held, until a lookup shows it failed.
 
 `wallet_list_payments` returns this connection's payments, newest first
 (`paymentId`, `walletId`, `paymentHash`, `amountSats`, `feesPaidSats`,
@@ -789,8 +802,11 @@ only covers OAuth connections; payments are recorded per connection.
   material are replaced with `[redacted]` — names containing `secret`, `nsec`,
   `privatekey`, `connectionstring`, `nwcstring`, `nwcuri`, `password`,
   `mnemonic`, `devicekey`, `accesstoken` or `refreshtoken`, plus the card keys
-  `k0`–`k4`, the card one-time code `otc`, `nonce` and `voucherEvent`. An agent
-  never needs these: wallet tools use the connection stored on the instance.
+  `k0`–`k4`, the card one-time code `otc`, `nonce`, `voucherEvent`, and the
+  card activation token fields `tokenId` and `qrPayload`. Any string holding a
+  card activation link (`/wallet/activate/…`) is replaced as well, whatever
+  its key. An agent never needs these: wallet tools use the connection stored
+  on the instance.
 - **Do not paste an NWC connection string, an nsec, or an admin token into a
   chat or a shared agent configuration.** Whatever the model reads can be
   repeated or exfiltrated, and a connection string spends without any daily
@@ -798,9 +814,8 @@ only covers OAuth connections; payments are recorded per connection.
 - **Least privilege.** Connect with `read` when that is enough; add `write`
   only for agents that must change things, and `spend` only with a limit you
   can afford to lose. `write` is broad: besides addresses and invoices it can,
-  for example, create payment notifications that send details of incoming
-  payments to a webhook URL or Nostr key the agent chooses, and change which of
-  your wallets is the default. An admin who connects an agent hands it their
+  for example, change which of your wallets is the default, remove a wallet
+  from the account, or create an LNCurl wallet and make it the default. An admin who connects an agent hands it their
   admin permissions (except what is [not exposed](#not-exposed)); use a
   separate member account for day-to-day agent use.
 - **Prompt injection.** Text that arrives through tools — payment comments,
@@ -813,8 +828,9 @@ only covers OAuth connections; payments are recorded per connection.
   unused for 30 days expire on their own.
 - **Audit trail.** The activity log (Admin → Activity) records
   `user.oauth_grant_created` (at warning level when `spend` is granted, with the
-  limit), `user.oauth_grant_revoked` (by the user, by the app, or because an
-  authorization code was replayed), `nwc.mcp_payment_sent` (at warning level
+  limit), `user.oauth_grant_revoked` (by the user, by the app, when a newer
+  approval of the same app replaces it, or because an authorization code was
+  replayed), `nwc.mcp_payment_sent` (at warning level
   when the outcome is unknown) and `nwc.mcp_payment_failed`. Operations run
   through tools log their usual REST activity events. The server log has one
   `mcp.tool_call` line per call with the tool name, the first 8 characters of
@@ -847,12 +863,14 @@ The `error_description` in the 401 body says why:
 - `Access token has expired` — the client should refresh on its own. If
   refreshing fails too (the connection was unused for 30 days, or a refresh
   answer was lost and the rotated token is gone), connect again.
-- `Invalid or expired JWT` — a session or device token expired or belongs to
-  another instance. Renew it; Claude Code does not fall back to OAuth while a
-  header is configured.
-- ``Device tokens cannot be verified until `endpoint` is configured`` or
-  `Token is not valid for this instance` — set the `endpoint` setting, or mint
-  the device token again on this instance.
+- `Invalid or expired JWT` — a session token expired or belongs to another
+  instance. Renew it; Claude Code does not fall back to OAuth while a header is
+  configured.
+- `Device tokens cannot be used here; connect through OAuth or use a session token`
+  — a device token was sent. `/api/mcp` refuses device tokens; connect through
+  OAuth or use a session JWT. (A device token can also fail an earlier check
+  with ``Device tokens cannot be verified until `endpoint` is configured`` or
+  `Token is not valid for this instance`; the fix is the same.)
 - `Authorization required` — no token reached the instance. A reverse proxy
   may be dropping the `Authorization` header, or the URL redirects to another
   host. (`Only Bearer tokens are accepted here` means a header arrived with
@@ -875,10 +893,10 @@ operator fixes the `endpoint` setting; users then connect again.
 
 | Message starts with                                                                  | Cause and fix                                                                                                                                                                               |
 | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Sending payments needs the "spend" scope, which only an OAuth connection can grant` | The caller uses a session or device token. Connect through OAuth and tick **Send payments**.                                                                                                |
+| `Sending payments needs the "spend" scope, which only an OAuth connection can grant` | The caller uses a session token. Connect through OAuth and tick **Send payments**.                                                                                                          |
 | `This needs the "spend" scope`                                                       | The OAuth connection was approved without **Send payments**. Revoke it and connect again with a daily limit.                                                                                |
 | `This connection has no daily spend limit`                                           | Connect again and set a limit.                                                                                                                                                              |
-| `Paying … would exceed this connection's daily budget`                               | The limit is used up. Wait for earlier payments to leave the 24-hour window, or connect again with a higher limit.                                                                          |
+| `Paying … would exceed this connection's daily budget`                               | The amount plus the fee reserve (1%, at least 10 sats) does not fit in what is left. Wait for earlier payments to leave the 24-hour window, or connect again with a higher limit.           |
 | `Wallet "…" cannot send payments`                                                    | The wallet's NWC connection does not allow `pay_invoice` (a receive-only connection), or the wallet could not be reached. Use another `walletId`, or replace the connection in the web app. |
 | `Wallet "…" is … and cannot be used`                                                 | The wallet is not active. Pick an active one from `list_wallets`.                                                                                                                           |
 | `No walletId was given and this account has no primary wallet`                       | Pass a `walletId` from `list_wallets`.                                                                                                                                                      |
@@ -912,8 +930,9 @@ page shows the wrong account.
 
 ### A payment is reported as UNKNOWN
 
-The wallet did not confirm the outcome in time; the funds may have left. Do
-not pay again. Call `wallet_list_payments` after a few minutes: the instance
+The wallet did not confirm the outcome in time, or rejected the payment with
+an error that does not prove nothing was sent; the funds may have left. Do not
+pay again. Call `wallet_list_payments` after a few minutes: the instance
 asks the wallet what happened and updates the status. Until it resolves, the
 payment counts against the daily limit. The wallet's own history is the final
 word.
@@ -926,7 +945,8 @@ account and 60 per IP address for anonymous calls (`RATE_LIMIT_MAX_REQUESTS_AUTH
 their providers' shared addresses, so anonymous requests from many of their
 users share one limit. The token endpoint allows 60 requests per minute per IP
 address and registration 30. Operations run through tools keep their own REST
-limits. Wait for the `Retry-After` seconds.
+limits. Every call inside a JSON-RPC batch counts as one request. Wait for
+the `Retry-After` seconds.
 
 ### Other errors
 
@@ -968,7 +988,8 @@ Both eras are served on both URLs:
   `initialize` echoes the client's version when it is one of these, and
   answers `2025-11-25` otherwise. The `MCP-Protocol-Version` header is optional
   but, when present, must name one of these. JSON-RPC batches (2025-03-26) of
-  1 to 20 messages are answered with an array.
+  1 to 20 messages are answered with an array; every call in a batch counts
+  against the rate limit.
 
 Every result carries `resultType: "complete"` and
 `_meta["io.modelcontextprotocol/serverInfo"]` (`name: "lawallet-nwc"` and the
@@ -1038,7 +1059,7 @@ instance URL.
   `[::1]`, matched ignoring the port; native app schemes such as `cursor://`;
   never `javascript:`, `data:`, `vbscript:`, `file:`, `blob:`, `about:`,
   `ws:`, `wss:`, `ftp:`, `chrome:`, `view-source:` or `intent:`; no fragment;
-  at most 2,000 characters. Registrations never used to connect an account are
+  at most 2,000 characters each and 4,096 in total. Registrations never used to connect an account are
   deleted after 30 days; one with any connection is kept.
 - **Client ID metadata documents are not supported yet** — dynamic client
   registration only. That is why claude.ai users must choose **Register
