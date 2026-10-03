@@ -5,7 +5,7 @@ import { CreditCard } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { truncateHex } from '@/lib/client/format'
-import { useCardMutations, type CardData } from '@/lib/client/hooks/use-cards'
+import { useMyCardMutations, type CardData } from '@/lib/client/hooks/use-cards'
 import type { RemoteWalletData } from '@/lib/client/hooks/use-remote-wallets'
 import { BindingChip, type BindingTone } from './binding-chip'
 import { WalletPickerDrawer, type PickerRow } from './wallet-picker-drawer'
@@ -31,20 +31,20 @@ function chipFor(
 /**
  * Cards tab (mobile). One row per Card: design thumb + name + paired
  * badge + tappable bound-wallet chip. The chip opens a bottom-sheet
- * picker that rebinds via `PATCH /api/cards/:id` (a specific wallet or
- * "use primary wallet" which clears `remoteWalletId`). Row body → detail
- * dialog.
+ * picker that rebinds via the owner-scoped `PATCH /api/wallet/cards/:id`
+ * (a specific wallet, or "use primary wallet" which clears
+ * `remoteWalletId`). Row body → detail dialog.
  *
  * Cards come from the per-caller `/api/wallet/cards`, so the list is always
  * the cards paired to the logged-in account (an admin sees only their own).
  */
 export function CardTab({ cards, wallets, onOpenDetail }: Props) {
-  const { updateCard, updating } = useCardMutations()
+  const { setCardWallet, updating } = useMyCardMutations()
   const [picker, setPicker] = useState<CardData | null>(null)
 
   async function rebind(card: CardData, walletId: string | null) {
     try {
-      await updateCard(card.id, { remoteWalletId: walletId })
+      await setCardWallet(card.id, walletId)
       toast.success('Card updated')
       setPicker(null)
     } catch (err) {

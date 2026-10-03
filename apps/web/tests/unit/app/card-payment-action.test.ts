@@ -160,7 +160,7 @@ function attempt(
     walletId: 'wallet-1',
     paymentHash: PAYMENT_HASH,
     bolt11: INVOICE,
-    amountMsats: 1_000,
+    amountMsats: BigInt(1_000),
     transport: 'DIRECT',
     status: 'PENDING',
     preimage: null,
@@ -506,6 +506,27 @@ describe('card payment callback action', () => {
     expect(mocks.driverPay).toHaveBeenCalledTimes(1)
   })
 
+  it('pays an invoice above the old 10000 sat cap', async () => {
+    const amountMsats = 15_000_000
+    mocks.decode.mockReturnValueOnce(decodedInvoice({ amountMsats }))
+    const created = attempt({ amountMsats: BigInt(amountMsats) })
+    mocks.claim.mockResolvedValue({ outcome: 'CREATED', attempt: created })
+    mocks.driverPay.mockResolvedValue({
+      preimage: '01'.repeat(32),
+      feesPaidSats: 0,
+      feesPaidMsats: 0,
+      transport: 'DIRECT'
+    })
+
+    const response = await pay(request(), card, 7)
+
+    expect(await responseBody(response)).toEqual({ status: 'OK' })
+    expect(mocks.claim).toHaveBeenCalledWith(
+      expect.objectContaining({ amountMsats })
+    )
+    expect(mocks.driverPay).toHaveBeenCalledTimes(1)
+  })
+
   it('rejects a receive-only wallet before consuming the tap', async () => {
     mocks.canSend.mockResolvedValueOnce(false)
     mocks.driverForWallet.mockReturnValueOnce({
@@ -597,12 +618,10 @@ describe('card payment callback action', () => {
       reason: 'Lightning invoice has expired'
     },
     {
-      name: 'over the advertised amount limit',
+      name: 'non-positive',
       arrange: () =>
-        mocks.decode.mockReturnValueOnce(
-          decodedInvoice({ amountMsats: 10_000_001 })
-        ),
-      reason: 'Invoice amount must be between 1 and 10000000 msats'
+        mocks.decode.mockReturnValueOnce(decodedInvoice({ amountMsats: 0 })),
+      reason: 'Invoice amount must be a positive integer of at least 1 msat'
     }
   ])('rejects a $name invoice before claiming the card tap', async testCase => {
     testCase.arrange()

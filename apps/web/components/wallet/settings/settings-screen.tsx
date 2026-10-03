@@ -33,7 +33,8 @@ const ACCOUNT_ITEMS: Item[] = [
 
 const PREFERENCES_ITEMS: Item[] = [
   { label: 'Languages', href: '/wallet/settings/languages', comingSoon: true },
-  { label: 'Currencies', href: '/wallet/settings/currencies' }
+  { label: 'Currencies', href: '/wallet/settings/currencies' },
+  { label: 'Payment sound', href: '/wallet/settings/payment-sound' }
 ]
 
 const SUPPORT_ITEMS: Item[] = [

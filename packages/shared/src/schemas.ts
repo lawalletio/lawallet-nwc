@@ -1,4 +1,7 @@
+import { CURRENCY_CODES } from './currencies'
 import { z } from './zod'
+
+export { CURRENCY_CODES }
 
 // ── Common ──────────────────────────────────────────────────────────────────
 
@@ -159,16 +162,27 @@ export const updateCardSchema = z
     message: 'No fields to update'
   })
 
+/**
+ * Owner-scoped card update. Exactly one action per request:
+ *   - `enabled` — reversible enable/disable.
+ *   - `linkDefaultWallet: true` — bind to the caller's primary wallet.
+ *   - `remoteWalletId` — bind to that wallet, or `null` to unbind. The
+ *     wallet must belong to the caller and must not be REVOKED or DEAD
+ *     (enforced in the route; it depends on database state).
+ *   - `kind` — promote/demote the caller's MASTER card.
+ */
 export const updateWalletCardSchema = z
   .object({
     enabled: z.boolean().optional(),
     linkDefaultWallet: z.boolean().optional(),
+    remoteWalletId: z.string().min(1).nullable().optional(),
     kind: cardKindSchema.optional()
   })
   .refine(
     v =>
       (v.enabled !== undefined ? 1 : 0) +
         (v.linkDefaultWallet === true ? 1 : 0) +
+        (v.remoteWalletId !== undefined ? 1 : 0) +
         (v.kind !== undefined ? 1 : 0) ===
       1,
     { message: 'Provide exactly one card update action' }
@@ -230,9 +244,8 @@ export const cardScanCallbackQuerySchema =
 export const cardScanActionSchema = z.enum(['pay', 'new-otc'])
 export type CardScanAction = z.infer<typeof cardScanActionSchema>
 
-/** LUD-03 limits advertised by /scan and enforced again by /scan/cb. */
+/** Smallest BoltCard spend the callback will accept, in millisatoshis. */
 export const CARD_MIN_WITHDRAWABLE_MSATS = 1
-export const CARD_MAX_WITHDRAWABLE_MSATS = 10_000_000
 
 export const otcParam = z.object({
   otc: z.string().min(1, 'OTC parameter is required')
@@ -273,7 +286,10 @@ export const lud16UsernameParam = z.object({
 export const LUD12_MAX_COMMENT_LENGTH = 200
 
 export const lud16CallbackQuerySchema = z.object({
-  amount: z.string().min(1, 'Missing amount'),
+  amount: z
+    .string()
+    .min(1, 'Missing amount')
+    .describe('Amount in millisatoshis (LUD-06): 1 sat = 1000.'),
   comment: z
     .string()
     .max(
@@ -452,6 +468,28 @@ export const updateUserRelaysSchema = z.object({
       }
       return out
     })
+})
+
+export const currencyPrefsSchema = z
+  .object({
+    active: z.array(z.enum(CURRENCY_CODES)).min(1).max(CURRENCY_CODES.length),
+    selected: z.enum(CURRENCY_CODES)
+  })
+  .refine(prefs => new Set(prefs.active).size === prefs.active.length, {
+    message: 'Active currencies must be unique',
+    path: ['active']
+  })
+  .refine(prefs => prefs.active.some(code => code === 'SAT'), {
+    message: 'SAT must remain in the active list',
+    path: ['active']
+  })
+  .refine(prefs => prefs.active.some(code => code === prefs.selected), {
+    message: 'Selected currency must be in the active list',
+    path: ['selected']
+  })
+
+export const updateUserCurrencyPrefsSchema = z.object({
+  currencyPrefs: currencyPrefsSchema
 })
 
 // ── Settings ────────────────────────────────────────────────────────────────
@@ -1523,3 +1561,221 @@ export const couponRefreshResponseSchema = z
     coupon: z.unknown().optional()
   })
   .passthrough()
+
+// ─────────────────────────────────────────────────────────────────────────────
+// OAuth 2.1 authorization server (MCP clients)
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// Wire shapes of `/api/oauth/*`. Protocol parameters keep their RFC names
+// (snake_case) because MCP clients speak standard OAuth. Rules that need the
+// database — registered redirect URIs, grant state — live in
+// `apps/web/lib/oauth/`.
+
+/** Mirrors `OAUTH_SCOPES` in `apps/web/lib/oauth/constants.ts`. */
+export const oauthScopeSchema = z.enum(['read', 'write', 'spend'])
+
+/** Mirrors `MAX_SPEND_LIMIT_SATS` in `apps/web/lib/oauth/constants.ts`. */
+export const OAUTH_MAX_SPEND_LIMIT_SATS = 10_000_000
+
+export const OAUTH_REDIRECT_URI_MAX_LENGTH = 2000
+
+// Never a redirect target, whatever the client claims to be: script and
+// document schemes, local files, sockets, browser internals.
+const FORBIDDEN_REDIRECT_SCHEMES = new Set([
+  'javascript:',
+  'data:',
+  'vbscript:',
+  'file:',
+  'blob:',
+  'about:',
+  'ws:',
+  'wss:',
+  'ftp:',
+  'chrome:',
+  'view-source:',
+  'intent:'
+])
+
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]'])
+
+/** `http:` to this device — a native app's local callback listener (RFC 8252 §7.3). */
+export function isLoopbackRedirect(url: URL): boolean {
+  return url.protocol === 'http:' && LOOPBACK_HOSTS.has(url.hostname)
+}
+
+/**
+ * Redirect URIs a client may register: `https:` anywhere, `http:` only on
+ * loopback, or a native app's private-use scheme (`cursor://…`, RFC 8252
+ * §7.1). No fragment, no userinfo, printable ASCII only — the URL parser
+ * silently drops tabs and newlines, so a looser string would not mean exactly
+ * one URL.
+ */
+export function isAllowedOAuthRedirectUri(value: string): boolean {
+  if (!/^[\x21-\x7e]+$/.test(value) || value.includes('#')) return false
+  let url: URL
+  try {
+    url = new URL(value)
+  } catch {
+    return false
+  }
+  if (url.username || url.password) return false
+  if (url.protocol === 'https:') return true
+  if (url.protocol === 'http:') return isLoopbackRedirect(url)
+  return !FORBIDDEN_REDIRECT_SCHEMES.has(url.protocol)
+}
+
+export const oauthRedirectUriSchema = z
+  .string()
+  .max(OAUTH_REDIRECT_URI_MAX_LENGTH, 'Redirect URI too long')
+  .refine(isAllowedOAuthRedirectUri, {
+    message:
+      'Redirect URI must be https://, http:// on a loopback host, or a native app scheme, without a fragment'
+  })
+
+/**
+ * RFC 7591 registration request. Everything but `redirect_uris` is optional
+ * and unknown metadata is dropped: every client is registered as a public
+ * PKCE client whatever it asks for.
+ */
+export const oauthClientRegistrationSchema = z.object({
+  redirect_uris: z
+    .array(oauthRedirectUriSchema)
+    .min(1, 'At least one redirect URI is required')
+    .max(10, 'At most 10 redirect URIs')
+    // Registration is anonymous: bound what one client row can store.
+    .refine(uris => uris.join('').length <= 4096, {
+      message: 'Redirect URIs may total at most 4096 characters'
+    }),
+  /** Normalized server-side: control characters stripped, cut to 100. */
+  client_name: z.string().max(1000).optional()
+})
+
+export const oauthClientRegistrationResponseSchema = z.object({
+  client_id: z.string(),
+  client_id_issued_at: z.number().int(),
+  client_name: z.string(),
+  redirect_uris: z.array(z.string()),
+  token_endpoint_auth_method: z.literal('none'),
+  grant_types: z.array(z.enum(['authorization_code', 'refresh_token'])),
+  response_types: z.array(z.literal('code'))
+})
+
+/**
+ * Authorization request as the consent page receives it. `response_type` is
+ * a plain string so an unknown value can be answered with
+ * `unsupported_response_type` rather than a generic `invalid_request`.
+ */
+export const oauthAuthorizeQuerySchema = z.object({
+  client_id: z.string().min(1).max(255),
+  redirect_uri: z.string().min(1).max(OAUTH_REDIRECT_URI_MAX_LENGTH),
+  response_type: z.string().min(1).max(100),
+  /** base64url(SHA-256(code_verifier)): always 43 characters (RFC 7636). */
+  code_challenge: z
+    .string()
+    .regex(
+      /^[A-Za-z0-9_-]{43}$/,
+      'code_challenge must be a base64url SHA-256 digest'
+    ),
+  code_challenge_method: z.literal(
+    'S256',
+    'code_challenge_method must be S256'
+  ),
+  /** Space-separated. Unknown scopes are ignored. */
+  scope: z.string().max(1000).optional(),
+  state: z.string().max(4096).optional(),
+  /** RFC 8707 resource indicator: this instance's MCP URL. */
+  resource: z.string().max(OAUTH_REDIRECT_URI_MAX_LENGTH).optional()
+})
+export type OAuthAuthorizeRequest = z.infer<typeof oauthAuthorizeQuerySchema>
+
+export const oauthAuthorizeContextSchema = z.object({
+  client: z.object({ id: z.string(), name: z.string() }),
+  redirectUri: z.string(),
+  /** Where the browser will land. Shown because the client picks its own name. */
+  redirectHost: z.string(),
+  /** Scopes to offer: the requested ones we know, else all of them. */
+  scopes: z.array(oauthScopeSchema),
+  resource: z.string(),
+  defaultSpendLimitSats: z.number().int(),
+  maxSpendLimitSats: z.number().int()
+})
+export type OAuthAuthorizeContext = z.infer<typeof oauthAuthorizeContextSchema>
+
+/** The consent screen's answer: the authorization request plus the decision. */
+export const oauthAuthorizeDecisionSchema = oauthAuthorizeQuerySchema.extend({
+  approve: z.boolean(),
+  /** Required (non-empty) when approving. */
+  scopes: z.array(oauthScopeSchema).max(10).optional(),
+  /** Rolling-24h budget; required when `scopes` includes `spend`. */
+  spendLimitSats: z
+    .number()
+    .int()
+    .min(1)
+    .max(OAUTH_MAX_SPEND_LIMIT_SATS)
+    .nullish()
+})
+
+export const oauthAuthorizeDecisionResponseSchema = z.object({
+  /** The client's registered redirect URI carrying the OAuth response. */
+  redirectTo: z.string()
+})
+
+/** RFC 7636 §4.1: 43–128 characters from the unreserved set. */
+const pkceVerifierSchema = z
+  .string()
+  .regex(
+    /^[A-Za-z0-9\-._~]{43,128}$/,
+    'code_verifier must be 43-128 unreserved characters'
+  )
+
+export const oauthTokenRequestSchema = z.discriminatedUnion('grant_type', [
+  z.object({
+    grant_type: z.literal('authorization_code'),
+    code: z.string().min(1).max(512),
+    redirect_uri: z.string().min(1).max(OAUTH_REDIRECT_URI_MAX_LENGTH),
+    client_id: z.string().min(1).max(255),
+    code_verifier: pkceVerifierSchema,
+    resource: z.string().max(OAUTH_REDIRECT_URI_MAX_LENGTH).optional()
+  }),
+  z.object({
+    grant_type: z.literal('refresh_token'),
+    refresh_token: z.string().min(1).max(512),
+    client_id: z.string().min(1).max(255),
+    resource: z.string().max(OAUTH_REDIRECT_URI_MAX_LENGTH).optional()
+  })
+])
+export type OAuthTokenRequest = z.infer<typeof oauthTokenRequestSchema>
+
+export const oauthTokenResponseSchema = z.object({
+  access_token: z.string(),
+  token_type: z.literal('Bearer'),
+  expires_in: z.number().int(),
+  refresh_token: z.string(),
+  /** Granted scopes, space-separated. */
+  scope: z.string()
+})
+
+/** RFC 7009: an access or a refresh token; the hint is not needed. */
+export const oauthRevokeRequestSchema = z.object({
+  token: z.string().min(1).max(512)
+})
+
+/** RFC 6749 §5.2 error body, used by every OAuth protocol endpoint. */
+export const oauthErrorResponseSchema = z.object({
+  error: z.string(),
+  error_description: z.string().optional()
+})
+
+export const oauthGrantSummarySchema = z.object({
+  id: z.string(),
+  clientName: z.string(),
+  scopes: z.array(oauthScopeSchema),
+  spendLimitSats: z.number().int().nullable(),
+  createdAt: z.string(),
+  lastUsedAt: z.string().nullable()
+})
+export type OAuthGrantSummary = z.infer<typeof oauthGrantSummarySchema>
+
+export const oauthGrantListResponseSchema = z.object({
+  grants: z.array(oauthGrantSummarySchema)
+})

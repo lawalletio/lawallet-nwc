@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { withErrorHandling } from '@/types/server/error-handler'
-import { AuthenticationError, NotFoundError } from '@/types/server/errors'
+import { NotFoundError } from '@/types/server/errors'
 import { authenticate } from '@/lib/auth/unified-auth'
 import { resolveAccountByPubkey } from '@/lib/auth/account'
+import { createNewUser } from '@/lib/user'
 import {
   requireAddressRegistration,
   requireUserAddressRegistration
@@ -86,8 +87,12 @@ export const POST = withErrorHandling(async (request: Request) => {
     createWalletAddressSchema
   )
 
-  const user = await resolveAccountByPubkey(pubkey)
-  if (!user) throw new AuthenticationError('User not found')
+  // A signed-in pubkey may not have an account row yet — a deep link into
+  // Addresses, or a session that never hit GET /api/users/me. Materialise it
+  // the same way that route does, *before* the registration gates, so a 402
+  // still leaves an account for the follow-up invoice mint and claim.
+  const account = await resolveAccountByPubkey(pubkey)
+  const user = account ?? (await createNewUser(pubkey))
 
   // Gate self-service address creation behind the instance policy. When user
   // registration is disabled only admins pass; when paid registration is on,

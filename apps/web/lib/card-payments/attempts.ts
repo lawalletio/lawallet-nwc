@@ -6,7 +6,6 @@ import type {
 import { prisma } from '@/lib/prisma'
 
 const MAX_NTAG_COUNTER = 0xffffff
-const MAX_POSTGRES_INTEGER = 0x7fffffff
 
 export interface ClaimCardPaymentAttemptInput {
   cardId: string
@@ -58,12 +57,8 @@ function validateClaimInput(input: ClaimCardPaymentAttemptInput): void {
     throw new TypeError('counter must be a 24-bit unsigned integer')
   }
   if (!input.bolt11) throw new TypeError('bolt11 is required')
-  if (
-    !Number.isInteger(input.amountMsats) ||
-    input.amountMsats <= 0 ||
-    input.amountMsats > MAX_POSTGRES_INTEGER
-  ) {
-    throw new TypeError('amountMsats must be a positive PostgreSQL integer')
+  if (!Number.isSafeInteger(input.amountMsats) || input.amountMsats < 1) {
+    throw new TypeError('amountMsats must be a positive safe integer')
   }
 }
 
@@ -80,8 +75,12 @@ function isSamePayment(
     attempt.walletId === input.walletId &&
     attempt.paymentHash.toLowerCase() === paymentHash &&
     attempt.bolt11 === input.bolt11 &&
-    attempt.amountMsats === input.amountMsats
+    sameAmountMsats(attempt.amountMsats, input.amountMsats)
   )
+}
+
+function sameAmountMsats(stored: bigint | number, expected: number): boolean {
+  return BigInt(stored) === BigInt(expected)
 }
 
 /**
@@ -138,7 +137,7 @@ export async function claimCardPaymentAttempt(
         ${input.walletId},
         ${paymentHash},
         ${input.bolt11},
-        CAST(${input.amountMsats} AS INTEGER),
+        CAST(${input.amountMsats} AS BIGINT),
         CAST(${input.transport} AS "CardPaymentTransport"),
         'PENDING'::"CardPaymentStatus",
         CURRENT_TIMESTAMP,
@@ -190,7 +189,7 @@ export async function claimCardPaymentAttempt(
         attempt.counter === input.counter &&
         attempt.paymentHash.toLowerCase() === paymentHash &&
         attempt.bolt11 === input.bolt11 &&
-        attempt.amountMsats === input.amountMsats)
+        sameAmountMsats(attempt.amountMsats, input.amountMsats))
   )
   if (exact) return { outcome: 'EXISTING', attempt: exact }
 

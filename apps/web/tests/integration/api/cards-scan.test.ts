@@ -40,6 +40,11 @@ vi.mock('@/app/api/cards/[id]/scan/cb/actions/pay', () => ({
   default: payActionMock
 }))
 
+const resolveMaxWithdrawableMock = vi.hoisted(() => vi.fn())
+vi.mock('@/lib/card-payments/max-withdrawable', () => ({
+  resolveCardMaxWithdrawableMsats: resolveMaxWithdrawableMock
+}))
+
 import {
   GET as ScanGet,
   OPTIONS as ScanOptions
@@ -55,6 +60,7 @@ beforeEach(() => {
   resetPrismaMock()
   vi.clearAllMocks()
   vi.mocked(getSettings).mockResolvedValue({})
+  resolveMaxWithdrawableMock.mockResolvedValue(25_000_000)
   payActionMock.mockResolvedValue(
     new Response(JSON.stringify({ status: 'OK' }), {
       headers: { 'Content-Type': 'application/json' }
@@ -105,8 +111,14 @@ describe('GET /api/cards/[id]/scan', () => {
     expect(body.tag).toBe('withdrawRequest')
     expect(body.callback).toContain(`/api/cards/${card.id}/scan/cb`)
     expect(body.callback).toContain('p=' + 'A'.repeat(32))
-    expect(body.minWithdrawable).toBeGreaterThan(0)
-    expect(body.maxWithdrawable).toBeGreaterThan(0)
+    expect(body.minWithdrawable).toBe(1)
+    expect(body.maxWithdrawable).toBe(25_000_000)
+    // LUD-19: raw LUD-17 URL, not bech32 and not the owner's LUD-16.
+    expect(body.payLink).toBe(`lnurlp://app/api/cards/${card.id}/lnurlp`)
+    expect(body.payLink.startsWith('lnurlp://')).toBe(true)
+    expect(body.payLink).not.toMatch(/^lnurl1/)
+    expect(body.payLink).not.toContain('lud16')
+    expect(resolveMaxWithdrawableMock).toHaveBeenCalledTimes(1)
     expect(res.headers.get('Access-Control-Allow-Origin')).toBe('*')
 
     const query = vi.mocked(prismaMock.card.findUnique).mock.calls[0][0] as any
@@ -135,6 +147,37 @@ describe('GET /api/cards/[id]/scan', () => {
     })
   })
 
+  it('advertises a 0–0 range when the bound wallet has no spendable balance', async () => {
+    const card = {
+      ...createCardFixture(),
+      design: createCardDesignFixture(),
+      user: createUserFixture(),
+      remoteWallet: {
+        type: 'NWC',
+        config: { mode: 'SEND_RECEIVE' },
+        status: 'ACTIVE'
+      }
+    }
+    vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
+    vi.mocked(getSettings).mockResolvedValue({
+      domain: 'test.com',
+      endpoint: 'app'
+    })
+    resolveMaxWithdrawableMock.mockResolvedValue(0)
+
+    const req = createNextRequest(`/api/cards/${card.id}/scan`, {
+      searchParams: { p: 'A'.repeat(32), c: 'B'.repeat(16) }
+    })
+    const res = await ScanGet(req, createParamsPromise({ id: card.id }))
+    const body: any = await assertResponse(res, 200)
+
+    expect(body.minWithdrawable).toBe(0)
+    expect(body.maxWithdrawable).toBe(0)
+    // An empty balance can still be topped up.
+    expect(body.payLink).toBe(`lnurlp://app/api/cards/${card.id}/lnurlp`)
+    expect(resolveMaxWithdrawableMock).toHaveBeenCalledTimes(1)
+  })
+
   it('advertises a 0–0 withdraw range for a receive-only wallet', async () => {
     // Regression: `configured` used to check only that a wallet was ACTIVE, so
     // a receive-only card advertised a payable range and the callback then
@@ -145,12 +188,18 @@ describe('GET /api/cards/[id]/scan', () => {
       user: createUserFixture(),
       remoteWallet: {
         type: 'NWC',
-        config: { mode: 'RECEIVE', connectionString: 'nostr+walletconnect://x' },
+        config: {
+          mode: 'RECEIVE',
+          connectionString: 'nostr+walletconnect://x'
+        },
         status: 'ACTIVE'
       }
     }
     vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
-    vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com' })
+    vi.mocked(getSettings).mockResolvedValue({
+      domain: 'test.com',
+      endpoint: 'app'
+    })
 
     const req = createNextRequest(`/api/cards/${card.id}/scan`, {
       searchParams: { p: 'A'.repeat(32), c: 'B'.repeat(16) }
@@ -160,6 +209,9 @@ describe('GET /api/cards/[id]/scan', () => {
 
     expect(body.minWithdrawable).toBe(0)
     expect(body.maxWithdrawable).toBe(0)
+    // Receive-only cannot spend, but LUD-19 still exposes a top-up link.
+    expect(body.payLink).toBe(`lnurlp://app/api/cards/${card.id}/lnurlp`)
+    expect(resolveMaxWithdrawableMock).not.toHaveBeenCalled()
   })
 
   it('returns public card status JSON when x-request-action: info', async () => {
@@ -222,6 +274,34 @@ describe('GET /api/cards/[id]/scan', () => {
     expect(body.tag).toBe('withdrawRequest')
     expect(body.minWithdrawable).toBe(0)
     expect(body.maxWithdrawable).toBe(0)
+    expect(body.payLink).toBeUndefined()
+    expect(resolveMaxWithdrawableMock).not.toHaveBeenCalled()
+  })
+
+  it('omits payLink when a wallet is bound but the card is unpaired', async () => {
+    const card = {
+      ...createCardFixture(),
+      user: null,
+      remoteWallet: {
+        type: 'NWC',
+        config: { mode: 'SEND_RECEIVE' },
+        status: 'ACTIVE'
+      }
+    }
+    vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
+    vi.mocked(getSettings).mockResolvedValue({
+      domain: 'test.com',
+      endpoint: 'app'
+    })
+
+    const req = createNextRequest(`/api/cards/${card.id}/scan`, {
+      searchParams: { p: 'A'.repeat(32), c: 'B'.repeat(16) }
+    })
+    const res = await ScanGet(req, createParamsPromise({ id: card.id }))
+    const body: any = await assertResponse(res, 200)
+
+    expect(body.tag).toBe('withdrawRequest')
+    expect(body.payLink).toBeUndefined()
   })
 
   it('advertises a 0–0 withdraw range when the card is disabled', async () => {
@@ -246,6 +326,34 @@ describe('GET /api/cards/[id]/scan', () => {
     expect(body.tag).toBe('withdrawRequest')
     expect(body.minWithdrawable).toBe(0)
     expect(body.maxWithdrawable).toBe(0)
+    expect(body.payLink).toBeUndefined()
+    expect(resolveMaxWithdrawableMock).not.toHaveBeenCalled()
+  })
+
+  it('omits payLink when the card is blocked', async () => {
+    const card = {
+      ...createCardFixture({ blockedAt: new Date('2026-01-02T00:00:00Z') }),
+      user: createUserFixture(),
+      remoteWallet: {
+        type: 'NWC',
+        config: { mode: 'SEND_RECEIVE' },
+        status: 'ACTIVE'
+      }
+    }
+    vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
+    vi.mocked(getSettings).mockResolvedValue({
+      domain: 'test.com',
+      endpoint: 'app'
+    })
+
+    const req = createNextRequest(`/api/cards/${card.id}/scan`, {
+      searchParams: { p: 'A'.repeat(32), c: 'B'.repeat(16) }
+    })
+    const res = await ScanGet(req, createParamsPromise({ id: card.id }))
+    const body: any = await assertResponse(res, 200)
+
+    expect(body.maxWithdrawable).toBe(0)
+    expect(body.payLink).toBeUndefined()
   })
 
   it('returns 404 for nonexistent card', async () => {

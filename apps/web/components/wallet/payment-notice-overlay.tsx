@@ -1,7 +1,9 @@
 'use client'
 
+import { useEffect } from 'react'
 import { PaymentNotice } from '@/components/wallet/home/payment-notice'
 import type { WalletPaymentCue } from '@/lib/client/hooks/use-wallet-payment-notice'
+import { playPaymentCueSound } from '@/lib/client/payment-sound'
 
 /**
  * Layout-level payment cue. Positioned absolutely over the wallet chrome so
@@ -13,6 +15,11 @@ export function WalletPaymentNoticeOverlay({
 }: {
   cue: WalletPaymentCue | null
 }) {
+  useEffect(() => {
+    if (!cue) return
+    playPaymentCueSound(cue.id)
+  }, [cue])
+
   if (!cue) return null
 
   return (

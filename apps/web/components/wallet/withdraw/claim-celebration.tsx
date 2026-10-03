@@ -1,6 +1,12 @@
 'use client'
 
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import {
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactNode
+} from 'react'
 import { createPortal } from 'react-dom'
 import { Volume2, VolumeX, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -80,25 +86,32 @@ export function ClaimCelebration({
   onDismiss
 }: ClaimCelebrationProps) {
   const reduced = usePrefersReducedMotion()
-  const [mounted, setMounted] = useState(false)
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  )
   const [runId, setRunId] = useState(0)
   const [muted, setMuted] = useState(claimSoundMuted)
-  const locked = useRef<{ before: number | null; after: number | null } | null>(
-    null
-  )
+  const [locked, setLocked] = useState<{
+    before: number | null
+    after: number | null
+  } | null>(null)
 
-  if (phase === 'celebrate' && !locked.current) {
-    locked.current = resolveClaimBalances({
-      snapshot,
-      captured,
-      live: liveBalance,
-      amount: amountSats,
-      settled
-    })
+  if (phase === 'celebrate' && locked === null) {
+    setLocked(
+      resolveClaimBalances({
+        snapshot,
+        captured,
+        live: liveBalance,
+        amount: amountSats,
+        settled
+      })
+    )
   }
 
-  const before = locked.current?.before ?? null
-  const after = locked.current?.after ?? null
+  const before = locked?.before ?? null
+  const after = locked?.after ?? null
   const celebrate = phase === 'celebrate'
   const animate = celebrate && !reduced
 
@@ -117,14 +130,14 @@ export function ClaimCelebration({
     run: clockOn,
     runId
   })
-  const gained = clock.done ? amountSats : clockOn ? Math.round(amountSats * clock.t) : 0
+  const gained = clock.done
+    ? amountSats
+    : clockOn
+      ? Math.round(amountSats * clock.t)
+      : 0
   const claimed = gained
   const balance = before == null ? null : before + (settled ? gained : 0)
   const fillDone = clock.done
-
-  useEffect(() => {
-    setMounted(true)
-  }, [])
 
   useEffect(() => {
     return () => stopClaimSound()
@@ -195,7 +208,11 @@ export function ClaimCelebration({
             aria-label={muted ? 'Unmute claim sound' : 'Mute claim sound'}
             className="flex size-11 items-center justify-center rounded-2xl text-amber-100/80 transition-colors hover:bg-white/5"
           >
-            {muted ? <VolumeX className="size-5" /> : <Volume2 className="size-5" />}
+            {muted ? (
+              <VolumeX className="size-5" />
+            ) : (
+              <Volume2 className="size-5" />
+            )}
           </button>
         </header>
 
@@ -220,11 +237,11 @@ export function ClaimCelebration({
 
           <div className="flex flex-1 items-end justify-center pb-2">
             <div className="flex items-baseline justify-center gap-2">
-          <OdometerNumber
-              value={claimedShown}
-              roll={animate}
-              className="text-[clamp(2.6rem,12vw,4.4rem)] font-semibold leading-none text-[#ffe7a3] drop-shadow-[0_2px_16px_rgba(0,0,0,0.9)]"
-            />
+              <OdometerNumber
+                value={claimedShown}
+                roll={animate}
+                className="text-[clamp(2.6rem,12vw,4.4rem)] font-semibold leading-none text-[#ffe7a3] drop-shadow-[0_2px_16px_rgba(0,0,0,0.9)]"
+              />
               <span className="text-lg text-amber-200/70">sats</span>
             </div>
           </div>
@@ -324,7 +341,9 @@ function BalanceCrucible({
       </div>
       <div className="mt-1 flex items-baseline gap-2">
         {shown == null ? (
-          <span className="text-2xl font-semibold text-amber-100/80">Syncing</span>
+          <span className="text-2xl font-semibold text-amber-100/80">
+            Syncing
+          </span>
         ) : (
           <OdometerNumber
             value={shown}
@@ -388,7 +407,10 @@ function OdometerNumber({
     }
   }
   return (
-    <span className={cn('inline-flex items-baseline tabular-nums', className)} aria-hidden>
+    <span
+      className={cn('inline-flex items-baseline tabular-nums', className)}
+      aria-hidden
+    >
       {nodes}
     </span>
   )
@@ -486,11 +508,13 @@ function useEasedClock(opts: {
 }
 
 function usePrefersReducedMotion(): boolean {
-  const [reduced, setReduced] = useState(false)
+  const [reduced, setReduced] = useState(() => {
+    if (typeof window.matchMedia !== 'function') return false
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  })
   useEffect(() => {
     if (typeof window.matchMedia !== 'function') return
     const query = window.matchMedia('(prefers-reduced-motion: reduce)')
-    setReduced(query.matches)
     const onChange = () => setReduced(query.matches)
     query.addEventListener('change', onChange)
     return () => query.removeEventListener('change', onChange)

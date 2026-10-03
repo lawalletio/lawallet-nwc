@@ -31,6 +31,11 @@ export interface PublicInstanceSettings {
 }
 
 /** `GET /api/users/me` — fetching it materialises the user on first call. */
+export interface CurrencyPrefs {
+  active: string[]
+  selected: string
+}
+
 export interface CurrentUser {
   userId: string
   /** `username@domain` of the primary address, or null before one is claimed. */
@@ -41,6 +46,8 @@ export interface CurrentUser {
   primaryAddressMode: WalletAddressMode | null
   primaryUsername: string | null
   primaryRedirect: string | null
+  /** Null until the account has saved a display-currency preference. */
+  currencyPrefs: CurrencyPrefs | null
 }
 
 export type WalletAddressMode = 'IDLE' | 'ALIAS' | 'PROXY_ALIAS' | 'CUSTOM_NWC'

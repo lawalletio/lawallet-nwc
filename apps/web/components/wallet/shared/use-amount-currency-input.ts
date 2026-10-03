@@ -1,7 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { useActiveCurrencies } from '@/lib/client/currencies-store'
+import {
+  currenciesActions,
+  useActiveCurrencies,
+  useSelectedCurrencyCode
+} from '@/lib/client/currencies-store'
 import { useYadioRates } from '@/lib/client/use-yadio-ticker'
 import { currencyUnitLabel } from '@/lib/client/format-sats'
 import { parseKeypadValue } from '@/components/wallet/shared/amount-keypad'
@@ -17,8 +21,13 @@ import {
  */
 export function useAmountCurrencyInput(initialSats?: number | null) {
   const activeCurrencies = useActiveCurrencies()
+  const storedCurrencyCode = useSelectedCurrencyCode()
   const { rates } = useYadioRates()
-  const initialCurrencyCode = activeCurrencies[0]?.code ?? 'SAT'
+  const selectedCode = activeCurrencies.some(
+    currency => currency.code === storedCurrencyCode
+  )
+    ? storedCurrencyCode
+    : (activeCurrencies[0]?.code ?? 'SAT')
   const seededSats =
     typeof initialSats === 'number' &&
     Number.isFinite(initialSats) &&
@@ -29,39 +38,43 @@ export function useAmountCurrencyInput(initialSats?: number | null) {
     seededSats
   )
   const [value, setValue] = useState<string>(() =>
-    formatInputFromSats(seededSats, initialCurrencyCode, rates)
+    formatInputFromSats(seededSats, selectedCode, rates)
   )
-  const [currencyCode, setCurrencyCode] = useState<string>(initialCurrencyCode)
-
-  const selectedCode = activeCurrencies.some(
-    currency => currency.code === currencyCode
+  const [draftCurrency, setDraftCurrency] = useState<string>(selectedCode)
+  const stringMatchesUnit = draftCurrency === selectedCode
+  const keypad = keypadOptionsForCurrency(
+    stringMatchesUnit ? draftCurrency : selectedCode
   )
-    ? currencyCode
-    : (activeCurrencies[0]?.code ?? 'SAT')
-  const keypad = keypadOptionsForCurrency(selectedCode)
-  const liveParsed = parseAmountToSats(value, selectedCode, rates)
-  const draftBelongsToSelected = selectedCode === currencyCode
+  const liveParsed = stringMatchesUnit
+    ? parseAmountToSats(value, draftCurrency, rates)
+    : null
   const displayValue =
-    draftBelongsToSelected &&
+    stringMatchesUnit &&
     (liveParsed !== null || parseKeypadValue(value) !== null)
       ? value
-      : formatInputFromSats(canonicalAmount, selectedCode, rates)
+      : formatInputFromSats(
+          canonicalAmount,
+          stringMatchesUnit ? draftCurrency : selectedCode,
+          rates
+        )
   const submittableAmount = parseAmountToSats(
     displayValue,
-    selectedCode,
+    stringMatchesUnit ? draftCurrency : selectedCode,
     rates
   )
 
   function handleAmountChange(nextValue: string) {
     setValue(nextValue)
-    setCurrencyCode(selectedCode)
+    setDraftCurrency(selectedCode)
     setCanonicalAmount(parseAmountToSats(nextValue, selectedCode, rates))
   }
 
   function handleCurrencyChange(nextCode: string) {
-    const from = liveParsed ?? canonicalAmount
+    const from =
+      parseAmountToSats(value, draftCurrency, rates) ?? canonicalAmount
     setValue(formatInputFromSats(from, nextCode, rates))
-    setCurrencyCode(nextCode)
+    setDraftCurrency(nextCode)
+    currenciesActions.select(nextCode)
     setCanonicalAmount(from)
   }
 

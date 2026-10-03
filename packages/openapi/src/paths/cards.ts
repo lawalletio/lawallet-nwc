@@ -149,8 +149,8 @@ registry.registerPath({
     '`kind` to MASTER designates the card as its holder’s account-recovery ' +
     'card and demotes whichever of their cards previously held that ' +
     'designation; the card must be paired (400 otherwise) and not blocked ' +
-    '(409 otherwise). Cardholders can set their own via ' +
-    'PATCH /api/wallet/cards/{id}.',
+    '(409 otherwise). Cardholders rebind their own card’s wallet and set ' +
+    'their own master card via PATCH /api/wallet/cards/{id}.',
   operationId: 'cards.update',
   security: protectedSecurity,
   request: {
@@ -177,6 +177,57 @@ registry.registerPath({
   request: { params: schemas.IdParam },
   responses: {
     204: noContent('Card deleted.'),
+    ...commonErrorResponses,
+    404: responses.notFound
+  }
+})
+
+const cardTransactionSchema = z.object({
+  id: z.string(),
+  createdAt: z.string().datetime(),
+  amountSats: z.number().openapi({
+    description: 'Invoice amount; fractional for sub-sat amounts.'
+  }),
+  status: z.enum(['success', 'failed']).openapi({
+    description:
+      'Compatibility summary: `success` only when `paymentStatus` is ' +
+      'SUCCEEDED, so PENDING and UNKNOWN attempts also read `failed`.'
+  }),
+  error: z.string().nullable().openapi({
+    description: 'Error code recorded for the attempt.'
+  }),
+  walletType: z.enum(['NWC', 'LND', 'CLN', 'BTCPAY']).nullable().openapi({
+    description:
+      'Type of the wallet that paid; null when that wallet no longer exists.'
+  }),
+  bolt11: z.string().openapi({ description: 'The invoice the card paid.' }),
+  description: z.string().nullable().openapi({
+    description: 'Description decoded from `bolt11`.'
+  }),
+  paymentHash: z.string(),
+  paymentStatus: z.enum(['PENDING', 'SUCCEEDED', 'REJECTED', 'UNKNOWN']),
+  transport: z.enum(['DIRECT', 'LISTENER']).openapi({
+    description: 'Whether web paid directly or delegated to the NWC listener.'
+  })
+})
+
+registry.registerPath({
+  ...withRole('VIEWER'),
+  method: 'get',
+  path: '/api/cards/{id}/transactions',
+  tags: [TAG],
+  summary: 'List the spends made by tapping a card.',
+  description:
+    'Returns the card’s 100 most recent payment attempts (LNURL-withdraw ' +
+    'spends), newest first, including unresolved ones.',
+  operationId: 'cards.transactions.list',
+  security: protectedSecurity,
+  request: { params: schemas.IdParam },
+  responses: {
+    200: inlineJsonResponse(
+      'Card spends, newest first.',
+      z.object({ items: z.array(cardTransactionSchema) })
+    ),
     ...commonErrorResponses,
     404: responses.notFound
   }
@@ -402,7 +453,17 @@ const lnurlScanSchema = z
     maxWithdrawable: z.number().int(),
     minWithdrawable: z.number().int(),
     defaultDescription: z.string(),
-    tag: z.literal('withdrawRequest')
+    tag: z.literal('withdrawRequest'),
+    payLink: z
+      .string()
+      .optional()
+      .openapi({
+        description:
+          'LUD-19 raw LUD-17 LNURL-pay URL (`lnurlp://…`, not bech32) for topping up ' +
+          'the card’s RemoteWallet. Omitted when the card is unpaired, blocked, disabled, ' +
+          'or has no receivable wallet. See https://github.com/lnurl/luds/blob/luds/19.md ' +
+          'and the BoltCard SPEC optional LUD-19 extension.'
+      })
   })
   .passthrough()
 
@@ -414,7 +475,15 @@ registry.registerPath({
   summary:
     'Resolve a scanned card and return the LNURL-withdraw flow entry point.',
   description:
-    'The first LNURL request on tap. Send the request header `x-request-action: info` ' +
+    'The first LNURL request on tap (LUD-03). `maxWithdrawable` is the bound wallet’s spendable ' +
+    'balance in millisatoshis. When that balance cannot be read in time, the response ' +
+    'advertises a high ceiling so a point of sale will not refuse a normal invoice; ' +
+    'the callback does not impose a fixed sats cap. A receivable card also includes LUD-19 ' +
+    '`payLink`, a raw LUD-17 `lnurlp://` URL (not bech32) whose payRequest mints an invoice ' +
+    'on the card’s RemoteWallet — BoltCard SPEC’s optional pay-link extension ' +
+    '(https://github.com/boltcard/boltcard/blob/main/docs/SPEC.md, ' +
+    'https://github.com/lnurl/luds/blob/luds/19.md). ' +
+    'Send the request header `x-request-action: info` ' +
     'to get the card’s public status JSON (design, image, owner, paired/used) instead ' +
     'of the LNURL withdraw request — so a client can show the card identity without ' +
     'running the withdraw flow. Non-sensitive only (never keys/OTC/SUN params).',
@@ -460,6 +529,68 @@ registry.registerPath({
       ])
     ),
     ...publicErrorResponses
+  }
+})
+
+registry.registerPath({
+  ...withRole('PUBLIC'),
+  method: 'get',
+  path: '/api/cards/{id}/lnurlp',
+  tags: [TAG],
+  summary: 'LUD-19 pay link: LUD-06 payRequest for a card top-up.',
+  description:
+    'Target of the raw LUD-17 `payLink` advertised on `GET /api/cards/{id}/scan`. ' +
+    'Returns a LUD-06 payRequest whose callback mints a BOLT11 invoice on the card’s ' +
+    'RemoteWallet (NWC `make_invoice`). This is not the owner’s Lightning Address. ' +
+    'Unpaired, blocked, disabled, or non-receivable cards return `{ status: "ERROR", reason }`. ' +
+    'Specs: LUD-06, LUD-17, LUD-19, BoltCard SPEC optional LUD-19.',
+  operationId: 'cards.lnurlp',
+  security: publicSecurity,
+  request: { params: schemas.IdParam },
+  responses: {
+    200: inlineJsonResponse(
+      'LUD-06 payRequest, or an LNURL ERROR when the card cannot receive.',
+      z.union([
+        z.object({
+          tag: z.literal('payRequest'),
+          callback: z.string().url(),
+          minSendable: z.number().int(),
+          maxSendable: z.number().int(),
+          metadata: z.string()
+        }),
+        z.object({ status: z.literal('ERROR'), reason: z.string() })
+      ])
+    ),
+    ...publicErrorResponses,
+    404: responses.notFound
+  }
+})
+
+registry.registerPath({
+  ...withRole('PUBLIC'),
+  method: 'get',
+  path: '/api/cards/{id}/lnurlp/cb',
+  tags: [TAG],
+  summary: 'LUD-06 callback that mints a card top-up invoice.',
+  description:
+    'Creates a BOLT11 invoice on the card’s bound RemoteWallet (or the owner’s ' +
+    'primary-address wallet when the card has no explicit binding) and stores it ' +
+    'with purpose `CARD_TOPUP`. Paying the invoice credits that wallet. ' +
+    'Amount is millisatoshis, within the payRequest min/max. An optional LUD-12 ' +
+    '`comment` is appended to the invoice description.',
+  operationId: 'cards.lnurlp.callback',
+  security: publicSecurity,
+  request: { params: schemas.IdParam, query: schemas.Lud16CallbackQuery },
+  responses: {
+    200: inlineJsonResponse(
+      'BOLT11 invoice, or an LNURL ERROR when the card cannot receive or the amount is rejected.',
+      z.union([
+        z.object({ pr: z.string(), routes: z.array(z.unknown()) }),
+        z.object({ status: z.literal('ERROR'), reason: z.string() })
+      ])
+    ),
+    ...publicErrorResponses,
+    404: responses.notFound
   }
 })
 

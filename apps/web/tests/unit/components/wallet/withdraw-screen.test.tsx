@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { LnurlWithdrawParams } from '@/lib/client/lnurl-scan'
 
 const replaceMock = vi.hoisted(() => vi.fn())
@@ -25,6 +25,13 @@ vi.mock('@/lib/client/hooks/use-api', () => ({
     loading: false,
     error: null,
     refetch: async () => undefined
+  }),
+  invalidateApiPath: vi.fn()
+}))
+
+vi.mock('@/components/admin/auth-context', () => ({
+  useAuth: () => ({
+    apiClient: { get: vi.fn(async () => undefined) }
   })
 }))
 
@@ -184,7 +191,9 @@ describe('WithdrawScreen', () => {
     fireEvent.click(cta)
     fireEvent.click(cta)
 
-    expect(makeInvoiceMock).toHaveBeenCalledTimes(1)
+    await waitFor(() => {
+      expect(makeInvoiceMock).toHaveBeenCalledTimes(1)
+    })
 
     await act(async () => {
       resolveInvoice({ bolt11: 'lnbc1test', paymentHash: 'hash' })

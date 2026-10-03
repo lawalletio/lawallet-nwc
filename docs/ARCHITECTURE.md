@@ -109,6 +109,7 @@ The web application is organized into clearly separated modules:
 | **NTAG424**       | `lib/ntag424.ts`            | NFC card crypto, signature validation      |
 | **Logger**        | `lib/logger.ts`             | Pino structured logging, request IDs       |
 | **Errors**        | `types/server/`             | Error hierarchy, error handler HOF         |
+| **MCP / OAuth**   | `lib/mcp/` + `lib/oauth/`   | MCP server for AI agents; OAuth 2.1 server |
 | **Client Hooks**  | `lib/client/hooks/`         | React hooks for API consumption            |
 | **Client Auth**   | `lib/client/`               | Nostr signers, JWT exchange, API client    |
 | **UI Components** | `components/`               | shadcn/ui components, admin dashboard      |
@@ -568,6 +569,7 @@ GET /api/cards/{id}/scan
   ├── Calculate SDMMAC(k2, cid, ctr) → verify against `c`
   ├── Check counter monotonicity (replay protection)
   ├── Return LUD-03 withdraw request
+  │     optional LUD-19 `payLink` (`lnurlp://…`) when the card can receive
   │
   ▼
 GET /api/cards/{id}/scan/cb?amount=...
@@ -741,8 +743,10 @@ Pino-based structured logging with AsyncLocalStorage for request ID correlation.
 | POST   | `/api/cards`                    | Auth     | Create card with NTAG424 + OTC                                                                                                                                                               |
 | GET    | `/api/cards/[id]`               | Auth     | Get card details (**no keys**)                                                                                                                                                               |
 | GET    | `/api/cards/counts`             | Auth     | Count paired/unpaired/used (paired === has `userId`)                                                                                                                                         |
-| GET    | `/api/cards/[id]/scan`          | Public   | LUD-03 withdraw request (NFC tap); with request header `x-request-action: info` returns card status JSON instead (design, image, owner, paired/used — no keys/OTC)                           |
-| GET    | `/api/cards/[id]/scan/cb`       | Public   | LUD-03 callback, issue invoice                                                                                                                                                               |
+| GET    | `/api/cards/[id]/scan`          | Public   | LUD-03 withdraw request (NFC tap) plus optional LUD-19 `payLink` (`lnurlp://…`) when the card can receive; with request header `x-request-action: info` returns card status JSON instead (design, image, owner, paired/used — no keys/OTC) |
+| GET    | `/api/cards/[id]/scan/cb`       | Public   | LUD-03 callback, pay an invoice from the card wallet                                                                                                                                         |
+| GET    | `/api/cards/[id]/lnurlp`        | Public   | LUD-19 target: LUD-06 payRequest that tops up the card’s RemoteWallet (not the owner’s Lightning Address)                                                                                    |
+| GET    | `/api/cards/[id]/lnurlp/cb`     | Public   | LUD-06 callback; mints a `CARD_TOPUP` invoice on that RemoteWallet                                                                                                                           |
 | POST   | `/api/cards/[id]/write-token`   | OPERATOR | Mint a single-use BoltCard programming URL — only while the card is **fresh** (never tapped); **409** otherwise                                                                              |
 | GET    | `/api/cards/[id]/write`         | Public   | NFC program payload (keys). **Requires** the single-use `?token=` from `/write-token` (replay-protected; **403** without it or once tapped); **unpairs** the card and **consumes** the token |
 | GET    | `/api/cards/[id]/wipe`          | Public   | NFC reset payload (keys); **blocks** the card (unpairs + marks `Blocked`, decommissioned). Re-fetchable; delete to remove                                                                    |
@@ -835,6 +839,8 @@ See: [DOCKER.md](./DOCKER.md)
 | NIP-57             | Nostr zaps                           |
 | LUD-16             | Lightning Address (LNURL-pay)        |
 | LUD-03             | LNURL-withdraw (card taps)           |
+| LUD-17             | Raw `lnurlp://` URL on card `payLink` |
+| LUD-19             | Pay link on the BoltCard withdraw response (card top-up) |
 | LUD-21             | Payment verification                 |
 | LUD-22             | Webhooks                             |
 | BoltCard / NTAG424 | NFC tap-to-pay cards                 |
@@ -849,6 +855,7 @@ See: [DOCKER.md](./DOCKER.md)
 - [DOCKER.md](./DOCKER.md) — Docker build and deployment
 - [JWT_USAGE.md](./JWT_USAGE.md) — JWT implementation details
 - [SDK.md](./SDK.md) — Client SDK documentation
+- [MCP.md](./MCP.md) — MCP server for AI agents and its OAuth sign-in
 - [ROADMAP.md](./ROADMAP.md) — Development timeline
 - [services/LAWALLET-WEB.md](./services/LAWALLET-WEB.md) — Web service details
 - [services/NWC-LISTENER.md](./services/NWC-LISTENER.md) — Listener service details

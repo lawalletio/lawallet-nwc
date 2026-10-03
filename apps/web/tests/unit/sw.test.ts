@@ -74,6 +74,12 @@ function loadServiceWorker(fetchImpl: typeof fetch) {
       })
       expect(captured).toHaveLength(1)
       return captured[0]
+    },
+    /** Whether the worker answers this request itself (calls respondWith). */
+    intercepts(request: Request): boolean {
+      let answered = false
+      onFetch({ request, respondWith: () => void (answered = true) })
+      return answered
     }
   }
 }
@@ -137,6 +143,16 @@ describe('service worker: /api/wallet read caching', () => {
 })
 
 describe('service worker: navigation caching', () => {
+  it('leaves the OAuth consent page to the browser', async () => {
+    const sw = loadServiceWorker(async () => htmlResponse('consent'))
+    const url = `${SW_ORIGIN}/oauth/authorize?client_id=abc&state=xyz`
+
+    expect(sw.intercepts(navigateRequest(url))).toBe(false)
+
+    await waitForCacheWrite()
+    expect(sw.entries.has(url)).toBe(false)
+  })
+
   it('caches a successful navigation and returns the network response', async () => {
     const sw = loadServiceWorker(async () => htmlResponse('wallet-shell'))
 

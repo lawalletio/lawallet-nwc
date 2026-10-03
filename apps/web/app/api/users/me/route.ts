@@ -8,8 +8,15 @@ import { resolveAddressDomain } from '@/lib/public-url'
 import { resolveWalletRoute } from '@/lib/wallet/resolve-payment-route'
 import { getPrimaryRemoteWalletForUser } from '@/lib/wallet/primary-wallet'
 import { decryptRemoteWalletConfig } from '@/lib/wallet/remote-wallet-vault'
+import { reviveDeadCourtesyWallet } from '@/lib/wallet/lncurl-wallet'
+import { currencyPrefsSchema } from '@/lib/validation/schemas'
 
 export const dynamic = 'force-dynamic'
+
+function publishedCurrencyPrefs(value: unknown) {
+  const parsed = currencyPrefsSchema.safeParse(value)
+  return parsed.success ? parsed.data : null
+}
 
 export const GET = withErrorHandling(async (request: Request) => {
   const { pubkey: authenticatedPubkey } = await authenticate(request)
@@ -37,6 +44,17 @@ export const GET = withErrorHandling(async (request: Request) => {
 
   const user = existingUser || (await createNewUser(authenticatedPubkey))
 
+  // A courtesy LNCurl wallet the provider already destroyed must be replaced
+  // before send or receive read this connection string. Non-LNCurl wallets
+  // are left alone.
+  const revived = await reviveDeadCourtesyWallet(user.id)
+  const primaryAddressRecord = user.lightningAddresses[0]
+  if (revived && primaryAddressRecord) {
+    primaryAddressRecord.mode = 'CUSTOM_NWC'
+    primaryAddressRecord.redirect = null
+    primaryAddressRecord.remoteWallet = revived
+  }
+
   // Lightning addresses resolve as `username@<domain>`. The `endpoint`
   // setting (where the instance is publicly reachable) may differ from
   // the address domain — e.g. `endpoint=https://beta.lacrypta.ar` while
@@ -52,7 +70,8 @@ export const GET = withErrorHandling(async (request: Request) => {
   // The account primary wallet is derived from the primary address's
   // CUSTOM_NWC binding. The legacy/display isDefault flag is synchronized from
   // that link, but is no longer the source of truth.
-  const primaryWallet = await getPrimaryRemoteWalletForUser(user.id)
+  const primaryWallet =
+    revived ?? (await getPrimaryRemoteWalletForUser(user.id))
   const primaryWalletConfig = primaryWallet
     ? decryptRemoteWalletConfig(
         primaryWallet.id,
@@ -99,6 +118,7 @@ export const GET = withErrorHandling(async (request: Request) => {
     // card without splitting `lightningAddress` on `@` or re-fetching
     // the address detail endpoint.
     primaryUsername: primaryAddress?.username ?? null,
-    primaryRedirect: primaryAddress?.redirect ?? null
+    primaryRedirect: primaryAddress?.redirect ?? null,
+    currencyPrefs: publishedCurrencyPrefs(user.currencyPrefs)
   })
 })

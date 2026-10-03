@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/components/admin/auth-context'
 import { WalletLoadingScreen } from '@/components/wallet/wallet-loading-screen'
 import { useFirstLoadProgress } from '@/components/pwa/first-load-progress'
+import { useSyncCurrencyPrefs } from '@/lib/client/hooks/use-sync-currency-prefs'
 
 /**
  * Authenticated wrapper for `/wallet/(app)/*` routes.
@@ -21,6 +22,7 @@ export function WalletShell({ children }: { children: React.ReactNode }) {
   const { status } = useAuth()
   const router = useRouter()
   const { report } = useFirstLoadProgress()
+  useSyncCurrencyPrefs()
 
   React.useEffect(() => {
     if (status === 'unauthenticated') router.replace('/wallet/landing')

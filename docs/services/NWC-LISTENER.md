@@ -542,7 +542,10 @@ fast-path bridge, the status proxy, and the "NWC Listener" admin menu item.
 `POST /api/settings/listener-probe` (settings-write gated) implements the
 tab's **Test connection** button — it calls the listener's authenticated
 `/status` and distinguishes `unauthorized` (secret mismatch) from
-`unreachable` (network).
+`unreachable` (network). When the form leaves the secret blank, the stored/env
+secret is used only if the probed URL is the configured listener URL (same
+origin); for any other URL the secret must be typed in, so the stored one is
+never sent to a server that merely got pasted into the field.
 
 ## Hosting the listener separately (Vercel / Netlify deployments)
 

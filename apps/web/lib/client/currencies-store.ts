@@ -1,6 +1,10 @@
 'use client'
 
 import { useSyncExternalStore } from 'react'
+import {
+  CURRENCY_CODES,
+  type CurrencyCode
+} from '@lawallet-nwc/shared/src/currencies'
 
 export interface Currency {
   /** 3-letter ticker (`SAT`, `BTC`, ISO 4217 fiat code). */
@@ -25,72 +29,134 @@ export interface Currency {
  * Currencies settings screen. Add new codes alphabetically inside their
  * group to keep that list stable.
  */
-export const CURRENCY_CATALOG: Currency[] = [
-  // Crypto / native units
-  { code: 'SAT', name: 'Satoshi', locked: true },
-  { code: 'BTC', name: 'Bitcoin' },
-  // Fiat (LATAM-leaning since LaWallet's primary communities are Spanish-speaking)
-  { code: 'ARS', name: 'Peso Argentino' },
-  { code: 'BRL', name: 'Real' },
-  { code: 'CLP', name: 'Peso Chileno' },
-  { code: 'COP', name: 'Peso Colombiano' },
-  { code: 'EUR', name: 'Euro' },
-  { code: 'GBP', name: 'Libra Esterlina' },
-  { code: 'JPY', name: 'Yen' },
-  { code: 'MXN', name: 'Peso Mexicano' },
-  { code: 'PEN', name: 'Sol' },
-  { code: 'USD', name: 'Dolar Americano' },
-  { code: 'UYU', name: 'Peso Uruguayo' },
-  { code: 'VES', name: 'Bolívar' }
-]
+const CATALOG_META = {
+  SAT: { name: 'Satoshi', locked: true },
+  BTC: { name: 'Bitcoin' },
+  ARS: { name: 'Peso Argentino' },
+  BRL: { name: 'Real' },
+  CLP: { name: 'Peso Chileno' },
+  COP: { name: 'Peso Colombiano' },
+  EUR: { name: 'Euro' },
+  GBP: { name: 'Libra Esterlina' },
+  JPY: { name: 'Yen' },
+  MXN: { name: 'Peso Mexicano' },
+  PEN: { name: 'Sol' },
+  USD: { name: 'Dolar Americano' },
+  UYU: { name: 'Peso Uruguayo' },
+  VES: { name: 'Bolívar' }
+} as const satisfies Record<CurrencyCode, { name: string; locked?: boolean }>
+
+export const CURRENCY_CATALOG: Currency[] = CURRENCY_CODES.map(code => {
+  const meta = CATALOG_META[code]
+  return 'locked' in meta && meta.locked
+    ? { code, name: meta.name, locked: true }
+    : { code, name: meta.name }
+})
 
 const STORAGE_KEY = 'lawallet-active-currencies'
 const DEFAULT_ACTIVE: readonly string[] = ['SAT', 'BTC']
+const DEFAULT_SELECTED = 'SAT'
 const LOCKED_CODES = new Set(
   CURRENCY_CATALOG.filter(c => c.locked).map(c => c.code)
 )
 
-let cache: string[] | null = null
+export type CurrencyPrefs = {
+  active: string[]
+  selected: string
+}
+
+let cache: CurrencyPrefs | null = null
 const listeners = new Set<() => void>()
+let persister: ((prefs: CurrencyPrefs) => void) | null = null
+let dirty = false
+
+export function setCurrencyPrefsPersister(
+  next: ((prefs: CurrencyPrefs) => void) | null
+): void {
+  persister = next
+}
 
 function ensureLocked(list: string[]): string[] {
-  // Always keep locked codes (currently just SAT) at the front of the
-  // active list, even if a malformed localStorage payload removed them.
   const locked: string[] = []
   for (const c of CURRENCY_CATALOG) {
     if (c.locked) locked.push(c.code)
   }
-  const rest = list.filter(c => !LOCKED_CODES.has(c))
+  const seen = new Set<string>(locked)
+  const rest: string[] = []
+  for (const code of list) {
+    if (typeof code !== 'string' || seen.has(code)) continue
+    if (!CURRENCY_CATALOG.some(c => c.code === code)) continue
+    seen.add(code)
+    rest.push(code)
+  }
   return [...locked, ...rest]
 }
 
-function read(): string[] {
-  if (typeof window === 'undefined') return [...DEFAULT_ACTIVE]
+function normalize(active: string[], selected: string): CurrencyPrefs {
+  const nextActive = ensureLocked(Array.isArray(active) ? active : [])
+  const nextSelected = nextActive.includes(selected)
+    ? selected
+    : (nextActive[0] ?? DEFAULT_SELECTED)
+  return { active: nextActive, selected: nextSelected }
+}
+
+function parseStored(raw: string | null): CurrencyPrefs | null {
+  if (!raw) return null
+  const parsed = JSON.parse(raw) as unknown
+  if (Array.isArray(parsed) && parsed.every(item => typeof item === 'string')) {
+    return normalize(parsed, DEFAULT_SELECTED)
+  }
+  if (
+    parsed &&
+    typeof parsed === 'object' &&
+    Array.isArray((parsed as CurrencyPrefs).active) &&
+    (parsed as CurrencyPrefs).active.every(item => typeof item === 'string') &&
+    typeof (parsed as CurrencyPrefs).selected === 'string'
+  ) {
+    const prefs = parsed as CurrencyPrefs
+    return normalize(prefs.active, prefs.selected)
+  }
+  return null
+}
+
+function defaultPrefs(): CurrencyPrefs {
+  return normalize([...DEFAULT_ACTIVE], DEFAULT_SELECTED)
+}
+
+function readState(): CurrencyPrefs {
+  if (typeof window === 'undefined') return defaultPrefs()
   if (cache) return cache
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY)
-    if (raw) {
-      const parsed = JSON.parse(raw)
-      if (Array.isArray(parsed) && parsed.every(s => typeof s === 'string')) {
-        cache = ensureLocked(parsed)
-        return cache
-      }
-    }
+    cache =
+      parseStored(window.localStorage.getItem(STORAGE_KEY)) ?? defaultPrefs()
   } catch {
-    // fall through
+    cache = defaultPrefs()
   }
-  cache = ensureLocked([...DEFAULT_ACTIVE])
   return cache
 }
 
-function write(next: string[]) {
-  cache = ensureLocked(next)
+function read(): string[] {
+  return readState().active
+}
+
+function readSelected(): string {
+  return readState().selected
+}
+
+function write(next: CurrencyPrefs, options: { persist?: boolean } = {}) {
+  cache = normalize(next.active, next.selected)
   if (typeof window !== 'undefined') {
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(cache))
     } catch {
       // ignore quota errors
     }
+  }
+  if (options.persist !== false) {
+    dirty = true
+    persister?.(cache)
+  } else {
+    dirty = false
   }
   for (const fn of listeners) fn()
 }
@@ -116,13 +182,18 @@ function onStorage(e: StorageEvent) {
 
 /** Hook returning the currently active currencies in display order. */
 export function useActiveCurrencies(): Currency[] {
-  const codes = useSyncExternalStore(subscribe, read, () => [...DEFAULT_ACTIVE])
+  const codes = useSyncExternalStore(subscribe, read, () => DEFAULT_ACTIVE)
   const out: Currency[] = []
   for (const code of codes) {
     const match = CURRENCY_CATALOG.find(c => c.code === code)
     if (match) out.push(match)
   }
   return out
+}
+
+/** Hook returning the persisted display currency ticker. */
+export function useSelectedCurrencyCode(): string {
+  return useSyncExternalStore(subscribe, readSelected, () => DEFAULT_SELECTED)
 }
 
 /**
@@ -133,16 +204,19 @@ export function useActiveCurrencies(): Currency[] {
 export const currenciesActions = {
   add(code: string) {
     if (!CURRENCY_CATALOG.some(c => c.code === code)) return
-    const current = read()
-    if (current.includes(code)) return
-    write([...current, code])
+    const current = readState()
+    if (current.active.includes(code)) return
+    write({ active: [...current.active, code], selected: current.selected })
   },
   remove(code: string) {
     if (LOCKED_CODES.has(code)) return
-    write(read().filter(c => c !== code))
+    const current = readState()
+    write({
+      active: current.active.filter(item => item !== code),
+      selected: current.selected
+    })
   },
   reorder(nextOrder: string[]) {
-    // Only accept codes that exist in the catalog and dedupe.
     const seen = new Set<string>()
     const safe: string[] = []
     for (const code of nextOrder) {
@@ -151,8 +225,33 @@ export const currenciesActions = {
       seen.add(code)
       safe.push(code)
     }
-    write(safe)
+    write({ active: safe, selected: readState().selected })
+  },
+  select(code: string) {
+    const current = readState()
+    if (!current.active.includes(code)) return
+    if (current.selected === code) return
+    write({ active: current.active, selected: code })
   }
+}
+
+export function readCurrencyPrefs(): CurrencyPrefs {
+  return readState()
+}
+
+export function isCurrencyPrefsDirty(): boolean {
+  return dirty
+}
+
+export function hydrateCurrencyPrefs(prefs: CurrencyPrefs): void {
+  if (
+    !prefs ||
+    !Array.isArray(prefs.active) ||
+    typeof prefs.selected !== 'string'
+  ) {
+    return
+  }
+  write(prefs, { persist: false })
 }
 
 /**
@@ -161,7 +260,9 @@ export const currenciesActions = {
  * previous account's selected currencies for a frame.
  */
 export function clearCurrencyPreferences(): void {
-  cache = ensureLocked([...DEFAULT_ACTIVE])
+  cache = defaultPrefs()
+  dirty = false
+  persister = null
   if (typeof window !== 'undefined') {
     try {
       window.localStorage.removeItem(STORAGE_KEY)
@@ -175,4 +276,6 @@ export function clearCurrencyPreferences(): void {
 /** Test-only hook to drop the in-memory cache between cases. */
 export function __resetCurrenciesCacheForTests() {
   cache = null
+  dirty = false
+  persister = null
 }

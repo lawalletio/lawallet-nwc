@@ -40,7 +40,9 @@ export function TreasureChest({
   const [data, setData] = useState<ArrayBuffer | null>(null)
   const [player, setPlayer] = useState<DotLottie | null>(null)
   const onStartRef = useRef(onStart)
-  onStartRef.current = onStart
+  useEffect(() => {
+    onStartRef.current = onStart
+  }, [onStart])
 
   useEffect(() => {
     let cancelled = false

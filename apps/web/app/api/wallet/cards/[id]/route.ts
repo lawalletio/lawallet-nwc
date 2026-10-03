@@ -4,7 +4,11 @@ import type { Card } from '@/types/card'
 import { authenticate } from '@/lib/auth/unified-auth'
 import { resolveAccountByPubkey } from '@/lib/auth/account'
 import { withErrorHandling } from '@/types/server/error-handler'
-import { ConflictError, NotFoundError } from '@/types/server/errors'
+import {
+  ConflictError,
+  NotFoundError,
+  ValidationError
+} from '@/types/server/errors'
 import { idParam, updateWalletCardSchema } from '@/lib/validation/schemas'
 import { validateBody, validateParams } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
@@ -26,6 +30,10 @@ export const revalidate = 0
  *   - `enabled` — reversible enable/disable. This deliberately does not touch
  *     `blockedAt`, which is the terminal reset/decommission state.
  *   - `linkDefaultWallet` — bind the card to the owner's primary wallet.
+ *   - `remoteWalletId` — bind the card to that wallet, or `null` to unbind.
+ *     The wallet must belong to the caller and must not be REVOKED or DEAD.
+ *     The Connection Map uses this so a cardholder can rebind without
+ *     `cards:write`.
  *   - `kind` — promote this card to the owner's MASTER (account-recovery)
  *     card, or demote it back to SIMPLE. Promoting demotes whichever card
  *     held the designation before; at most one MASTER per holder.
@@ -71,15 +79,42 @@ export const PATCH = withErrorHandling(
     }
     if (card.blockedAt !== null) {
       throw new ConflictError(
-        body.linkDefaultWallet
+        body.linkDefaultWallet || body.remoteWalletId !== undefined
           ? 'Blocked cards cannot be linked to a wallet'
           : body.kind !== undefined
             ? 'Blocked cards cannot be used as the master card'
             : 'Blocked cards cannot be enabled or disabled'
       )
     }
-    if (body.linkDefaultWallet === true && !defaultRemoteWalletId) {
-      throw new ConflictError('No primary remote wallet configured')
+
+    // `undefined` means this request is not a wallet write (kind / enabled).
+    // `null` unbinds. A string binds to that wallet after ownership checks.
+    let nextWalletId: string | null | undefined
+    if (body.remoteWalletId !== undefined) {
+      if (body.remoteWalletId === null) {
+        nextWalletId = null
+      } else {
+        const wallet = await prisma.remoteWallet.findUnique({
+          where: { id: body.remoteWalletId },
+          select: { id: true, userId: true, status: true }
+        })
+        if (
+          !wallet ||
+          wallet.status === 'REVOKED' ||
+          wallet.status === 'DEAD'
+        ) {
+          throw new ValidationError('Unknown wallet')
+        }
+        if (wallet.userId !== user.id) {
+          throw new ValidationError('Wallet does not belong to the card owner')
+        }
+        nextWalletId = wallet.id
+      }
+    } else if (body.linkDefaultWallet === true) {
+      if (!defaultRemoteWalletId) {
+        throw new ConflictError('No primary remote wallet configured')
+      }
+      nextWalletId = defaultRemoteWalletId
     }
 
     // The master designation is a sibling-affecting write, so it runs in its
@@ -101,8 +136,8 @@ export const PATCH = withErrorHandling(
       data:
         body.kind !== undefined
           ? {}
-          : body.linkDefaultWallet === true
-            ? { remoteWalletId: defaultRemoteWalletId }
+          : nextWalletId !== undefined
+            ? { remoteWalletId: nextWalletId }
             : {
                 disabledAt: body.enabled ? null : (card.disabledAt ?? new Date())
               },
@@ -163,26 +198,32 @@ export const PATCH = withErrorHandling(
           metadata: { cardId: id, previousMasterCardId }
         })
       }
-    } else if (body.linkDefaultWallet === true) {
-      if (defaultRemoteWalletId !== card.remoteWalletId) {
+    } else if (nextWalletId !== undefined) {
+      if (nextWalletId !== card.remoteWalletId) {
         logActivity.fireAndForget({
           category: 'CARD',
-          event: ActivityEvent.CARD_WALLET_BOUND,
-          message: `Card ${id} bound to wallet ${defaultRemoteWalletId}`,
+          event: nextWalletId
+            ? ActivityEvent.CARD_WALLET_BOUND
+            : ActivityEvent.CARD_WALLET_UNBOUND,
+          message: nextWalletId
+            ? `Card ${id} bound to wallet ${nextWalletId}`
+            : `Card ${id} unbound from wallet`,
           userId: user.id,
           metadata: {
             cardId: id,
             previousRemoteWalletId: card.remoteWalletId,
-            remoteWalletId: defaultRemoteWalletId
+            remoteWalletId: nextWalletId
           }
         })
-        logActivity.fireAndForget({
-          category: 'NWC',
-          event: ActivityEvent.NWC_ASSIGNED_TO_CARD,
-          message: `Wallet assigned to card ${id}`,
-          userId: user.id,
-          metadata: { cardId: id, remoteWalletId: defaultRemoteWalletId }
-        })
+        if (nextWalletId) {
+          logActivity.fireAndForget({
+            category: 'NWC',
+            event: ActivityEvent.NWC_ASSIGNED_TO_CARD,
+            message: `Wallet assigned to card ${id}`,
+            userId: user.id,
+            metadata: { cardId: id, remoteWalletId: nextWalletId }
+          })
+        }
       }
     } else {
       const enabled = body.enabled === true

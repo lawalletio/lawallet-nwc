@@ -4,10 +4,13 @@ import { getSettings } from './settings'
 import { ActivityEvent, logActivity } from './activity-log'
 import { logger } from './logger'
 import { createLncurlRemoteWallet } from './wallet/lncurl-wallet'
+import { ServiceUnavailableError } from '@/types/server/errors'
 
 /**
- * Creates a brand-new `User` record for an authenticated pubkey, optionally
- * provisioning an LNCurl courtesy wallet when `lncurl_auto_create` is enabled.
+ * Creates a brand-new `User` record for an authenticated pubkey, provisioning
+ * an LNCurl courtesy wallet when `lncurl_auto_create` is enabled. A mint
+ * failure deletes the new row and throws, so signup does not succeed with
+ * no wallet.
  *
  * The returned shape mirrors what `findUnique` callers (notably
  * `/api/users/me`) expect — the primary `LightningAddress` with its bound
@@ -58,10 +61,9 @@ export async function createNewUser(
     }
   })
 
-  // When LNCurl auto-provisioning is on, prepare a wallet candidate for the
-  // first primary address to bind to. Best-effort: any failure (LNCurl down,
-  // etc.) must NOT break signup — we swallow it and the user simply starts
-  // with no wallet.
+  // When LNCurl auto-provisioning is on, the account is not usable without
+  // the courtesy wallet. A mint failure rolls the new user back and surfaces
+  // as 503 so signup can be retried — it must not succeed with no wallet.
   if (lncurl_auto_create === 'true') {
     try {
       const lncurlWallet = await createLncurlRemoteWallet({
@@ -70,11 +72,20 @@ export async function createNewUser(
       })
       user.remoteWallets = lncurlWallet.isDefault ? [lncurlWallet] : []
     } catch (err) {
-      // Structured log so the operator can spot intermittent provider outages
-      // (the user just starts wallet-less and can connect one later).
       logger.error(
         { userId: user.id, err: String(err) },
         'LNCurl auto-create failed during signup'
+      )
+      try {
+        await prisma.user.delete({ where: { id: user.id } })
+      } catch (deleteErr) {
+        logger.error(
+          { userId: user.id, err: String(deleteErr) },
+          'Failed to roll back user after LNCurl signup mint failure'
+        )
+      }
+      throw new ServiceUnavailableError(
+        'Could not create a wallet. Try again.'
       )
     }
   }

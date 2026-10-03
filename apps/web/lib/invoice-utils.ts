@@ -1,9 +1,6 @@
 import { decode } from 'light-bolt11-decoder'
 import bolt11Codec from 'bolt11'
-import {
-  CARD_MAX_WITHDRAWABLE_MSATS,
-  CARD_MIN_WITHDRAWABLE_MSATS
-} from '@/lib/validation/schemas'
+import { CARD_MIN_WITHDRAWABLE_MSATS } from '@/lib/validation/schemas'
 
 /**
  * Metadata shape stored on the `Invoice.metadata` JSON column.
@@ -108,8 +105,9 @@ export class ExpiredCardPaymentInvoiceError extends Error {
 
 /**
  * Strict, single-pass validation for the irrevocable BoltCard payment path.
- * The advertised LUD-03 bounds are enforced here before the SUN counter is
- * consumed, so malformed/expired/oversized invoices fail without burning a tap.
+ * Malformed and expired invoices fail here, before the SUN counter is
+ * consumed. Spend size is not capped: the bound wallet accepts or rejects
+ * the invoice from its balance and `pay_invoice` policy.
  */
 export function parseCardPaymentInvoice(
   bolt11: string,
@@ -138,11 +136,10 @@ export function parseCardPaymentInvoice(
       : Number.NaN
   if (
     !Number.isSafeInteger(amountMsats) ||
-    amountMsats < CARD_MIN_WITHDRAWABLE_MSATS ||
-    amountMsats > CARD_MAX_WITHDRAWABLE_MSATS
+    amountMsats < CARD_MIN_WITHDRAWABLE_MSATS
   ) {
     throw new Error(
-      `Invoice amount must be between ${CARD_MIN_WITHDRAWABLE_MSATS} and ${CARD_MAX_WITHDRAWABLE_MSATS} msats`
+      `Invoice amount must be a positive integer of at least ${CARD_MIN_WITHDRAWABLE_MSATS} msat`
     )
   }
 

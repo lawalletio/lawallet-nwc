@@ -1,0 +1,561 @@
+---
+title: 'Connect AI Agents (MCP)'
+description: 'Connect Claude, ChatGPT, Cursor or Claude Code to your LaWallet instance over MCP: connection steps, permissions, the daily spend limit, security and troubleshooting.'
+---
+
+Every LaWallet instance serves a remote
+[Model Context Protocol](https://modelcontextprotocol.io) (MCP) server. An AI
+agent — Claude, ChatGPT, Cursor, Claude Code — connects to it and works with
+your account: it reads balances and invoices, creates invoices and lightning
+addresses, and, only if you allow it, pays Lightning invoices up to a daily
+limit you set.
+
+- **One instance only.** The MCP server _is_ your instance. It works with this
+  instance's accounts and the wallets connected to it, and never reaches
+  another community's deployment.
+- **Bitcoin over Lightning only.** Amounts are in sats unless a field name says
+  msats.
+- **Nothing to install on the server.** Every instance already has it.
+
+On this page, `https://<instance>` stands for your instance's public URL, for
+example `https://wallet.example.com`. The full technical reference, including
+protocol details, is
+[`docs/MCP.md`](https://github.com/lawalletio/lawallet-nwc/blob/main/docs/MCP.md)
+in the repository.
+
+## The two endpoints
+
+| URL                                 | For                                                                                       |
+| ----------------------------------- | ----------------------------------------------------------------------------------------- |
+| `https://<instance>/api/mcp`        | Signed-in agents. Everything your permissions and your role allow.                        |
+| `https://<instance>/api/mcp/public` | Anyone, without signing in. Instance information and this instance's lightning addresses. |
+
+To get the exact URL, sign in and open **Connected apps**:
+
+- in the wallet: **Settings → Security → Connected apps**;
+- in the admin dashboard: **Account** in the sidebar → **Connected apps**.
+
+Copy the **MCP server URL** shown there and use it exactly as shown. It is the
+canonical URL your connection is bound to, which can differ from the address
+in your browser.
+
+## Before you start
+
+- **The MCP server URL** from Connected apps.
+- **A Nostr identity you can sign in with** on the instance. If it has no
+  account yet, approving a connection creates one.
+- **A public HTTPS URL for hosted clients.** ChatGPT and Claude (claude.ai,
+  Claude Desktop, the mobile apps) connect from their providers' servers, not
+  from your device. An instance on a home network (Umbrel, Start9) needs a
+  public URL or a tunnel for them. Claude Code, Cursor and the MCP Inspector
+  run on your computer and can reach an instance on your network directly.
+
+<Callout type="info" title="For operators">
+  Set the `endpoint` setting (Admin → Settings → Infrastructure → **This
+  instance endpoint**) to the instance's public URL, exactly as clients reach it
+  — scheme, host and port. The MCP URL, the sign-in metadata and every token are
+  derived from it; for plain HTTP on a local network, write the `http://`
+  scheme. Changing it later disconnects every connected app. Sign-in needs
+  `JWT_SECRET`, which every working instance already has. There are no new
+  environment variables. Details are in
+  [`docs/MCP.md`](https://github.com/lawalletio/lawallet-nwc/blob/main/docs/MCP.md#for-operators).
+</Callout>
+
+## Connect a client
+
+Client interfaces change. These steps follow each vendor's documentation as
+checked on **2026-09-30**; if a label has moved, look for the equivalent
+option.
+
+| Client                              | Connects from       | Sign in with OAuth          | Static token instead         |
+| ----------------------------------- | ------------------- | --------------------------- | ---------------------------- |
+| Claude (claude.ai, Desktop, mobile) | Anthropic's servers | Yes                         | Beta, organization-wide only |
+| ChatGPT (developer mode)            | OpenAI's servers    | Yes                         | No                           |
+| Claude Code                         | Your computer       | Yes                         | Yes                          |
+| Cursor                              | Your computer       | Yes                         | Yes                          |
+| Claude API (MCP connector)          | Anthropic's servers | Your code obtains the token | Yes                          |
+| OpenAI Responses API                | OpenAI's servers    | Your code obtains the token | Yes                          |
+
+OAuth — signing in on your instance's consent page — works everywhere and is
+the only way to allow payments. A [static token](#using-a-token-instead-of-oauth)
+suits scripts and never spends.
+
+### Claude (claude.ai, Claude Desktop, mobile)
+
+A custom connector works in claude.ai, Claude Desktop and the Claude mobile
+apps. Anthropic's servers make the connection, so your instance needs a public
+HTTPS URL.
+
+On the **Free, Pro and Max** plans (Free allows one custom connector):
+
+1. Open **Customize → Connectors → Add custom connector**.
+2. Enter `https://<instance>/api/mcp` — the URL from Connected apps, including
+   `/api/mcp`.
+3. For authentication, choose **Sign in now**.
+4. For the OAuth client, choose **Register automatically**. Do not choose _Use
+   Claude's published identity_: LaWallet does not support it.
+5. Add the connector. Your instance's consent page opens: sign in, choose the
+   permissions and approve (see [the consent screen](#the-consent-screen)).
+6. In a chat, turn the connector on under **+ → Connectors**.
+
+On **Team and Enterprise** plans, an Owner — or an Enterprise member with a
+qualifying custom role — adds the connector under **Organization settings →
+Connectors → Add → Custom (Web)** with the same choices. Each member then
+clicks **Connect** under **Customize → Connectors** and approves with their own
+LaWallet account.
+
+Good to know:
+
+- **Authentication settings cannot be edited later.** To change them, remove
+  the connector and add it again.
+- **The URL must match exactly.** Claude checks that your instance reports the
+  same URL you entered, path included. A different host or scheme, or a
+  missing `/api/mcp`, fails.
+- **Public address.** The hostname must resolve to public IP addresses, and
+  the URL must not redirect to another host (Claude drops the credentials on
+  such a redirect).
+- **Caching.** Claude caches your instance's sign-in metadata for about five
+  minutes; after the instance's URL setting is fixed, wait before retrying.
+- **Static tokens** are only possible through a beta _Request headers_ option
+  available to some organizations, and the value is shared by the whole
+  organization. Use OAuth.
+- **Public tools only:** add `https://<instance>/api/mcp/public` with **No
+  sign-in**.
+
+### Claude Code
+
+Add the server:
+
+```bash
+claude mcp add --transport http lawallet https://<instance>/api/mcp
+```
+
+Then sign in: inside a Claude Code session run `/mcp` and pick `lawallet` (a
+browser opens your instance's consent page), or from the shell:
+
+```bash
+claude mcp login lawallet
+```
+
+Over SSH, add `--no-browser` to `claude mcp login`. Claude Code receives the
+sign-in on a `localhost` address, so the consent page shows the request as
+coming from `localhost` and "Runs on this computer".
+
+To use a [static token](#using-a-token-instead-of-oauth) instead, keep it in
+an environment variable and reference it in the project's `.mcp.json` (the
+file `claude mcp add --scope project` writes). Claude Code expands `${VAR}`
+when it loads the file, so the token never lands in a shared file:
+
+```json
+{
+  "mcpServers": {
+    "lawallet": {
+      "type": "http",
+      "url": "https://<instance>/api/mcp",
+      "headers": { "Authorization": "Bearer ${LAWALLET_MCP_TOKEN}" }
+    }
+  }
+}
+```
+
+Good to know:
+
+- If the instance rejects a configured token (for example, it expired), the
+  connection fails; Claude Code does not fall back to OAuth. Renew the token or
+  remove `headers`.
+- Tools appear as `mcp__lawallet__<tool>`, for example
+  `mcp__lawallet__wallet_get_balance`.
+
+### ChatGPT
+
+Available on Pro, Plus, Business, Enterprise and Education accounts, on the
+web; a workspace policy can restrict it. ChatGPT calls your instance from
+OpenAI's servers, so the instance needs a public HTTPS URL.
+
+1. Open **Settings → Security and login** and turn on **Developer mode**.
+2. Go to [chatgpt.com/plugins](https://chatgpt.com/plugins) and click **+**.
+   Enter a name and a description.
+3. Under **Connection**, enter `https://<instance>/api/mcp`, with the path.
+4. Choose **OAuth** for authentication, without client credentials: LaWallet
+   lets ChatGPT register itself.
+5. Create the app, sign in on your instance's consent page when it opens, and
+   review the tools ChatGPT found. The app is listed under **Drafts**.
+6. To use it in a conversation: composer **+** menu → **Developer mode** →
+   select the app.
+
+Good to know:
+
+- **OAuth only.** ChatGPT cannot send custom headers or API keys.
+- **Press Refresh after changing permissions.** ChatGPT keeps a snapshot of the
+  tool list from when the app was created or last refreshed, and the list
+  depends on the permissions you approved.
+- **Confirmations.** ChatGPT asks before running tools that change something,
+  and asks for explicit approval of `wallet_pay_invoice` and `api_write`. You
+  can remember a choice per tool for the conversation — do not do that for
+  `wallet_pay_invoice`.
+- **`invalid_client` error.** The registration ChatGPT made is gone (the
+  instance deletes registrations never used to connect after 30 days). Delete
+  the app in ChatGPT and create it again.
+- The connection form also offers a **Tunnel** option; it is not covered here.
+
+### Cursor
+
+Add the server to `.cursor/mcp.json` in a project, or `~/.cursor/mcp.json` for
+all projects:
+
+```json
+{
+  "mcpServers": {
+    "lawallet": {
+      "url": "https://<instance>/api/mcp"
+    }
+  }
+}
+```
+
+Cursor signs in to remote servers with OAuth: approve the request on your
+instance's consent page. Its documented desktop callback,
+`http://localhost:8787/callback`, is a local address LaWallet accepts.
+
+With a [static token](#using-a-token-instead-of-oauth) instead, reference an
+environment variable; Cursor interpolates `${env:NAME}` in `url` and
+`headers`:
+
+```json
+{
+  "mcpServers": {
+    "lawallet": {
+      "url": "https://<instance>/api/mcp",
+      "headers": { "Authorization": "Bearer ${env:LAWALLET_MCP_TOKEN}" }
+    }
+  }
+}
+```
+
+Cursor asks before running tools by default; keep that on for
+`wallet_pay_invoice`.
+
+### Claude API and OpenAI Responses API
+
+Both APIs can call your instance's tools during a request. Their servers make
+the call, so the instance needs a public HTTPS URL, and your code supplies the
+token: a [static token](#using-a-token-instead-of-oauth), or an access token
+from an OAuth flow your code runs (required for payments; it expires after an
+hour).
+
+- **Claude API** (MCP connector): send the header
+  `anthropic-beta: mcp-client-2025-11-20`, declare the server in
+  `mcp_servers` with `"type": "url"`, the URL, a `name` and the token in
+  `authorization_token`, and enable it with
+  `"tools": [{ "type": "mcp_toolset", "mcp_server_name": "lawallet" }]`. Only
+  tool calls are supported. Available on the Claude API, Claude Platform on AWS
+  and Foundry, not on Amazon Bedrock or Google Cloud Vertex AI. A complete
+  `curl` example is in
+  [`docs/MCP.md`](https://github.com/lawalletio/lawallet-nwc/blob/main/docs/MCP.md#claude-api-mcp-connector).
+- **OpenAI Responses API**: add an `mcp` tool with `server_url` set to
+  `https://<instance>/api/mcp` and the token in `authorization`. OpenAI does
+  not store the token, so send it with every request. See OpenAI's
+  [MCP tool guide](https://developers.openai.com/api/docs/guides/tools-connectors-mcp).
+
+### Check the connection
+
+Test from a terminal before blaming a client. The public endpoint needs no
+token:
+
+```bash
+curl -s https://<instance>/api/mcp/public \
+  -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+```
+
+The MCP Inspector CLI talks to the server like a real client. Without
+`--header` it signs in with OAuth when run in a terminal:
+
+```bash
+npx @modelcontextprotocol/inspector@latest --cli https://<instance>/api/mcp \
+  --transport http --method tools/list --format json
+npx @modelcontextprotocol/inspector@latest --cli https://<instance>/api/mcp \
+  --transport http --method tools/call --tool-name get_instance_info --tool-args-json '{}'
+```
+
+Exit code `3` means sign-in is required, `4` that the instance is unreachable,
+`5` a tool error.
+
+## Sign-in and permissions
+
+Each approval creates a **connection**: one app's access to your account, with
+its own permissions and, if payments are allowed, its own daily limit.
+
+### The consent screen
+
+When an app connects, your browser opens `https://<instance>/oauth/authorize`.
+If you are not signed in there, sign in first; nothing is shared until you
+approve. The page shows:
+
+- **Request from** — where your approval is sent, for example `claude.ai` or
+  `chatgpt.com`, or `localhost` ("Runs on this computer") for an app on your
+  computer. **Trust this, not the app's name.**
+- **Calls itself "…"** — the name the app chose. Anyone can register any name.
+- **Signed in as** — the account the app will act as, with **Switch account**.
+- **It will be able to** — the permissions, as checkboxes.
+- **Daily limit (sats)** — shown when you tick **Send payments**.
+- **Approve** and **Deny**.
+
+If the request is invalid — for example, it names another server — the page
+says **Can't connect this app**, shows the reason, and nothing is authorized.
+
+### Permissions
+
+| Permission | Shown as                                                  | Lets the app                                                                                                                                                                                                                                                                                             |
+| ---------- | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `read`     | View balances, addresses, cards and activity              | Read your data. It cannot change anything.                                                                                                                                                                                                                                                               |
+| `write`    | Create and change addresses, invoices and wallet settings | Create and change things: new lightning addresses and which one is primary, invoices, wallet names and defaults, removing a wallet, vouchers, your preferences. This includes which of your own wallets receives incoming payments. It cannot send funds, link a card to a wallet, or delete an address. |
+| `spend`    | Send payments from your wallets                           | Pay Lightning invoices from your wallets, up to the daily limit.                                                                                                                                                                                                                                         |
+
+- `read` is included automatically with `write` or `spend`: its checkbox stays
+  ticked and locked.
+- `read` and `write` are pre-selected when the app asks for them; **`spend`
+  is never pre-selected**.
+- Permissions only choose which tools the app may use. Your role still
+  applies: the app acts as you, with your permissions — an admin's connection
+  has admin powers, minus what agents can never do (see
+  [what is not available](#what-is-not-available)).
+
+### The daily spend limit
+
+`spend` always comes with a daily limit in sats: 10,000 by default, from 1 to
+10,000,000.
+
+- It covers a **rolling 24 hours**, not a calendar day.
+- It counts the amount **and the routing fees** of every payment the
+  connection made in that window that did not fail.
+- A payment needs room for its amount plus a **fee reserve** of 1%, at least
+  10 sats: paying 500 sats needs 510 left. Only the fee actually paid is
+  counted, so the total can still end a few sats above the limit.
+- **Each connection has its own limit.** Two apps with `spend` can each spend
+  their full limit.
+- **An agent cannot raise its limit.** Only you can, by approving a new
+  connection on the consent page. A new connection starts with nothing spent.
+
+### How long access lasts
+
+- The app receives an access token valid for **1 hour** and refreshes it on
+  its own.
+- A connection **unused for 30 days** expires; connect the app again.
+- Your instance stores only fingerprints (hashes) of the tokens.
+
+### Revoke or change access
+
+- Under **Connected apps**, click **Revoke** next to the app. It loses access
+  immediately.
+- Connected apps shows each app's permissions (with the daily limit on
+  **Spend**), when it was connected and when it was last used.
+- Removing an app inside the client does not always revoke it here — check
+  Connected apps.
+- **To change permissions**, revoke the app and connect it again, choosing new
+  permissions. In ChatGPT, press **Refresh** afterwards.
+- Approving the same app again replaces its old connection only once the app
+  finishes connecting. If you abandon a reconnect, the old connection keeps
+  working.
+
+## Using a token instead of OAuth
+
+For scripts and API integrations, `/api/mcp` also accepts a **session token**
+from `POST /api/jwt` in an `Authorization: Bearer` header. It is valid for up
+to 24 hours — see [JWT Authentication](/docs/guides/jwt-authentication).
+**Device tokens** (from **Settings → Device Tokens**) are refused.
+
+A session token gets `read` and `write`, **never `spend`**: payments always need
+an OAuth connection with a limit you approved. Claude Code, Cursor, the MCP
+Inspector and the two APIs can send a token; ChatGPT cannot.
+
+<Callout type="warn" title="A token in a config file is a password">
+  It carries your account's full read and write access — an admin's token
+  carries admin powers — and it cannot be revoked before it expires. Prefer
+  OAuth. If you use a token, give it a short lifetime, keep it in an environment
+  variable, and never put it in a configuration file that is shared or
+  committed.
+</Callout>
+
+## What an agent can do
+
+The tool list depends on where the agent connects, the permissions you
+approved and your role. Calling a tool it may not use returns an explanation
+(for example, which permission is missing) instead of doing anything.
+
+**Without signing in** (`/api/mcp/public`): `get_instance_info`,
+`resolve_lightning_address`, `request_address_invoice`,
+`verify_address_payment`, `check_address_availability`, `api_list_operations`
+and `api_read` for public information.
+
+**Instance:** `get_instance_info` describes the instance and, when signed in,
+the connection — your role, the permissions and the remaining daily budget.
+Agents are told to call it first.
+
+### Wallet tools
+
+These use your **primary wallet** unless the agent passes a `walletId` from
+`list_wallets`.
+
+| Tool                            | Permission | Does                                                               |
+| ------------------------------- | ---------- | ------------------------------------------------------------------ |
+| `wallet_get_balance`            | `read`     | Balance of a wallet, in sats                                       |
+| `wallet_lookup_invoice`         | `read`     | Whether an invoice created by your wallet was paid                 |
+| `lightning_address_get_invoice` | `read`     | Gets an invoice from any lightning address, in sats. No funds move |
+| `wallet_list_payments`          | `read`     | Payments this connection made, and the remaining daily budget      |
+| `wallet_make_invoice`           | `write`    | Creates an invoice that pays into your wallet                      |
+| `wallet_pay_invoice`            | `spend`    | Pays a Lightning invoice from your wallet, within the daily limit  |
+
+### Other tools
+
+Common actions have their own tools:
+
+| Tool                                                                                                                                            | Permission | Role            |
+| ----------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | --------------- |
+| `resolve_lightning_address`, `request_address_invoice`, `verify_address_payment`, `check_address_availability`                                  | none       | —               |
+| `get_my_account`, `list_lightning_addresses`, `get_lightning_address`, `list_address_invoices`, `list_wallets`, `list_my_cards`, `get_settings` | `read`     | member          |
+| `list_cards`, `get_card`, `list_users`, `list_activity`                                                                                         | `read`     | viewer or above |
+| `create_lightning_address`                                                                                                                      | `write`    | member          |
+
+The four tools that need no permission concern addresses on this instance.
+`request_address_invoice` takes its `amount` in **millisats**, as the LNURL
+standard requires. To get an invoice from an address elsewhere, agents use
+`lightning_address_get_invoice`.
+
+For everything else, `api_list_operations` finds operations in the instance's
+REST API that the connection may use, and `api_read` / `api_write` call them.
+They go through the same checks as the web app.
+
+### What is not available
+
+These stay in the web app, whatever the permissions:
+
+- anything that **moves funds** other than `wallet_pay_invoice`, or that
+  **sends incoming payments somewhere outside your account** — address aliases
+  and redirects, adding an external wallet, auto-forwarding, forwarding
+  retries, sending vouchers;
+- **deleting a lightning address** or replacing your primary one, which frees
+  the username for anyone to register and receive its payments;
+- **payment notifications**, which send details of your incoming payments to a
+  web address or Nostr key;
+- **linking a card to a wallet** — activating or claiming a card, changing
+  which wallet a card spends from, or moving the account-recovery card — and
+  **card activation QRs**: creating cards, creating or listing activation
+  codes, card rescue;
+- **instance settings** and **user roles**;
+- **credentials and account security** — device tokens, passkeys, linking or
+  merging Nostr identities, and connecting other apps;
+- **BoltCard programming and card protocol endpoints**, and device pairing.
+
+## Payments
+
+Only `wallet_pay_invoice` spends, and only for an OAuth connection with the
+`spend` permission.
+
+- **It never pays the same invoice twice.** Repeating the call returns the
+  stored result. This covers payments made through MCP, not ones you made in
+  the web app.
+- **Every result shows the remaining daily budget.**
+- An invoice without an amount needs `amountSats`; expired invoices are
+  refused.
+
+| Status      | Meaning                                                                                                                                   | Limit    | What to do                                                                                 |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------ |
+| `SUCCEEDED` | Paid; includes the proof of payment and the fee                                                                                           | Used     | Nothing                                                                                    |
+| `FAILED`    | The wallet refused before sending anything (for example, insufficient balance), or a later check proved the payment failed; no funds left | Released | Fix the cause (for example the balance); paying again retries                              |
+| `PENDING`   | Another call is paying this invoice right now                                                                                             | Used     | Do not retry; check `wallet_list_payments` in a few minutes                                |
+| `UNKNOWN`   | The wallet did not confirm in time, or reported an error that does not prove nothing was sent; the funds may have left                    | Used     | Do not retry or pay another invoice for the same thing; check `wallet_list_payments` later |
+
+`wallet_list_payments` re-checks unresolved payments with the wallet and
+updates their status. An `UNKNOWN` payment keeps its share of the limit until
+that check shows it failed.
+
+## Security
+
+- **Secrets never reach the agent.** Wallet connection strings (NWC), `nsec`
+  keys, card keys, card activation codes and links, and other secret values
+  are replaced with a `[redacted …]`
+  marker in every result. The agent never needs them: the instance uses your stored
+  wallet connection for it.
+- **Never paste an NWC connection string, an nsec or an admin token into a
+  chat or a shared agent configuration.** Anything the model reads can be
+  repeated or leaked, and a connection string spends without any limit.
+- **Grant the least you can.** Connect with `read` when that is enough. `write`
+  is broad: it can, for example, change your default wallet or remove a wallet
+  from your account. Add `spend` only with a limit you can afford to
+  lose. Admins hand their admin powers to the agent; use a separate member
+  account for everyday agent use.
+- **Treat what tools return as untrusted.** Payment comments, invoice
+  descriptions, names and anything from other servers can contain text written
+  to manipulate an agent. That is why `spend` is off by default and always
+  capped. Keep your client's confirmation on for `wallet_pay_invoice`.
+- **Revoke** any app at once under Connected apps.
+- **Audit.** The activity log (Admin → Activity) records each connection
+  approved or revoked and each payment sent or failed through MCP.
+
+## Troubleshooting
+
+**Sign-in loops, or 401 errors.** Your connection is no longer valid: it was
+revoked, replaced by a newer approval, unused for 30 days, or the instance's
+`endpoint` setting changed. Connect the app again. With a static token, the
+token expired or belongs to another instance, or it is a device token, which
+is refused: use OAuth or a session token.
+
+**"Wrong instance URL" or "resource does not match".** The URL given to the
+client differs from the canonical one — `http` versus `https`, `www` versus
+the bare domain, a local IP versus the public name, or a missing `/api/mcp`.
+Copy the URL from Connected apps. If that URL itself is wrong, an operator
+must fix the `endpoint` setting.
+
+**Payments are refused.** The error says why:
+
+| Error mentions                          | Fix                                                                                                                                                      |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| only an OAuth connection can grant it   | You are using a session token. Connect with OAuth and tick **Send payments**.                                                                            |
+| the `spend` scope                       | The connection was approved without **Send payments**. Revoke it and connect again with a daily limit.                                                   |
+| no daily spend limit                    | Connect again and set a limit.                                                                                                                           |
+| would exceed the daily budget           | The amount plus the fee reserve does not fit in what is left. Wait for older payments to leave the 24-hour window, or connect again with a higher limit. |
+| wallet cannot send payments             | The wallet's connection is receive-only, or the wallet is unreachable. Use another wallet, or replace the connection in the web app.                     |
+| no primary wallet, or wallet not active | Pass a `walletId` from `list_wallets` that is active.                                                                                                    |
+
+**Tools are missing.** The connection lacks a permission (`write` for
+`api_write`, `wallet_make_invoice` and `create_lightning_address`; `spend` for
+`wallet_pay_invoice`), your role is too low for admin tools, or the client is
+connected to `/api/mcp/public`. In ChatGPT, press **Refresh**.
+
+**ChatGPT or Claude cannot reach the instance.** They connect from their
+providers' servers: a `umbrel.local` name or a private IP address does not
+work. Expose the instance on a public HTTPS URL, set `endpoint` to it, and
+connect again. Claude Code and Cursor can reach local addresses directly.
+
+**The consent page asks you to sign in again.** It opens in your browser, not
+in the installed wallet app. If you installed the wallet on your home screen,
+the browser may not share its sign-in: sign in again on the consent page.
+
+**A payment shows `UNKNOWN`.** The funds may have left. Do not pay again. Ask
+the agent to run `wallet_list_payments` after a few minutes; the instance asks
+the wallet what happened. Your wallet's own history is the final word.
+
+**HTTP 429 (too many requests).** Wait for the number of seconds in the
+`Retry-After` header. Every call in a JSON-RPC batch counts. Anonymous requests are limited per IP address, and
+hosted clients share their providers' addresses, so the public endpoint can
+hit the limit sooner through them.
+
+## For developers
+
+- Transport: Streamable HTTP, stateless. Every `POST` gets one JSON answer; no
+  SSE stream and no sessions. `GET` and `DELETE` answer 405.
+- Protocol revisions: `2026-07-28`, and the initialize-based `2025-11-25`,
+  `2025-06-18`, `2025-03-26` and `2024-11-05`, on the same URLs.
+- Sign-in: the instance is its own OAuth 2.1 authorization server —
+  discovery at `/.well-known/oauth-protected-resource/api/mcp` and
+  `/.well-known/oauth-authorization-server`, PKCE `S256`, dynamic client
+  registration (client ID metadata documents are not supported yet), rotating
+  refresh tokens.
+- Tools are generated from the instance's OpenAPI document and run the real
+  REST handlers, so validation, roles and rate limits match the
+  [REST API](https://beta.lawallet.io/api-docs).
+
+The full reference — error codes, the OAuth endpoints, the complete list of
+excluded operations and the code map — is
+[`docs/MCP.md`](https://github.com/lawalletio/lawallet-nwc/blob/main/docs/MCP.md).

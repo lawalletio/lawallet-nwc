@@ -37,9 +37,15 @@ vi.mock('@/components/admin/auth-context', () => ({
 vi.mock('next/image', () => ({ __esModule: true, default: () => null }))
 
 import { ClaimAddressScreen } from '@/components/wallet/claim/claim-address-screen'
+import {
+  rememberActivationBonus,
+  resetActivationBonusForTests
+} from '@/lib/client/activation-bonus-notice'
 
 beforeEach(() => {
   vi.clearAllMocks()
+  sessionStorage.clear()
+  resetActivationBonusForTests()
 })
 
 afterEach(() => {
@@ -67,6 +73,23 @@ describe('ClaimAddressScreen', () => {
     expect(
       screen.getByRole('heading', { name: 'Claim your Lightning address' })
     ).toBeTruthy()
+  })
+
+  it('mentions credited sats after card activation and stays quiet otherwise', async () => {
+    vi.stubGlobal('fetch', vi.fn())
+    rememberActivationBonus(210)
+    render(<ClaimAddressScreen fromActivate />)
+    expect(
+      await screen.findByText(
+        /210 sats from this card are already in your balance/
+      )
+    ).toBeTruthy()
+  })
+
+  it('does not mention a bonus when the instance did not pay one', () => {
+    vi.stubGlobal('fetch', vi.fn())
+    render(<ClaimAddressScreen fromActivate />)
+    expect(screen.queryByText(/already in your balance/)).toBeNull()
   })
 
   it('keeps a dismiss control when claiming from the wallet', () => {

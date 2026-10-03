@@ -370,13 +370,13 @@ async function handlePaymentSent(
     logActivity.fireAndForget({
       category: 'CARD',
       event: ActivityEvent.CARD_PAYMENT,
-      message: `Card payment of ${attempt.amountMsats / 1000} sats`,
+      message: `Card payment of ${Number(attempt.amountMsats) / 1000} sats`,
       metadata: {
         cardId: attempt.cardId,
         requestId: attempt.requestId,
         walletId: attempt.walletId,
-        amountMsats: attempt.amountMsats,
-        amountSats: attempt.amountMsats / 1000,
+        amountMsats: Number(attempt.amountMsats),
+        amountSats: Number(attempt.amountMsats) / 1000,
         status: 'success',
         transport: attempt.transport,
         bolt11: attempt.bolt11,

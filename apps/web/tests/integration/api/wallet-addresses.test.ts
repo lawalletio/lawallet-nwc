@@ -45,6 +45,10 @@ vi.mock('@/lib/settings', () => ({
   getSettings: vi.fn(async () => ({}))
 }))
 
+vi.mock('@/lib/user', () => ({
+  createNewUser: vi.fn()
+}))
+
 import {
   GET as ListGet,
   POST as ListPost
@@ -59,6 +63,7 @@ import { GET as InvoicesGet } from '@/app/api/wallet/addresses/[username]/invoic
 import { authenticate } from '@/lib/auth/unified-auth'
 import { eventBus } from '@/lib/events/event-bus'
 import { getSettings } from '@/lib/settings'
+import { createNewUser } from '@/lib/user'
 
 const mockPubkey = 'a'.repeat(64)
 const otherPubkey = 'b'.repeat(64)
@@ -410,6 +415,62 @@ describe('POST /api/wallet/addresses', () => {
 
     expect(res.status).toBe(201)
     expect(prismaMock.lightningAddress.create).toHaveBeenCalled()
+  })
+
+  it('bootstraps a missing account instead of returning User not found', async () => {
+    mockAuth()
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(null)
+    vi.mocked(createNewUser).mockResolvedValue({ id: 'user-new' } as any)
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(null)
+    vi.mocked(prismaMock.lightningAddress.count).mockResolvedValue(0)
+    vi.mocked(prismaMock.lightningAddress.create).mockResolvedValue(
+      makeAddress({
+        username: 'andy',
+        userId: 'user-new',
+        isPrimary: true
+      }) as any
+    )
+    vi.mocked(prismaMock.remoteWallet.findFirst).mockResolvedValue(null)
+
+    const res = await ListPost(
+      createNextRequest('/api/wallet/addresses', {
+        method: 'POST',
+        body: { username: 'andy' }
+      })
+    )
+    const body: any = await assertResponse(res, 201)
+    expect(createNewUser).toHaveBeenCalledWith(mockPubkey)
+    expect(body.username).toBe('andy')
+    expect(prismaMock.lightningAddress.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          username: 'andy',
+          userId: 'user-new'
+        })
+      })
+    )
+  })
+
+  it('bootstraps a missing account, then returns 402 when paid registration applies', async () => {
+    vi.mocked(getSettings).mockResolvedValueOnce({
+      registration_ln_enabled: 'true',
+      registration_ln_address: 'admin@provider.com',
+      registration_admin_bypass: 'true'
+    })
+    mockAuth()
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(null)
+    vi.mocked(createNewUser).mockResolvedValue({ id: 'user-new' } as any)
+
+    const res = await ListPost(
+      createNextRequest('/api/wallet/addresses', {
+        method: 'POST',
+        body: { username: 'andy' }
+      })
+    )
+    const body: any = await assertResponse(res, 402)
+    expect(createNewUser).toHaveBeenCalledWith(mockPubkey)
+    expect(body.error.code).toBe('PAYMENT_REQUIRED')
+    expect(prismaMock.lightningAddress.create).not.toHaveBeenCalled()
   })
 
   it('rejects with 402 when paid registration is on and caller is USER', async () => {

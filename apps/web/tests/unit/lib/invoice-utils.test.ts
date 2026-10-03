@@ -122,6 +122,13 @@ describe('parseCardPaymentInvoice', () => {
       expect(invoice.paymentHash).toMatch(/^[0-9a-f]{64}$/)
     })
 
+    it('accepts an invoice above the old 10000 sat cap', () => {
+      const invoice = parseCardPaymentInvoice(makeInvoice({ satoshis: 25_000 }))
+
+      expect(invoice.amountSats).toBe(25_000)
+      expect(invoice.amountMsats).toBe(25_000_000)
+    })
+
     it('rejects an undecodable invoice', () => {
       expect(() => parseCardPaymentInvoice('not-an-invoice')).toThrow(
         'Invalid Lightning invoice'

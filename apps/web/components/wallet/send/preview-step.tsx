@@ -4,8 +4,12 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowRight } from 'lucide-react'
 import { toast } from 'sonner'
-import { useApi } from '@/lib/client/hooks/use-api'
-import { resolveUserNwc } from '@/lib/client/wallet-nwc'
+import { invalidateApiPath, useApi } from '@/lib/client/hooks/use-api'
+import {
+  resolveFreshUserNwc,
+  resolveUserNwc
+} from '@/lib/client/wallet-nwc'
+import { useAuth } from '@/components/admin/auth-context'
 import {
   useSendFlow,
   sendActions,
@@ -64,6 +68,7 @@ export function SendPreviewStep() {
   const contacts = useContacts()
   const activeCurrencies = useActiveCurrencies()
   const { rates } = useYadioRates()
+  const { apiClient } = useAuth()
   const { data: me } = useApi<UserMeResponse>('/api/users/me')
   const effectiveNwc = resolveUserNwc(me)
   const [paying, setPaying] = useState(false)
@@ -174,6 +179,15 @@ export function SendPreviewStep() {
     }
   }, [quoteKey, flow.recipient, flow.amountSats, flow.comment])
 
+  const typedNote = flow.comment.trim()
+  const acceptedNote =
+    currentQuote.status === 'ready'
+      ? currentQuote.quote.comment
+      : typedNote || null
+  const noteOmitted =
+    currentQuote.status === 'ready' &&
+    typedNote.length > 0 &&
+    !currentQuote.quote.comment
   const recipientLabel =
     recipientDetails?.displayName ??
     flow.recipient?.profile?.name ??
@@ -191,10 +205,6 @@ export function SendPreviewStep() {
 
   async function confirm() {
     if (paying) return
-    if (!effectiveNwc) {
-      toast.error('No wallet connected')
-      return
-    }
     if (currentQuote.status !== 'ready') {
       toast.error(
         currentQuote.status === 'error'
@@ -205,7 +215,17 @@ export function SendPreviewStep() {
     }
     setPaying(true)
     try {
-      const result = await payQuotedInvoice(effectiveNwc, currentQuote.quote)
+      const nwc = await resolveFreshUserNwc(
+        () => apiClient.get<UserMeResponse>('/api/users/me'),
+        effectiveNwc
+      )
+      invalidateApiPath('/api/users/me')
+      if (!nwc) {
+        toast.error('No wallet connected')
+        setPaying(false)
+        return
+      }
+      const result = await payQuotedInvoice(nwc, currentQuote.quote)
       sendActions.setResult({
         preimage: result.preimage,
         feesPaidSats: result.feesPaidSats,
@@ -213,7 +233,7 @@ export function SendPreviewStep() {
         recipient: recipientLabel,
         paymentHash: paymentHashFromBolt11(currentQuote.quote.paymentRequest),
         destination: destinationForReceipt(flow.recipient),
-        comment: flow.comment.trim() ? flow.comment.trim() : null,
+        comment: currentQuote.quote.comment,
         settledAt: Date.now()
       })
       router.replace('/wallet/send/summary')
@@ -288,12 +308,7 @@ export function SendPreviewStep() {
                   label="Type"
                   value={labelForKind(flow.recipient.destination.kind)}
                 />
-                {flow.comment && (
-                  <>
-                    <div className="my-3 border-t border-border/60" />
-                    <DetailRow label="Note" value={flow.comment} />
-                  </>
-                )}
+                <PaymentNote comment={acceptedNote} omitted={noteOmitted} />
               </div>
             </div>
           )}
@@ -314,12 +329,7 @@ export function SendPreviewStep() {
               label="Type"
               value={labelForKind(flow.recipient.destination.kind)}
             />
-          </div>
-        )}
-
-        {flow.comment && !recipientDetails && (
-          <div className="rounded-2xl border border-border bg-card p-4">
-            <DetailRow label="Note" value={flow.comment} />
+            <PaymentNote comment={acceptedNote} omitted={noteOmitted} />
           </div>
         )}
 
@@ -515,6 +525,29 @@ function QuoteLine({
         {value}
       </span>
     </div>
+  )
+}
+
+function PaymentNote({
+  comment,
+  omitted
+}: {
+  comment: string | null
+  omitted: boolean
+}) {
+  if (!comment && !omitted) return null
+  return (
+    <>
+      <div className="my-3 border-t border-border/60" />
+      {comment ? (
+        <DetailRow label="Note" value={comment} />
+      ) : (
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          The recipient did not accept the note. This payment will be sent
+          without it.
+        </p>
+      )}
+    </>
   )
 }
 

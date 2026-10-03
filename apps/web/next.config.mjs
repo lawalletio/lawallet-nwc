@@ -44,6 +44,21 @@ const nextConfig = {
   // "inferred workspace root" warning.
   outputFileTracingRoot: join(__dirname, '../..'),
   allowedDevOrigins,
+  async headers() {
+    return [
+      {
+        // The OAuth consent page: never framable (an embedded "Approve" is
+        // clickjacking bait), and its URL carries OAuth parameters that must
+        // not leak through the Referer header.
+        source: '/oauth/:path*',
+        headers: [
+          { key: 'X-Frame-Options', value: 'DENY' },
+          { key: 'Content-Security-Policy', value: "frame-ancestors 'none'" },
+          { key: 'Referrer-Policy', value: 'no-referrer' }
+        ]
+      }
+    ]
+  },
   async redirects() {
     return [
       // `/wallet/nostr-login` was the signup chooser's path from v0.10.0

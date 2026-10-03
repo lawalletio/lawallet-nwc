@@ -14,7 +14,11 @@ import {
   Permission,
   hasPermission as checkPermission
 } from '@/lib/auth/permissions'
-import { exchangeNip98ForJwt, validateJwt } from '@/lib/client/auth-api'
+import {
+  exchangeNip98ForJwt,
+  validateJwt,
+  type JwtValidation
+} from '@/lib/client/auth-api'
 import { createApiClient, type ApiClient } from '@/lib/client/api-client'
 import {
   isJwtDueForRefresh,
@@ -177,6 +181,16 @@ export function useAuth(): AuthContextValue {
     throw new Error('useAuth must be used within an AuthProvider')
   }
   return ctx
+}
+
+/**
+ * A document navigation aborts in-flight fetches with TypeError
+ * ("Failed to fetch") before the server answers. That is not an invalid
+ * session — dropping the JWT here wipes a token another flow just stored,
+ * which is what made "Login as admin" land on the sign-in dialog.
+ */
+function isNavigationAbort(err: unknown): boolean {
+  return err instanceof TypeError
 }
 
 function installHistoryRestoreGuard() {
@@ -413,14 +427,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     let cancelled = false
     let inFlight: Promise<void> | null = null
+    let replacedToken = false
 
-    function dropJwtKeepCredentials(expected: string | null) {
-      // A newer login may have replaced the token while this check was in
-      // flight (the dev admin button writes localStorage, then reloads).
-      // Don't erase that session.
-      if (expected && localStorage.getItem(JWT_STORAGE_KEY) !== expected) {
-        return
-      }
+    function noteIfTokenReplaced(expectedToken: string | null) {
+      if (localStorage.getItem(JWT_STORAGE_KEY) === expectedToken) return false
+      // A newer token landed mid-flight. Re-validate it once this check
+      // finishes, instead of leaving status on "loading".
+      replacedToken = true
+      return true
+    }
+
+    function dropJwtKeepCredentials(expectedToken: string | null) {
+      // A newer token may have been written while this check was in flight
+      // (dev login replaces the JWT, then navigates). Only drop the one we
+      // actually decided was unusable.
+      if (noteIfTokenReplaced(expectedToken)) return
       endSessionKeepCredentials()
     }
 
@@ -521,7 +542,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         }
 
-        let validation
+        let validation: JwtValidation | undefined
         try {
           let lastError: unknown
           for (let attempt = 0; attempt < 3; attempt++) {
@@ -536,13 +557,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 (err instanceof Error &&
                   /failed to fetch|timed out/i.test(err.message))
               if (!transient || attempt === 2) throw err
-              await new Promise(resolve => setTimeout(resolve, 200 * (attempt + 1)))
+              await new Promise(resolve =>
+                setTimeout(resolve, 200 * (attempt + 1))
+              )
               if (cancelled) return
               if (localStorage.getItem(JWT_STORAGE_KEY) !== storedToken) return
             }
           }
           if (!validation) throw lastError ?? new Error('JWT validation failed')
           if (cancelled) return
+          const session = validation
 
           const existingSigner = signerRef.current
 
@@ -550,14 +574,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             ...prev,
             status: 'authenticated',
             jwt: storedToken,
-            pubkey: validation.pubkey,
-            role: validation.role,
-            permissions: validation.permissions,
+            pubkey: session.pubkey,
+            role: session.role,
+            permissions: session.permissions,
             signer: prev.signer,
             loginMethod: storedMethod
           }))
 
-          scheduleRefresh(validation.expiresAt)
+          scheduleRefresh(session.expiresAt)
 
           if (existingSigner) return
 
@@ -573,7 +597,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
           if (
             canRemint &&
-            new Date(validation.expiresAt).getTime() - Date.now() <=
+            new Date(session.expiresAt).getTime() - Date.now() <=
               SESSION_REFRESH_BUFFER_MS
           ) {
             try {
@@ -583,20 +607,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
           }
         } catch (err) {
-          const transient =
-            err instanceof TypeError ||
-            (err instanceof Error && /failed to fetch|timed out/i.test(err.message))
-          // A blip while the page is loading must not throw away a valid
-          // session. The dev admin login was landing here and wiping the
-          // token it had just stored.
-          if (transient) {
-            if (!cancelled) {
-              setState(prev => ({
-                ...prev,
-                status: 'unauthenticated',
-                signer: null
-              }))
-            }
+          if (cancelled) return
+          if (isNavigationAbort(err)) {
+            if (noteIfTokenReplaced(storedToken)) return
+            // Keep the JWT. A navigation (Login as admin → /admin) or a
+            // blip while the page is loading aborts this request; the next
+            // check validates the token it finds.
+            setState(prev =>
+              prev.status === 'loading'
+                ? { ...prev, status: 'unauthenticated', signer: null }
+                : prev
+            )
             return
           }
           if (!canRemint) {
@@ -621,6 +642,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await inFlight
       } finally {
         inFlight = null
+      }
+
+      if (replacedToken && !cancelled) {
+        replacedToken = false
+        await ensureFreshSession(source)
       }
     }
 

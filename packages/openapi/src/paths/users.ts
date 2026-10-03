@@ -35,6 +35,10 @@ registry.registerPath({
   }
 })
 
+const currentUserSchema = userSchema.extend({
+  currencyPrefs: schemas.CurrencyPrefs.nullable()
+})
+
 registry.registerPath({
   ...withRole('USER'),
   method: 'get',
@@ -44,7 +48,35 @@ registry.registerPath({
   operationId: 'users.me',
   security: protectedSecurity,
   responses: {
-    200: inlineJsonResponse('Current user.', userSchema),
+    200: inlineJsonResponse('Current user.', currentUserSchema),
+    ...commonErrorResponses
+  }
+})
+
+registry.registerPath({
+  ...withRole('USER'),
+  method: 'put',
+  path: '/api/users/me/currency-prefs',
+  tags: [TAG],
+  summary: 'Save the current user’s display currency preferences.',
+  operationId: 'users.me.currencyPrefs.set',
+  security: protectedSecurity,
+  request: {
+    body: {
+      content: {
+        'application/json': {
+          schema: schemas.UserCurrencyPrefsUpdateRequest
+        }
+      }
+    }
+  },
+  responses: {
+    200: inlineJsonResponse(
+      'Currency preferences saved.',
+      z.object({
+        currencyPrefs: schemas.CurrencyPrefs
+      })
+    ),
     ...commonErrorResponses
   }
 })
@@ -78,6 +110,25 @@ registry.registerPath({
     200: inlineJsonResponse(
       'User cards.',
       z.object({ data: z.array(z.object({}).passthrough()) })
+    ),
+    ...commonErrorResponses,
+    404: responses.notFound
+  }
+})
+
+registry.registerPath({
+  ...withRole('USER'),
+  method: 'get',
+  path: '/api/users/{userId}/role',
+  tags: [TAG],
+  summary: 'Get a user’s role (self, or with `users:read`).',
+  operationId: 'users.role.get',
+  security: protectedSecurity,
+  request: { params: schemas.UserIdParam },
+  responses: {
+    200: inlineJsonResponse(
+      'The user’s role.',
+      z.object({ userId: z.string(), role: userSchema.shape.role })
     ),
     ...commonErrorResponses,
     404: responses.notFound

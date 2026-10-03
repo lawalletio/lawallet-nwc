@@ -13,7 +13,10 @@ import { CurrencyToggle } from '@/components/wallet/shared/currency-toggle'
 import { useAmountCurrencyInput } from '@/components/wallet/shared/use-amount-currency-input'
 import { useApi, invalidateApiPath } from '@/lib/client/hooks/use-api'
 import { useSettings } from '@/lib/client/hooks/use-settings'
-import { resolveUserNwc } from '@/lib/client/wallet-nwc'
+import {
+  resolveFreshUserNwc,
+  resolveUserNwc
+} from '@/lib/client/wallet-nwc'
 import { useAuth } from '@/components/admin/auth-context'
 import { makeInvoice, describeNwcError } from '@/lib/client/nwc'
 import { receiveActions } from '@/lib/client/wallet-flow-store'
@@ -63,10 +66,14 @@ export function ReceiveAmountStep() {
     receiveActions.setAmount(canonicalAmount)
     receiveActions.setDescription(description)
     try {
-      // Auto-create on receive: no wallet yet but the operator auto-creates
-      // them → mint an LNCurl wallet now, then re-read /me for its connection
-      // string. Other surfaces refresh off the invalidated caches.
-      let nwc = effectiveNwc
+      // Re-read /me first so a DEAD courtesy wallet is replaced before
+      // make_invoice. Auto-create still covers an account that has no wallet
+      // yet when the operator mints one on demand.
+      let nwc = await resolveFreshUserNwc(
+        () => apiClient.get<UserMeResponse>('/api/users/me'),
+        effectiveNwc
+      )
+      invalidateApiPath('/api/users/me')
       if (!nwc && autoCreate) {
         await apiClient.post('/api/remote-wallets/lncurl', {})
         const fresh = await apiClient.get<UserMeResponse>('/api/users/me')

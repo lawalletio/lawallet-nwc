@@ -309,7 +309,10 @@ export function useCardMutations() {
 
 export function useMyCardMutations() {
   const update = useMutation<
-    { enabled: boolean } | { linkDefaultWallet: true } | { kind: CardKind },
+    | { enabled: boolean }
+    | { linkDefaultWallet: true }
+    | { remoteWalletId: string | null }
+    | { kind: CardKind },
     ApiCard
   >()
 
@@ -335,6 +338,19 @@ export function useMyCardMutations() {
         linkDefaultWallet: true
       })
       invalidateApiPath('/api/wallet/cards')
+      return toCardData(result)
+    },
+    /**
+     * Bind the caller's card to one of their wallets, or pass `null` to
+     * unbind. Owner-scoped (`PATCH /api/wallet/cards/:id`); does not require
+     * `cards:write`.
+     */
+    setCardWallet: async (id: string, remoteWalletId: string | null) => {
+      const result = await update.mutate('patch', `/api/wallet/cards/${id}`, {
+        remoteWalletId
+      })
+      invalidateApiPath('/api/wallet/cards')
+      invalidateApiPath('/api/cards')
       return toCardData(result)
     },
     updating: update.loading,
