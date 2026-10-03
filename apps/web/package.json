@@ -33,6 +33,7 @@
     "@hookform/resolvers": "^5.9.1",
     "@lawallet-nwc/openapi": "workspace:*",
     "@lawallet-nwc/shared": "workspace:*",
+    "@lottiefiles/dotlottie-react": "^0.19.16",
     "@nostrify/nostrify": "npm:@jsr/nostrify__nostrify@^0.46.5",
     "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.10.0",

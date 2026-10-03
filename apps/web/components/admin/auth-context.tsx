@@ -14,7 +14,11 @@ import {
   Permission,
   hasPermission as checkPermission
 } from '@/lib/auth/permissions'
-import { exchangeNip98ForJwt, validateJwt } from '@/lib/client/auth-api'
+import {
+  exchangeNip98ForJwt,
+  validateJwt,
+  type JwtValidation
+} from '@/lib/client/auth-api'
 import { createApiClient, type ApiClient } from '@/lib/client/api-client'
 import {
   isJwtDueForRefresh,
@@ -538,9 +542,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         }
 
+        let validation: JwtValidation | undefined
         try {
-          const validation = await validateJwt(storedToken)
+          let lastError: unknown
+          for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+              validation = await validateJwt(storedToken)
+              lastError = undefined
+              break
+            } catch (err) {
+              lastError = err
+              const transient =
+                err instanceof TypeError ||
+                (err instanceof Error &&
+                  /failed to fetch|timed out/i.test(err.message))
+              if (!transient || attempt === 2) throw err
+              await new Promise(resolve =>
+                setTimeout(resolve, 200 * (attempt + 1))
+              )
+              if (cancelled) return
+              if (localStorage.getItem(JWT_STORAGE_KEY) !== storedToken) return
+            }
+          }
+          if (!validation) throw lastError ?? new Error('JWT validation failed')
           if (cancelled) return
+          const session = validation
 
           const existingSigner = signerRef.current
 
@@ -548,14 +574,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             ...prev,
             status: 'authenticated',
             jwt: storedToken,
-            pubkey: validation.pubkey,
-            role: validation.role,
-            permissions: validation.permissions,
+            pubkey: session.pubkey,
+            role: session.role,
+            permissions: session.permissions,
             signer: prev.signer,
             loginMethod: storedMethod
           }))
 
-          scheduleRefresh(validation.expiresAt)
+          scheduleRefresh(session.expiresAt)
 
           if (existingSigner) return
 
@@ -571,7 +597,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
           if (
             canRemint &&
-            new Date(validation.expiresAt).getTime() - Date.now() <=
+            new Date(session.expiresAt).getTime() - Date.now() <=
               SESSION_REFRESH_BUFFER_MS
           ) {
             try {
@@ -584,8 +610,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (cancelled) return
           if (isNavigationAbort(err)) {
             if (noteIfTokenReplaced(storedToken)) return
-            // Keep the JWT. A navigation (Login as admin → /admin) aborts
-            // this request; the next page validates the token it finds.
+            // Keep the JWT. A navigation (Login as admin → /admin) or a
+            // blip while the page is loading aborts this request; the next
+            // check validates the token it finds.
             setState(prev =>
               prev.status === 'loading'
                 ? { ...prev, status: 'unauthenticated', signer: null }
@@ -729,12 +756,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // API client bound to current JWT
   const handleUnauthorized = useCallback(() => {
+    const stored = localStorage.getItem(JWT_STORAGE_KEY)
+    // Anonymous 401s must not wipe a token that was just written and isn't
+    // in React state yet — that's the dev admin login race.
+    if (stored && stored !== state.jwt) return
     if (hasRecoverableSession()) {
       endSessionKeepCredentials()
       return
     }
     logout()
-  }, [endSessionKeepCredentials, logout])
+  }, [state.jwt, endSessionKeepCredentials, logout])
 
   const apiClient = React.useMemo(
     () =>
