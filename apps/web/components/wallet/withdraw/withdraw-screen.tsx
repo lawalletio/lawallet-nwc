@@ -3,10 +3,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowDownToLine, Check, Wallet } from 'lucide-react'
+import { ArrowDownToLine, Wallet } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import { Spinner } from '@/components/ui/spinner'
+import { ClaimCelebration } from '@/components/wallet/withdraw/claim-celebration'
+import { useWalletNwcOptional } from '@/components/wallet/nwc-provider'
+import { unlockClaimSound } from '@/lib/client/claim-sound'
 import {
   AmountKeypad,
   parseKeypadValue
@@ -44,6 +46,7 @@ export function WithdrawScreen() {
   const router = useRouter()
   const flow = useWithdrawFlow()
   const { data: me } = useApi<UserMeResponse>('/api/users/me')
+  const wallet = useWalletNwcOptional()
   const nwc = resolveUserNwc(me)
 
   const params = flow.params
@@ -57,6 +60,8 @@ export function WithdrawScreen() {
     params ? String(params.maxWithdrawableSats) : '0'
   )
   const [error, setError] = useState<string | null>(null)
+  const [balanceSnapshot, setBalanceSnapshot] = useState<number | null>(null)
+  const [balanceCaptured, setBalanceCaptured] = useState(false)
   const cancelledRef = useRef(false)
   const claimingRef = useRef(false)
 
@@ -76,9 +81,27 @@ export function WithdrawScreen() {
   }, [])
 
   // No voucher in the store (deep link / refresh) — nothing to claim.
+  // `?previewClaim=<sats>` is a development-only way to watch the strike.
   useEffect(() => {
-    if (!params) router.replace('/wallet')
-  }, [params, router])
+    if (params) return
+    const preview = readPreviewClaim()
+    if (preview == null) {
+      router.replace('/wallet')
+      return
+    }
+    setBalanceSnapshot(wallet?.sats ?? preview * 4)
+    setBalanceCaptured(true)
+    withdrawActions.setParams({
+      callback: 'https://preview.local/lnurl-withdraw',
+      k1: 'preview',
+      defaultDescription: 'Preview claim',
+      minWithdrawableSats: preview,
+      maxWithdrawableSats: preview,
+      host: 'preview'
+    })
+    withdrawActions.setResult({ amountSats: preview, settled: true })
+    setPhase('success')
+  }, [params, router, wallet?.sats])
 
   useEffect(() => {
     trackEvent(AnalyticsEvent.WALLET_RECEIVE_STARTED)
@@ -104,6 +127,9 @@ export function WithdrawScreen() {
 
     claimingRef.current = true
     setError(null)
+    setBalanceSnapshot(wallet?.sats ?? null)
+    setBalanceCaptured(true)
+    unlockClaimSound()
     setPhase('claiming')
     withdrawActions.setAmount(amountSats)
 
@@ -129,15 +155,20 @@ export function WithdrawScreen() {
     }
   }
 
-  if (phase === 'success' || flow.result) {
+  if (phase === 'claiming' || phase === 'success' || flow.result) {
     return (
-      <WithdrawSuccess
+      <ClaimCelebration
+        phase={phase === 'claiming' && !flow.result ? 'charging' : 'celebrate'}
         amountSats={flow.result?.amountSats ?? amountSats ?? 0}
         settled={flow.result?.settled ?? false}
+        snapshot={balanceSnapshot}
+        captured={balanceCaptured}
+        liveBalance={wallet?.sats ?? null}
         onDone={() => {
           withdrawActions.reset()
           router.replace('/wallet')
         }}
+        onDismiss={() => router.back()}
       />
     )
   }
@@ -192,22 +223,14 @@ export function WithdrawScreen() {
             )}
             <Button
               type="button"
+              onPointerDown={() => unlockClaimSound()}
               onClick={claim}
               disabled={!amountValid || phase === 'claiming' || !!flow.result}
               className="h-12 w-full"
             >
-              {phase === 'claiming' ? (
-                <>
-                  <Spinner size={16} />
-                  Claiming…
-                </>
-              ) : (
-                <>
-                  <ArrowDownToLine className="size-4" />
-                  Withdraw
-                  {amountSats ? ` ${amountSats.toLocaleString()} sats` : ''}
-                </>
-              )}
+              <ArrowDownToLine className="size-4" />
+              Withdraw
+              {amountSats ? ` ${amountSats.toLocaleString()} sats` : ''}
             </Button>
           </div>
         </div>
@@ -240,6 +263,16 @@ async function waitForSettlement(
 
 function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+/** Dev-only strike preview: `/wallet/withdraw?previewClaim=2100`. */
+function readPreviewClaim(): number | null {
+  if (process.env.NODE_ENV !== 'development') return null
+  if (typeof window === 'undefined') return null
+  const raw = new URLSearchParams(window.location.search).get('previewClaim')
+  const amount = Number(raw)
+  if (!Number.isFinite(amount) || amount <= 0) return null
+  return Math.min(100_000_000, Math.floor(amount))
 }
 
 function VoucherPreview({
@@ -292,41 +325,3 @@ function NoWalletNotice() {
   )
 }
 
-function WithdrawSuccess({
-  amountSats,
-  settled,
-  onDone
-}: {
-  amountSats: number
-  settled: boolean
-  onDone: () => void
-}) {
-  return (
-    <div className="flex flex-1 flex-col items-center justify-between px-4 pb-6 pt-10 text-center">
-      <div className="flex flex-col items-center gap-6">
-        <div className="flex size-20 items-center justify-center rounded-full bg-green-500/10 text-green-500">
-          <Check className="size-10" />
-        </div>
-        <div className="space-y-2">
-          <h1 className="text-2xl font-semibold text-foreground">
-            {settled ? 'Funds received' : 'Withdraw requested'}
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {settled
-              ? `${amountSats.toLocaleString()} sats landed in your wallet.`
-              : `${amountSats.toLocaleString()} sats are on the way — they'll appear once the sender pays.`}
-          </p>
-        </div>
-      </div>
-
-      <div className="flex w-full flex-col gap-2">
-        <Button asChild variant="secondary" className="h-12 w-full">
-          <Link href="/wallet/activity">View activity</Link>
-        </Button>
-        <Button onClick={onDone} className="h-12 w-full">
-          Done
-        </Button>
-      </div>
-    </div>
-  )
-}

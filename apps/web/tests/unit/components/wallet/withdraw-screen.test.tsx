@@ -47,6 +47,10 @@ vi.mock('@/lib/client/lnurl-scan', async importOriginal => {
 vi.mock('@/lib/analytics/gtag', () => ({ trackEvent: vi.fn() }))
 
 import { WithdrawScreen } from '@/components/wallet/withdraw/withdraw-screen'
+import {
+  claimPourShare,
+  resolveClaimBalances
+} from '@/components/wallet/withdraw/claim-celebration'
 import { resetAllFlows, withdrawActions } from '@/lib/client/wallet-flow-store'
 
 const VOUCHER: LnurlWithdrawParams = {
@@ -129,6 +133,36 @@ describe('WithdrawScreen', () => {
     expect(screen.getByRole('heading', { name: 'Funds received' })).toBeTruthy()
     expect(makeInvoiceMock).not.toHaveBeenCalled()
     expect(submitLnurlWithdrawMock).not.toHaveBeenCalled()
+  })
+
+  it('counts a click-time balance up by the claimed sats', () => {
+    expect(
+      resolveClaimBalances({
+        snapshot: 4000,
+        captured: true,
+        live: 4000,
+        amount: 1000,
+        settled: true
+      })
+    ).toEqual({ before: 4000, after: 5000 })
+  })
+
+  it('treats a settled live balance as already including the claim when nothing was captured', () => {
+    expect(
+      resolveClaimBalances({
+        snapshot: null,
+        captured: false,
+        live: 5000,
+        amount: 1000,
+        settled: true
+      })
+    ).toEqual({ before: 4000, after: 5000 })
+  })
+
+  it('keeps a small claim visible in the balance fill', () => {
+    expect(claimPourShare(0, 1000)).toBe(1)
+    expect(claimPourShare(100_000, 1000)).toBeGreaterThanOrEqual(0.26)
+    expect(claimPourShare(1000, 0)).toBe(0)
   })
 
   it('ignores a second Withdraw click while the first claim is in flight', async () => {

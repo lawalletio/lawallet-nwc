@@ -30,7 +30,8 @@ const APP_SHELL = [
   '/wallet/receive',
   '/wallet/send',
   '/wallet/scan',
-  '/wallet/settings'
+  '/wallet/settings',
+  '/animations/treasure-chest.lottie'
 ]
 
 // Read APIs safe to serve stale-while-revalidate while offline. Profile and
@@ -96,6 +97,7 @@ function isStaticAsset(url) {
     url.pathname.startsWith('/_next/static/') ||
     url.pathname.startsWith('/icons/') ||
     url.pathname.startsWith('/logos/') ||
+    url.pathname.startsWith('/animations/') ||
     /\.(?:png|jpg|jpeg|svg|webp|woff2?|ico)$/.test(url.pathname)
   )
 }

@@ -414,7 +414,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false
     let inFlight: Promise<void> | null = null
 
-    function dropJwtKeepCredentials() {
+    function dropJwtKeepCredentials(expected: string | null) {
+      // A newer login may have replaced the token while this check was in
+      // flight (the dev admin button writes localStorage, then reloads).
+      // Don't erase that session.
+      if (expected && localStorage.getItem(JWT_STORAGE_KEY) !== expected) {
+        return
+      }
       endSessionKeepCredentials()
     }
 
@@ -474,7 +480,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 await remint(signer, storedMethod)
                 return
               } catch {
-                dropJwtKeepCredentials()
+                dropJwtKeepCredentials(storedToken)
                 return
               }
             }
@@ -492,7 +498,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const dueForRefresh = isJwtDueForRefresh(storedToken)
 
         if (expired && !canRemint) {
-          dropJwtKeepCredentials()
+          dropJwtKeepCredentials(storedToken)
           return
         }
 
@@ -504,19 +510,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               return
             } catch {
               if (expired) {
-                dropJwtKeepCredentials()
+                dropJwtKeepCredentials(storedToken)
                 return
               }
               // Token is still inside the buffer — fall through to validate.
             }
           } else if (expired) {
-            dropJwtKeepCredentials()
+            dropJwtKeepCredentials(storedToken)
             return
           }
         }
 
+        let validation
         try {
-          const validation = await validateJwt(storedToken)
+          let lastError: unknown
+          for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+              validation = await validateJwt(storedToken)
+              lastError = undefined
+              break
+            } catch (err) {
+              lastError = err
+              const transient =
+                err instanceof TypeError ||
+                (err instanceof Error &&
+                  /failed to fetch|timed out/i.test(err.message))
+              if (!transient || attempt === 2) throw err
+              await new Promise(resolve => setTimeout(resolve, 200 * (attempt + 1)))
+              if (cancelled) return
+              if (localStorage.getItem(JWT_STORAGE_KEY) !== storedToken) return
+            }
+          }
+          if (!validation) throw lastError ?? new Error('JWT validation failed')
           if (cancelled) return
 
           const existingSigner = signerRef.current
@@ -557,9 +582,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               // Keep the still-valid token; scheduleRefresh already armed.
             }
           }
-        } catch {
+        } catch (err) {
+          const transient =
+            err instanceof TypeError ||
+            (err instanceof Error && /failed to fetch|timed out/i.test(err.message))
+          // A blip while the page is loading must not throw away a valid
+          // session. The dev admin login was landing here and wiping the
+          // token it had just stored.
+          if (transient) {
+            if (!cancelled) {
+              setState(prev => ({
+                ...prev,
+                status: 'unauthenticated',
+                signer: null
+              }))
+            }
+            return
+          }
           if (!canRemint) {
-            dropJwtKeepCredentials()
+            dropJwtKeepCredentials(storedToken)
             return
           }
           const signer = await resolveSigner()
@@ -568,11 +609,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               await remint(signer, storedMethod)
               return
             } catch {
-              dropJwtKeepCredentials()
+              dropJwtKeepCredentials(storedToken)
               return
             }
           }
-          dropJwtKeepCredentials()
+          dropJwtKeepCredentials(storedToken)
         }
       })()
 
@@ -689,12 +730,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // API client bound to current JWT
   const handleUnauthorized = useCallback(() => {
+    const stored = localStorage.getItem(JWT_STORAGE_KEY)
+    // Anonymous 401s must not wipe a token that was just written and isn't
+    // in React state yet — that's the dev admin login race.
+    if (stored && stored !== state.jwt) return
     if (hasRecoverableSession()) {
       endSessionKeepCredentials()
       return
     }
     logout()
-  }, [endSessionKeepCredentials, logout])
+  }, [state.jwt, endSessionKeepCredentials, logout])
 
   const apiClient = React.useMemo(
     () =>
