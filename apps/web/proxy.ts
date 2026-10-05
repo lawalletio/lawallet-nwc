@@ -22,12 +22,25 @@ const CORS_HEADERS = {
   'Access-Control-Max-Age': '86400'
 } as const
 
+/**
+ * MCP clients mirror JSON-RPC fields into `Mcp-*` headers and must read the
+ * `WWW-Authenticate` challenge that starts OAuth. Origin stays unrestricted
+ * for the same reason as above: auth is a bearer token, never a cookie.
+ */
+const MCP_CORS_HEADERS = {
+  ...CORS_HEADERS,
+  'Access-Control-Allow-Headers':
+    'Authorization, Content-Type, Mcp-Protocol-Version, Mcp-Method, Mcp-Name, Mcp-Session-Id, Last-Event-ID',
+  'Access-Control-Expose-Headers': 'WWW-Authenticate'
+}
+
 const SELF_MANAGED_CORS = [
   /^\/api\/lud16(\/|$)/,
   /^\/api\/cards\/[^/]+\/(scan|write|wipe)(\/|$)/
 ]
 
 const JWT_ROUTE = /^\/api\/jwt(\/|$)/
+const MCP_ROUTE = /^\/api\/mcp(\/|$)/
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
@@ -39,12 +52,14 @@ export function proxy(request: NextRequest) {
     return NextResponse.next()
   }
 
+  const headers = MCP_ROUTE.test(pathname) ? MCP_CORS_HEADERS : CORS_HEADERS
+
   if (request.method === 'OPTIONS') {
-    return new NextResponse(null, { status: 204, headers: CORS_HEADERS })
+    return new NextResponse(null, { status: 204, headers })
   }
 
   const response = NextResponse.next()
-  for (const [name, value] of Object.entries(CORS_HEADERS)) {
+  for (const [name, value] of Object.entries(headers)) {
     response.headers.set(name, value)
   }
   return response

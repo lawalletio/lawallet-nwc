@@ -300,6 +300,8 @@ model User {
   voucherSenderAllowlist             String[]                           @default([])
   cardActivationBonuses              CardActivationBonus[]
   currencyPrefs                      Json?
+  oauthGrants                        OAuthGrant[]
+  mcpPayments                        McpPayment[]
 
   @@index([role])
 }
@@ -1253,5 +1255,90 @@ model VoucherTransfer {
   completedAt    DateTime?
 
   @@unique([servicePubkey, oldNonce])
+  @@index([userId, createdAt])
+}
+
+/// OAuth 2.1 public client registered through RFC 7591 dynamic client
+/// registration (`POST /api/oauth/register`) — an MCP host such as Claude or
+/// ChatGPT. There is no client secret: every client is public and must use
+/// PKCE.
+model OAuthClient {
+  /// The OAuth `client_id`.
+  id           String       @id @default(cuid())
+  name         String
+  redirectUris String[]
+  createdAt    DateTime     @default(now())
+  grants       OAuthGrant[]
+
+  @@index([createdAt])
+}
+
+/// One account's authorization of one OAuth client for this instance's MCP
+/// endpoint. The consent screen creates the row holding a single-use
+/// authorization code; the token endpoint then swaps it for a rotating
+/// access/refresh token pair. Only SHA-256 hashes of codes and tokens are
+/// stored, and a revoked grant keeps its row (`revokedAt`) so the payment
+/// ledger below stays auditable.
+model OAuthGrant {
+  id               String       @id @default(cuid())
+  clientId         String
+  client           OAuthClient  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  userId           String
+  user             User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Granted scopes — a subset of `read`, `write`, `spend`.
+  scopes           String[]
+  /// RFC 8707 resource the tokens are bound to (this instance's MCP URL).
+  resource         String
+  /// Rolling 24h spend budget in sats. Null unless `spend` was granted.
+  spendLimitSats   Int?
+  codeHash         String?      @unique
+  codeChallenge    String?
+  redirectUri      String?
+  codeExpiresAt    DateTime?
+  /// Set when the code is exchanged. A second exchange revokes the grant.
+  codeUsedAt       DateTime?
+  accessTokenHash  String?      @unique
+  accessExpiresAt  DateTime?
+  refreshTokenHash String?      @unique
+  refreshExpiresAt DateTime?
+  revokedAt        DateTime?
+  lastUsedAt       DateTime?
+  createdAt        DateTime     @default(now())
+  payments         McpPayment[]
+
+  @@index([userId])
+  @@index([clientId])
+}
+
+enum McpPaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  UNKNOWN
+}
+
+/// Ledger of payments sent through the MCP `wallet_pay_invoice` tool. It
+/// enforces the grant's spend budget and makes a retried tool call idempotent:
+/// one wallet pays a given payment hash at most once.
+model McpPayment {
+  id           String           @id @default(cuid())
+  grantId      String
+  grant        OAuthGrant       @relation(fields: [grantId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// RemoteWallet.id that paid. Not a relation, so the ledger outlives the wallet.
+  walletId     String
+  paymentHash  String
+  bolt11       String
+  amountSats   Int
+  feesPaidSats Int?
+  status       McpPaymentStatus @default(PENDING)
+  preimage     String?
+  error        String?
+  createdAt    DateTime         @default(now())
+  resolvedAt   DateTime?
+
+  @@unique([walletId, paymentHash])
+  @@index([grantId, createdAt])
   @@index([userId, createdAt])
 }

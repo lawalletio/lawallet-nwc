@@ -9,6 +9,7 @@ import { useAuth } from '@/components/admin/auth-context'
 import { Card3D } from '@/components/activate/card-3d'
 import { InlineAuth } from '@/components/activate/inline-auth'
 import { ActivationSuccess } from '@/components/activate/activation-success'
+import { rememberGrantedActivationBonus } from '@/lib/client/activation-bonus-notice'
 
 interface ActivationPreview {
   tokenId: string
@@ -39,6 +40,7 @@ export function ActivateClient({ tokenId }: { tokenId: string }) {
   const [autoActivate, setAutoActivate] = useState(false)
   const [nextPath, setNextPath] = useState('/wallet')
   const [claimAddress, setClaimAddress] = useState(false)
+  const [bonusSats, setBonusSats] = useState<number | null>(null)
 
   // Public preview — no auth required. Surfaces claimed/expired via `status`.
   const loadPreview = useCallback(async () => {
@@ -76,9 +78,13 @@ export function ActivateClient({ tokenId }: { tokenId: string }) {
       )) as {
         card?: ActivationPreview['card']
         needsLightningAddress?: boolean
-        bonuses?: { freeLightningAddress?: boolean }
+        bonuses?: {
+          freeLightningAddress?: boolean
+          sats?: { granted?: boolean; amountSats?: number }
+        }
       }
       setClaimedCard(res?.card ?? null)
+      setBonusSats(rememberGrantedActivationBonus(res?.bonuses))
       if (res?.needsLightningAddress) {
         const bonus = res.bonuses?.freeLightningAddress ? '&bonus=1' : ''
         setNextPath(`/wallet/claim-username?from=activate${bonus}`)
@@ -155,6 +161,7 @@ export function ActivateClient({ tokenId }: { tokenId: string }) {
             title={title}
             nextPath={nextPath}
             claimAddress={claimAddress}
+            bonusSats={bonusSats}
           />
         ) : (
           <div className="flex flex-1 flex-col">

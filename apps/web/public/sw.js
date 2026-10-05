@@ -30,7 +30,8 @@ const APP_SHELL = [
   '/wallet/receive',
   '/wallet/send',
   '/wallet/scan',
-  '/wallet/settings'
+  '/wallet/settings',
+  '/animations/treasure-chest.lottie'
 ]
 
 // Read APIs safe to serve stale-while-revalidate while offline. Profile and
@@ -96,6 +97,7 @@ function isStaticAsset(url) {
     url.pathname.startsWith('/_next/static/') ||
     url.pathname.startsWith('/icons/') ||
     url.pathname.startsWith('/logos/') ||
+    url.pathname.startsWith('/animations/') ||
     /\.(?:png|jpg|jpeg|svg|webp|woff2?|ico)$/.test(url.pathname)
   )
 }
@@ -127,6 +129,11 @@ self.addEventListener('fetch', event => {
 
   const url = new URL(request.url)
   if (url.origin !== self.location.origin) return
+
+  // The OAuth consent page is useless offline and its URL carries a fresh
+  // `state` and PKCE challenge on every visit, so caching it would only grow
+  // the page cache by one entry per authorization.
+  if (url.pathname.startsWith('/oauth/')) return
 
   // HTML navigations — network-first with cache fallback.
   if (request.mode === 'navigate') {

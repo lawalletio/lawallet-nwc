@@ -5,6 +5,7 @@ import { SpeedInsights } from '@vercel/speed-insights/next'
 import { Providers } from './providers'
 import { GoogleAnalytics } from '@/components/analytics/google-analytics'
 import { DevBanner } from '@/components/dev-banner'
+import { TreasureChestPreload } from '@/components/treasure-chest-preload'
 import { getSettings } from '@/lib/settings'
 import './globals.css'
 
@@ -44,7 +45,14 @@ export default async function RootLayout({
         className={`flex h-dvh flex-col overflow-y-auto bg-background ${inter.className}`}
       >
         {/* Visible only outside production (local `next dev`). */}
+        <link
+          rel="preload"
+          href="/animations/treasure-chest.lottie"
+          as="fetch"
+          crossOrigin="anonymous"
+        />
         {process.env.NODE_ENV !== 'production' && <DevBanner />}
+        <TreasureChestPreload />
         <GoogleAnalytics gtagId={gtagId} />
         <Providers>{children}</Providers>
         <SpeedInsights />

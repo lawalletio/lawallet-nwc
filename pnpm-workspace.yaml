@@ -154,6 +154,15 @@ overrides:
   # Resolved by bumping fumadocs-core to 16.8.0 in apps/docs, which drops the
   # image-size dependency entirely — no override is possible here.
 
+# GHSA-vfj7-8cjw-p6xm (high): braces <=3.0.3 can exhaust the stack on deeply
+# nested patterns, and the advisory has no patched release. It is only reached
+# through @scalar/api-reference-react and tailwind's file watcher — this app
+# never compiles user-supplied brace patterns. Drop this ignore once braces
+# publishes a fix.
+auditConfig:
+  ignoreGhsas:
+    - GHSA-vfj7-8cjw-p6xm
+
 minimumReleaseAgeExclude:
   - autoprefixer@10.5.6
   - fumadocs-core@16.15.9

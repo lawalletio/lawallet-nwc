@@ -7,8 +7,10 @@ import { createLncurlRemoteWallet } from './wallet/lncurl-wallet'
 import { ServiceUnavailableError } from '@/types/server/errors'
 
 /**
- * Creates a brand-new `User` record for an authenticated pubkey, optionally
- * provisioning an LNCurl courtesy wallet when `lncurl_auto_create` is enabled.
+ * Creates a brand-new `User` record for an authenticated pubkey, provisioning
+ * an LNCurl courtesy wallet when `lncurl_auto_create` is enabled. A mint
+ * failure deletes the new row and throws, so signup does not succeed with
+ * no wallet.
  *
  * The returned shape mirrors what `findUnique` callers (notably
  * `/api/users/me`) expect — the primary `LightningAddress` with its bound
@@ -60,9 +62,8 @@ export async function createNewUser(
   })
 
   // When LNCurl auto-provisioning is on, the account is not usable without
-  // that courtesy wallet. A mint failure removes the row just created so a
-  // retry can sign up again, and the request fails instead of continuing
-  // with no wallet.
+  // the courtesy wallet. A mint failure rolls the new user back and surfaces
+  // as 503 so signup can be retried — it must not succeed with no wallet.
   if (lncurl_auto_create === 'true') {
     try {
       const lncurlWallet = await createLncurlRemoteWallet({
@@ -75,14 +76,16 @@ export async function createNewUser(
         { userId: user.id, err: String(err) },
         'LNCurl auto-create failed during signup'
       )
-      await prisma.user.delete({ where: { id: user.id } }).catch(deleteErr => {
+      try {
+        await prisma.user.delete({ where: { id: user.id } })
+      } catch (deleteErr) {
         logger.error(
           { userId: user.id, err: String(deleteErr) },
-          'Failed to roll back a signup whose LNCurl wallet could not be minted'
+          'Failed to roll back user after LNCurl signup mint failure'
         )
-      })
+      }
       throw new ServiceUnavailableError(
-        'LNCurl could not provision a courtesy wallet, so signup did not finish. Retry when the LNCurl server is reachable.'
+        'Could not create a wallet. Try again.'
       )
     }
   }

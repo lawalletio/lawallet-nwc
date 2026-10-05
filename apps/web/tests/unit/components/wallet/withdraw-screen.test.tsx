@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { LnurlWithdrawParams } from '@/lib/client/lnurl-scan'
 
 const replaceMock = vi.hoisted(() => vi.fn())
@@ -25,6 +25,13 @@ vi.mock('@/lib/client/hooks/use-api', () => ({
     loading: false,
     error: null,
     refetch: async () => undefined
+  }),
+  invalidateApiPath: vi.fn()
+}))
+
+vi.mock('@/components/admin/auth-context', () => ({
+  useAuth: () => ({
+    apiClient: { get: vi.fn(async () => undefined) }
   })
 }))
 
@@ -47,6 +54,10 @@ vi.mock('@/lib/client/lnurl-scan', async importOriginal => {
 vi.mock('@/lib/analytics/gtag', () => ({ trackEvent: vi.fn() }))
 
 import { WithdrawScreen } from '@/components/wallet/withdraw/withdraw-screen'
+import {
+  claimPourShare,
+  resolveClaimBalances
+} from '@/components/wallet/withdraw/claim-celebration'
 import { resetAllFlows, withdrawActions } from '@/lib/client/wallet-flow-store'
 
 const VOUCHER: LnurlWithdrawParams = {
@@ -131,6 +142,36 @@ describe('WithdrawScreen', () => {
     expect(submitLnurlWithdrawMock).not.toHaveBeenCalled()
   })
 
+  it('counts a click-time balance up by the claimed sats', () => {
+    expect(
+      resolveClaimBalances({
+        snapshot: 4000,
+        captured: true,
+        live: 4000,
+        amount: 1000,
+        settled: true
+      })
+    ).toEqual({ before: 4000, after: 5000 })
+  })
+
+  it('treats a settled live balance as already including the claim when nothing was captured', () => {
+    expect(
+      resolveClaimBalances({
+        snapshot: null,
+        captured: false,
+        live: 5000,
+        amount: 1000,
+        settled: true
+      })
+    ).toEqual({ before: 4000, after: 5000 })
+  })
+
+  it('keeps a small claim visible in the balance fill', () => {
+    expect(claimPourShare(0, 1000)).toBe(1)
+    expect(claimPourShare(100_000, 1000)).toBeGreaterThanOrEqual(0.26)
+    expect(claimPourShare(1000, 0)).toBe(0)
+  })
+
   it('ignores a second Withdraw click while the first claim is in flight', async () => {
     let resolveInvoice: (value: {
       bolt11: string
@@ -150,7 +191,9 @@ describe('WithdrawScreen', () => {
     fireEvent.click(cta)
     fireEvent.click(cta)
 
-    expect(makeInvoiceMock).toHaveBeenCalledTimes(1)
+    await waitFor(() => {
+      expect(makeInvoiceMock).toHaveBeenCalledTimes(1)
+    })
 
     await act(async () => {
       resolveInvoice({ bolt11: 'lnbc1test', paymentHash: 'hash' })

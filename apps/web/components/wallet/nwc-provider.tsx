@@ -121,6 +121,11 @@ export function useWalletNwc(): WalletNwcValue {
   return ctx
 }
 
+/** Same shared balance, or null when the screen is rendered outside the wallet layout. */
+export function useWalletNwcOptional(): WalletNwcValue | null {
+  return useContext(WalletNwcContext)
+}
+
 /**
  * Runs `listener` on every NIP-47 payment event seen by the shared
  * connection. The latest callback is used without re-subscribing.

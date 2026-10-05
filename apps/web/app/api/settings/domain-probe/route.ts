@@ -3,7 +3,10 @@ import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { authenticateSettingsWriteRequest } from '@/lib/settings-auth'
-import { probeDomainRouting } from '@/lib/domain-onboarding'
+import {
+  normalizeDomainProbeInput,
+  probeDomainRouting
+} from '@/lib/domain-onboarding'
 import { eventBus } from '@/lib/events/event-bus'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { ValidationError } from '@/types/server/errors'
@@ -28,19 +31,34 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     )
   }
 
+  // The probe normalizes again and throws a plain Error on a bad domain,
+  // which would surface as a 500 with its message lost.
+  try {
+    normalizeDomainProbeInput(parsed.data)
+  } catch (error) {
+    throw new ValidationError((error as Error).message)
+  }
+
   const result = await probeDomainRouting(parsed.data)
 
-  const domainVerified = result.status === 'ready'
-  await prisma.settings.upsert({
-    where: { name: 'domain_verified' },
-    update: { value: domainVerified ? 'true' : 'false' },
-    create: {
-      name: 'domain_verified',
-      value: domainVerified ? 'true' : 'false'
-    }
+  // `domain_verified` describes the instance's own domain. Probing any other
+  // one (a typo, a candidate not saved yet) must not flip it.
+  const configured = await prisma.settings.findUnique({
+    where: { name: 'domain' }
   })
-  invalidateHotSettingsCache()
-  eventBus.emit({ type: 'settings:updated', timestamp: Date.now() })
+  if (configured?.value.trim().toLowerCase() === result.domain) {
+    const domainVerified = result.status === 'ready'
+    await prisma.settings.upsert({
+      where: { name: 'domain_verified' },
+      update: { value: domainVerified ? 'true' : 'false' },
+      create: {
+        name: 'domain_verified',
+        value: domainVerified ? 'true' : 'false'
+      }
+    })
+    invalidateHotSettingsCache()
+    eventBus.emit({ type: 'settings:updated', timestamp: Date.now() })
+  }
 
   return NextResponse.json(result)
 })

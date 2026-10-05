@@ -235,6 +235,52 @@ describe('PasskeyLoginButton', () => {
     expect(mocks.login).toHaveBeenCalledTimes(1)
   })
 
+  it('surfaces a retry hint when cancel is announced, without a toast', async () => {
+    const user = userEvent.setup()
+    vi.mocked(registerPasskeyAccount).mockRejectedValue(
+      new DOMException('user closed the prompt', 'NotAllowedError')
+    )
+
+    render(<PasskeyLoginButton mode="register" surfaceCancel />)
+
+    await user.click(
+      screen.getByRole('button', { name: /create with a passkey/i })
+    )
+
+    expect(
+      await screen.findByText(/passkey prompt was closed/i)
+    ).toBeInTheDocument()
+    expect(mocks.toastError).not.toHaveBeenCalled()
+    expect(
+      screen.getByRole('button', { name: /create with a passkey/i })
+    ).toBeEnabled()
+  })
+
+  it('uses the caller duplicate message on the register path', async () => {
+    const user = userEvent.setup()
+    vi.mocked(registerPasskeyAccount).mockRejectedValue(
+      new PasskeyError('duplicate', 'This device already has a passkey')
+    )
+
+    render(
+      <PasskeyLoginButton
+        mode="register"
+        duplicateMessage="Sign in with the passkey you already created."
+      />
+    )
+
+    await user.click(
+      screen.getByRole('button', { name: /create with a passkey/i })
+    )
+
+    expect(
+      await screen.findByText('Sign in with the passkey you already created.')
+    ).toBeInTheDocument()
+    expect(mocks.toastError).toHaveBeenCalledWith(
+      'Sign in with the passkey you already created.'
+    )
+  })
+
   it('honors a custom label and the disabled prop', () => {
     render(
       <PasskeyLoginButton mode="authenticate" label="Use passkey" disabled />

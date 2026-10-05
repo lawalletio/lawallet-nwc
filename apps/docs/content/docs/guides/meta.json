@@ -3,6 +3,7 @@
   "pages": [
     "index",
     "sdk",
+    "mcp",
     "jwt-authentication",
     "testing",
     "debugging",

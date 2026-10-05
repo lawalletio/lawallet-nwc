@@ -8,11 +8,11 @@ import { resolveAddressDomain } from '@/lib/public-url'
 import { resolveWalletRoute } from '@/lib/wallet/resolve-payment-route'
 import { getPrimaryRemoteWalletForUser } from '@/lib/wallet/primary-wallet'
 import { decryptRemoteWalletConfig } from '@/lib/wallet/remote-wallet-vault'
-import { currencyPrefsSchema } from '@/lib/validation/schemas'
 import {
   mintCourtesyLncurlWallet,
-  replaceDeadLncurlPrimaryWallet
+  reviveDeadCourtesyWallet
 } from '@/lib/wallet/lncurl-wallet'
+import { currencyPrefsSchema } from '@/lib/validation/schemas'
 import { eventBus } from '@/lib/events/event-bus'
 import { logger } from '@/lib/logger'
 
@@ -56,29 +56,21 @@ export const GET = withErrorHandling(async (request: Request) => {
   // domain directly rather than `resolvePublicEndpoint`, which mixes the
   // two concerns.
   const addressDomain = await resolveAddressDomain(request)
+
+  // A courtesy LNCurl wallet the provider already destroyed must be replaced
+  // before send or receive read this connection string. Non-LNCurl wallets
+  // are left alone. `reviveDeadCourtesyWallet` re-points the primary address
+  // at the replacement, so mirror that onto the row already in hand.
+  const revived = await reviveDeadCourtesyWallet(user.id)
   let primaryAddress = user.lightningAddresses[0]
-  const boundWallet = primaryAddress?.remoteWallet
-  const replaced =
-    primaryAddress && boundWallet?.status === 'DEAD' && boundWallet.id
-      ? await replaceDeadLncurlPrimaryWallet({
-          userId: user.id,
-          mode: primaryAddress.mode,
-          boundWallet: {
-            id: boundWallet.id,
-            status: boundWallet.status,
-            config: boundWallet.config
-          }
-        })
-      : null
-  if (replaced && primaryAddress) {
+  if (revived && primaryAddress) {
     primaryAddress = {
       ...primaryAddress,
-      remoteWalletId: replaced.id,
-      remoteWallet: replaced
+      mode: 'CUSTOM_NWC',
+      redirect: null,
+      remoteWalletId: revived.id,
+      remoteWallet: revived
     }
-    eventBus.emit({ type: 'listener:updated', timestamp: Date.now() })
-    eventBus.emit({ type: 'addresses:updated', timestamp: Date.now() })
-    eventBus.emit({ type: 'users:updated', timestamp: Date.now() })
   }
 
   // A paid claim that ran when the account had no address used to insert a
@@ -136,7 +128,7 @@ export const GET = withErrorHandling(async (request: Request) => {
   // CUSTOM_NWC binding. The legacy/display isDefault flag is synchronized from
   // that link, but is no longer the source of truth.
   const primaryWallet =
-    replaced ?? (await getPrimaryRemoteWalletForUser(user.id))
+    revived ?? (await getPrimaryRemoteWalletForUser(user.id))
   const primaryWalletConfig = primaryWallet
     ? decryptRemoteWalletConfig(
         primaryWallet.id,
