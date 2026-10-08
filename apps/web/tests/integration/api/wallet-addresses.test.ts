@@ -121,6 +121,7 @@ function makeWallet(
 beforeEach(() => {
   resetPrismaMock()
   vi.clearAllMocks()
+  vi.mocked(getSettings).mockResolvedValue({})
 })
 
 // ── GET /api/wallet/addresses ────────────────────────────────────────────────
@@ -369,7 +370,7 @@ describe('POST /api/wallet/addresses', () => {
   })
 
   it('rejects USER creation when user address registration is disabled', async () => {
-    vi.mocked(getSettings).mockResolvedValueOnce({
+    vi.mocked(getSettings).mockResolvedValue({
       registration_user_enabled: 'false'
     })
     mockAuth()
@@ -389,7 +390,7 @@ describe('POST /api/wallet/addresses', () => {
   })
 
   it('lets ADMIN create when user address registration is disabled', async () => {
-    vi.mocked(getSettings).mockResolvedValueOnce({
+    vi.mocked(getSettings).mockResolvedValue({
       registration_user_enabled: 'false'
     })
     vi.mocked(authenticate).mockResolvedValue({
@@ -452,7 +453,7 @@ describe('POST /api/wallet/addresses', () => {
   })
 
   it('bootstraps a missing account, then returns 402 when paid registration applies', async () => {
-    vi.mocked(getSettings).mockResolvedValueOnce({
+    vi.mocked(getSettings).mockResolvedValue({
       registration_ln_enabled: 'true',
       registration_ln_address: 'admin@provider.com',
       registration_admin_bypass: 'true'
@@ -474,7 +475,7 @@ describe('POST /api/wallet/addresses', () => {
   })
 
   it('rejects with 402 when paid registration is on and caller is USER', async () => {
-    vi.mocked(getSettings).mockResolvedValueOnce({
+    vi.mocked(getSettings).mockResolvedValue({
       registration_ln_enabled: 'true',
       registration_ln_address: 'admin@provider.com',
       registration_admin_bypass: 'true'
@@ -531,8 +532,50 @@ describe('POST /api/wallet/addresses', () => {
     )
   })
 
+  it('skips paid registration for a cardholder with no address and no reserved row', async () => {
+    vi.mocked(getSettings).mockResolvedValue({
+      registration_ln_enabled: 'true',
+      registration_ln_address: 'admin@provider.com',
+      registration_admin_bypass: 'true'
+    })
+    mockAuth()
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
+      id: 'user-1'
+    } as any)
+    vi.mocked(prismaMock.cardActivationBonus.findFirst).mockResolvedValue(null)
+    vi.mocked(prismaMock.card.findFirst).mockResolvedValue({
+      id: 'card-1'
+    } as any)
+    vi.mocked(prismaMock.lightningAddress.findFirst).mockResolvedValue(null)
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(null)
+    vi.mocked(prismaMock.cardActivationBonus.findUnique).mockResolvedValue(null)
+    vi.mocked(prismaMock.lightningAddress.count).mockResolvedValue(0)
+    vi.mocked(prismaMock.lightningAddress.create).mockResolvedValue(
+      makeAddress({ username: 'bob', isPrimary: true }) as any
+    )
+    vi.mocked(prismaMock.remoteWallet.findFirst).mockResolvedValue(null)
+
+    const res = await ListPost(
+      createNextRequest('/api/wallet/addresses', {
+        method: 'POST',
+        body: { username: 'bob' }
+      })
+    )
+    await assertResponse(res, 201)
+    expect(prismaMock.cardActivationBonus.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          cardId: 'card-1',
+          userId: 'user-1',
+          kind: 'FREE_ADDRESS',
+          status: 'REDEEMED'
+        })
+      })
+    )
+  })
+
   it('lets ADMIN bypass payment when admin bypass toggle is on', async () => {
-    vi.mocked(getSettings).mockResolvedValueOnce({
+    vi.mocked(getSettings).mockResolvedValue({
       registration_ln_enabled: 'true',
       registration_ln_address: 'admin@provider.com',
       registration_admin_bypass: 'true'

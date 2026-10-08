@@ -502,12 +502,13 @@ describe('POST /api/activation-tokens/[id]/claim', () => {
     )
   })
 
-  it('does not grant a free address when the card was already claimed', async () => {
+  it('still grants a free address to a new account when the card was claimed before', async () => {
     mockClaimer(null)
     mockPendingToken()
     vi.mocked(prismaMock.cardActivationToken.findFirst).mockResolvedValue({
       id: 'old-claim'
     } as any)
+    vi.mocked(prismaMock.cardActivationBonus.findUnique).mockResolvedValue(null)
     vi.mocked(prismaMock.cardActivationToken.updateMany).mockResolvedValue({
       count: 1
     } as any)
@@ -525,8 +526,17 @@ describe('POST /api/activation-tokens/[id]/claim', () => {
     )
     const body: any = await assertResponse(res, 200)
 
-    expect(body.bonuses.freeLightningAddress).toBe(false)
-    expect(prismaMock.cardActivationBonus.create).not.toHaveBeenCalled()
+    expect(body.bonuses.freeLightningAddress).toBe(true)
+    expect(body.needsLightningAddress).toBe(true)
+    expect(prismaMock.cardActivationBonus.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          userId: 'user1',
+          kind: 'FREE_ADDRESS',
+          status: 'RESERVED'
+        })
+      })
+    )
   })
 
   it('does not grant a second free address to a user who already used the bonus', async () => {
