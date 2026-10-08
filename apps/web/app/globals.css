@@ -222,6 +222,29 @@
   animation: payment-notice-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+/* Credit that rises off a receive QR when a payment lands. */
+@keyframes qr-credit-rise {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.92);
+  }
+  18% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  70% {
+    opacity: 1;
+    transform: translateY(-36px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-72px) scale(1.04);
+  }
+}
+.animate-qr-credit {
+  animation: qr-credit-rise 1.8s ease-out both;
+}
+
 /* SVG checkmark stroke draw. */
 @keyframes draw-check {
   to {
@@ -238,6 +261,9 @@
     animation: none;
   }
   .animate-payment-notice {
+    animation: payment-notice-fade 0.2s ease-out both;
+  }
+  .animate-qr-credit {
     animation: payment-notice-fade 0.2s ease-out both;
   }
   .claim-odo-reel,
