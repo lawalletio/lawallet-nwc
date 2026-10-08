@@ -61,7 +61,6 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { NavTabbar } from '@/components/wallet/shared/nav-tabbar'
 import { RelayErrorBadge } from '@/components/wallet/shared/relay-error-badge'
 import { TransactionRow } from '@/components/wallet/shared/transaction-row'
-import { AddressShareDialog } from '@/components/wallet/home/address-share-dialog'
 import {
   activityDetailHref,
   demoActivityTransactions
@@ -150,7 +149,6 @@ export function HomeScreen() {
     serverActivationBonus
   )
   const bonusRefetched = useRef(false)
-  const [shareOpen, setShareOpen] = useState(false)
   const [pendingAction, setPendingAction] = useState<'receive' | 'send' | null>(
     null
   )
@@ -376,34 +374,20 @@ export function HomeScreen() {
       </div>
 
       {hasAddress && me?.lightningAddress && (
-        <>
-          <button
-            type="button"
-            onClick={() => setShareOpen(true)}
-            className="mx-4 mt-4 flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 text-left transition-colors hover:bg-accent/40"
-          >
-            <div className="flex min-w-0 flex-1 flex-col">
-              <span className="text-xs text-muted-foreground">Address</span>
-              <span className="truncate text-base font-semibold text-foreground">
-                {me.lightningAddress}
-              </span>
-            </div>
-            <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-background text-muted-foreground">
-              <QrCode className="size-5" />
+        <Link
+          href="/wallet/receive"
+          className="mx-4 mt-4 flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 text-left transition-colors hover:bg-accent/40"
+        >
+          <div className="flex min-w-0 flex-1 flex-col">
+            <span className="text-xs text-muted-foreground">Address</span>
+            <span className="truncate text-base font-semibold text-foreground">
+              {me.lightningAddress}
             </span>
-          </button>
-
-          <AddressShareDialog
-            open={shareOpen}
-            onOpenChange={setShareOpen}
-            lightningAddress={me.lightningAddress}
-            // Only inset the avatar when the user actually has a Nostr
-            // profile picture. Falling back to the community isotype here
-            // would overlay every QR with a generic LaWallet mark — keeps
-            // the QR clean and uninterrupted in that case.
-            avatarSrc={profile?.picture || undefined}
-          />
-        </>
+          </div>
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-background text-muted-foreground">
+            <QrCode className="size-5" />
+          </span>
+        </Link>
       )}
 
       {!hasAddress && !meLoading && (

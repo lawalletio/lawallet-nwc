@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import dynamic from 'next/dynamic'
 import { Copy, Check, Share2 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -34,6 +34,8 @@ interface QrDisplayProps {
   centerImage?: string
   /** Side length in px for the centered image. Defaults to ~22% of `size`. */
   centerImageSize?: number
+  /** Drawn over the QR, for example a live payment credit. */
+  overlay?: ReactNode
 }
 
 export function QrDisplay({
@@ -43,7 +45,8 @@ export function QrDisplay({
   className,
   size = 240,
   centerImage,
-  centerImageSize
+  centerImageSize,
+  overlay
 }: QrDisplayProps) {
   const [copied, setCopied] = useState(false)
   const encoded = uppercasePayload ? value.toUpperCase() : value
@@ -93,6 +96,7 @@ export function QrDisplay({
             imageSettings={imageSettings}
           />
         </div>
+        {overlay}
         {centerImage && (
           <div
             aria-hidden

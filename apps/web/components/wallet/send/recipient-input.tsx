@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { ArrowRight } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { Spinner } from '@/components/ui/spinner'
 import { LightningAddressInput } from '@/components/wallet/shared/lightning-address-input'
 import { parseDestination } from '@/lib/client/nwc/parse-destination'
 import {
@@ -14,10 +15,10 @@ import {
 import { contactsActions } from '@/lib/client/contacts-store'
 
 /**
- * Send-flow recipient step. The field itself — suggestions, saved recipients,
- * avatars, keyboard handling — is the shared {@link LightningAddressInput};
- * what stays here is what only the send flow does: resolve the destination
- * (which may be a bolt11 or LNURL, not just an address) and route onward.
+ * Send-flow recipient step. The field is the shared
+ * {@link LightningAddressInput}; saved recipients and domain suggestions stay
+ * off this screen. What stays here is resolving the destination (a bolt11 or
+ * LNURL as well as an address) and routing onward.
  */
 export function RecipientInput() {
   const router = useRouter()
@@ -101,11 +102,11 @@ export function RecipientInput() {
       } else {
         router.push('/wallet/send/amount')
       }
+      // Leave the spinner up — this screen unmounts when the next one loads.
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Invalid recipient'
       setError(message)
       toast.error(message)
-    } finally {
       setLoading(false)
     }
   }
@@ -126,6 +127,8 @@ export function RecipientInput() {
           id="recipient"
           variant="inline"
           allowNonAddress
+          hideContacts
+          hideSuggestions
           value={value}
           onChange={next => {
             setValue(next)
@@ -140,14 +143,27 @@ export function RecipientInput() {
         {error && <p className="text-xs text-destructive">{error}</p>}
       </div>
 
+      <div className="flex min-h-0 flex-1 items-center justify-center">
+        {loading && (
+          <Spinner size={32} role="status" aria-label="Loading next screen" />
+        )}
+      </div>
+
       <div className="relative z-10 -mx-4 shrink-0 border-t border-border/60 bg-background/90 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3 backdrop-blur-xl sm:mx-0 sm:border-t-0 sm:bg-transparent sm:px-0 sm:pb-6 sm:pt-4 sm:backdrop-blur-none">
         <Button
           type="submit"
           className="h-12 w-full"
           disabled={!value.trim() || loading}
+          aria-busy={loading}
         >
-          Continue
-          <ArrowRight className="size-4" />
+          {loading ? (
+            <Spinner size={16} />
+          ) : (
+            <>
+              Continue
+              <ArrowRight className="size-4" />
+            </>
+          )}
         </Button>
       </div>
     </form>
