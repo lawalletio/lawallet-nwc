@@ -30,6 +30,7 @@ import {
   deliverReservedSatsBonus,
   evaluateActivationBonuses,
   hasReservedFreeAddress,
+  owesFreeFirstAddress,
   redeemFreeAddressReservation,
   reserveActivationBonuses,
   resolveClaimWallet
@@ -326,6 +327,50 @@ describe('reserveActivationBonuses', () => {
     )
   })
 
+  it('skips the insert when another account already holds the card bonus', async () => {
+    vi.mocked(prismaMock.cardActivationBonus.findUnique).mockResolvedValue({
+      id: 'grant-1',
+      userId: 'previous-holder'
+    } as any)
+
+    await reserveActivationBonuses(
+      {
+        userId: 'user1',
+        cardId: 'card1',
+        eligibility: {
+          freeLightningAddress: true,
+          needsLightningAddress: true,
+          sats: { eligible: false }
+        }
+      },
+      prismaMock as any
+    )
+
+    expect(prismaMock.cardActivationBonus.create).not.toHaveBeenCalled()
+  })
+
+  it('leaves an existing reservation for the same account in place', async () => {
+    vi.mocked(prismaMock.cardActivationBonus.findUnique).mockResolvedValue({
+      id: 'grant-1',
+      userId: 'user1'
+    } as any)
+
+    await reserveActivationBonuses(
+      {
+        userId: 'user1',
+        cardId: 'card1',
+        eligibility: {
+          freeLightningAddress: true,
+          needsLightningAddress: true,
+          sats: { eligible: false }
+        }
+      },
+      prismaMock as any
+    )
+
+    expect(prismaMock.cardActivationBonus.create).not.toHaveBeenCalled()
+  })
+
   it('does nothing when no bonus is eligible', async () => {
     await reserveActivationBonuses(
       {
@@ -499,6 +544,53 @@ describe('deliverReservedSatsBonus', () => {
   })
 })
 
+describe('owesFreeFirstAddress', () => {
+  it('is free for a cardholder who has never had an address', async () => {
+    vi.mocked(prismaMock.lightningAddress.findFirst).mockResolvedValue(null)
+    vi.mocked(prismaMock.cardActivationBonus.findFirst).mockResolvedValue(null)
+    vi.mocked(prismaMock.card.findFirst).mockResolvedValue({
+      id: 'card-1'
+    } as any)
+
+    await expect(owesFreeFirstAddress('user1')).resolves.toBe(true)
+  })
+
+  it('is off when the operator disables the bonus', async () => {
+    vi.mocked(getSettings).mockResolvedValue({
+      card_free_ln_enabled: 'false'
+    })
+
+    await expect(owesFreeFirstAddress('user1')).resolves.toBe(false)
+    expect(prismaMock.card.findFirst).not.toHaveBeenCalled()
+  })
+
+  it('is not free once the account has an address or has redeemed the bonus', async () => {
+    vi.mocked(prismaMock.lightningAddress.findFirst).mockResolvedValue({
+      username: 'alice'
+    } as any)
+    vi.mocked(prismaMock.card.findFirst).mockResolvedValue({
+      id: 'card-1'
+    } as any)
+
+    await expect(owesFreeFirstAddress('user1')).resolves.toBe(false)
+
+    vi.mocked(prismaMock.lightningAddress.findFirst).mockResolvedValue(null)
+    vi.mocked(prismaMock.cardActivationBonus.findFirst).mockResolvedValue({
+      id: 'used'
+    } as any)
+
+    await expect(owesFreeFirstAddress('user1')).resolves.toBe(false)
+  })
+
+  it('is not free for an account that has not activated a card', async () => {
+    vi.mocked(prismaMock.lightningAddress.findFirst).mockResolvedValue(null)
+    vi.mocked(prismaMock.cardActivationBonus.findFirst).mockResolvedValue(null)
+    vi.mocked(prismaMock.card.findFirst).mockResolvedValue(null)
+
+    await expect(owesFreeFirstAddress('user1')).resolves.toBe(false)
+  })
+})
+
 describe('free address reservation', () => {
   it('reports and redeems a reserved grant', async () => {
     vi.mocked(prismaMock.cardActivationBonus.findFirst).mockResolvedValue({
@@ -519,5 +611,51 @@ describe('free address reservation', () => {
     await expect(hasReservedFreeAddress('user1')).resolves.toBe(false)
     await expect(redeemFreeAddressReservation('user1')).resolves.toBe(false)
     expect(prismaMock.cardActivationBonus.update).not.toHaveBeenCalled()
+  })
+
+  it('records a redeemed grant when the card has no bonus row yet', async () => {
+    vi.mocked(prismaMock.cardActivationBonus.findFirst).mockResolvedValue(null)
+    vi.mocked(prismaMock.card.findFirst).mockResolvedValue({
+      id: 'card-1'
+    } as any)
+    vi.mocked(prismaMock.cardActivationBonus.findUnique).mockResolvedValue(null)
+
+    await expect(redeemFreeAddressReservation('user1')).resolves.toBe(true)
+    expect(prismaMock.cardActivationBonus.create).toHaveBeenCalledWith({
+      data: {
+        cardId: 'card-1',
+        userId: 'user1',
+        kind: 'FREE_ADDRESS',
+        status: 'REDEEMED'
+      }
+    })
+  })
+
+  it('does not overwrite a bonus row that already belongs to this account', async () => {
+    vi.mocked(prismaMock.cardActivationBonus.findFirst).mockResolvedValue(null)
+    vi.mocked(prismaMock.card.findFirst).mockResolvedValue({
+      id: 'card-1'
+    } as any)
+    vi.mocked(prismaMock.cardActivationBonus.findUnique).mockResolvedValue({
+      id: 'grant-1',
+      userId: 'user1'
+    } as any)
+
+    await expect(redeemFreeAddressReservation('user1')).resolves.toBe(true)
+    expect(prismaMock.cardActivationBonus.create).not.toHaveBeenCalled()
+  })
+
+  it('does not treat another account’s card bonus as redeemed for the caller', async () => {
+    vi.mocked(prismaMock.cardActivationBonus.findFirst).mockResolvedValue(null)
+    vi.mocked(prismaMock.card.findFirst).mockResolvedValue({
+      id: 'card-1'
+    } as any)
+    vi.mocked(prismaMock.cardActivationBonus.findUnique).mockResolvedValue({
+      id: 'grant-1',
+      userId: 'previous-holder'
+    } as any)
+
+    await expect(redeemFreeAddressReservation('user1')).resolves.toBe(false)
+    expect(prismaMock.cardActivationBonus.create).not.toHaveBeenCalled()
   })
 })
