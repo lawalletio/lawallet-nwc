@@ -147,18 +147,20 @@ describe('evaluateActivationBonuses', () => {
     expect(result.needsLightningAddress).toBe(true)
   })
 
-  it('does not grant a free address when the card was already claimed', async () => {
+  it('still grants a free address when the card was claimed before', async () => {
     vi.mocked(prismaMock.lightningAddress.findFirst).mockResolvedValue(null)
     vi.mocked(prismaMock.cardActivationToken.findFirst).mockResolvedValue({
       id: 'old'
     } as any)
+    vi.mocked(prismaMock.cardActivationBonus.findFirst).mockResolvedValue(null)
 
     const result = await evaluateActivationBonuses({
       userId: 'user1',
       cardId: 'card1'
     })
 
-    expect(result.freeLightningAddress).toBe(false)
+    expect(result.freeLightningAddress).toBe(true)
+    expect(result.needsLightningAddress).toBe(true)
   })
 
   it('does not grant a free address when the user already used the bonus', async () => {
