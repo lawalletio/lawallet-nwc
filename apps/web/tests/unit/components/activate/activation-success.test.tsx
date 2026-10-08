@@ -35,6 +35,7 @@ describe('ActivationSuccess', () => {
     expect(
       screen.getByRole('button', { name: 'Claim your address' })
     ).toBeTruthy()
+    expect(screen.queryByText(/Pick a Lightning address/i)).toBeNull()
 
     await act(async () => {
       vi.advanceTimersByTime(3000)

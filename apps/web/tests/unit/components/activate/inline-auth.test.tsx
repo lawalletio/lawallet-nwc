@@ -52,7 +52,6 @@ vi.mock('@/lib/client/passkey-api', async importOriginal => {
 import { InlineAuth } from '@/components/activate/inline-auth'
 import {
   PasskeyError,
-  authenticateWithPasskey,
   isPasskeySupported,
   registerPasskeyAccount
 } from '@/lib/client/passkey-api'
@@ -95,40 +94,22 @@ describe('InlineAuth', () => {
     render(<InlineAuth onAuthStart={onAuthStart} />)
 
     expect(
-      screen.getByText('Create a passkey for Sats Club to activate this card.')
+      screen.getByText(
+        'Activate this card with a new passkey or a new Nostr key.'
+      )
     ).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Nostr' })).toBeTruthy()
     expect(
       screen.queryByRole('button', { name: /create a new wallet/i })
     ).toBeNull()
 
-    await user.click(screen.getByRole('button', { name: 'Create a passkey' }))
+    await user.click(screen.getByRole('button', { name: 'Passkey' }))
 
     await waitFor(() => expect(onAuthStart).toHaveBeenCalledTimes(1))
     expect(registerPasskeyAccount).toHaveBeenCalledTimes(1)
-    expect(authenticateWithPasskey).not.toHaveBeenCalled()
     expect(mocks.login).toHaveBeenCalledWith(expect.anything(), 'passkey', {
       secret: SECRET_HEX
     })
-  })
-
-  it('keeps existing passkeys on the login path', async () => {
-    const user = userEvent.setup()
-    const onAuthStart = vi.fn()
-    vi.mocked(authenticateWithPasskey).mockResolvedValue({
-      secretHex: SECRET_HEX,
-      nsec: 'nsec1test',
-      pubkey: 'b'.repeat(64),
-      credentialId: 'cred-1'
-    })
-
-    render(<InlineAuth onAuthStart={onAuthStart} />)
-    await user.click(
-      screen.getByRole('button', { name: 'I already have a passkey' })
-    )
-
-    await waitFor(() => expect(onAuthStart).toHaveBeenCalledTimes(1))
-    expect(authenticateWithPasskey).toHaveBeenCalledTimes(1)
-    expect(registerPasskeyAccount).not.toHaveBeenCalled()
   })
 
   it('explains a cancelled ceremony and a passkey that already exists', async () => {
@@ -138,7 +119,7 @@ describe('InlineAuth', () => {
     )
 
     render(<InlineAuth onAuthStart={vi.fn()} />)
-    await user.click(screen.getByRole('button', { name: 'Create a passkey' }))
+    await user.click(screen.getByRole('button', { name: 'Passkey' }))
     expect(
       await screen.findByText(/passkey prompt was closed — try again/i)
     ).toBeTruthy()
@@ -147,11 +128,9 @@ describe('InlineAuth', () => {
     vi.mocked(registerPasskeyAccount).mockRejectedValueOnce(
       new PasskeyError('duplicate', 'already registered')
     )
-    await user.click(screen.getByRole('button', { name: 'Create a passkey' }))
+    await user.click(screen.getByRole('button', { name: 'Passkey' }))
     expect(
-      await screen.findByText(
-        'This device already has a passkey. Sign in with it below.'
-      )
+      await screen.findByText('This device already has a passkey.')
     ).toBeTruthy()
   })
 
@@ -160,33 +139,24 @@ describe('InlineAuth', () => {
     const user = userEvent.setup()
     render(<InlineAuth onAuthStart={vi.fn()} />)
 
-    expect(
-      screen.queryByRole('button', { name: 'Create a passkey' })
-    ).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Passkey' })).toBeNull()
     expect(screen.getByText(/cannot create a passkey/i)).toBeTruthy()
-    expect(
-      screen.getByRole('button', { name: 'Create a new key' })
-    ).toBeTruthy()
 
-    await user.click(
-      screen.getByRole('button', { name: 'I already have a key' })
-    )
+    await user.click(screen.getByRole('button', { name: 'Nostr' }))
     expect(
-      screen.getByRole('heading', { name: 'Connect your wallet' })
+      screen.getByRole('heading', { name: 'Your new Nostr key' })
     ).toBeTruthy()
   })
 
-  it('still lets an existing Nostr key activate the card', async () => {
+  it('creates a new Nostr key instead of connecting an existing one', async () => {
     const user = userEvent.setup()
     render(<InlineAuth onAuthStart={vi.fn()} />)
-    await user.click(
-      screen.getByRole('button', { name: 'Use a Nostr key instead' })
-    )
+    await user.click(screen.getByRole('button', { name: 'Nostr' }))
     expect(
-      screen.getByRole('button', { name: 'Create a new key' })
+      screen.getByRole('heading', { name: 'Your new Nostr key' })
     ).toBeTruthy()
     expect(
-      screen.getByRole('button', { name: 'I already have a key' })
-    ).toBeTruthy()
+      screen.queryByRole('heading', { name: 'Connect your wallet' })
+    ).toBeNull()
   })
 })
