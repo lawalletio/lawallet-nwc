@@ -321,8 +321,9 @@ export function WalletTab() {
         <div>
           <h3 className="text-sm font-semibold">Card activation bonuses</h3>
           <p className="text-sm text-muted-foreground mt-1">
-            First-time card activation can grant a free Lightning Address and
-            optionally fund the new wallet from an admin treasury.
+            Activating a card lets a new account register its first Lightning
+            Address for free, and can optionally fund the new wallet from an
+            admin treasury.
           </p>
         </div>
         <div className="flex flex-col gap-4">
@@ -330,9 +331,9 @@ export function WalletTab() {
             <div>
               <p className="text-sm font-medium">Free Lightning Address</p>
               <p className="text-sm text-muted-foreground">
-                The first activation of a never-paired card lets that user
-                register one Lightning Address for free. Each card and each
-                account can use this bonus once.
+                A cardholder with no Lightning Address registers their first
+                one for free, even when paid registration is on and even if
+                the card was activated before. Each account can do this once.
               </p>
             </div>
             <SettingSwitch

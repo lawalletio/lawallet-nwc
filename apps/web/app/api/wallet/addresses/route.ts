@@ -11,6 +11,7 @@ import {
 } from '@/lib/auth/paid-registration-guard'
 import {
   hasReservedFreeAddress,
+  owesFreeFirstAddress,
   redeemFreeAddressReservation
 } from '@/lib/wallet/card-activation-onboarding'
 import { validateBody } from '@/lib/validation/middleware'
@@ -97,8 +98,11 @@ export const POST = withErrorHandling(async (request: Request) => {
   // Gate self-service address creation behind the instance policy. When user
   // registration is disabled only admins pass; when paid registration is on,
   // non-bypassing actors must go through /api/invoices + preimage claim.
-  // A reserved first-card-activation bonus skips only the paid gate.
-  const freeCardBonus = await hasReservedFreeAddress(user.id)
+  // A cardholder with no Lightning Address skips only the paid gate: once,
+  // whether or not this card still had a reservable bonus row.
+  const freeCardBonus =
+    (await hasReservedFreeAddress(user.id)) ||
+    (await owesFreeFirstAddress(user.id))
   if (freeCardBonus) {
     await requireUserAddressRegistration(role)
   } else {
