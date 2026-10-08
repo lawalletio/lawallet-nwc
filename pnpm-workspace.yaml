@@ -99,11 +99,16 @@ overrides:
   postcss@<8.5.18: 8.5.23
   # GHSA-f88m-g3jw-g9cj (high): sharp <0.35.0 inherits four libvips CVEs
   # (CVE-2026-33327/33328/35590/35591) in the GIF, TIFF and VIPS decoders.
-  # GHSA-rgj7-g3m4-5g8c (high, 2026-08): libheif overflows (GHSA-g89c-p67h-r497
-  # and GHSA-2jg2-4ch7-h545) remain in <0.35.4. next@16.3.4 caret-pins
-  # `sharp: ^0.35.3`, which still accepts the vulnerable 0.35.3 line, so the
-  # override stays until next asks for ^0.35.4.
-  sharp@<0.35.4: 0.35.4
+  # GHSA-rgj7-g3m4-5g8c (high, 2026-08): libheif overflows remain in <0.35.4.
+  # GHSA-wq5f-xc86-pv6w (high): librsvg CVE-2026-96889 remains in <0.35.5.
+  # next still caret-pins a sharp range that accepts the vulnerable line.
+  sharp@<0.35.5: 0.35.5
+  # GHSA-68fv-2mgg-jv7q (high): source-map-js <1.2.2 can stall the event loop
+  # on indexed source-map offsets. Reached via next > postcss.
+  source-map-js@<1.2.2: 1.2.2
+  # GHSA-cjq9-62q9-8jv4 (high): Next.js image optimization SSRF before 16.3.8.
+  # fumadocs still depends on an older next, so the override is what lifts it.
+  next@>=16.0.0 <16.3.8: 16.3.8
   # GHSA-4x5r-pxfx-6jf8 (low): arbitrary file read via sourceMappingURL.
   # Reached through next > styled-jsx, which pins @babel/core loosely enough
   # that a patched 7.x satisfies it. Build-time only.
