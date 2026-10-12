@@ -352,4 +352,27 @@ describe('RemoteWallet NWC startup migration', () => {
     await expect(migrateRemoteWalletNwcConfigs()).resolves.toBe(1)
     expect(prismaMock.$transaction).toHaveBeenCalledOnce()
   })
+
+  it('finds nothing to do when another instance finished first', async () => {
+    mockState()
+    vi.mocked(prismaMock.$queryRaw)
+      .mockResolvedValueOnce([] as never) // advisory lock
+      .mockResolvedValueOnce([] as never) // empty page
+      .mockResolvedValueOnce([{ count: BigInt(0) }] as never)
+
+    await expect(migrateRemoteWalletNwcConfigs()).resolves.toBe(0)
+    expect(prismaMock.remoteWallet.update).not.toHaveBeenCalled()
+  })
+
+  it('fails when rows are still pending after the pass', async () => {
+    mockState()
+    vi.mocked(prismaMock.$queryRaw)
+      .mockResolvedValueOnce([] as never) // advisory lock
+      .mockResolvedValueOnce([] as never) // empty page
+      .mockResolvedValueOnce([{ count: BigInt(1) }] as never)
+
+    await expect(migrateRemoteWalletNwcConfigs()).rejects.toThrow(
+      'migration is incomplete'
+    )
+  })
 })
