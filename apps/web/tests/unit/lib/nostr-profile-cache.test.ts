@@ -3,6 +3,11 @@ import { nip19 } from 'nostr-tools'
 
 import { prismaMock, resetPrismaMock } from '@/tests/helpers/prisma-mock'
 import { resolveProfiles } from '@/lib/nostr/profile-cache'
+import { precacheProfileImages } from '@/lib/nostr/profile-image-cache'
+
+vi.mock('@/lib/nostr/profile-image-cache', () => ({
+  precacheProfileImages: vi.fn()
+}))
 
 const PUBKEY_A = 'a'.repeat(64)
 const PUBKEY_B = 'b'.repeat(64)
@@ -397,6 +402,31 @@ describe('resolveProfiles', () => {
         where: { npub: NPUB_A },
         update: { lastFetchAttemptAt: NOW, lastFetchError: 'db down' }
       })
+    )
+  })
+  it('stores null for missing fields and precaches with the default helper', async () => {
+    vi.mocked(precacheProfileImages).mockResolvedValue(undefined)
+    vi.mocked(prismaMock.user.findMany).mockResolvedValue([
+      { pubkey: PUBKEY_A }
+    ] as any)
+    vi.mocked(prismaMock.nostrProfileCache.findMany).mockResolvedValue([])
+    const relayFetcher = vi
+      .fn()
+      .mockResolvedValue([kind0(PUBKEY_A, 100, { about: 'hi' })])
+
+    const profiles = await resolveProfiles([PUBKEY_A], {
+      now: NOW,
+      relayFetcher
+    })
+
+    expect(profiles).toMatchObject([{ pubkey: PUBKEY_A, about: 'hi' }])
+    expect(prismaMock.nostrProfileCache.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: expect.objectContaining({ name: null, about: 'hi' })
+      })
+    )
+    expect(precacheProfileImages).toHaveBeenCalledWith(
+      expect.objectContaining({ pubkey: PUBKEY_A })
     )
   })
 })
