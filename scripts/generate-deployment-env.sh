@@ -181,6 +181,8 @@ PROXY_RECONCILE_INTERVAL_MS=600000
 # Polls pending zap invoices to settlement, so NIP-57 receipts also work on
 # wallets that implement no NIP-47 notifications. 0 disables.
 ZAP_SETTLE_INTERVAL_MS=20000
+# The zap tick backs off up to this while no zap invoice is open.
+ZAP_SETTLE_MAX_INTERVAL_MS=300000
 
 # The listener never receives the NIP-57 receipt signer nsec.
 EOF

@@ -424,7 +424,10 @@ for (const variable of [
   'LISTENER_URL',
   'WEB_ORIGIN',
   'LISTENER_AUTH_SECRET',
-  'LISTENER_REQUEST_AUTH_SECRET'
+  'LISTENER_REQUEST_AUTH_SECRET',
+  // Optional tunables — documented so operators can find their defaults.
+  'ZAP_SETTLE_MAX_INTERVAL_MS',
+  'DATA_RETENTION_DAYS'
 ]) {
   requireMatch(
     environmentGuide,
@@ -437,16 +440,16 @@ requireMatch(
   /"deploy:env":\s*"bash scripts\/generate-deployment-env\.sh --mode compose"/,
   'package scripts must expose the Compose generator'
 )
-  requireMatch(
-    packageManifest,
-    /"deploy:env:cloud":\s*"bash scripts\/generate-deployment-env\.sh --mode cloud"/,
-    'package scripts must expose the cloud generator'
-  )
-  requireMatch(
-    listenerDockerfile,
-    /packages\/shared\/node_modules/,
-    'listener Dockerfile must copy shared node_modules so tsup can resolve @asteasolutions/zod-to-openapi'
-  )
+requireMatch(
+  packageManifest,
+  /"deploy:env:cloud":\s*"bash scripts\/generate-deployment-env\.sh --mode cloud"/,
+  'package scripts must expose the cloud generator'
+)
+requireMatch(
+  listenerDockerfile,
+  /packages\/shared\/node_modules/,
+  'listener Dockerfile must copy shared node_modules so tsup can resolve @asteasolutions/zod-to-openapi'
+)
 
 const forbiddenSignerEnv =
   /(?:NIP57|NIP_57|ZAP_RECEIPT|RECEIPT_SIGNER)_(?:NSEC|SECRET|PRIVATE_KEY)\s*=/i

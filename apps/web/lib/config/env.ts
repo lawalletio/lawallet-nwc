@@ -203,6 +203,19 @@ const envSchema = z.object({
       'Max Postgres connections per web instance (default 3 on Vercel, 10 elsewhere)'
     ),
 
+  // Data retention (run from the listener's reconcile tick, at most hourly)
+  DATA_RETENTION_DAYS: z.preprocess(
+    emptyEnvToUndefined,
+    z
+      .string()
+      .default('90')
+      .transform(val => parseInt(val, 10))
+      .pipe(z.number().int().nonnegative())
+      .describe(
+        'Days to keep the activity log, forwarding-hop markers and finished notification deliveries (0 keeps them forever)'
+      )
+  ),
+
   // Request Size Limits
   REQUEST_MAX_BODY_SIZE: z
     .string()

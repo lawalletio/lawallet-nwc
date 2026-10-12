@@ -315,6 +315,48 @@ describe('CatchupRunner.runForWallet', () => {
     expect(listTransactions).toHaveBeenCalledTimes(1)
   })
 
+  it('caps how many wallets catch up at once', async () => {
+    vi.mocked(getCursor).mockResolvedValue(
+      new Date(Date.now() - 60 * 60 * 1000)
+    )
+    let active = 0
+    let peak = 0
+    const gates: Array<() => void> = []
+    const listTransactions = vi.fn().mockImplementation(async () => {
+      active++
+      peak = Math.max(peak, active)
+      await new Promise<void>(resolve => gates.push(resolve))
+      active--
+      return { transactions: [], total_count: 0 }
+    })
+    const metrics = freshMetrics()
+    const runner = new CatchupRunner({
+      env,
+      log: pino({ level: 'silent' }),
+      pool: { query: vi.fn() } as unknown as pg.Pool,
+      metrics,
+      process: vi.fn(async () => true) as never,
+      maxConcurrent: 3
+    })
+    const client = fakeClient({ listTransactions })
+
+    // The periodic sweep hands the runner every wallet at once.
+    const runs = Array.from({ length: 10 }, (_, i) =>
+      runner.runForWallet({ ...wallet, id: `wallet-${i}` }, client)
+    )
+    const flush = () => new Promise(resolve => setTimeout(resolve, 0))
+    while (listTransactions.mock.calls.length < 10) {
+      await flush()
+      expect(active).toBeLessThanOrEqual(3)
+      gates.splice(0).forEach(release => release())
+    }
+    await Promise.all(runs)
+
+    expect(peak).toBe(3)
+    expect(listTransactions).toHaveBeenCalledTimes(10)
+    expect(metrics.catchupRuns).toBe(10)
+  })
+
   describe('relay replay', () => {
     const encrypted = (id: string) => ({
       id,

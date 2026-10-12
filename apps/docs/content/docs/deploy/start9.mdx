@@ -16,13 +16,13 @@ the same package id (`lawallet-nwc`) and are **interchangeable**: you can
 install from the marketplace or sideload, then take the other track as an
 in-place update.
 
-| Property      | Value                                                                        |
-| ------------- | ---------------------------------------------------------------------------- |
-| Package id    | `lawallet-nwc`                                                               |
+| Property      | Value                                                                         |
+| ------------- | ----------------------------------------------------------------------------- |
+| Package id    | `lawallet-nwc`                                                                |
 | Images        | `masize/lawallet-nwc` + `masize/lawallet-nwc-listener` + `postgres:15-alpine` |
-| Architectures | `x86_64`, `aarch64`                                                          |
-| Web UI        | port `2288` (LAN, `.local`, Tor, or a custom domain)                         |
-| Volumes       | `main` (app data + `store.json`) and `db` (Postgres)                         |
+| Architectures | `x86_64`, `aarch64`                                                           |
+| Web UI        | port `2288` (LAN, `.local`, Tor, or a custom domain)                          |
+| Volumes       | `main` (app data + `store.json`) and `db` (Postgres)                          |
 
 Sideload `2.7.0:0` kept Postgres on `main/postgresql/data`. Updating that
 install to `2.7.0:1` (marketplace or sideload) copies the cluster onto `db`
@@ -139,6 +139,10 @@ variable.
 The web startup pass encrypts any legacy plaintext RemoteWallet NWC rows before
 its health check becomes ready. The listener waits for that health check and
 uses the same generated key.
+
+New tunables such as `ZAP_SETTLE_MAX_INTERVAL_MS` (listener) and
+`DATA_RETENTION_DAYS` (web) are optional and fall back to their defaults, so
+the package needs no change to pick them up.
 
 For the full env-var reference (used when self-hosting outside StartOS), see
 [`apps/web/.env.example`](https://github.com/lawalletio/lawallet-nwc/blob/main/apps/web/.env.example).

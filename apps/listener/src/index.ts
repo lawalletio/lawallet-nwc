@@ -30,6 +30,7 @@ import {
   loadArchiveReportedWalletIds,
   loadListenerLastAliveAt,
   pruneEvents,
+  pruneNwcRequests,
   recordWalletActivity,
   recoverInterruptedNwcRequests,
   resetWalletArchiveClock,
@@ -38,7 +39,7 @@ import {
 } from './store'
 import { WebhookDispatcher } from './webhook'
 import { requestProxyReconcile } from './proxy-reconcile'
-import { requestZapSettlement } from './zap-settle'
+import { requestZapSettlement, ZapSettleScheduler } from './zap-settle'
 import { createProcessErrorReporter } from './process-errors'
 import {
   captureException,
@@ -149,6 +150,23 @@ async function main(): Promise<void> {
     metrics
   })
 
+  // Zap receipts are only useful while the sender is still looking, so this
+  // ticks far more often than the proxy reconciler while web reports open zap
+  // invoices, and backs off while it reports none. Web bounds the actual relay
+  // traffic with its own per-invoice backoff. Built before the pool so the
+  // notification handler can wake it from the very first event.
+  const zapScheduler =
+    env.ZAP_SETTLE_INTERVAL_MS > 0
+      ? new ZapSettleScheduler(
+          () =>
+            requestZapSettlement(env, createLogger({ module: 'zap-settle' })),
+          {
+            fastMs: env.ZAP_SETTLE_INTERVAL_MS,
+            maxMs: env.ZAP_SETTLE_MAX_INTERVAL_MS
+          }
+        )
+      : null
+
   // Notifications older than the retention window minus a day are dropped
   // before storage — pruning must never reopen the dedup window.
   const maxAgeMs = (env.EVENT_RETENTION_DAYS - 1) * 24 * 60 * 60 * 1000
@@ -157,6 +175,8 @@ async function main(): Promise<void> {
     wallet: DesiredWallet,
     n: Nip47Notification
   ): void => {
+    // A received payment is the moment a zap may be waiting on its receipt.
+    if (n.notification_type === 'payment_received') zapScheduler?.wake()
     void handleNotification(wallet, n).catch(err =>
       log.error({ err, walletId: wallet.id }, 'notification.handler_error')
     )
@@ -339,6 +359,17 @@ async function main(): Promise<void> {
       log.debug({ err, walletId }, 'liveness.persist_failed')
     )
   }
+  // Removed wallets must not keep their throttle entry for the process' life.
+  const forgetRemovedWallets = (desired: DesiredWallet[]) => {
+    const keep = new Set(desired.map(wallet => wallet.id))
+    for (const walletId of livenessWrittenAt.keys()) {
+      if (!keep.has(walletId)) livenessWrittenAt.delete(walletId)
+    }
+  }
+  const reconcileAll = (desired: DesiredWallet[]) => {
+    forgetRemovedWallets(desired)
+    return nwcPool.reconcile(desired)
+  }
 
   const nwcPool = new NwcPool({
     log: createLogger({ module: 'pool' }),
@@ -394,12 +425,15 @@ async function main(): Promise<void> {
       if (!payload) {
         metrics.reconciles++
         void loadActiveNwcWallets(pgPool, log, env)
-          .then(desired => nwcPool.reconcile(desired))
+          .then(reconcileAll)
           .catch(err => log.error({ err }, 'reconcile.full_failed'))
         return
       }
       void loadActiveWalletById(pgPool, payload.id, log, env)
-        .then(row => nwcPool.reconcileOne(payload.id, row))
+        .then(row => {
+          if (!row) livenessWrittenAt.delete(payload.id)
+          return nwcPool.reconcileOne(payload.id, row)
+        })
         .catch(err =>
           log.error({ err, walletId: payload.id }, 'reconcile.one_failed')
         )
@@ -411,7 +445,9 @@ async function main(): Promise<void> {
     log: createLogger({ module: 'http' }),
     metrics,
     pgPool,
-    nwcPool
+    nwcPool,
+    // A fresh invoice may be a zap from a wallet that never notifies.
+    onInvoiceMinted: () => zapScheduler?.wake()
   })
   await new Promise<void>((resolve, reject) => {
     // Bind failures (EADDRINUSE/EACCES) stay fatal — the service can't serve.
@@ -437,7 +473,7 @@ async function main(): Promise<void> {
       // catch-up retry them.
       catchup.resetUnsupported()
       void loadActiveNwcWallets(pgPool, log, env)
-        .then(desired => nwcPool.reconcile(desired))
+        .then(reconcileAll)
         .catch(err => log.error({ err }, 'reconcile.periodic_failed'))
     }, env.RECONCILE_INTERVAL_MS),
     setInterval(
@@ -447,6 +483,13 @@ async function main(): Promise<void> {
             if (eventCount > 0) log.info({ eventCount }, 'store.pruned')
           })
           .catch(err => log.error({ err }, 'store.prune_failed'))
+        void pruneNwcRequests(pgPool)
+          .then(requestCount => {
+            if (requestCount > 0) {
+              log.info({ requestCount }, 'store.nwc_requests_pruned')
+            }
+          })
+          .catch(err => log.error({ err }, 'store.nwc_requests_prune_failed'))
       },
       60 * 60 * 1000
     ),
@@ -465,16 +508,7 @@ async function main(): Promise<void> {
       )
     }, env.PROXY_RECONCILE_INTERVAL_MS)
   ]
-  if (env.ZAP_SETTLE_INTERVAL_MS > 0) {
-    // Zap receipts are only useful while the sender is still looking, so this
-    // ticks far more often than the proxy reconciler. Web bounds the actual
-    // relay traffic with its own per-invoice backoff.
-    timers.push(
-      setInterval(() => {
-        void requestZapSettlement(env, createLogger({ module: 'zap-settle' }))
-      }, env.ZAP_SETTLE_INTERVAL_MS)
-    )
-  }
+  zapScheduler?.start()
   if (env.CATCHUP_ENABLED && env.CATCHUP_INTERVAL_MS > 0) {
     // Safety net for gaps neither the subscribe hook nor the reconnect
     // watcher caught (e.g. silent SDK resubscribes between watcher samples).
@@ -519,6 +553,7 @@ async function main(): Promise<void> {
 
     void (async () => {
       for (const timer of timers) clearInterval(timer)
+      zapScheduler?.stop()
       await new Promise<void>(resolve => server.close(() => resolve()))
       await changeListener.stop()
       await nwcPool.closeAll()

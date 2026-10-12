@@ -17,6 +17,7 @@ const afterMock = vi.hoisted(() =>
   })
 )
 const settleSweepMock = vi.hoisted(() => vi.fn())
+const backlogMock = vi.hoisted(() => vi.fn())
 
 vi.mock('next/server', async importActual => ({
   ...(await importActual<typeof import('next/server')>()),
@@ -50,7 +51,8 @@ vi.mock('@/lib/logger', () => ({
 vi.mock('@/lib/middleware/maintenance', () => ({ checkMaintenance: vi.fn() }))
 
 vi.mock('@/lib/nostr/zap-settlement', () => ({
-  settlePendingZapInvoices: settleSweepMock
+  sweepDueZapInvoices: settleSweepMock,
+  getZapSettlementBacklog: backlogMock
 }))
 
 import { POST } from '@/app/api/internal/zaps/settle/route'
@@ -85,6 +87,11 @@ beforeEach(() => {
   vi.clearAllMocks()
   configState.secret = SECRET
   settleSweepMock.mockResolvedValue(0)
+  // Default: one zap invoice due right now.
+  backlogMock.mockImplementation(async (now: Date) => ({
+    pending: true,
+    nextPollAt: now
+  }))
 })
 
 describe('POST /api/internal/zaps/settle', () => {
@@ -139,6 +146,41 @@ describe('POST /api/internal/zaps/settle', () => {
     const res = await POST(signedRequest({ invoiceIds: ['attacker-choice'] }))
 
     await assertResponse(res, 200)
-    expect(settleSweepMock).toHaveBeenCalledWith()
+    expect(settleSweepMock).toHaveBeenCalledWith(expect.any(Date))
+  })
+
+  it('reports the open backlog so the listener keeps ticking fast', async () => {
+    const res = await POST(signedRequest())
+
+    const body = (await assertResponse(res, 200)) as Record<string, unknown>
+    expect(body).toMatchObject({ accepted: true, pending: true })
+    expect(typeof body.nextPollAt).toBe('string')
+  })
+
+  it('skips the sweep and says so when no zap invoice is open', async () => {
+    backlogMock.mockResolvedValue({ pending: false, nextPollAt: null })
+
+    const res = await POST(signedRequest())
+
+    const body = (await assertResponse(res, 200)) as Record<string, unknown>
+    expect(body).toEqual({ accepted: true, pending: false, nextPollAt: null })
+    // No deferred work at all: an idle tick costs one query.
+    expect(afterMock).not.toHaveBeenCalled()
+    expect(settleSweepMock).not.toHaveBeenCalled()
+  })
+
+  it('defers the sweep until the earliest open invoice is due', async () => {
+    const later = new Date(Date.now() + 60_000)
+    backlogMock.mockResolvedValue({ pending: true, nextPollAt: later })
+
+    const res = await POST(signedRequest())
+
+    const body = (await assertResponse(res, 200)) as Record<string, unknown>
+    expect(body).toEqual({
+      accepted: true,
+      pending: true,
+      nextPollAt: later.toISOString()
+    })
+    expect(settleSweepMock).not.toHaveBeenCalled()
   })
 })
