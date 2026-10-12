@@ -1,5 +1,7 @@
 import { after, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { expireStaleInvoices } from '@/lib/maintenance/expire-invoices'
+import { runRetention } from '@/lib/maintenance/retention'
 import { readAuthenticatedListenerBody } from '@/lib/proxy/internal-auth'
 import { reconcileProxyPayments } from '@/lib/proxy/reconcile'
 import { reconcileRemoteWalletForwarding } from '@/lib/remote-wallet-forwarding/reconcile'
@@ -36,7 +38,11 @@ export const POST = withErrorHandling(async (request: Request) => {
       // Safety net: an operator running a listener old enough to lack the
       // dedicated zap-settle timer still gets zaps settled on this tick.
       settlePendingZapInvoices(),
-      reconcileRemoteWalletNotifications()
+      reconcileRemoteWalletNotifications(),
+      // Housekeeping rides the same durable tick: web has no scheduler of its
+      // own on serverless. Retention throttles itself to once an hour.
+      expireStaleInvoices(),
+      runRetention()
     ])
   })
   return NextResponse.json({ accepted: true })

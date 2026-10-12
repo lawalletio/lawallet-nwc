@@ -55,6 +55,8 @@ describe('idempotent payment HTTP API', () => {
       pgPool?: pg.Pool
       healthDbTimeoutMs?: number
       statusDbTimeoutMs?: number
+      nwcRequest?: ReturnType<typeof vi.fn>
+      onInvoiceMinted?: () => void
     } = {}
   ) {
     const server = createHttpServer({
@@ -69,8 +71,10 @@ describe('idempotent payment HTTP API', () => {
       nwcPool: {
         readinessSummary: vi.fn(() => ({ total: 2, ready: 1, notReady: 1 })),
         relaySummary: vi.fn(() => []),
-        snapshot: vi.fn(() => [])
+        snapshot: vi.fn(() => []),
+        request: options.nwcRequest ?? vi.fn()
       } as unknown as NwcPool,
+      onInvoiceMinted: options.onInvoiceMinted,
       nwcPayments: payments as unknown as Pick<
         NwcPaymentService,
         'submit' | 'status'
@@ -135,6 +139,31 @@ describe('idempotent payment HTTP API', () => {
       paymentHash: 'c'.repeat(64),
       waitMs: 8000
     })
+  })
+
+  it('wakes the zap tick after a proxied make_invoice, and only then', async () => {
+    const onInvoiceMinted = vi.fn()
+    const nwcRequest = vi.fn().mockResolvedValue({ invoice: 'lnbc1' })
+    const origin = await start(payments, { nwcRequest, onInvoiceMinted })
+    const call = (method: string) =>
+      fetch(`${origin}/nwc/request`, {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${REQUEST_SECRET}`,
+          'content-type': 'application/json'
+        },
+        body: JSON.stringify({
+          connectionString:
+            'nostr+walletconnect://abc?relay=wss%3A%2F%2Fr&secret=s',
+          method,
+          params: method === 'make_invoice' ? { amount: 21000 } : {}
+        })
+      })
+
+    expect((await call('get_balance')).status).toBe(200)
+    expect(onInvoiceMinted).not.toHaveBeenCalled()
+    expect((await call('make_invoice')).status).toBe(200)
+    expect(onInvoiceMinted).toHaveBeenCalledTimes(1)
   })
 
   it('advertises the stable payment capability without authentication', async () => {

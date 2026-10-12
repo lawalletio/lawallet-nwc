@@ -36,6 +36,8 @@ export interface HttpServerDeps {
   metrics: Metrics
   pgPool: pg.Pool
   nwcPool: NwcPool
+  /** Called after a successful proxied `make_invoice`. */
+  onInvoiceMinted?: () => void
   /** Injectable for route tests; production gets the durable implementation. */
   nwcPayments?: Pick<NwcPaymentService, 'submit' | 'status'>
   healthDbTimeoutMs?: number
@@ -317,6 +319,7 @@ export function createHttpServer(deps: HttpServerDeps): http.Server {
           params,
           timeoutMs ?? env.NWC_REQUEST_TIMEOUT_MS
         )
+        if (method === 'make_invoice') deps.onInvoiceMinted?.()
         sendJson(res, 200, { ok: true, result: result ?? {} })
       } catch (err) {
         metrics.nwcRequestErrors++

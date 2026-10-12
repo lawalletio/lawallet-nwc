@@ -1,5 +1,9 @@
+import type { ZapSettleAck } from '@lawallet-nwc/shared'
 import { after, NextResponse } from 'next/server'
-import { settlePendingZapInvoices } from '@/lib/nostr/zap-settlement'
+import {
+  getZapSettlementBacklog,
+  sweepDueZapInvoices
+} from '@/lib/nostr/zap-settlement'
 import { readAuthenticatedListenerBody } from '@/lib/proxy/internal-auth'
 import { withErrorHandling } from '@/types/server/error-handler'
 
@@ -11,6 +15,11 @@ import { withErrorHandling } from '@/types/server/error-handler'
  * keeps the listener transport-only: it says "now would be a good time", and
  * web decides what that means.
  *
+ * The response tells the listener whether any zap invoice is still open
+ * (`pending`) and when the next one is due (`nextPollAt`), so it can back off
+ * while there is nothing to settle. The sweep itself only runs when something
+ * is due now. A listener that ignores these fields keeps its fixed cadence.
+ *
  * Auth is the same HMAC as the proxy reconcile hook, and
  * {@link readAuthenticatedListenerBody} 404s when no listener is configured, so
  * the endpoint doesn't exist for anyone else. The body is ignored — web picks
@@ -18,8 +27,16 @@ import { withErrorHandling } from '@/types/server/error-handler'
  */
 export const POST = withErrorHandling(async (request: Request) => {
   await readAuthenticatedListenerBody(request)
-  after(async () => {
-    await settlePendingZapInvoices()
+  const now = new Date()
+  const backlog = await getZapSettlementBacklog(now)
+  if (backlog.nextPollAt && backlog.nextPollAt <= now) {
+    after(async () => {
+      await sweepDueZapInvoices(now)
+    })
+  }
+  return NextResponse.json<ZapSettleAck>({
+    accepted: true,
+    pending: backlog.pending,
+    nextPollAt: backlog.nextPollAt?.toISOString() ?? null
   })
-  return NextResponse.json({ accepted: true })
 })

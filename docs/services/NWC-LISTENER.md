@@ -62,6 +62,28 @@ carries no settlement opinion and names no invoice: web selects the candidates,
 bounds the relay traffic with its own per-invoice backoff, and decides what
 counts as settled.
 
+The zap tick is **adaptive**. Web answers
+`{ accepted, pending, nextPollAt }` (`zapSettleAckSchema` in
+`packages/shared/src/listener.ts`): whether any zap invoice is still open and
+when the earliest is next due, computed with one indexed query before the sweep
+is deferred (the sweep itself only runs when something is due). While
+`pending` is true the listener ticks every `ZAP_SETTLE_INTERVAL_MS`, or later
+when `nextPollAt` says nothing is due yet; while it is false the gap doubles up
+to `ZAP_SETTLE_MAX_INTERVAL_MS` (default 5 min). A `payment_received`
+notification or a successful proxied `make_invoice` drops it back to the fast
+cadence. A web build that answers only `{ accepted: true }` (or an error)
+reads as "unknown" and keeps the fixed `ZAP_SETTLE_INTERVAL_MS` cadence, so
+mixed versions behave exactly as before.
+
+The proxy reconcile tick also carries web's housekeeping, since web has no
+scheduler of its own on serverless: ordinary (non-proxy) invoices still
+`PENDING` an hour past `expiresAt` are moved to `EXPIRED` in `LIMIT`ed batches
+(`lib/maintenance/expire-invoices.ts`), and at most once an hour
+`lib/maintenance/retention.ts` prunes the activity log, forwarding-hop markers
+and finished notification deliveries older than `DATA_RETENTION_DAYS` (web env,
+default 90, `0` disables). A late `payment_received` webhook still settles an
+`EXPIRED` invoice.
+
 A Prisma migration in `apps/web` installs a trigger on `"RemoteWallet"`:
 every INSERT/UPDATE/DELETE fires `pg_notify('remote_wallet_changed',
 '{"id": "...", "op": "..."}')` on COMMIT. The listener reconciles the
@@ -122,8 +144,10 @@ journal stores the wallet,
 BOLT-11, payment hash, payload hash, dispatch boundary, outcome, preimage,
 fees and errors. The journal is claimed before `pay_invoice`, so concurrent
 copies of the same callback join one operation instead of publishing twice.
-Request IDs are retained indefinitely as idempotency tombstones; the shorter
-`EVENT_RETENTION_DAYS` setting applies only to notification/feed history.
+Finished request IDs (`succeeded`, `rejected`, `not_started`) are kept for 30
+days as idempotency tombstones — by then every invoice they could pay has long
+expired — and pruned with the hourly event prune. `EVENT_RETENTION_DAYS`
+applies only to notification/feed history.
 
 States are `pending`, `succeeded`, `rejected`, `unknown` and `not_started`.
 On restart, an interrupted row before the dispatch boundary becomes
@@ -131,7 +155,7 @@ On restart, an interrupted row before the dispatch boundary becomes
 **never republished automatically**. `payment_sent` notifications and
 read-only `lookup_invoice` calls can move `pending`/`unknown` to `succeeded`
 after verifying `sha256(preimage) === paymentHash`. Terminal rows are pruned
-after `EVENT_RETENTION_DAYS`; unresolved `unknown` rows are retained.
+after 30 days; `pending` and unresolved `unknown` rows are retained.
 
 RemoteWallet receive actions use the same journal and safety boundary with
 `requestId = sha256(walletId|paymentHash|legId|attemptNo)`. The webhook
@@ -497,6 +521,7 @@ Upgrading into a release that adds one never means editing a deployment —
 | `RECONCILE_INTERVAL_MS`         | Full-reconcile safety net                                                                      | `300000`                             |
 | `PROXY_RECONCILE_INTERVAL_MS`   | Deferred LUD-16 proxy recovery sweep                                                           | `600000`                             |
 | `ZAP_SETTLE_INTERVAL_MS`        | Zap settlement poll tick — covers wallets with no NIP-47 notifications (0 disables)            | `20000`                              |
+| `ZAP_SETTLE_MAX_INTERVAL_MS`    | Longest zap tick gap while web reports no open zap invoice (exponential backoff ceiling)       | `300000`                             |
 | `NWC_REQUEST_TIMEOUT_MS`        | Default /nwc/request timeout                                                                   | `30000`                              |
 | `WEBHOOK_MAX_ATTEMPTS`          | Inline delivery attempts                                                                       | `5`                                  |
 | `EVENT_RETENTION_DAYS`          | Dedup/feed retention                                                                           | `30`                                 |

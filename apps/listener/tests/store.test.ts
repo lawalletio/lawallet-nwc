@@ -20,6 +20,7 @@ import {
   markNwcRequestDispatched,
   markDelivery,
   pruneEvents,
+  pruneNwcRequests,
   recentEvents,
   recentEventsSafe,
   recoverInterruptedNwcRequests,
@@ -146,6 +147,19 @@ describe('pruneEvents', () => {
     await expect(pruneEvents(pool, 30)).resolves.toBe(7)
     const [sql, params] = query.mock.calls[0]
     expect(sql).toContain('DELETE FROM listener.processed_events')
+    expect(params).toEqual([30])
+  })
+})
+
+describe('pruneNwcRequests', () => {
+  it('deletes only finished journal rows past the 30-day window', async () => {
+    const { pool, query } = poolWith({ rowCount: 4 })
+    await expect(pruneNwcRequests(pool)).resolves.toBe(4)
+    const [sql, params] = query.mock.calls[0]
+    expect(sql).toContain('DELETE FROM listener.nwc_requests')
+    expect(sql).toContain("state IN ('succeeded', 'rejected', 'not_started')")
+    // pending/unknown rows guard a payment still in doubt — never pruned.
+    expect(sql).not.toMatch(/'pending'|'unknown'/)
     expect(params).toEqual([30])
   })
 })

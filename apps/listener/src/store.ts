@@ -822,6 +822,27 @@ export async function undeliveredEvents(
   return rows.map(toStored)
 }
 
+/**
+ * Finished payment-journal rows kept this long. A request id is only reused by
+ * web's own retry of an unresolved attempt, which happens within minutes, so a
+ * month of terminal history is generous. `pending`/`unknown` rows are never
+ * pruned — they are the idempotency guard for a payment still in doubt.
+ */
+export const NWC_REQUEST_RETENTION_DAYS = 30
+
+export async function pruneNwcRequests(
+  pool: pg.Pool,
+  retentionDays = NWC_REQUEST_RETENTION_DAYS
+): Promise<number> {
+  const result = await pool.query(
+    `DELETE FROM listener.nwc_requests
+      WHERE state IN ('succeeded', 'rejected', 'not_started')
+        AND COALESCE(completed_at, updated_at) < now() - ($1::int * interval '1 day')`,
+    [retentionDays]
+  )
+  return result.rowCount ?? 0
+}
+
 export async function pruneEvents(
   pool: pg.Pool,
   retentionDays: number
