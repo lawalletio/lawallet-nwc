@@ -3,7 +3,7 @@
 import { useEffect } from 'react'
 
 // global-error replaces the root layout, so this renders its own <html> and
-// deliberately imports no app CSS.
+// deliberately imports no app CSS. translate="no" mirrors the root layout.
 export default function GlobalError({
   error,
   reset
@@ -17,7 +17,7 @@ export default function GlobalError({
   }, [error])
 
   return (
-    <html lang="en">
+    <html lang="en" translate="no">
       <body
         style={{
           display: 'flex',

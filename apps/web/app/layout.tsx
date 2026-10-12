@@ -13,7 +13,11 @@ const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
   title: 'LaWallet NWC',
-  description: 'Lightning Addresses for Everyone'
+  description: 'Lightning Addresses for Everyone',
+  // Page translators (Chrome/Google Translate) rewrap React-owned text nodes
+  // in <font>, so React's next commit throws NotFoundError on insertBefore /
+  // removeChild and the wallet crashes on navigation. The app is English-only.
+  other: { google: 'notranslate' }
 }
 
 // The Google Tag ID lives in the DB so admins can set it without a redeploy.
@@ -40,7 +44,7 @@ export default async function RootLayout({
   const gtagId = await loadGtagId()
 
   return (
-    <html lang="en" className="dark" suppressHydrationWarning>
+    <html lang="en" translate="no" className="dark" suppressHydrationWarning>
       <body
         className={`flex h-dvh flex-col overflow-y-auto bg-background ${inter.className}`}
       >
