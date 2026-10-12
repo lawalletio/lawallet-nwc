@@ -79,6 +79,21 @@ describe('POST /api/nostr/profiles', () => {
     ])
   })
 
+  it('defaults force to false when omitted', async () => {
+    vi.mocked(resolveProfiles).mockResolvedValue([])
+
+    const req = createNextRequest('/api/nostr/profiles', {
+      method: 'POST',
+      body: { pubkeys: [PUBKEY] }
+    })
+    await assertResponse(await POST(req), 200)
+
+    expect(resolveProfiles).toHaveBeenCalledWith(
+      [PUBKEY],
+      expect.objectContaining({ force: false })
+    )
+  })
+
   it('honours force for a caller who can read users', async () => {
     vi.mocked(authenticate).mockResolvedValue({
       pubkey: PUBKEY,

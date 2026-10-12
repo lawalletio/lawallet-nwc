@@ -14,6 +14,16 @@ const STALE = new Date(NOW.getTime() - 7 * 60 * 60 * 1000) // 7h ago (> 6h TTL)
 const RECENT_ATTEMPT = new Date(NOW.getTime() - 30_000) // 30s ago (< 60s backoff)
 const EXPIRED_ATTEMPT = new Date(NOW.getTime() - 61_000) // 61s ago (> 60s backoff)
 
+const poolMock = vi.hoisted(() => ({
+  querySync: vi.fn(),
+  close: vi.fn()
+}))
+vi.mock('nostr-tools/pool', () => ({
+  SimplePool: vi.fn(function () {
+    return poolMock
+  })
+}))
+
 beforeEach(() => resetPrismaMock())
 
 describe('parseNip65Relays', () => {
@@ -336,5 +346,24 @@ describe('resolveUserRelays', () => {
         relaysUpdatedAt: NOW
       }
     })
+  })
+
+  it('queries kind:10002 through the default pool with maxWait', async () => {
+    poolMock.querySync.mockResolvedValue([
+      { pubkey: PUBKEY, created_at: 1, tags: [['r', 'wss://pool.example']] }
+    ])
+
+    const out = await resolveUserRelays(
+      { id: 'u1', pubkey: PUBKEY, relays: null, relaysUpdatedAt: null },
+      { db: prismaMock, now: NOW }
+    )
+
+    expect(out).toEqual(['wss://pool.example'])
+    expect(poolMock.querySync).toHaveBeenCalledWith(
+      expect.any(Array),
+      { kinds: [10002], authors: [PUBKEY] },
+      { maxWait: 2_500 }
+    )
+    expect(poolMock.close).toHaveBeenCalled()
   })
 })
