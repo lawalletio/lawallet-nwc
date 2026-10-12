@@ -1,4 +1,4 @@
-import { NostrSigner } from '@nostrify/nostrify'
+import type { NostrSigner } from '@nostrify/nostrify'
 import { getToken } from 'nostr-tools/nip98'
 
 /**

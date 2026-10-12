@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { ClaimCelebration } from '@/components/wallet/withdraw/claim-celebration'
 import { useWalletNwcOptional } from '@/components/wallet/nwc-provider'
 import { unlockClaimSound } from '@/lib/client/claim-sound'
+import { preloadTreasureChest } from '@/lib/client/treasure-chest-cache'
 import {
   AmountKeypad,
   parseKeypadValue
@@ -66,6 +67,14 @@ export function WithdrawScreen() {
   const [balanceCaptured, setBalanceCaptured] = useState(false)
   const cancelledRef = useRef(false)
   const claimingRef = useRef(false)
+
+  // Warm the 220KB claim chest while the user reviews the voucher, so the
+  // celebration plays the moment the claim lands.
+  useEffect(() => {
+    void preloadTreasureChest().catch(() => {
+      // TreasureChest retries the same loader when it mounts.
+    })
+  }, [])
 
   useEffect(() => {
     cancelledRef.current = false

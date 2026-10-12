@@ -6,6 +6,7 @@ import React, {
   useState,
   useEffect,
   useCallback,
+  useMemo,
   useRef
 } from 'react'
 import type { NostrSigner } from '@nostrify/nostrify'
@@ -19,23 +20,18 @@ import {
   validateJwt,
   type JwtValidation
 } from '@/lib/client/auth-api'
+import dynamic from 'next/dynamic'
 import { createApiClient, type ApiClient } from '@/lib/client/api-client'
 import {
   isJwtDueForRefresh,
   isJwtExpired,
+  readJwtPayload,
   SESSION_REFRESH_BUFFER_MS
 } from '@/lib/client/jwt-expiry'
-import {
-  createBrowserSigner,
-  createBunkerSigner,
-  createNsecSigner,
-  hasBrowserExtension
-} from '@/lib/client/nostr-signer'
 import {
   clearSessionCaches,
   waitForSessionCacheCleanup
 } from '@/lib/client/cache/session-cache'
-import { SignerUnlockDialog } from '@/components/admin/signer-unlock-dialog'
 import { trackEvent } from '@/lib/analytics/gtag'
 import { AnalyticsEvent } from '@/lib/analytics/events'
 
@@ -59,19 +55,98 @@ const LOGIN_METHOD_KEY = 'lawallet-login-method'
 const SIGNER_SECRET_KEY = 'lawallet-signer-secret'
 const IMPERSONATOR_RETURN_KEY = 'lawallet-impersonator-return'
 
+// Only mounted once a caller asks for a signer: the dialog pulls in the
+// login forms and qrcode.react, which no first paint needs.
+const SignerUnlockDialog = dynamic(
+  () =>
+    import('@/components/admin/signer-unlock-dialog').then(
+      m => m.SignerUnlockDialog
+    ),
+  { ssr: false }
+)
+
+/** localStorage can throw (storage disabled, sandboxed iframe). */
+function readStorage(key: string): string | null {
+  try {
+    return localStorage.getItem(key)
+  } catch {
+    return null
+  }
+}
+
 function hasRecoverableSession(): boolean {
   return Boolean(
-    localStorage.getItem(SIGNER_SECRET_KEY) ||
-    localStorage.getItem(LOGIN_METHOD_KEY) ||
-    localStorage.getItem(IMPERSONATOR_RETURN_KEY)
+    readStorage(SIGNER_SECRET_KEY) ||
+    readStorage(LOGIN_METHOD_KEY) ||
+    readStorage(IMPERSONATOR_RETURN_KEY)
   )
+}
+
+const ROLES = new Set<string>(Object.values(Role))
+const PERMISSIONS = new Set<string>(Object.values(Permission))
+
+/**
+ * The claims GET /api/jwt would echo back, read straight from the stored
+ * token without verifying it. Only decides which screen renders first —
+ * every API call is still verified server-side. Returns null for tokens
+ * that don't carry a usable identity (opaque / foreign tokens).
+ */
+function readSessionClaims(token: string): JwtValidation | null {
+  const payload = readJwtPayload(token)
+  if (!payload) return null
+  const { pubkey, role, permissions, iat, exp } = payload
+  if (
+    typeof pubkey !== 'string' ||
+    !/^[0-9a-f]{64}$/i.test(pubkey) ||
+    typeof role !== 'string' ||
+    !ROLES.has(role) ||
+    !Array.isArray(permissions) ||
+    !permissions.every(p => PERMISSIONS.has(p)) ||
+    typeof exp !== 'number'
+  ) {
+    return null
+  }
+  return {
+    valid: true,
+    pubkey,
+    role: role as Role,
+    permissions: permissions as Permission[],
+    issuedAt: new Date(
+      (typeof iat === 'number' ? iat : 0) * 1000
+    ).toISOString(),
+    expiresAt: new Date(exp * 1000).toISOString()
+  }
+}
+
+/** Claims of a token the server just minted; asks the server only if opaque. */
+async function claimsOf(token: string): Promise<JwtValidation> {
+  return readSessionClaims(token) ?? (await validateJwt(token))
+}
+
+/**
+ * Only a 401/403 from GET /api/jwt says the token is bad. Offline, timeouts,
+ * aborted navigations and 5xx say nothing about it.
+ */
+function isAuthRejection(err: unknown): boolean {
+  const status = (err as { status?: unknown } | null)?.status
+  return status === 401 || status === 403
 }
 
 async function restoreStoredSigner(
   storedMethod: LoginMethod | null
 ): Promise<NostrSigner | null> {
   let signer: NostrSigner | null = null
-  const storedSecret = localStorage.getItem(SIGNER_SECRET_KEY)
+  const storedSecret = readStorage(SIGNER_SECRET_KEY)
+  if (!storedMethod || (storedMethod !== 'extension' && !storedSecret)) {
+    return null
+  }
+
+  const {
+    createBrowserSigner,
+    createBunkerSigner,
+    createNsecSigner,
+    hasBrowserExtension
+  } = await import('@/lib/client/nostr-signer')
 
   if (storedMethod === 'extension' && hasBrowserExtension()) {
     try {
@@ -183,16 +258,6 @@ export function useAuth(): AuthContextValue {
   return ctx
 }
 
-/**
- * A document navigation aborts in-flight fetches with TypeError
- * ("Failed to fetch") before the server answers. That is not an invalid
- * session — dropping the JWT here wipes a token another flow just stored,
- * which is what made "Login as admin" land on the sign-in dialog.
- */
-function isNavigationAbort(err: unknown): boolean {
-  return err instanceof TypeError
-}
-
 function installHistoryRestoreGuard() {
   if (typeof window === 'undefined') return
   if (window.__lawalletHistoryRestoreGuardInstalled) return
@@ -206,7 +271,7 @@ function installHistoryRestoreGuard() {
       const loadingIndicator = document.querySelector(
         '[role="progressbar"][aria-label="Loading"]'
       )
-      const hasStoredJwt = Boolean(window.localStorage.getItem(JWT_STORAGE_KEY))
+      const hasStoredJwt = Boolean(readStorage(JWT_STORAGE_KEY))
 
       if (loadingIndicator && hasStoredJwt) {
         window.location.reload()
@@ -233,6 +298,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Latest in-memory signer, for callbacks that outlive their closure
   // (refreshSession after an account mutation, and silent remint on resume).
   const signerRef = useRef<NostrSigner | null>(null)
+  // Last token the server confirmed (minted it, or answered 200 on GET
+  // /api/jwt). Resume skips the network only for this token — an
+  // optimistic, never-confirmed token is re-checked on the next resume.
+  const confirmedJwtRef = useRef<string | null>(null)
 
   // Resume / timer path. Assigned in the mount effect so the timer can call
   // the same ensureFreshSession() that visibility/pageshow/focus use.
@@ -324,7 +393,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     ) => {
       await waitForSessionCacheCleanup()
       const { token } = await exchangeNip98ForJwt(signer)
-      const validation = await validateJwt(token)
+      const validation = await claimsOf(token)
 
       localStorage.setItem(JWT_STORAGE_KEY, token)
       localStorage.setItem(LOGIN_METHOD_KEY, method)
@@ -337,6 +406,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       signerRef.current = signer
+      confirmedJwtRef.current = token
       setState({
         status: 'authenticated',
         jwt: token,
@@ -377,9 +447,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       if (!token) return false
 
-      const validation = await validateJwt(token)
+      const validation = await claimsOf(token)
       localStorage.setItem(JWT_STORAGE_KEY, token)
       if (signer) signerRef.current = signer
+      confirmedJwtRef.current = token
       setState(prev => ({
         ...prev,
         jwt: token,
@@ -430,7 +501,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let replacedToken = false
 
     function noteIfTokenReplaced(expectedToken: string | null) {
-      if (localStorage.getItem(JWT_STORAGE_KEY) === expectedToken) return false
+      if (readStorage(JWT_STORAGE_KEY) === expectedToken) return false
       // A newer token landed mid-flight. Re-validate it once this check
       // finishes, instead of leaving status on "loading".
       replacedToken = true
@@ -450,10 +521,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       method: LoginMethod | null
     ): Promise<boolean> {
       const { token } = await exchangeNip98ForJwt(signer)
-      const validation = await validateJwt(token)
+      const validation = await claimsOf(token)
       if (cancelled) return false
       localStorage.setItem(JWT_STORAGE_KEY, token)
       signerRef.current = signer
+      confirmedJwtRef.current = token
       setState({
         status: 'authenticated',
         jwt: token,
@@ -467,6 +539,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return true
     }
 
+    // Marks `token` as the live session. A no-op when nothing changed, so
+    // the background validation after an optimistic render doesn't
+    // re-render every consumer.
+    function applySession(
+      token: string,
+      session: JwtValidation,
+      method: LoginMethod | null
+    ) {
+      setState(prev => {
+        if (
+          prev.status === 'authenticated' &&
+          prev.jwt === token &&
+          prev.pubkey === session.pubkey &&
+          prev.role === session.role &&
+          prev.loginMethod === method &&
+          prev.permissions?.join() === session.permissions.join()
+        ) {
+          return prev
+        }
+        return {
+          ...prev,
+          status: 'authenticated',
+          jwt: token,
+          pubkey: session.pubkey,
+          role: session.role,
+          permissions: session.permissions,
+          loginMethod: method
+        }
+      })
+      scheduleRefresh(session.expiresAt)
+    }
+
+    async function restoreMissingSigner(
+      token: string,
+      method: LoginMethod | null
+    ) {
+      if (signerRef.current) return
+      const restored = await restoreStoredSigner(method)
+      if (cancelled || !restored) return
+      signerRef.current = restored
+      setState(prev => {
+        if (prev.jwt !== token || prev.status !== 'authenticated') return prev
+        return { ...prev, signer: restored, loginMethod: method }
+      })
+    }
+
     async function ensureFreshSession(source: 'hydrate' | 'resume') {
       if (cancelled) return
       if (inFlight) {
@@ -475,13 +593,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       inFlight = (async () => {
-        const storedToken = localStorage.getItem(JWT_STORAGE_KEY)
-        const storedMethod = localStorage.getItem(
-          LOGIN_METHOD_KEY
-        ) as LoginMethod | null
-        const impersonating = Boolean(
-          localStorage.getItem(IMPERSONATOR_RETURN_KEY)
-        )
+        const storedToken = readStorage(JWT_STORAGE_KEY)
+        const storedMethod = readStorage(LOGIN_METHOD_KEY) as LoginMethod | null
+        const impersonating = Boolean(readStorage(IMPERSONATOR_RETURN_KEY))
 
         const resolveSigner = async () =>
           signerRef.current ?? (await restoreStoredSigner(storedMethod))
@@ -542,100 +656,65 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         }
 
-        let validation: JwtValidation | undefined
+        // Resume (focus / visibility / bfcache) with the token we already
+        // trust and nowhere near expiry: no network round-trip. A slow or
+        // flaky network must never log the user out here.
+        if (
+          source === 'resume' &&
+          !dueForRefresh &&
+          storedToken === confirmedJwtRef.current
+        ) {
+          await restoreMissingSigner(storedToken, storedMethod)
+          return
+        }
+
+        // Optimistic: an unexpired token carries the same claims GET
+        // /api/jwt echoes back, so render the session now and validate
+        // behind it. Server-side authorization is unchanged.
+        const claims = readSessionClaims(storedToken)
+        if (claims) applySession(storedToken, claims, storedMethod)
+
+        let validation: JwtValidation
         try {
-          let lastError: unknown
-          for (let attempt = 0; attempt < 3; attempt++) {
-            try {
-              validation = await validateJwt(storedToken)
-              lastError = undefined
-              break
-            } catch (err) {
-              lastError = err
-              const transient =
-                err instanceof TypeError ||
-                (err instanceof Error &&
-                  /failed to fetch|timed out/i.test(err.message))
-              if (!transient || attempt === 2) throw err
-              await new Promise(resolve =>
-                setTimeout(resolve, 200 * (attempt + 1))
-              )
-              if (cancelled) return
-              if (localStorage.getItem(JWT_STORAGE_KEY) !== storedToken) return
-            }
-          }
-          if (!validation) throw lastError ?? new Error('JWT validation failed')
-          if (cancelled) return
-          const session = validation
-
-          const existingSigner = signerRef.current
-
-          setState(prev => ({
-            ...prev,
-            status: 'authenticated',
-            jwt: storedToken,
-            pubkey: session.pubkey,
-            role: session.role,
-            permissions: session.permissions,
-            signer: prev.signer,
-            loginMethod: storedMethod
-          }))
-
-          scheduleRefresh(session.expiresAt)
-
-          if (existingSigner) return
-
-          const restored = await restoreStoredSigner(storedMethod)
-          if (cancelled || !restored) return
-          signerRef.current = restored
-          setState(prev => {
-            if (prev.jwt !== storedToken || prev.status !== 'authenticated') {
-              return prev
-            }
-            return { ...prev, signer: restored, loginMethod: storedMethod }
-          })
-
-          if (
-            canRemint &&
-            new Date(session.expiresAt).getTime() - Date.now() <=
-              SESSION_REFRESH_BUFFER_MS
-          ) {
-            try {
-              await remint(restored, storedMethod)
-            } catch {
-              // Keep the still-valid token; scheduleRefresh already armed.
-            }
-          }
+          validation = await validateJwt(storedToken)
         } catch (err) {
           if (cancelled) return
-          if (isNavigationAbort(err)) {
-            if (noteIfTokenReplaced(storedToken)) return
-            // Keep the JWT. A navigation (Login as admin → /admin) or a
-            // blip while the page is loading aborts this request; the next
-            // check validates the token it finds.
-            setState(prev =>
-              prev.status === 'loading'
-                ? { ...prev, status: 'unauthenticated', signer: null }
-                : prev
-            )
+          if (noteIfTokenReplaced(storedToken)) return
+          if (!isAuthRejection(err)) {
+            // Offline, timeout, 5xx or a navigation abort — not a verdict on
+            // the token. Keep it. Without readable claims there's no
+            // identity to show, so fall back to signed-out (JWT kept).
+            if (claims) {
+              await restoreMissingSigner(storedToken, storedMethod)
+            } else {
+              setState(prev =>
+                prev.status === 'loading'
+                  ? { ...prev, status: 'unauthenticated', signer: null }
+                  : prev
+              )
+            }
             return
           }
-          if (!canRemint) {
-            dropJwtKeepCredentials(storedToken)
-            return
-          }
-          const signer = await resolveSigner()
-          if (signer) {
-            try {
-              await remint(signer, storedMethod)
-              return
-            } catch {
-              dropJwtKeepCredentials(storedToken)
-              return
+          // The server rejected the token: remint if we can, else drop it.
+          if (canRemint) {
+            const signer = await resolveSigner()
+            if (signer) {
+              try {
+                await remint(signer, storedMethod)
+                return
+              } catch {
+                // Fall through and drop the rejected token.
+              }
             }
           }
           dropJwtKeepCredentials(storedToken)
+          return
         }
+        if (cancelled) return
+
+        confirmedJwtRef.current = storedToken
+        applySession(storedToken, validation, storedMethod)
+        await restoreMissingSigner(storedToken, storedMethod)
       })()
 
       try {
@@ -699,32 +778,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [state.role]
   )
 
-  const requestSigner = useCallback((): Promise<NostrSigner> => {
-    if (state.signer) return Promise.resolve(state.signer)
-
-    const openUnlockDialog = () =>
-      new Promise<NostrSigner>((resolve, reject) => {
-        unlockPromiseRef.current = { resolve, reject }
-        setUnlockOpen(true)
-      })
+  const requestSigner = useCallback(async (): Promise<NostrSigner> => {
+    if (state.signer) return state.signer
 
     // Passkey sessions restore from the stored PRF-derived secret like any
     // nsec session; when it's gone (cleared storage) the dialog covers it.
     if (state.loginMethod === 'passkey') {
-      const storedSecret = localStorage.getItem(SIGNER_SECRET_KEY)
+      const storedSecret = readStorage(SIGNER_SECRET_KEY)
       if (storedSecret) {
+        const { createNsecSigner } = await import('@/lib/client/nostr-signer')
         try {
           const signer = createNsecSigner(storedSecret)
           signerRef.current = signer
           setState(prev => ({ ...prev, signer }))
-          return Promise.resolve(signer)
+          return signer
         } catch {
           localStorage.removeItem(SIGNER_SECRET_KEY)
         }
       }
     }
 
-    return openUnlockDialog()
+    return new Promise<NostrSigner>((resolve, reject) => {
+      unlockPromiseRef.current = { resolve, reject }
+      setUnlockOpen(true)
+    })
   }, [state.signer, state.loginMethod])
 
   const handleUnlock = useCallback(
@@ -756,7 +833,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // API client bound to current JWT
   const handleUnauthorized = useCallback(() => {
-    const stored = localStorage.getItem(JWT_STORAGE_KEY)
+    const stored = readStorage(JWT_STORAGE_KEY)
     // Anonymous 401s must not wipe a token that was just written and isn't
     // in React state yet — that's the dev admin login race.
     if (stored && stored !== state.jwt) return
@@ -767,7 +844,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     logout()
   }, [state.jwt, endSessionKeepCredentials, logout])
 
-  const apiClient = React.useMemo(
+  const apiClient = useMemo(
     () =>
       createApiClient({
         getToken: () => state.jwt,
@@ -776,24 +853,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [state.jwt, handleUnauthorized]
   )
 
-  const value: AuthContextValue = {
-    ...state,
-    login,
-    logout,
-    isAuthorized,
-    apiClient,
-    requestSigner,
-    refreshSession
-  }
+  const value = useMemo<AuthContextValue>(
+    () => ({
+      ...state,
+      login,
+      logout,
+      isAuthorized,
+      apiClient,
+      requestSigner,
+      refreshSession
+    }),
+    [
+      state,
+      login,
+      logout,
+      isAuthorized,
+      apiClient,
+      requestSigner,
+      refreshSession
+    ]
+  )
 
   return (
     <AuthContext.Provider value={value}>
       {children}
-      <SignerUnlockDialog
-        open={unlockOpen}
-        onCancel={handleUnlockCancel}
-        onUnlock={handleUnlock}
-      />
+      {unlockOpen && (
+        <SignerUnlockDialog
+          open
+          onCancel={handleUnlockCancel}
+          onUnlock={handleUnlock}
+        />
+      )}
     </AuthContext.Provider>
   )
 }
