@@ -231,7 +231,9 @@ export function NostrProfileProvider({
   children: React.ReactNode
 }) {
   const { apiClient, status } = useAuth()
-  const cacheRef = useRef<ProfileCache>(loadCache())
+  // Lazy: parse the localStorage cache once, not on every render.
+  const [initialCache] = useState(loadCache)
+  const cacheRef = useRef<ProfileCache>(initialCache)
   const inflightRef = useRef<Map<string, Promise<NostrProfile | null>>>(
     new Map()
   )
