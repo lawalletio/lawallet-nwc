@@ -6,8 +6,10 @@ import { BoltcardPayError } from '@/lib/client/boltcard-pay'
 import type { NwcTransactionEvent } from '@/lib/client/use-nwc-balance'
 import { receiveActions, resetAllFlows } from '@/lib/client/wallet-flow-store'
 
+const MERCHANT_NWC = 'nostr+walletconnect://merchant'
 const replaceMock = vi.hoisted(() => vi.fn())
 const payMock = vi.hoisted(() => vi.fn())
+const lookupMock = vi.hoisted(() => vi.fn())
 const txListener = vi.hoisted(() => ({
   current: null as ((tx: NwcTransactionEvent) => void) | null
 }))
@@ -22,10 +24,13 @@ vi.mock('next/navigation', () => ({
 }))
 
 vi.mock('@/components/wallet/nwc-provider', () => ({
+  useWalletNwc: () => ({ nwcString: MERCHANT_NWC }),
   useWalletNwcTransactions: (listener: (tx: NwcTransactionEvent) => void) => {
     txListener.current = listener
   }
 }))
+
+vi.mock('@/lib/client/nwc/receive', () => ({ lookupInvoice: lookupMock }))
 
 vi.mock('@/lib/client/boltcard-pay', () => {
   class BoltcardPayError extends Error {
@@ -114,6 +119,8 @@ describe('ReceiveInvoiceStep BoltCard NFC', () => {
     replaceMock.mockReset()
     payMock.mockReset()
     payMock.mockResolvedValue(undefined)
+    lookupMock.mockReset()
+    lookupMock.mockResolvedValue({ settled: false, amountSats: 0 })
     txListener.current = null
     FakeNDEFReader.instances = []
     FakeNDEFReader.scanError = null
@@ -185,6 +192,26 @@ describe('ReceiveInvoiceStep BoltCard NFC', () => {
     await act(async () => {
       await new Promise(resolve => setTimeout(resolve, 1200))
     })
+    expect(replaceMock).toHaveBeenCalledWith('/wallet/receive/summary')
+  })
+
+  it('confirms an accepted tap with the wallet when no notification arrives', async () => {
+    installReader()
+    lookupMock.mockResolvedValue({ settled: true, amountSats: 500 })
+    render(<ReceiveInvoiceStep />)
+    await screen.findByText('Hold a BoltCard to the back of the phone')
+    expect(lookupMock).not.toHaveBeenCalled()
+
+    latestReader().emitReading([
+      { recordType: 'url', data: new TextEncoder().encode(CARD_URL) }
+    ])
+    await screen.findByText('Card accepted')
+
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 1200))
+    })
+    expect(lookupMock).toHaveBeenCalledWith(MERCHANT_NWC, INVOICE.paymentHash)
+    expect(txListener.current).not.toBeNull()
     expect(replaceMock).toHaveBeenCalledWith('/wallet/receive/summary')
   })
 

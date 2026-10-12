@@ -40,6 +40,11 @@ vi.mock('@/app/api/cards/[id]/scan/cb/actions/pay', () => ({
   default: payActionMock
 }))
 
+const loadTapCardMock = vi.hoisted(() => vi.fn())
+vi.mock('@/lib/card-payments/tap-card', () => ({
+  loadTapCard: loadTapCardMock
+}))
+
 const resolveMaxWithdrawableMock = vi.hoisted(() => vi.fn())
 vi.mock('@/lib/card-payments/max-withdrawable', () => ({
   resolveCardMaxWithdrawableMsats: resolveMaxWithdrawableMock
@@ -96,7 +101,7 @@ describe('GET /api/cards/[id]/scan', () => {
         status: 'ACTIVE'
       }
     }
-    vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
+    loadTapCardMock.mockResolvedValue(card as any)
     vi.mocked(getSettings).mockResolvedValue({
       domain: 'test.com',
       endpoint: 'app'
@@ -121,30 +126,10 @@ describe('GET /api/cards/[id]/scan', () => {
     expect(resolveMaxWithdrawableMock).toHaveBeenCalledTimes(1)
     expect(res.headers.get('Access-Control-Allow-Origin')).toBe('*')
 
-    const query = vi.mocked(prismaMock.card.findUnique).mock.calls[0][0] as any
-    expect(query.select).not.toHaveProperty('design')
-    expect(query.select).toEqual({
-      blockedAt: true,
-      disabledAt: true,
-      remoteWallet: {
-        select: { id: true, type: true, config: true, status: true }
-      },
-      user: {
-        select: {
-          lightningAddresses: {
-            where: { isPrimary: true },
-            take: 1,
-            select: {
-              mode: true,
-              remoteWalletId: true,
-              remoteWallet: {
-                select: { id: true, type: true, config: true, status: true }
-              }
-            }
-          }
-        }
-      }
-    })
+    // The payment path reads the card in one round-trip, never via the
+    // nested Prisma select (4 sequential round-trips).
+    expect(loadTapCardMock).toHaveBeenCalledWith(card.id)
+    expect(prismaMock.card.findUnique).not.toHaveBeenCalled()
   })
 
   it('advertises a 0–0 range when the bound wallet has no spendable balance', async () => {
@@ -158,7 +143,7 @@ describe('GET /api/cards/[id]/scan', () => {
         status: 'ACTIVE'
       }
     }
-    vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
+    loadTapCardMock.mockResolvedValue(card as any)
     vi.mocked(getSettings).mockResolvedValue({
       domain: 'test.com',
       endpoint: 'app'
@@ -195,7 +180,7 @@ describe('GET /api/cards/[id]/scan', () => {
         status: 'ACTIVE'
       }
     }
-    vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
+    loadTapCardMock.mockResolvedValue(card as any)
     vi.mocked(getSettings).mockResolvedValue({
       domain: 'test.com',
       endpoint: 'app'
@@ -249,6 +234,7 @@ describe('GET /api/cards/[id]/scan', () => {
     const query = vi.mocked(prismaMock.card.findUnique).mock.calls[0][0] as any
     expect(query.select).toHaveProperty('design')
     expect(query.select).not.toHaveProperty('remoteWallet')
+    expect(loadTapCardMock).not.toHaveBeenCalled()
   })
 
   it('advertises a 0–0 withdraw range when the card has no usable wallet', async () => {
@@ -259,7 +245,7 @@ describe('GET /api/cards/[id]/scan', () => {
       user: null,
       remoteWallet: null
     }
-    vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
+    loadTapCardMock.mockResolvedValue(card as any)
     vi.mocked(getSettings).mockResolvedValue({
       domain: 'test.com',
       endpoint: 'app'
@@ -288,7 +274,7 @@ describe('GET /api/cards/[id]/scan', () => {
         status: 'ACTIVE'
       }
     }
-    vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
+    loadTapCardMock.mockResolvedValue(card as any)
     vi.mocked(getSettings).mockResolvedValue({
       domain: 'test.com',
       endpoint: 'app'
@@ -311,7 +297,7 @@ describe('GET /api/cards/[id]/scan', () => {
       user: createUserFixture(),
       remoteWallet: { type: 'NWC', config: {}, status: 'ACTIVE' }
     }
-    vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
+    loadTapCardMock.mockResolvedValue(card as any)
     vi.mocked(getSettings).mockResolvedValue({
       domain: 'test.com',
       endpoint: 'app'
@@ -340,7 +326,7 @@ describe('GET /api/cards/[id]/scan', () => {
         status: 'ACTIVE'
       }
     }
-    vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
+    loadTapCardMock.mockResolvedValue(card as any)
     vi.mocked(getSettings).mockResolvedValue({
       domain: 'test.com',
       endpoint: 'app'
@@ -357,7 +343,7 @@ describe('GET /api/cards/[id]/scan', () => {
   })
 
   it('returns 404 for nonexistent card', async () => {
-    vi.mocked(prismaMock.card.findUnique).mockResolvedValue(null)
+    loadTapCardMock.mockResolvedValue(null)
 
     const req = createNextRequest('/api/cards/nonexistent/scan', {
       searchParams: { p: 'A'.repeat(32), c: 'B'.repeat(16) }
@@ -392,7 +378,7 @@ describe('GET /api/cards/[id]/scan/cb', () => {
     const ntag424 = createNtag424Fixture()
     const user = createUserFixture({ nwc: 'nostr+walletconnect://test' })
     const card = { ...createCardFixture(), ntag424, user }
-    vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
+    loadTapCardMock.mockResolvedValue(card as any)
     vi.mocked(verifyNtag424FromPC).mockResolvedValue({
       ok: ntag424 as any,
       ctrNew: 1
@@ -406,9 +392,7 @@ describe('GET /api/cards/[id]/scan/cb', () => {
 
     // The route attempts dynamic import which may fail in test environment
     // We verify the middleware chain works (auth, NTAG424 validation, card update)
-    expect(prismaMock.card.findUnique).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: card.id } })
-    )
+    expect(loadTapCardMock).toHaveBeenCalledWith(card.id)
     expect(verifyNtag424FromPC).toHaveBeenCalledWith(
       ntag424,
       'A'.repeat(32),
@@ -419,7 +403,7 @@ describe('GET /api/cards/[id]/scan/cb', () => {
   })
 
   it('returns 404 for nonexistent card', async () => {
-    vi.mocked(prismaMock.card.findUnique).mockResolvedValue(null)
+    loadTapCardMock.mockResolvedValue(null)
 
     const req = createNextRequest('/api/cards/nonexistent/scan/cb', {
       searchParams: { p: 'A'.repeat(32), c: 'B'.repeat(16) }
@@ -432,7 +416,7 @@ describe('GET /api/cards/[id]/scan/cb', () => {
   it('returns error when NTAG424 validation fails', async () => {
     const ntag424 = createNtag424Fixture()
     const card = { ...createCardFixture(), ntag424, user: createUserFixture() }
-    vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
+    loadTapCardMock.mockResolvedValue(card as any)
     vi.mocked(verifyNtag424FromPC).mockResolvedValue({
       error: 'Malformed p: counter value too old' as any
     })
@@ -452,7 +436,7 @@ describe('GET /api/cards/[id]/scan/cb', () => {
       ntag424,
       user: createUserFixture()
     }
-    vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
+    loadTapCardMock.mockResolvedValue(card as any)
 
     const req = createNextRequest(`/api/cards/${card.id}/scan/cb`, {
       searchParams: { p: 'A'.repeat(32), c: 'B'.repeat(16) }

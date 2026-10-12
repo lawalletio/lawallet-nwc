@@ -42,6 +42,11 @@ vi.mock('@/lib/card-payments/max-withdrawable', () => ({
   resolveCardMaxWithdrawableMsats: vi.fn().mockResolvedValue(25_000_000)
 }))
 
+// The scan's single-query card loader reads the same mocked card row.
+vi.mock('@/lib/card-payments/tap-card', () => ({
+  loadTapCard: (id: string) => prismaMock.card.findUnique({ where: { id } })
+}))
+
 vi.mock('@/lib/events/event-bus', () => ({
   eventBus: { emit: vi.fn() }
 }))
