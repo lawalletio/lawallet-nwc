@@ -82,6 +82,13 @@ describe('GET /.well-known/nostr.json', () => {
     expect(body.relays).toEqual({
       [PK_ALICE]: ['wss://relay.one', 'wss://relay.two']
     })
+    // Public + identical for every caller: CDN-cacheable, CORS kept for NIP-05.
+    expect(res.headers.get('Cache-Control')).toBe(
+      'public, s-maxage=300, stale-while-revalidate=600'
+    )
+    expect(res.headers.get('Access-Control-Allow-Origin')).toBe('*')
+    // Operator relays come from the hot settings snapshot.
+    expect(getSettingsMock).toHaveBeenCalledWith(['relays'], { cache: 'hot' })
     // Lookups are case-insensitive and keyed by the unique username.
     expect(prismaMock.lightningAddress.findUnique).toHaveBeenCalledWith(
       expect.objectContaining({ where: { username: 'alice' } })
@@ -185,7 +192,9 @@ describe('GET /.well-known/nostr.json', () => {
       [PK_ALICE]: ['wss://lacrypta.ar', 'wss://nos.lol']
     })
     expect(resolveUserRelaysMock).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'u1', pubkey: PK_ALICE })
+      expect.objectContaining({ id: 'u1', pubkey: PK_ALICE }),
+      // The relay refresh runs after the response, never inline.
+      { schedule: expect.any(Function) }
     )
   })
 

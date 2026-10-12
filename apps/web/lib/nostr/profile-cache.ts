@@ -7,6 +7,11 @@ import {
   parseKind0ContentWithRaw,
   type NostrProfile
 } from '@/lib/nostr/profile'
+import {
+  RELAY_FETCH_MAX_WAIT_MS,
+  RELAY_FETCH_TIMEOUT_MS,
+  withTimeout
+} from '@/lib/nostr/relay-list'
 import { precacheProfileImages } from '@/lib/nostr/profile-image-cache'
 import { Prisma } from '@/lib/generated/prisma'
 
@@ -18,12 +23,23 @@ interface RelayProfileEvent {
 
 type RelayFetcher = (pubkeys: string[]) => Promise<RelayProfileEvent[]>
 
+// A failed or not-found fetch leaves `fetchedAt` null, so the row is never
+// "fresh". Without this backoff every request re-queried the relays for it.
+export const PROFILE_FETCH_BACKOFF_MS = 10 * 60 * 1000
+
 interface ResolveProfilesOptions {
   force?: boolean
   now?: Date
   db?: typeof prisma
   relayFetcher?: RelayFetcher
   precacheImages?: (profile: NostrProfile) => Promise<void>
+  /**
+   * Runs a refresh after the response is sent (route handlers pass `after`
+   * from next/server). When set, stale-but-cached profiles are returned
+   * immediately and refreshed here; only pubkeys with nothing cached block on
+   * the relays. Without it, every refresh is awaited inline.
+   */
+  schedule?: (task: () => Promise<void>) => void
 }
 
 type NostrProfileCacheRow = Awaited<
@@ -88,86 +104,30 @@ export async function resolveProfiles(
 
   const toFetch = registered.filter(n => {
     const cached = cachedByPubkey.get(n.pubkey)
-    return force || !isFresh(cached, now)
+    return force || (!isFresh(cached, now) && !recentlyAttempted(cached, now))
   })
-  const pubkeysToFetch = toFetch.map(n => n.pubkey)
 
-  const refreshed = new Map<string, NostrProfile>()
-  if (pubkeysToFetch.length > 0) {
-    const relayFetcher = options.relayFetcher ?? fetchProfilesFromRelays
-    const attemptAt = now
-    try {
-      const events = await relayFetcher(pubkeysToFetch)
-      const latest = newestEventByPubkey(events)
-
-      // One transaction for every write instead of an upsert per pubkey
-      // (Sentry LAWALLET-WEB-Q, N+1 on POST /api/nostr/profiles).
-      const writes: Prisma.PrismaPromise<unknown>[] = []
-      const fetched: NostrProfile[] = []
-      for (const key of toFetch) {
-        const pubkey = key.pubkey
-        const event = latest.get(pubkey)
-        if (!event) {
-          writes.push(
-            fetchFailureWrite(db, key, attemptAt, 'Profile not found on relays')
-          )
-          continue
-        }
-
-        const parsed = parseKind0ContentWithRaw(pubkey, event.content, {
-          fetchedAt: attemptAt.getTime()
-        })
-        if (!parsed) {
-          writes.push(
-            fetchFailureWrite(db, key, attemptAt, 'Invalid kind-0 metadata')
-          )
-          continue
-        }
-
-        const profile = parsed.profile
-        const data = {
-          pubkey: profile.pubkey,
-          name: profile.name ?? null,
-          displayName: profile.displayName ?? null,
-          about: profile.about ?? null,
-          nip05: profile.nip05 ?? null,
-          lud16: profile.lud16 ?? null,
-          website: profile.website ?? null,
-          pictureUrl: profile.picture ?? null,
-          bannerUrl: profile.banner ?? null,
-          kind0CreatedAt: new Date(event.created_at * 1000),
-          rawMetadata: parsed.rawMetadata as Prisma.InputJsonObject,
-          fetchedAt: attemptAt,
-          lastFetchAttemptAt: attemptAt,
-          lastFetchError: null
-        }
-        writes.push(
-          db.nostrProfileCache.upsert({
-            where: { npub: profile.npub },
-            create: { npub: profile.npub, ...data },
-            update: data
-          })
-        )
-        fetched.push(profile)
-      }
-
-      await db.$transaction(writes)
-
-      const precache = options.precacheImages ?? precacheProfileImages
-      for (const profile of fetched) {
-        refreshed.set(profile.pubkey, profile)
-        void precache(profile).catch(() => {
-          // Image cache is intentionally best-effort; metadata remains valid.
-        })
-      }
-    } catch (err) {
-      await db.$transaction(
-        toFetch.map(key =>
-          fetchFailureWrite(db, key, attemptAt, errorMessage(err))
-        )
-      )
-    }
+  // Stale-while-revalidate: a stale row still yields a profile, so serve it
+  // and refresh after the response. Only missing (or forced) profiles block.
+  const schedule = options.schedule
+  const blocking: NormalizedNostrPubkey[] = []
+  const background: NormalizedNostrPubkey[] = []
+  for (const n of toFetch) {
+    const cached = cachedByPubkey.get(n.pubkey)
+    const servable = !force && cached && profileFromCacheRow(cached, now)
+    if (schedule && servable) background.push(n)
+    else blocking.push(n)
   }
+  if (schedule && background.length > 0) {
+    schedule(async () => {
+      await refreshProfiles(background, db, now, options)
+    })
+  }
+
+  const refreshed =
+    blocking.length > 0
+      ? await refreshProfiles(blocking, db, now, options)
+      : new Map<string, NostrProfile>()
 
   const result: NostrProfile[] = []
   for (const item of registered) {
@@ -183,6 +143,89 @@ export async function resolveProfiles(
   }
 
   return result
+}
+
+async function refreshProfiles(
+  toFetch: NormalizedNostrPubkey[],
+  db: typeof prisma,
+  now: Date,
+  options: ResolveProfilesOptions
+): Promise<Map<string, NostrProfile>> {
+  const refreshed = new Map<string, NostrProfile>()
+  const relayFetcher = options.relayFetcher ?? fetchProfilesFromRelays
+  const attemptAt = now
+  try {
+    const events = await relayFetcher(toFetch.map(n => n.pubkey))
+    const latest = newestEventByPubkey(events)
+
+    // One transaction for every write instead of an upsert per pubkey
+    // (Sentry LAWALLET-WEB-Q, N+1 on POST /api/nostr/profiles).
+    const writes: Prisma.PrismaPromise<unknown>[] = []
+    const fetched: NostrProfile[] = []
+    for (const key of toFetch) {
+      const pubkey = key.pubkey
+      const event = latest.get(pubkey)
+      if (!event) {
+        writes.push(
+          fetchFailureWrite(db, key, attemptAt, 'Profile not found on relays')
+        )
+        continue
+      }
+
+      const parsed = parseKind0ContentWithRaw(pubkey, event.content, {
+        fetchedAt: attemptAt.getTime()
+      })
+      if (!parsed) {
+        writes.push(
+          fetchFailureWrite(db, key, attemptAt, 'Invalid kind-0 metadata')
+        )
+        continue
+      }
+
+      const profile = parsed.profile
+      const data = {
+        pubkey: profile.pubkey,
+        name: profile.name ?? null,
+        displayName: profile.displayName ?? null,
+        about: profile.about ?? null,
+        nip05: profile.nip05 ?? null,
+        lud16: profile.lud16 ?? null,
+        website: profile.website ?? null,
+        pictureUrl: profile.picture ?? null,
+        bannerUrl: profile.banner ?? null,
+        kind0CreatedAt: new Date(event.created_at * 1000),
+        rawMetadata: parsed.rawMetadata as Prisma.InputJsonObject,
+        fetchedAt: attemptAt,
+        lastFetchAttemptAt: attemptAt,
+        lastFetchError: null
+      }
+      writes.push(
+        db.nostrProfileCache.upsert({
+          where: { npub: profile.npub },
+          create: { npub: profile.npub, ...data },
+          update: data
+        })
+      )
+      fetched.push(profile)
+    }
+
+    await db.$transaction(writes)
+
+    const precache = options.precacheImages ?? precacheProfileImages
+    for (const profile of fetched) {
+      refreshed.set(profile.pubkey, profile)
+      void precache(profile).catch(() => {
+        // Image cache is intentionally best-effort; metadata remains valid.
+      })
+    }
+  } catch (err) {
+    await db.$transaction(
+      toFetch.map(key =>
+        fetchFailureWrite(db, key, attemptAt, errorMessage(err))
+      )
+    )
+  }
+  return refreshed
 }
 
 export function profileFromCacheRow(
@@ -225,6 +268,16 @@ function isFresh(
   return Boolean(
     row?.fetchedAt &&
     now.getTime() - row.fetchedAt.getTime() < NOSTR_PROFILE_CACHE_TTL_MS
+  )
+}
+
+function recentlyAttempted(
+  row: NostrProfileCacheRow | null | undefined,
+  now: Date
+): boolean {
+  return Boolean(
+    row?.lastFetchAttemptAt &&
+    now.getTime() - row.lastFetchAttemptAt.getTime() < PROFILE_FETCH_BACKOFF_MS
   )
 }
 
@@ -273,10 +326,18 @@ async function fetchProfilesFromRelays(
   const { SimplePool } = await import('nostr-tools/pool')
   const pool = new SimplePool()
   try {
-    const events = await pool.querySync(DEFAULT_NOSTR_RELAYS, {
-      kinds: [0],
-      authors: pubkeys
-    })
+    // querySync has no overall deadline: one slow relay (relay.nostr.band
+    // p95 121s) held the request open. `maxWait` caps each relay's EOSE wait
+    // and `withTimeout` caps the whole call.
+    const events = await withTimeout(
+      pool.querySync(
+        DEFAULT_NOSTR_RELAYS,
+        { kinds: [0], authors: pubkeys },
+        { maxWait: RELAY_FETCH_MAX_WAIT_MS }
+      ),
+      RELAY_FETCH_TIMEOUT_MS
+    )
+    if (!events) throw new Error('Relay query timed out')
     return events
       .filter(event => event?.content)
       .map(event => ({

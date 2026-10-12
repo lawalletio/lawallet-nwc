@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { after, NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { getSettings } from '@/lib/settings'
@@ -45,6 +45,16 @@ export const OPTIONS = publicReadOptions
 
 const EMPTY = { names: {}, relays: {} }
 
+// NIP-05 lookups are public and identical for every caller, so let the CDN
+// absorb repeats. CORS headers are added by `withPublicReadCors`.
+const CACHE_CONTROL = 'public, s-maxage=300, stale-while-revalidate=600'
+
+function json(body: unknown) {
+  return NextResponse.json(body, {
+    headers: { 'Cache-Control': CACHE_CONTROL }
+  })
+}
+
 export const GET = withErrorHandling(
   withPublicReadCors(async (request: NextRequest) => {
     // NIP-05 uses `?name=<localpart>`; accept `?username=` too since that's how
@@ -58,7 +68,7 @@ export const GET = withErrorHandling(
     // rather than enumerating every registered user: the address book is not
     // public.
     if (!name) {
-      return NextResponse.json(EMPTY)
+      return json(EMPTY)
     }
 
     // The root-domain NIP-05 identity belongs to the zap receipt signer. Only
@@ -69,19 +79,19 @@ export const GET = withErrorHandling(
           where: { id: PROXY_CONFIG_ID },
           select: { receiptPubkey: true }
         }),
-        getSettings(['relays'])
+        getSettings(['relays'], { cache: 'hot' })
       ])
       const normalizedPubkey = config?.receiptPubkey
         ? normalizeNostrPubkey(config.receiptPubkey)
         : null
 
       if (!normalizedPubkey) {
-        return NextResponse.json(EMPTY)
+        return json(EMPTY)
       }
 
       const pubkey = normalizedPubkey.pubkey
 
-      return NextResponse.json({
+      return json({
         names: { _: pubkey },
         relays: { [pubkey]: resolveOperatorRelays(settings.relays) }
       })
@@ -110,12 +120,12 @@ export const GET = withErrorHandling(
     // Unknown name → empty maps (a plain 200, so clients read it as "no such
     // identity" rather than a server error).
     if (!address) {
-      return NextResponse.json(EMPTY)
+      return json(EMPTY)
     }
 
     const normalizedPubkey = resolveAccountPubkey(address.user)
     if (!normalizedPubkey) {
-      return NextResponse.json(EMPTY)
+      return json(EMPTY)
     }
     const pubkey = normalizedPubkey.pubkey
 
@@ -124,15 +134,15 @@ export const GET = withErrorHandling(
     // relay list (resolved + cached here) — and only fall back to the operator's
     // configured relays when the user has none.
     const [userRelays, settings] = await Promise.all([
-      resolveUserRelays({ ...address.user, pubkey }),
-      getSettings(['relays'])
+      resolveUserRelays({ ...address.user, pubkey }, { schedule: after }),
+      getSettings(['relays'], { cache: 'hot' })
     ])
     const relays =
       userRelays.length > 0
         ? userRelays
         : resolveOperatorRelays(settings.relays)
 
-    return NextResponse.json({
+    return json({
       names: { [address.username]: pubkey },
       relays: { [pubkey]: relays }
     })

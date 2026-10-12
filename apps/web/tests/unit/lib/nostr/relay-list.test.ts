@@ -40,7 +40,23 @@ describe('parseStoredRelays', () => {
 
 describe('resolveUserRelays', () => {
   const fetcher = vi.fn()
-  beforeEach(() => fetcher.mockReset())
+  beforeEach(() => {
+    fetcher.mockReset()
+    // The attempt claim wins by default; tests opt into losing it.
+    vi.mocked(prismaMock.user.updateMany).mockResolvedValue({ count: 1 })
+    vi.mocked(prismaMock.user.update).mockResolvedValue({} as any)
+  })
+
+  function expectAttemptOnly() {
+    expect(prismaMock.user.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { lastRelayFetchAttemptAt: NOW }
+      })
+    )
+    // No freshness stamp: a degraded answer is retried after the short
+    // backoff rather than pinned for 6h.
+    expect(prismaMock.user.update).not.toHaveBeenCalled()
+  }
 
   it('serves the cached relays without fetching when fresh', async () => {
     const out = await resolveUserRelays(
@@ -55,6 +71,7 @@ describe('resolveUserRelays', () => {
     expect(out).toEqual(['wss://nos.lol'])
     expect(fetcher).not.toHaveBeenCalled()
     expect(prismaMock.user.update).not.toHaveBeenCalled()
+    expect(prismaMock.user.updateMany).not.toHaveBeenCalled()
   })
 
   it('fetches the NIP-65 list when stale/empty and persists it into relays', async () => {
@@ -81,8 +98,7 @@ describe('resolveUserRelays', () => {
         where: { id: 'u1' },
         data: {
           relays: JSON.stringify(['wss://lacrypta.ar', 'wss://nos.lol']),
-          relaysUpdatedAt: NOW,
-          lastRelayFetchAttemptAt: NOW
+          relaysUpdatedAt: NOW
         }
       })
     )
@@ -106,15 +122,7 @@ describe('resolveUserRelays', () => {
     expect(out).toEqual(['wss://manual.example'])
     // Records the attempt, but does NOT claim freshness — so a degraded
     // answer is retried after the short backoff rather than pinned for 6h.
-    expect(prismaMock.user.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: 'u1' },
-        data: { lastRelayFetchAttemptAt: NOW }
-      })
-    )
-    const updateCall = (prismaMock.user.update as any).mock.calls[0][0]
-    expect(updateCall.data).not.toHaveProperty('relays')
-    expect(updateCall.data).not.toHaveProperty('relaysUpdatedAt')
+    expectAttemptOnly()
   })
 
   it('records the attempt (no freshness stamp) when a relay failure yields [] (the shape querySync/withTimeout produce on failure)', async () => {
@@ -137,14 +145,7 @@ describe('resolveUserRelays', () => {
     )
 
     expect(out).toEqual([])
-    expect(prismaMock.user.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: 'u1' },
-        data: { lastRelayFetchAttemptAt: NOW }
-      })
-    )
-    const updateCall = (prismaMock.user.update as any).mock.calls[0][0]
-    expect(updateCall.data).not.toHaveProperty('relaysUpdatedAt')
+    expectAttemptOnly()
   })
 
   it('picks the newest kind:10002 event when several are returned', async () => {
@@ -173,14 +174,7 @@ describe('resolveUserRelays', () => {
     expect(out).toEqual([])
     // An error (import/init) records the attempt like the empty branch does,
     // without claiming freshness — so the next request retries soon.
-    expect(prismaMock.user.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: 'u1' },
-        data: { lastRelayFetchAttemptAt: NOW }
-      })
-    )
-    const updateCall = (prismaMock.user.update as any).mock.calls[0][0]
-    expect(updateCall.data).not.toHaveProperty('relaysUpdatedAt')
+    expectAttemptOnly()
   })
 
   it('serves stored relays without fetching when a recent attempt is on the short backoff window', async () => {
@@ -197,6 +191,7 @@ describe('resolveUserRelays', () => {
     expect(out).toEqual(['wss://stored.example'])
     expect(fetcher).not.toHaveBeenCalled()
     expect(prismaMock.user.update).not.toHaveBeenCalled()
+    expect(prismaMock.user.updateMany).not.toHaveBeenCalled()
   })
 
   it('serves stored (even empty) without fetching when a recent attempt exists and relaysUpdatedAt is stale', async () => {
@@ -213,6 +208,7 @@ describe('resolveUserRelays', () => {
     expect(out).toEqual([])
     expect(fetcher).not.toHaveBeenCalled()
     expect(prismaMock.user.update).not.toHaveBeenCalled()
+    expect(prismaMock.user.updateMany).not.toHaveBeenCalled()
   })
 
   it('re-fetches once the short backoff window elapses', async () => {
@@ -241,8 +237,7 @@ describe('resolveUserRelays', () => {
       expect.objectContaining({
         data: {
           relays: JSON.stringify(['wss://recovered.example']),
-          relaysUpdatedAt: NOW,
-          lastRelayFetchAttemptAt: NOW
+          relaysUpdatedAt: NOW
         }
       })
     )
@@ -270,5 +265,76 @@ describe('resolveUserRelays', () => {
     )
     expect(out).toEqual(['wss://forced.example'])
     expect(fetcher).toHaveBeenCalledWith([PUBKEY])
+  })
+
+  it('claims the attempt before fetching, so a request that loses the claim serves stored', async () => {
+    vi.mocked(prismaMock.user.updateMany).mockResolvedValue({ count: 0 })
+
+    const out = await resolveUserRelays(
+      {
+        id: 'u1',
+        pubkey: PUBKEY,
+        relays: JSON.stringify(['wss://stored.example']),
+        relaysUpdatedAt: STALE,
+        lastRelayFetchAttemptAt: EXPIRED_ATTEMPT
+      },
+      { db: prismaMock, now: NOW, fetcher }
+    )
+
+    expect(out).toEqual(['wss://stored.example'])
+    expect(fetcher).not.toHaveBeenCalled()
+    expect(prismaMock.user.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'u1',
+        OR: [
+          { lastRelayFetchAttemptAt: null },
+          { lastRelayFetchAttemptAt: { lt: new Date(NOW.getTime() - 60_000) } }
+        ]
+      },
+      data: { lastRelayFetchAttemptAt: NOW }
+    })
+  })
+
+  it('serves stored when the claim write fails', async () => {
+    vi.mocked(prismaMock.user.updateMany).mockRejectedValue(new Error('db'))
+
+    const out = await resolveUserRelays(
+      { id: 'u1', pubkey: PUBKEY, relays: null, relaysUpdatedAt: null },
+      { db: prismaMock, now: NOW, fetcher }
+    )
+
+    expect(out).toEqual([])
+    expect(fetcher).not.toHaveBeenCalled()
+  })
+
+  it('serves stored immediately and refreshes in the scheduled task', async () => {
+    fetcher.mockResolvedValue([
+      { pubkey: PUBKEY, created_at: 100, tags: [['r', 'wss://new.example']] }
+    ])
+    const tasks: Array<() => Promise<void>> = []
+
+    const out = await resolveUserRelays(
+      {
+        id: 'u1',
+        pubkey: PUBKEY,
+        relays: JSON.stringify(['wss://stored.example']),
+        relaysUpdatedAt: STALE
+      },
+      { db: prismaMock, now: NOW, fetcher, schedule: t => tasks.push(t) }
+    )
+
+    expect(out).toEqual(['wss://stored.example'])
+    expect(fetcher).not.toHaveBeenCalled()
+    expect(tasks).toHaveLength(1)
+
+    await tasks[0]()
+    expect(fetcher).toHaveBeenCalledWith([PUBKEY])
+    expect(prismaMock.user.update).toHaveBeenCalledWith({
+      where: { id: 'u1' },
+      data: {
+        relays: JSON.stringify(['wss://new.example']),
+        relaysUpdatedAt: NOW
+      }
+    })
   })
 })
