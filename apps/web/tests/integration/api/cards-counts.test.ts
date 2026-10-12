@@ -35,18 +35,27 @@ describe('GET /api/cards/counts', () => {
       role: Role.ADMIN,
       method: 'jwt'
     })
-    vi.mocked(prismaMock.card.count)
-      .mockResolvedValueOnce(15) // total
-      .mockResolvedValueOnce(10) // paired
-      .mockResolvedValueOnce(5) // unpaired
-      .mockResolvedValueOnce(8) // used
-      .mockResolvedValueOnce(7) // unused
-      .mockResolvedValueOnce(2) // blocked
+    // Postgres count(*) comes back as bigint; the route must coerce it.
+    vi.mocked(prismaMock.$queryRaw).mockResolvedValue([
+      {
+        total: BigInt(15),
+        paired: BigInt(10),
+        unpaired: BigInt(5),
+        used: BigInt(8),
+        unused: BigInt(7),
+        blocked: BigInt(2)
+      }
+    ])
 
     const req = createNextRequest('/api/cards/counts')
     const res = await GET(req)
     const body = await assertResponse(res, 200)
 
+    expect(prismaMock.$queryRaw).toHaveBeenCalledTimes(1)
+    expect(prismaMock.card.count).not.toHaveBeenCalled()
+    const sql = vi.mocked(prismaMock.$queryRaw).mock.calls[0][0] as unknown as
+      TemplateStringsArray
+    expect(sql.join('?')).toContain('FILTER (WHERE "userId" IS NOT NULL)')
     expect(body).toEqual({
       total: 15,
       paired: 10,
@@ -63,7 +72,17 @@ describe('GET /api/cards/counts', () => {
       role: Role.ADMIN,
       method: 'jwt'
     })
-    vi.mocked(prismaMock.card.count).mockResolvedValue(0)
+    const zero = BigInt(0)
+    vi.mocked(prismaMock.$queryRaw).mockResolvedValue([
+      {
+        total: zero,
+        paired: zero,
+        unpaired: zero,
+        used: zero,
+        unused: zero,
+        blocked: zero
+      }
+    ])
 
     const req = createNextRequest('/api/cards/counts')
     const res = await GET(req)
