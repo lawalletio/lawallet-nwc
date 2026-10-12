@@ -54,6 +54,12 @@ vi.mock('@/lib/proxy/lnurl', () => ({
   fetchDestinationMetadata
 }))
 
+const getActiveProxyConfigMock = vi.hoisted(() => vi.fn())
+vi.mock('@/lib/proxy/config', async importActual => ({
+  ...(await importActual<typeof import('@/lib/proxy/config')>()),
+  getActiveProxyConfig: getActiveProxyConfigMock
+}))
+
 vi.mock('@/lib/proxy/pay-request', () => ({
   createProxyPayRequest: createProxyPayRequestMock
 }))
@@ -200,6 +206,7 @@ beforeEach(() => {
   mockPrimaryAddressWallet()
   vi.mocked(reviveDeadCourtesyWallet).mockResolvedValue(null)
   resetAdvertisedZapReceiptCapability()
+  getActiveProxyConfigMock.mockResolvedValue(null)
 })
 
 describe('GET /api/lud16/[username]', () => {
@@ -583,6 +590,54 @@ describe('GET /api/lud16/[username]', () => {
   // host into `localBlockedHosts` so the instance is recognised as local
   // regardless of which hostname the request came in on (a custom
   // `endpoint`/`domain` plus a platform default host both route here).
+
+  it('serves a cacheable proxy payRequest with the receipt signer and remote images', async () => {
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
+      username: 'alice',
+      mode: 'PROXY_ALIAS',
+      redirect: 'bob@remote.example',
+      remoteWallet: null,
+      user: { id: 'user-1', pubkey: null }
+    } as any)
+    vi.mocked(getSettings).mockResolvedValue({
+      domain: 'test.com',
+      endpoint: 'https://app.test.com',
+      listener_enabled: 'true',
+      listener_url: 'http://listener.test',
+      listener_auth_secret: 's'.repeat(32)
+    })
+    getActiveProxyConfigMock.mockResolvedValue({
+      row: { feeBps: 100, receiptPubkey: 'e'.repeat(64) },
+      receiptPrivateKey: 'f'.repeat(64)
+    })
+    fetchDestinationMetadata.mockResolvedValue({
+      minSendable: 1000,
+      maxSendable: 1_000_000,
+      commentAllowed: 500,
+      metadata: JSON.stringify([
+        ['text/plain', 'remote'],
+        ['image/png;base64', 'AAAA']
+      ])
+    })
+
+    const res = await Lud16Get(
+      createNextRequest('/api/lud16/alice'),
+      createParamsPromise({ username: 'alice' })
+    )
+    const body: any = await assertResponse(res, 200)
+
+    expect(res.headers.get('Cache-Control')).toBe(
+      'public, s-maxage=60, stale-while-revalidate=300'
+    )
+    expect(body.callback).toBe('https://app.test.com/api/lud16/alice/cb')
+    expect(body.allowsNostr).toBe(true)
+    expect(body.nostrPubkey).toBe('e'.repeat(64))
+    expect(body.commentAllowed).toBe(200)
+    expect(JSON.parse(body.metadata)).toContainEqual([
+      'image/png;base64',
+      'AAAA'
+    ])
+  })
 
   describe('ALIAS self-cycle detection (followLocalAliases)', () => {
     afterEach(() => {
