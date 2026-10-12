@@ -4,9 +4,13 @@
  * Strategy:
  *  - Navigations (HTML): network-first, fall back to the last cached page for
  *    the same URL, then to a generic offline shell. Keeps the wallet openable
- *    offline with its last-known state.
+ *    offline with its last-known state. A network that hasn't answered within
+ *    NAVIGATION_TIMEOUT_MS loses to the cached page (a flaky connection must
+ *    not hang the launch); its response still refreshes the cache.
  *  - Static assets (Next `/_next/static`, icons, images): cache-first — these
- *    are content-hashed / immutable so a stale hit is always correct.
+ *    are content-hashed / immutable so a stale hit is always correct. Only
+ *    successful responses are stored, and the cache is capped at
+ *    STATIC_CACHE_MAX_ENTRIES (oldest first) so it doesn't grow per deploy.
  *  - Wallet read APIs (GET only): network-first, falling back to the cached
  *    copy only when the network is unreachable, so the wallet still renders
  *    offline without ever replaying a body a mutation has already
@@ -14,12 +18,21 @@
  *
  * Bump CACHE_VERSION to invalidate old caches on deploy.
  */
-const CACHE_VERSION = 'v3'
+// v4: drops any 404 static chunk a v3 worker cached mid-deploy.
+const CACHE_VERSION = 'v4'
 const STATIC_CACHE = `lawallet-static-${CACHE_VERSION}`
 const PAGE_CACHE = `lawallet-pages-${CACHE_VERSION}`
 const API_CACHE = `lawallet-api-${CACHE_VERSION}`
 const OFFLINE_URL = '/wallet'
-const USER_DATA_CACHE_PREFIXES = ['lawallet-api-', 'lawallet-pages-']
+// Only caches this worker created. Others on the origin (e.g. the app's own
+// `lawallet-lottie-v1`) are not ours to delete on activate.
+const OWN_CACHE_PREFIXES = [
+  'lawallet-static-',
+  'lawallet-pages-',
+  'lawallet-api-'
+]
+const STATIC_CACHE_MAX_ENTRIES = 300
+const NAVIGATION_TIMEOUT_MS = 3500
 let userDataEpoch = 0
 
 // Wallet routes precached at install so cold, offline launches render the app
@@ -57,11 +70,13 @@ self.addEventListener('install', event => {
 
 self.addEventListener('activate', event => {
   const keep = new Set([STATIC_CACHE, PAGE_CACHE, API_CACHE])
+  const isStale = key =>
+    !keep.has(key) && OWN_CACHE_PREFIXES.some(prefix => key.startsWith(prefix))
   event.waitUntil(
     caches
       .keys()
       .then(keys =>
-        Promise.all(keys.filter(k => !keep.has(k)).map(k => caches.delete(k)))
+        Promise.all(keys.filter(isStale).map(k => caches.delete(k)))
       )
       .then(() => self.clients.claim())
   )
@@ -75,19 +90,33 @@ self.addEventListener('message', event => {
     // just ended. Bumping the epoch prevents its eventual response from
     // recreating a cache after the deletion below.
     userDataEpoch += 1
+    // Drop every API cache, but keep the precached app shell: HTML here is
+    // not personalized (auth lives in localStorage), and wiping it would
+    // leave the next offline launch with nothing to render. Other visited
+    // pages go, since their URLs can still name the previous account's data.
     event.waitUntil(
-      caches
-        .keys()
-        .then(keys =>
-          Promise.all(
-            keys
-              .filter(key =>
-                USER_DATA_CACHE_PREFIXES.some(prefix => key.startsWith(prefix))
-              )
-              .map(key => caches.delete(key))
+      Promise.all([
+        caches
+          .keys()
+          .then(keys =>
+            Promise.all(
+              keys
+                .filter(key => key.startsWith('lawallet-api-'))
+                .map(key => caches.delete(key))
+            )
+          ),
+        caches.open(PAGE_CACHE).then(async cache => {
+          const shell = new Set(
+            APP_SHELL.map(path => new URL(path, self.location.origin).href)
           )
-        )
-        .catch(() => {})
+          const requests = await cache.keys()
+          await Promise.all(
+            requests
+              .filter(request => !shell.has(request.url))
+              .map(request => cache.delete(request))
+          )
+        })
+      ]).catch(() => {})
     )
   }
 })
@@ -104,6 +133,23 @@ function isStaticAsset(url) {
 
 function isCacheableApi(url) {
   return CACHEABLE_API.some(re => re.test(url.pathname + url.search))
+}
+
+function cachedPage(request) {
+  return caches
+    .match(request)
+    .then(cached => cached || caches.match(OFFLINE_URL))
+}
+
+// Cache-first never re-puts a hit, so key order is first-seen order: trimming
+// from the front evicts the assets of the oldest deploys. An evicted chunk
+// that is still in use simply gets fetched again.
+async function trimStaticCache(cache) {
+  const keys = await cache.keys()
+  const excess = keys.length - STATIC_CACHE_MAX_ENTRIES
+  if (excess > 0) {
+    await Promise.all(keys.slice(0, excess).map(key => cache.delete(key)))
+  }
 }
 
 async function apiCacheRequest(request) {
@@ -135,21 +181,43 @@ self.addEventListener('fetch', event => {
   // the page cache by one entry per authorization.
   if (url.pathname.startsWith('/oauth/')) return
 
-  // HTML navigations — network-first with cache fallback.
+  // HTML navigations — network-first with a timed cache fallback.
   if (request.mode === 'navigate') {
+    let cacheWrite
+    const network = fetch(request).then(response => {
+      if (response.ok) {
+        const copy = response.clone()
+        cacheWrite = caches
+          .open(PAGE_CACHE)
+          .then(cache => cache.put(request, copy))
+      }
+      return response
+    })
+    // Keep the worker alive until a late network response has been cached,
+    // even when the cached page already answered the navigation.
+    event.waitUntil(network.then(() => cacheWrite).catch(() => {}))
     event.respondWith(
-      fetch(request)
-        .then(response => {
-          if (response.ok) {
-            const copy = response.clone()
-            caches.open(PAGE_CACHE).then(cache => cache.put(request, copy))
+      new Promise(resolve => {
+        // Slow network: answer from the cache if there is anything to show,
+        // otherwise keep waiting for the network. Resolving twice is a no-op.
+        const timer = setTimeout(() => {
+          cachedPage(request).then(cached => {
+            if (cached) resolve(cached)
+          })
+        }, NAVIGATION_TIMEOUT_MS)
+        network.then(
+          response => {
+            clearTimeout(timer)
+            resolve(response)
+          },
+          () => {
+            clearTimeout(timer)
+            cachedPage(request).then(cached =>
+              resolve(cached || Response.error())
+            )
           }
-          return response
-        })
-        .catch(async () => {
-          const cached = await caches.match(request)
-          return cached || (await caches.match(OFFLINE_URL)) || Response.error()
-        })
+        )
+      })
     )
     return
   }
@@ -161,8 +229,20 @@ self.addEventListener('fetch', event => {
         cached =>
           cached ||
           fetch(request).then(response => {
-            const copy = response.clone()
-            caches.open(STATIC_CACHE).then(cache => cache.put(request, copy))
+            // A 404 for a chunk mid-deploy must not stick: caching it would
+            // replay the ChunkLoadError until the next CACHE_VERSION bump.
+            if (response.ok && !response.redirected) {
+              const copy = response.clone()
+              event.waitUntil(
+                caches
+                  .open(STATIC_CACHE)
+                  .then(async cache => {
+                    await cache.put(request, copy)
+                    await trimStaticCache(cache)
+                  })
+                  .catch(() => {})
+              )
+            }
             return response
           })
       )
@@ -182,25 +262,32 @@ self.addEventListener('fetch', event => {
   // the copy here only needs to cover being offline.
   if (isCacheableApi(url)) {
     const requestEpoch = userDataEpoch
+    // Start the network request first; the cache key (a SHA-256) is only
+    // needed once a response is in hand.
+    const network = fetch(request)
+    const cacheRequest = apiCacheRequest(request)
     event.respondWith(
-      caches.open(API_CACHE).then(async cache => {
-        const cacheRequest = await apiCacheRequest(request)
-        const cached = await cache.match(cacheRequest)
-        const network = fetch(request)
-          .then(response => {
-            const cacheControl = response.headers.get('cache-control') ?? ''
-            if (
-              response.ok &&
-              requestEpoch === userDataEpoch &&
-              !cacheControl.includes('no-store')
-            ) {
-              cache.put(cacheRequest, response.clone()).catch(() => {})
-            }
-            return response
-          })
-          .catch(() => cached || Response.error())
-        return network
-      })
+      network
+        .then(response => {
+          const cacheControl = response.headers.get('cache-control') ?? ''
+          if (response.ok && !cacheControl.includes('no-store')) {
+            const copy = response.clone()
+            event.waitUntil(
+              Promise.all([caches.open(API_CACHE), cacheRequest])
+                .then(([cache, key]) => {
+                  // A logout between the request and now owns the cache.
+                  if (requestEpoch === userDataEpoch)
+                    return cache.put(key, copy)
+                })
+                .catch(() => {})
+            )
+          }
+          return response
+        })
+        .catch(async () => {
+          const cache = await caches.open(API_CACHE)
+          return (await cache.match(await cacheRequest)) || Response.error()
+        })
     )
   }
 })
