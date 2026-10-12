@@ -16,7 +16,8 @@ const mocks = vi.hoisted(() => ({
   hasBrowserExtension: vi.fn(() => false),
   trackEvent: vi.fn(),
   clearSessionCaches: vi.fn(() => Promise.resolve()),
-  waitForSessionCacheCleanup: vi.fn(() => Promise.resolve())
+  waitForSessionCacheCleanup: vi.fn(() => Promise.resolve()),
+  unlockDialogLoaded: vi.fn()
 }))
 
 vi.mock('@/lib/client/auth-api', () => ({
@@ -41,9 +42,12 @@ vi.mock('@/lib/client/cache/session-cache', () => ({
   clearSessionCaches: mocks.clearSessionCaches,
   waitForSessionCacheCleanup: mocks.waitForSessionCacheCleanup
 }))
-vi.mock('@/components/admin/signer-unlock-dialog', () => ({
-  SignerUnlockDialog: () => null
-}))
+vi.mock('@/components/admin/signer-unlock-dialog', () => {
+  mocks.unlockDialogLoaded()
+  return {
+    SignerUnlockDialog: () => <div data-testid="unlock-dialog" />
+  }
+})
 vi.mock('@/lib/analytics/gtag', () => ({
   trackEvent: mocks.trackEvent
 }))
@@ -76,6 +80,11 @@ function validation(expiresInMs = 24 * 60 * 60 * 1000) {
     issuedAt: new Date().toISOString(),
     expiresAt: new Date(Date.now() + expiresInMs).toISOString()
   }
+}
+
+/** What validateJwt throws when GET /api/jwt answers with `status`. */
+function rejected(status: number) {
+  return Object.assign(new Error('Invalid or expired token'), { status })
 }
 
 function jwtWithExp(expSecondsFromNow: number): string {
@@ -354,27 +363,15 @@ describe('AuthProvider visibility recheck', () => {
     )
   })
 
-  it('silently remints when the stored JWT is invalid but a signer is available', async () => {
-    renderProvider()
-    await waitFor(() =>
-      expect(screen.getByTestId('status')).toHaveTextContent('unauthenticated')
-    )
-
-    await act(async () => {
-      await held.ctx!.login(STUB_SIGNER, 'bunker', {
-        secret: 'bunker://relay.example'
-      })
-    })
-    expect(screen.getByTestId('signer')).toHaveTextContent('yes')
-    expect(localStorage.getItem(SECRET_KEY)).toBe('bunker://relay.example')
-
-    mocks.validateJwt.mockRejectedValueOnce(new Error('invalid token'))
-    mocks.exchangeNip98ForJwt.mockClear()
+  it('silently remints when the server rejects the stored JWT and a signer is available', async () => {
+    localStorage.setItem(JWT_KEY, 'stored-tok')
+    localStorage.setItem(METHOD_KEY, 'bunker')
+    localStorage.setItem(SECRET_KEY, 'bunker://relay.example')
+    mocks.createBunkerSigner.mockResolvedValue(STUB_SIGNER)
+    mocks.validateJwt.mockRejectedValueOnce(rejected(401))
     mocks.exchangeNip98ForJwt.mockResolvedValue({ token: 'fresh-tok' })
 
-    await act(async () => {
-      fireVisibilityChange('visible')
-    })
+    renderProvider()
 
     await waitFor(() =>
       expect(screen.getByTestId('status')).toHaveTextContent('authenticated')
@@ -386,24 +383,15 @@ describe('AuthProvider visibility recheck', () => {
     expect(localStorage.getItem(SECRET_KEY)).toBe('bunker://relay.example')
   })
 
-  it('signs out without wiping signer credentials when remint fails', async () => {
-    renderProvider()
-    await waitFor(() =>
-      expect(screen.getByTestId('status')).toHaveTextContent('unauthenticated')
-    )
-
-    await act(async () => {
-      await held.ctx!.login(STUB_SIGNER, 'bunker', {
-        secret: 'bunker://relay.example'
-      })
-    })
-
-    mocks.validateJwt.mockRejectedValue(new Error('invalid token'))
+  it('signs out without wiping signer credentials when the JWT is rejected and remint fails', async () => {
+    localStorage.setItem(JWT_KEY, 'stored-tok')
+    localStorage.setItem(METHOD_KEY, 'bunker')
+    localStorage.setItem(SECRET_KEY, 'bunker://relay.example')
+    mocks.createBunkerSigner.mockResolvedValue(STUB_SIGNER)
+    mocks.validateJwt.mockRejectedValue(rejected(401))
     mocks.exchangeNip98ForJwt.mockRejectedValue(new Error('nip98 failed'))
 
-    await act(async () => {
-      fireVisibilityChange('visible')
-    })
+    renderProvider()
 
     await waitFor(() =>
       expect(screen.getByTestId('status')).toHaveTextContent('unauthenticated')
@@ -560,5 +548,219 @@ describe('AuthProvider silent JWT remint', () => {
     )
     expect(localStorage.getItem(SECRET_KEY)).toBe(DERIVED_SECRET)
     expect(localStorage.getItem(METHOD_KEY)).toBe('passkey')
+  })
+})
+
+/** A session JWT carrying the claims POST /api/jwt bakes in. */
+function sessionJwt(
+  expSecondsFromNow = 24 * 60 * 60,
+  claims: Record<string, unknown> = {}
+): string {
+  const header = Buffer.from(
+    JSON.stringify({ alg: 'HS256', typ: 'JWT' })
+  ).toString('base64url')
+  const now = Math.floor(Date.now() / 1000)
+  const payload = Buffer.from(
+    JSON.stringify({
+      pubkey: PUBKEY,
+      role: Role.ADMIN,
+      permissions: ['settings:read'],
+      iat: now,
+      exp: now + expSecondsFromNow,
+      ...claims
+    })
+  ).toString('base64url')
+  return `${header}.${payload}.sig`
+}
+
+describe('AuthProvider optimistic session', () => {
+  it('is authenticated from the stored claims before validation answers', async () => {
+    localStorage.setItem(JWT_KEY, sessionJwt())
+    mocks.validateJwt.mockReturnValue(new Promise(() => {}))
+
+    renderProvider()
+
+    await waitFor(() =>
+      expect(screen.getByTestId('status')).toHaveTextContent('authenticated')
+    )
+    expect(screen.getByTestId('pubkey')).toHaveTextContent(PUBKEY)
+    expect(held.ctx!.role).toBe(Role.ADMIN)
+    expect(held.ctx!.permissions).toEqual(['settings:read'])
+  })
+
+  it.each([
+    ['offline', new TypeError('Failed to fetch')],
+    ['timeout', new Error('JWT validation timed out')],
+    ['server error', rejected(500)],
+    ['rate limit', rejected(429)]
+  ])('stays signed in on a %s', async (_label, error) => {
+    const token = sessionJwt()
+    localStorage.setItem(JWT_KEY, token)
+    mocks.validateJwt.mockRejectedValue(error)
+
+    renderProvider()
+    await waitFor(() => expect(mocks.validateJwt).toHaveBeenCalled())
+    await flush()
+
+    expect(screen.getByTestId('status')).toHaveTextContent('authenticated')
+    expect(localStorage.getItem(JWT_KEY)).toBe(token)
+    expect(mocks.exchangeNip98ForJwt).not.toHaveBeenCalled()
+  })
+
+  it.each([401, 403])(
+    'drops the session when the server answers %i',
+    async status => {
+      localStorage.setItem(JWT_KEY, sessionJwt())
+      mocks.validateJwt.mockRejectedValue(rejected(status))
+
+      renderProvider()
+
+      await waitFor(() =>
+        expect(screen.getByTestId('status')).toHaveTextContent(
+          'unauthenticated'
+        )
+      )
+      expect(localStorage.getItem(JWT_KEY)).toBeNull()
+    }
+  )
+
+  it('does not re-render consumers when validation confirms the claims', async () => {
+    const token = sessionJwt()
+    localStorage.setItem(JWT_KEY, token)
+    let confirm: (v: unknown) => void = () => {}
+    mocks.validateJwt.mockReturnValue(
+      new Promise(resolve => {
+        confirm = resolve
+      })
+    )
+
+    renderProvider()
+    await waitFor(() =>
+      expect(screen.getByTestId('status')).toHaveTextContent('authenticated')
+    )
+    const before = held.ctx
+
+    await act(async () => {
+      confirm({
+        ...validation(),
+        pubkey: PUBKEY,
+        role: Role.ADMIN,
+        permissions: ['settings:read']
+      })
+    })
+    await flush()
+
+    expect(held.ctx).toBe(before)
+  })
+
+  it('falls back to server validation for a token without readable claims', async () => {
+    localStorage.setItem(JWT_KEY, 'opaque-tok')
+    mocks.validateJwt.mockReturnValue(new Promise(() => {}))
+
+    renderProvider()
+    await flush()
+
+    expect(screen.getByTestId('status')).toHaveTextContent('loading')
+  })
+
+  it('ignores claims with an unknown role', async () => {
+    localStorage.setItem(JWT_KEY, sessionJwt(3600, { role: 'GOD' }))
+    mocks.validateJwt.mockReturnValue(new Promise(() => {}))
+
+    renderProvider()
+    await flush()
+
+    expect(screen.getByTestId('status')).toHaveTextContent('loading')
+  })
+
+  it('skips the network on resume while the token is fresh', async () => {
+    localStorage.setItem(JWT_KEY, sessionJwt())
+
+    renderProvider()
+    await waitFor(() => expect(mocks.validateJwt).toHaveBeenCalledTimes(1))
+    await flush()
+
+    await act(async () => {
+      fireVisibilityChange('visible')
+      window.dispatchEvent(new Event('focus'))
+    })
+    await flush()
+
+    expect(mocks.validateJwt).toHaveBeenCalledTimes(1)
+    expect(mocks.exchangeNip98ForJwt).not.toHaveBeenCalled()
+    expect(screen.getByTestId('status')).toHaveTextContent('authenticated')
+  })
+
+  it('re-checks on resume a token the server never confirmed', async () => {
+    localStorage.setItem(JWT_KEY, sessionJwt())
+    mocks.validateJwt.mockRejectedValueOnce(new TypeError('Failed to fetch'))
+
+    renderProvider()
+    await waitFor(() => expect(mocks.validateJwt).toHaveBeenCalledTimes(1))
+    await flush()
+    expect(screen.getByTestId('status')).toHaveTextContent('authenticated')
+
+    // Back online, and the token turns out to be bad (e.g. secret rotated).
+    mocks.validateJwt.mockRejectedValueOnce(rejected(401))
+    await act(async () => {
+      fireVisibilityChange('visible')
+    })
+
+    await waitFor(() =>
+      expect(screen.getByTestId('status')).toHaveTextContent('unauthenticated')
+    )
+    expect(mocks.validateJwt).toHaveBeenCalledTimes(2)
+  })
+
+  it.each([
+    ['a non-hex pubkey', { pubkey: 'npub1notahexkey' }],
+    ['an unknown permission', { permissions: ['everything'] }]
+  ])('ignores claims with %s', async (_label, claims) => {
+    localStorage.setItem(JWT_KEY, sessionJwt(3600, claims))
+    mocks.validateJwt.mockReturnValue(new Promise(() => {}))
+
+    renderProvider()
+    await flush()
+
+    expect(screen.getByTestId('status')).toHaveTextContent('loading')
+  })
+
+  it('reads identity from a freshly minted token instead of a second request', async () => {
+    const minted = sessionJwt()
+    mocks.exchangeNip98ForJwt.mockResolvedValue({ token: minted })
+    renderProvider()
+    await waitFor(() =>
+      expect(screen.getByTestId('status')).toHaveTextContent('unauthenticated')
+    )
+
+    await act(async () => {
+      await held.ctx!.login(STUB_SIGNER, 'extension')
+    })
+
+    expect(screen.getByTestId('status')).toHaveTextContent('authenticated')
+    expect(held.ctx!.role).toBe(Role.ADMIN)
+    expect(mocks.validateJwt).not.toHaveBeenCalled()
+  })
+})
+
+describe('AuthProvider signer unlock dialog', () => {
+  it('loads the dialog only when a signer is requested', async () => {
+    localStorage.setItem(JWT_KEY, sessionJwt())
+    localStorage.setItem(METHOD_KEY, 'nsec')
+
+    renderProvider()
+    await waitFor(() =>
+      expect(screen.getByTestId('status')).toHaveTextContent('authenticated')
+    )
+    await flush()
+    expect(mocks.unlockDialogLoaded).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('unlock-dialog')).toBeNull()
+
+    act(() => {
+      void held.ctx!.requestSigner().catch(() => {})
+    })
+
+    expect(await screen.findByTestId('unlock-dialog')).toBeInTheDocument()
+    expect(mocks.unlockDialogLoaded).toHaveBeenCalled()
   })
 })

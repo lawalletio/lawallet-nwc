@@ -194,6 +194,15 @@ const envSchema = z.object({
       'Prisma queries slower than this log at warn level (0 disables slow-query logging)'
     ),
 
+  DATABASE_POOL_MAX: z
+    .string()
+    .transform(val => parseInt(val, 10))
+    .pipe(z.number().int().positive())
+    .optional()
+    .describe(
+      'Max Postgres connections per web instance (default 3 on Vercel, 10 elsewhere)'
+    ),
+
   // Data retention (run from the listener's reconcile tick, at most hourly)
   DATA_RETENTION_DAYS: z.preprocess(
     emptyEnvToUndefined,

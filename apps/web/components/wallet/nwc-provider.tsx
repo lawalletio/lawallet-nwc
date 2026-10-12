@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   type ReactNode
 } from 'react'
@@ -76,6 +77,36 @@ export function WalletNwcProvider({ children }: { children: ReactNode }) {
   )
 
   const balance = useNwcBalance(nwcString, { onTransaction })
+  const { sats, loading, error, refetch, updatedAt, status, fromCache } =
+    balance
+  // Every wallet screen reads this context; a fresh object per render would
+  // re-render all of them whenever the provider does.
+  const value = useMemo<WalletNwcValue>(
+    () => ({
+      sats,
+      loading,
+      error,
+      refetch,
+      updatedAt,
+      status,
+      fromCache,
+      nwcString,
+      cue,
+      subscribe
+    }),
+    [
+      sats,
+      loading,
+      error,
+      refetch,
+      updatedAt,
+      status,
+      fromCache,
+      nwcString,
+      cue,
+      subscribe
+    ]
+  )
 
   // Local-dev only: `?devPayment=incoming|outgoing` fires a one-shot NIP-47
   // shaped event through the real listener path so the wallet cue can be
@@ -101,9 +132,7 @@ export function WalletNwcProvider({ children }: { children: ReactNode }) {
   }, [nwcString, onTransaction])
 
   return (
-    <WalletNwcContext.Provider
-      value={{ ...balance, nwcString, cue, subscribe }}
-    >
+    <WalletNwcContext.Provider value={value}>
       <div className="relative flex min-h-0 flex-1 flex-col">
         <WalletPaymentNoticeOverlay cue={cue} />
         {children}

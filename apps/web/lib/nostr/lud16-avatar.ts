@@ -17,15 +17,16 @@ import { resolveProfiles } from '@/lib/nostr/profile-cache'
  * a pubkey so subsequent payRequests can embed the avatar.
  */
 
-// Only mimes wallets reliably render inline. The image cache also stores
-// gif/avif, but those are skipped here to avoid odd renders in payer wallets.
-const EMBEDDABLE_MIME = new Set(['image/png', 'image/jpeg', 'image/webp'])
+// LUD-06 defines exactly two image entries, `image/png;base64` and
+// `image/jpeg;base64`. The image cache also stores webp/gif/avif; those are
+// skipped rather than sent under a mime type payer wallets need not accept.
+const EMBEDDABLE_MIME = new Set(['image/png', 'image/jpeg'])
 
-// Hard cap on the raw image we inline. LUD-06 metadata is echoed on every
-// payRequest and (for description-hash wallets) folded into the invoice, so a
-// multi-MB avatar would bloat every response. Larger cached avatars are simply
-// omitted rather than embedded.
-const MAX_EMBEDDED_IMAGE_BYTES = 256 * 1024
+// Cap on the raw image we inline. LUD-06 allows up to 100 KB, but the metadata
+// is echoed on every payRequest (base64 adds a third), so a big avatar made
+// each lookup ~350 KB of JSON. A thumbnail fits comfortably; anything larger is
+// omitted, and the payRequest is still valid without an image.
+export const MAX_EMBEDDED_IMAGE_BYTES = 32 * 1024
 
 /**
  * Build the `[`image/<type>;base64`, <data>]` LUD-06 metadata entry for a

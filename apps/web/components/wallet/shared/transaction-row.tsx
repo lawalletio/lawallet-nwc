@@ -68,6 +68,9 @@ export function TransactionRow({ tx, href, className }: TransactionRowProps) {
     return (
       <Link
         href={href}
+        // Each row is a distinct dynamic route; viewport prefetch fired one
+        // request per visible row (1.3k/day in Sentry). Detail is cheap to load.
+        prefetch={false}
         onClick={remember}
         onPointerDown={remember}
         aria-label={`${title}, ${incoming ? '+' : '−'}${tx.amountSats.toLocaleString()} sats`}

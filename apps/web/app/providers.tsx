@@ -5,6 +5,7 @@ import { SSEProvider } from '@/lib/client/hooks/use-sse'
 import { NostrProfileProvider } from '@/lib/client/nostr-profile'
 import { ThemeProvider } from '@/lib/client/theme-context'
 import { Toaster } from '@/components/ui/sonner'
+import { GoogleAnalytics } from '@/components/analytics/google-analytics'
 
 type ProvidersProps = {
   children: React.ReactNode
@@ -19,6 +20,7 @@ export function Providers({ children }: ProvidersProps) {
           <NostrProfileProvider>
             {children}
             <Toaster />
+            <GoogleAnalytics />
           </NostrProfileProvider>
         </ThemeProvider>
       </SSEProvider>

@@ -145,7 +145,11 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     }
   })
 
-  eventBus.emit({ type: 'invoices:updated', timestamp: Date.now() })
+  eventBus.emit({
+    type: 'invoices:updated',
+    timestamp: Date.now(),
+    userId: user.id
+  })
 
   logActivity.fireAndForget({
     category: 'INVOICE',

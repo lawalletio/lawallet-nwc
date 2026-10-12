@@ -39,6 +39,18 @@ vi.mock('@/lib/middleware/maintenance', () => ({
   checkMaintenance: vi.fn()
 }))
 
+vi.mock('@/lib/middleware/rate-limit', () => ({
+  rateLimit: vi.fn(),
+  RateLimitPresets: { lud16: { bucket: 'lud16' } }
+}))
+
+// Every test reuses one payment hash, so the real per-hash throttle would
+// suppress lookups after the first. Its window logic is unit-tested in
+// tests/unit/lib/invoices/lookup-throttle.test.ts.
+vi.mock('@/lib/invoices/lookup-throttle', () => ({
+  shouldLookupInvoice: vi.fn(() => true)
+}))
+
 vi.mock('@/lib/events/event-bus', () => ({
   eventBus: { emit: vi.fn() }
 }))
@@ -63,6 +75,9 @@ import {
   OPTIONS
 } from '@/app/api/lud16/[username]/verify/[paymentHash]/route'
 import { closeAllServerNwcClients } from '@/lib/wallet/drivers/nwc-client-cache'
+import { rateLimit } from '@/lib/middleware/rate-limit'
+import { shouldLookupInvoice } from '@/lib/invoices/lookup-throttle'
+import { TooManyRequestsError } from '@/types/server/errors'
 
 const VALID_HASH = 'a'.repeat(64)
 const FUTURE = new Date(Date.now() + 60 * 60 * 1000)
@@ -148,6 +163,7 @@ beforeEach(() => {
   vi.mocked(prismaMock.lightningAddress.findFirst).mockResolvedValue(
     primaryWalletAddress as any
   )
+  vi.mocked(shouldLookupInvoice).mockReturnValue(true)
 })
 
 describe('GET /api/lud16/[username]/verify/[paymentHash]', () => {
@@ -412,6 +428,64 @@ describe('GET /api/lud16/[username]/verify/[paymentHash]', () => {
     expect(body.settled).toBe(false)
     expect(body.preimage).toBeNull()
     expect(prismaMock.invoice.update).not.toHaveBeenCalled()
+  })
+
+  it('rate limits verify polls with the LUD-16 preset', async () => {
+    vi.mocked(rateLimit).mockRejectedValueOnce(
+      new TooManyRequestsError('Rate limit exceeded', { retryAfter: 30 })
+    )
+
+    const req = createNextRequest(`/api/lud16/alice/verify/${VALID_HASH}`)
+    const res = await GET(
+      req,
+      createParamsPromise({ username: 'alice', paymentHash: VALID_HASH })
+    )
+
+    expect(res.status).toBe(429)
+    expect(rateLimit).toHaveBeenCalledWith(req, { bucket: 'lud16' })
+    expect(prismaMock.invoice.findUnique).not.toHaveBeenCalled()
+  })
+
+  it('answers a pending poll from the row while a recent lookup is in its window', async () => {
+    vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue(
+      baseInvoice as any
+    )
+    vi.mocked(shouldLookupInvoice).mockReturnValue(false)
+
+    const req = createNextRequest(`/api/lud16/alice/verify/${VALID_HASH}`)
+    const res = await GET(
+      req,
+      createParamsPromise({ username: 'alice', paymentHash: VALID_HASH })
+    )
+    const body: any = await assertResponse(res, 200)
+
+    expect(body).toEqual({
+      status: 'OK',
+      settled: false,
+      preimage: null,
+      pr: baseInvoice.bolt11
+    })
+    expect(shouldLookupInvoice).toHaveBeenCalledWith(VALID_HASH)
+    expect(lookupInvoiceMock).not.toHaveBeenCalled()
+  })
+
+  it('still reports a listener-settled invoice inside the lookup window', async () => {
+    vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue({
+      ...baseInvoice,
+      status: 'PAID',
+      preimage: 'c'.repeat(64)
+    } as any)
+    vi.mocked(shouldLookupInvoice).mockReturnValue(false)
+
+    const req = createNextRequest(`/api/lud16/alice/verify/${VALID_HASH}`)
+    const res = await GET(
+      req,
+      createParamsPromise({ username: 'alice', paymentHash: VALID_HASH })
+    )
+    const body: any = await assertResponse(res, 200)
+
+    expect(body.settled).toBe(true)
+    expect(body.preimage).toBe('c'.repeat(64))
   })
 
   it('returns unsettled when NWC call fails (retry-later semantics)', async () => {

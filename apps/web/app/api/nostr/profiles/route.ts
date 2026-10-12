@@ -1,7 +1,8 @@
-import { NextResponse } from 'next/server'
+import { after, NextResponse } from 'next/server'
 import { z } from 'zod'
 
-import { authenticate } from '@/lib/auth/unified-auth'
+import { Permission } from '@/lib/auth/permissions'
+import { authenticate, authHasPermission } from '@/lib/auth/unified-auth'
 import { resolveProfiles } from '@/lib/nostr/profile-cache'
 import { validateBody } from '@/lib/validation/middleware'
 import { withErrorHandling } from '@/types/server/error-handler'
@@ -20,12 +21,20 @@ const bodySchema = z.object({
  * Resolve registered users' Nostr kind-0 metadata through the server-side
  * cache. Unregistered pubkeys are silently omitted so this endpoint cannot be
  * used as a general-purpose relay proxy.
+ *
+ * Stale profiles are served from the cache and refreshed after the response.
+ * `force` (bypass the cache and block on relays) is only honoured for callers
+ * who can read users (the admin user page); for anyone else it is ignored, so
+ * a wallet user can't make the server fan out 200 relay queries per request.
  */
 export const POST = withErrorHandling(async (request: Request) => {
-  await authenticate(request)
+  const auth = await authenticate(request)
   const body = await validateBody(request, bodySchema)
+  const force =
+    (body.force ?? false) && authHasPermission(auth, Permission.USERS_READ)
   const profiles = await resolveProfiles(body.pubkeys, {
-    force: body.force ?? false
+    force,
+    schedule: after
   })
   return NextResponse.json({ profiles })
 })

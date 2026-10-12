@@ -9,6 +9,16 @@ vi.mock('@/lib/nostr/profile-image-cache', () => ({
   precacheProfileImages: vi.fn()
 }))
 
+const poolMock = vi.hoisted(() => ({
+  querySync: vi.fn(),
+  close: vi.fn()
+}))
+vi.mock('nostr-tools/pool', () => ({
+  SimplePool: vi.fn(function () {
+    return poolMock
+  })
+}))
+
 const PUBKEY_A = 'a'.repeat(64)
 const PUBKEY_B = 'b'.repeat(64)
 const PUBKEY_C = 'c'.repeat(64)
@@ -428,5 +438,173 @@ describe('resolveProfiles', () => {
     expect(precacheProfileImages).toHaveBeenCalledWith(
       expect.objectContaining({ pubkey: PUBKEY_A })
     )
+  })
+
+  it('skips a pubkey whose last failed fetch is inside the backoff window', async () => {
+    vi.mocked(prismaMock.user.findMany).mockResolvedValue([
+      { pubkey: PUBKEY_A }
+    ] as any)
+    vi.mocked(prismaMock.nostrProfileCache.findMany).mockResolvedValue([
+      cacheRow({
+        fetchedAt: null,
+        lastFetchAttemptAt: new Date(NOW.getTime() - 5 * 60 * 1000),
+        lastFetchError: 'Profile not found on relays'
+      })
+    ] as any)
+    const relayFetcher = vi.fn()
+
+    const profiles = await resolveProfiles([PUBKEY_A], {
+      now: NOW,
+      relayFetcher,
+      precacheImages: vi.fn()
+    })
+
+    expect(relayFetcher).not.toHaveBeenCalled()
+    expect(profiles).toEqual([])
+  })
+
+  it('retries a failed pubkey once the backoff window has passed', async () => {
+    vi.mocked(prismaMock.user.findMany).mockResolvedValue([
+      { pubkey: PUBKEY_A }
+    ] as any)
+    vi.mocked(prismaMock.nostrProfileCache.findMany).mockResolvedValue([
+      cacheRow({
+        fetchedAt: null,
+        lastFetchAttemptAt: new Date(NOW.getTime() - 11 * 60 * 1000)
+      })
+    ] as any)
+    const relayFetcher = vi
+      .fn()
+      .mockResolvedValue([kind0(PUBKEY_A, 100, { name: 'back' })])
+
+    const profiles = await resolveProfiles([PUBKEY_A], {
+      now: NOW,
+      relayFetcher,
+      precacheImages: vi.fn()
+    })
+
+    expect(relayFetcher).toHaveBeenCalledWith([PUBKEY_A])
+    expect(profiles[0].name).toBe('back')
+  })
+
+  it('serves stale cache without awaiting relays and refreshes in the scheduled task', async () => {
+    vi.mocked(prismaMock.user.findMany).mockResolvedValue([
+      { pubkey: PUBKEY_A },
+      { pubkey: PUBKEY_B }
+    ] as any)
+    vi.mocked(prismaMock.nostrProfileCache.findMany).mockResolvedValue([
+      cacheRow({
+        fetchedAt: new Date('2026-06-01T00:00:00.000Z'),
+        lastFetchAttemptAt: new Date('2026-06-01T00:00:00.000Z')
+      })
+    ] as any)
+    // B has no cached row, so it blocks; A is stale, so it's deferred.
+    const relayFetcher = vi.fn(async (pubkeys: string[]) =>
+      pubkeys.map(pk => kind0(pk, 100, { name: `new-${pk[0]}` }))
+    )
+    const tasks: Array<() => Promise<void>> = []
+
+    const profiles = await resolveProfiles([PUBKEY_A, PUBKEY_B], {
+      now: NOW,
+      relayFetcher,
+      precacheImages: vi.fn().mockResolvedValue(undefined),
+      schedule: task => tasks.push(task)
+    })
+
+    expect(relayFetcher).toHaveBeenCalledTimes(1)
+    expect(relayFetcher).toHaveBeenCalledWith([PUBKEY_B])
+    expect(profiles).toMatchObject([
+      { pubkey: PUBKEY_A, name: 'cached', stale: true },
+      { pubkey: PUBKEY_B, name: 'new-b' }
+    ])
+    expect(tasks).toHaveLength(1)
+
+    await tasks[0]()
+    expect(relayFetcher).toHaveBeenLastCalledWith([PUBKEY_A])
+    expect(prismaMock.nostrProfileCache.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { npub: NPUB_A },
+        update: expect.objectContaining({ name: 'new-a' })
+      })
+    )
+  })
+
+  it('force blocks on relays even with a scheduler', async () => {
+    vi.mocked(prismaMock.user.findMany).mockResolvedValue([
+      { pubkey: PUBKEY_A }
+    ] as any)
+    vi.mocked(prismaMock.nostrProfileCache.findMany).mockResolvedValue([
+      cacheRow()
+    ] as any)
+    const relayFetcher = vi
+      .fn()
+      .mockResolvedValue([kind0(PUBKEY_A, 300, { name: 'forced' })])
+    const schedule = vi.fn()
+
+    const profiles = await resolveProfiles([PUBKEY_A], {
+      now: NOW,
+      force: true,
+      relayFetcher,
+      precacheImages: vi.fn(),
+      schedule
+    })
+
+    expect(schedule).not.toHaveBeenCalled()
+    expect(profiles[0].name).toBe('forced')
+  })
+
+  describe('default relay fetcher', () => {
+    beforeEach(() => {
+      vi.mocked(prismaMock.user.findMany).mockResolvedValue([
+        { pubkey: PUBKEY_A }
+      ] as any)
+      vi.mocked(prismaMock.nostrProfileCache.findMany).mockResolvedValue([])
+    })
+
+    it('bounds querySync with maxWait and returns its events', async () => {
+      poolMock.querySync.mockResolvedValue([
+        { ...kind0(PUBKEY_A, 100, { name: 'relay' }), id: 'x' }
+      ])
+
+      const profiles = await resolveProfiles([PUBKEY_A], {
+        now: NOW,
+        precacheImages: vi.fn().mockResolvedValue(undefined)
+      })
+
+      expect(poolMock.querySync).toHaveBeenCalledWith(
+        expect.any(Array),
+        { kinds: [0], authors: [PUBKEY_A] },
+        { maxWait: 2_500 }
+      )
+      expect(profiles[0].name).toBe('relay')
+      expect(poolMock.close).toHaveBeenCalled()
+    })
+
+    it('gives up after the timeout and records the failure', async () => {
+      vi.useFakeTimers()
+      try {
+        poolMock.querySync.mockReturnValue(new Promise(() => {}))
+
+        const pending = resolveProfiles([PUBKEY_A], {
+          now: NOW,
+          precacheImages: vi.fn()
+        })
+        await vi.advanceTimersByTimeAsync(3_000)
+        const profiles = await pending
+
+        expect(profiles).toEqual([])
+        expect(prismaMock.nostrProfileCache.upsert).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: { npub: NPUB_A },
+            update: {
+              lastFetchAttemptAt: NOW,
+              lastFetchError: 'Relay query timed out'
+            }
+          })
+        )
+      } finally {
+        vi.useRealTimers()
+      }
+    })
   })
 })

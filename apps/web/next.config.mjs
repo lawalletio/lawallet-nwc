@@ -56,6 +56,17 @@ const nextConfig = {
           { key: 'Content-Security-Policy', value: "frame-ancestors 'none'" },
           { key: 'Referrer-Policy', value: 'no-referrer' }
         ]
+      },
+      {
+        // The dotlottie runtime is versioned in its file name, so it never
+        // changes under the same URL.
+        source: '/animations/:file(dotlottie-player-.+\\.wasm)',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable'
+          }
+        ]
       }
     ]
   },

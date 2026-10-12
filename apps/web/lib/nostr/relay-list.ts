@@ -19,7 +19,10 @@ import { DEFAULT_NOSTR_RELAYS, normalizeNostrPubkey } from '@/lib/nostr/profile'
  */
 
 const RELAY_LIST_CACHE_TTL_MS = 6 * 60 * 60 * 1000 // 6h
-const RELAY_FETCH_TIMEOUT_MS = 3_000
+export const RELAY_FETCH_TIMEOUT_MS = 3_000
+// Per-relay EOSE wait handed to `querySync`; kept under the hard cap so the
+// pool returns whatever arrived before `withTimeout` gives up on the call.
+export const RELAY_FETCH_MAX_WAIT_MS = 2_500
 // Min interval between relay fetch attempts for a single user. The public,
 // unauthenticated `nostr.json` endpoint can't fan out to relays on every
 // request; this gates retries after both successes (until the 6h TTL elapses)
@@ -77,6 +80,12 @@ interface ResolveRelaysOptions {
   now?: Date
   force?: boolean
   fetcher?: RelayListFetcher
+  /**
+   * Runs the relay refresh after the response is sent (route handlers pass
+   * `after` from next/server), so the caller is served `User.relays` without
+   * waiting on Nostr. Without it the refresh is awaited inline.
+   */
+  schedule?: (task: () => Promise<void>) => void
 }
 
 /**
@@ -85,14 +94,17 @@ interface ResolveRelaysOptions {
  *  - Otherwise, if a fetch was attempted within the short backoff window
  *    (`lastRelayFetchAttemptAt`) → serve `User.relays` without re-querying,
  *    so the public `nostr.json` endpoint doesn't fan out per request.
- *  - Otherwise → query the user's kind:10002 from Nostr:
+ *  - Otherwise → atomically claim the attempt (`lastRelayFetchAttemptAt`)
+ *    before querying, so concurrent requests don't all fetch; a request that
+ *    loses the claim serves `User.relays`. The winner queries kind:10002 —
+ *    inline, or after the response when `schedule` is passed:
  *    - When a list is found, persist it into `User.relays` (+ stamp
- *      `relaysUpdatedAt` AND `lastRelayFetchAttemptAt`) and return it.
+ *      `relaysUpdatedAt`) and return it.
  *    - When nothing is resolved — either the user published no NIP-65 list
  *      OR every relay failed/timed out (`nostr-tools` `querySync` resolves `[]`
  *      on failure rather than rejecting, and `withTimeout` resolves `null` on
- *      timeout, so the two are indistinguishable here) — record only the
- *      attempt (`lastRelayFetchAttemptAt`) WITHOUT bumping the 6h freshness
+ *      timeout, so the two are indistinguishable here) — the attempt stamp is
+ *      the only write, WITHOUT bumping the 6h freshness
  *      marker, and keep the stored (possibly manual) list. The next request
  *      retries after the short backoff instead of serving a degraded answer
  *      for 6h.
@@ -130,50 +142,64 @@ export async function resolveUserRelays(
   const normalized = normalizeNostrPubkey(user.pubkey)
   if (!normalized) return stored
 
-  let fetched: string[] = []
-  try {
-    const fetcher = options.fetcher ?? fetchRelayListsFromRelays
-    const events = await fetcher([normalized.pubkey])
-    const latest = newestByPubkey(events).get(normalized.pubkey)
-    if (latest) fetched = parseNip65Relays(latest.tags)
-  } catch {
-    // Import/init error only. `nostr-tools` `querySync` never rejects for
-    // relay-level failures (it resolves `[]`), and `withTimeout` resolves
-    // `null` on timeout — so relay failures don't throw, they land on the
-    // empty branch below and are handled identically. Record the attempt
-    // without claiming freshness, then serve whatever we already have.
-    await stampAttempt(db, user.id, now)
-    return stored
-  }
-
-  if (fetched.length === 0) {
-    // No relay list resolved — "user published none" and "every relay
-    // failed/timed out" are indistinguishable here (see catch comment above).
-    // Record only the attempt so the next request retries after the short
-    // backoff instead of pinning a degraded answer (operator defaults for a
-    // user with no stored list) for the 6h TTL. Leave any stored (possibly
-    // manual) list untouched.
-    await stampAttempt(db, user.id, now)
-    return stored
-  }
-
-  await db.user
-    .update({
-      where: { id: user.id },
-      data: {
-        relays: JSON.stringify(fetched),
-        relaysUpdatedAt: now,
-        lastRelayFetchAttemptAt: now
-      }
+  // Claim the attempt BEFORE querying relays: a conditional update, so of N
+  // concurrent nostr.json requests only the one that moves the marker fetches.
+  // This stamp alone never claims freshness — a fetch that resolves nothing
+  // (no NIP-65 list, or every relay failed/timed out; `querySync` resolves
+  // `[]` and `withTimeout` resolves `null`, so the two are indistinguishable)
+  // leaves it as the only write, and the list is retried after the backoff.
+  const claimed = await db.user
+    .updateMany({
+      where: {
+        id: user.id,
+        ...(options.force
+          ? {}
+          : {
+              OR: [
+                { lastRelayFetchAttemptAt: null },
+                {
+                  lastRelayFetchAttemptAt: {
+                    lt: new Date(now.getTime() - RELAY_FETCH_BACKOFF_MS)
+                  }
+                }
+              ]
+            })
+      },
+      data: { lastRelayFetchAttemptAt: now }
     })
-    .catch(() => {})
-  return fetched
-}
+    .then(r => r.count > 0)
+    .catch(() => false)
+  if (!claimed) return stored
 
-async function stampAttempt(db: typeof prisma, id: string, now: Date) {
-  await db.user
-    .update({ where: { id }, data: { lastRelayFetchAttemptAt: now } })
-    .catch(() => {})
+  const refresh = async (): Promise<string[]> => {
+    let fetched: string[] = []
+    try {
+      const fetcher = options.fetcher ?? fetchRelayListsFromRelays
+      const events = await fetcher([normalized.pubkey])
+      const latest = newestByPubkey(events).get(normalized.pubkey)
+      if (latest) fetched = parseNip65Relays(latest.tags)
+    } catch {
+      // Import/init error only — relay failures resolve `[]` (see above).
+    }
+    // Nothing resolved: keep any stored (possibly manual) list untouched.
+    if (fetched.length === 0) return stored
+
+    await db.user
+      .update({
+        where: { id: user.id },
+        data: { relays: JSON.stringify(fetched), relaysUpdatedAt: now }
+      })
+      .catch(() => {})
+    return fetched
+  }
+
+  if (options.schedule) {
+    options.schedule(async () => {
+      await refresh()
+    })
+    return stored
+  }
+  return refresh()
 }
 
 function newestByPubkey(events: RelayListEvent[]) {
@@ -196,10 +222,11 @@ async function fetchRelayListsFromRelays(
   const pool = new SimplePool()
   try {
     const events = await withTimeout(
-      pool.querySync(DEFAULT_NOSTR_RELAYS, {
-        kinds: [10002],
-        authors: pubkeys
-      }),
+      pool.querySync(
+        DEFAULT_NOSTR_RELAYS,
+        { kinds: [10002], authors: pubkeys },
+        { maxWait: RELAY_FETCH_MAX_WAIT_MS }
+      ),
       RELAY_FETCH_TIMEOUT_MS
     )
     return (events ?? []).map(event => ({
@@ -216,7 +243,11 @@ async function fetchRelayListsFromRelays(
   }
 }
 
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
+/** Resolves `null` if `promise` hasn't settled within `ms`. */
+export function withTimeout<T>(
+  promise: Promise<T>,
+  ms: number
+): Promise<T | null> {
   return Promise.race([
     promise,
     new Promise<null>(resolve => setTimeout(() => resolve(null), ms))

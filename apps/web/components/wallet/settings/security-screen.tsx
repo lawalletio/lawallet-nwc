@@ -67,7 +67,12 @@ export function SecurityScreen() {
   // nsec and passkey sessions keep the (PRF-derived) secret in localStorage;
   // read it at click time so we never hold it in state before the user asks.
   function handleRevealSecret() {
-    const stored = localStorage.getItem(SIGNER_SECRET_KEY)
+    let stored: string | null = null
+    try {
+      stored = localStorage.getItem(SIGNER_SECRET_KEY)
+    } catch {
+      // Storage blocked — same as nothing stored.
+    }
     if (!stored) {
       toast.error('No secret key is stored on this device')
       return

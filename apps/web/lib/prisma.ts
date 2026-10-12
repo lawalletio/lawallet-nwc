@@ -10,30 +10,50 @@ const globalForPrisma = globalThis as unknown as {
 
 const log = createLogger({ module: 'prisma' })
 
+/**
+ * Serverless instances each hold their own pool, so a small `max` keeps a
+ * burst of cold starts from exhausting Postgres connections; long-lived
+ * servers can afford more. Idle connections are closed quickly so a frozen
+ * lambda doesn't pin them, and a stuck connect fails fast instead of hanging.
+ */
+export function poolConfig(env = getEnv(false)) {
+  return {
+    connectionString: env.DATABASE_URL,
+    max: env.DATABASE_POOL_MAX ?? (process.env.VERCEL ? 3 : 10),
+    connectionTimeoutMillis: 5_000,
+    idleTimeoutMillis: 10_000
+  }
+}
+
 function createClient() {
-  const adapter = new PrismaPg({ connectionString: getEnv(false).DATABASE_URL })
+  const env = getEnv(false)
+  const adapter = new PrismaPg(poolConfig(env))
+
+  // Queries log at debug (invisible at the default info level); anything
+  // slower than SLOW_QUERY_THRESHOLD_MS escalates to warn so slow queries
+  // surface in production logs without enabling debug noise. 0 disables.
+  // With neither on, Prisma isn't asked to emit query events at all.
+  const slowMs = env.SLOW_QUERY_THRESHOLD_MS
+  // Optional call: several test suites stub the logger without it.
+  const debug = log.isLevelEnabled?.('debug') ?? false
+  if (!debug && slowMs <= 0) return new PrismaClient({ adapter })
+
   const client = new PrismaClient({
     adapter,
     log: [{ emit: 'event', level: 'query' }]
   })
 
-  // Queries log at debug (invisible at the default info level); anything
-  // slower than SLOW_QUERY_THRESHOLD_MS escalates to warn so slow queries
-  // surface in production logs without enabling debug noise. 0 disables.
-  const slowMs = getEnv(false).SLOW_QUERY_THRESHOLD_MS
-
   client.$on('query', event => {
+    const slow = slowMs > 0 && event.duration >= slowMs
+    if (!slow && !debug) return
+
     const entry = {
       query: event.query,
       durationMs: event.duration,
       target: event.target
     }
-
-    if (slowMs > 0 && event.duration >= slowMs) {
-      log.warn(entry, 'prisma.slow_query')
-    } else {
-      log.debug(entry, 'prisma.query')
-    }
+    if (slow) log.warn(entry, 'prisma.slow_query')
+    else log.debug(entry, 'prisma.query')
   })
 
   return client

@@ -304,6 +304,7 @@ model User {
   mcpPayments                        McpPayment[]
 
   @@index([role])
+  @@index([createdAt])
 }
 
 /// One Nostr pubkey belonging to an account. An account owns one or more
@@ -488,8 +489,6 @@ model RemoteWallet {
   invoices               Invoice[]
 
   @@unique([userId, name])
-  @@index([userId])
-  @@index([type])
   @@index([status])
 }
 
@@ -626,7 +625,6 @@ model RemoteWalletForwardDestination {
 
   @@unique([revisionId, position])
   @@unique([revisionId, address])
-  @@index([revisionId])
 }
 
 /// Durable record of one settled incoming payment and its forwarding plan.
@@ -666,6 +664,8 @@ model RemoteWalletForwardReceipt {
   legs                      RemoteWalletForwardLeg[]
 
   @@unique([walletId, sourcePaymentHash])
+  @@index([actionId, status, nextRetryAt])
+  @@index([revisionId])
   @@index([userId, createdAt])
   @@index([walletId, createdAt])
   @@index([status, nextRetryAt])
@@ -704,6 +704,7 @@ model RemoteWalletForwardLeg {
 
   @@unique([receiptId, position])
   @@index([receiptId, status])
+  @@index([destination, status])
   @@index([status, nextRetryAt])
   @@index([batchAnchorId, status])
 }
@@ -774,16 +775,18 @@ model Card {
   // in the wallet, but cannot produce payable LNURL-withdraw responses.
   disabledAt          DateTime?
 
-  design             CardDesign              @relation(fields: [designId], references: [id])
-  ntag424            Ntag424?                @relation(fields: [ntag424Cid], references: [cid])
-  user               User?                   @relation(fields: [userId], references: [id])
-  remoteWallet       RemoteWallet?           @relation(fields: [remoteWalletId], references: [id], onDelete: SetNull)
-  activationTokens   CardActivationToken[]
-  paymentAttempts    CardPaymentAttempt[]
-  activationBonuses  CardActivationBonus[]
+  design            CardDesign            @relation(fields: [designId], references: [id])
+  ntag424           Ntag424?              @relation(fields: [ntag424Cid], references: [cid])
+  user              User?                 @relation(fields: [userId], references: [id])
+  remoteWallet      RemoteWallet?         @relation(fields: [remoteWalletId], references: [id], onDelete: SetNull)
+  activationTokens  CardActivationToken[]
+  paymentAttempts   CardPaymentAttempt[]
+  activationBonuses CardActivationBonus[]
 
   @@index([userId])
   @@index([remoteWalletId])
+  @@index([otc])
+  @@index([designId])
 }
 
 /// An activation token backing a scannable QR for a card. At most one ACTIVE
@@ -816,18 +819,18 @@ model CardActivationToken {
 /// rescue / re-issue. FREE_ADDRESS is also queried by `userId` so an account
 /// can only redeem that bonus once.
 model CardActivationBonus {
-  id             String                     @id @default(cuid())
+  id             String                    @id @default(cuid())
   cardId         String
-  card           Card                       @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  card           Card                      @relation(fields: [cardId], references: [id], onDelete: Cascade)
   userId         String
-  user           User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user           User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
   kind           CardActivationBonusKind
-  status         CardActivationBonusStatus  @default(RESERVED)
+  status         CardActivationBonusStatus @default(RESERVED)
   amountSats     Int?
   /// RemoteWallet.id of the admin treasury that funded a SATS bonus.
   sourceWalletId String?
-  createdAt      DateTime                   @default(now())
-  updatedAt      DateTime                   @updatedAt
+  createdAt      DateTime                  @default(now())
+  updatedAt      DateTime                  @updatedAt
 
   @@unique([cardId, kind])
   @@index([userId, kind])
@@ -873,10 +876,15 @@ model Settings {
   value     String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  @@index([name])
 }
 
+/// Two raw partial indexes back the background sweeps (Prisma can't express
+/// partial indexes; see migration 20261012172246_perf_db_indexes):
+/// `Invoice_zap_settlement_due_idx` on (status, expiresAt) for zap invoices
+/// with a minting wallet (lib/nostr/zap-settlement.ts), and
+/// `Invoice_zap_receipt_pending_idx` on (status, paidAt) for zaps without a
+/// published receipt (lib/nostr/zap-receipts.ts). `status` stays a key column
+/// because Prisma's enum cast can't satisfy a partial-index predicate.
 model Invoice {
   id                       String         @id @default(uuid())
   bolt11                   String
@@ -924,10 +932,8 @@ model Invoice {
 
   @@index([userId])
   @@index([remoteWalletId])
-  @@index([status])
   @@index([status, zapReceiptNextRetryAt])
   @@index([status, settlementNextPollAt])
-  @@index([purpose, status])
 }
 
 /// Singleton operator configuration for the deferred LUD-16 proxy. Secrets
@@ -1019,6 +1025,7 @@ model ProxyPayment {
   attempts               ProxyForwardAttempt[]
 
   @@index([status, nextRetryAt])
+  @@index([status, createdAt])
   @@index([leaseExpiresAt])
   @@index([username, createdAt])
 }
@@ -1087,7 +1094,6 @@ model ActivityLog {
   @@index([category, createdAt])
   @@index([level, createdAt])
   @@index([userId, createdAt])
-  @@index([reqId])
 }
 
 model NostrProfileCache {
@@ -1129,7 +1135,6 @@ model NostrProfileImageCache {
   profile     NostrProfileCache     @relation(fields: [npub], references: [npub], onDelete: Cascade)
 
   @@id([npub, kind])
-  @@index([remoteUrl])
   @@index([cachedAt])
 }
 
@@ -1147,7 +1152,6 @@ model PluginRecord {
   updatedAt DateTime @updatedAt
 
   @@unique([pluginId, kind, key])
-  @@index([pluginId, kind])
 }
 
 // A coupon held on a user's behalf, compatible with the lacrypta/coupons

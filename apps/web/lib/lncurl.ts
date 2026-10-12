@@ -104,7 +104,12 @@ export async function createLncurlWallet(
   // bundle. The thrown messages below carry enough context; callers log them.
   let res: Response
   try {
-    res = await fetch(origin, { method: 'POST' })
+    res = await fetch(origin, {
+      method: 'POST',
+      // Runs inside the payer's LUD-16 /cb request (auto-heal), so a stalled
+      // LNCurl server must not hold that request open.
+      signal: AbortSignal.timeout(8000)
+    })
   } catch {
     throw new Error(`LNCurl server unreachable: ${origin}`)
   }

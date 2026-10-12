@@ -1,4 +1,11 @@
 export const TREASURE_CHEST_SRC = '/animations/treasure-chest.lottie'
+/**
+ * Self-hosted dotlottie player runtime (1.2MB) instead of the jsDelivr /
+ * unpkg default. The file name carries the `@lottiefiles/dotlottie-web`
+ * version; `treasure-chest-wasm.test.ts` fails when the dependency moves
+ * so the copy can't drift — re-copy `dist/dotlottie-player.wasm` then.
+ */
+export const DOTLOTTIE_WASM_SRC = '/animations/dotlottie-player-0.80.0.wasm'
 
 const CACHE_NAME = 'lawallet-lottie-v1'
 
@@ -8,12 +15,14 @@ let pending: Promise<ArrayBuffer> | null = null
 /**
  * Downloads the claim chest once per page and keeps the bytes in Cache
  * Storage so the next visit can play it without hitting the network.
- * Safe to call at app start; later callers share the same promise.
+ * Called when the withdraw screen opens; later callers share the promise.
  */
 export function preloadTreasureChest(): Promise<ArrayBuffer> {
   if (memory) return Promise.resolve(memory)
   if (typeof window === 'undefined') {
-    return Promise.reject(new Error('Treasure chest preload runs in the browser'))
+    return Promise.reject(
+      new Error('Treasure chest preload runs in the browser')
+    )
   }
   if (!pending) {
     pending = load()

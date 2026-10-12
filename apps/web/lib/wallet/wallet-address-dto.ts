@@ -1,10 +1,6 @@
 import type { LightningAddress, RemoteWallet } from '@/lib/generated/prisma'
 
-export type WalletAddressMode =
-  | 'IDLE'
-  | 'ALIAS'
-  | 'PROXY_ALIAS'
-  | 'CUSTOM_NWC'
+export type WalletAddressMode = 'IDLE' | 'ALIAS' | 'PROXY_ALIAS' | 'CUSTOM_NWC'
 export type EffectiveNwcMode = 'NONE' | 'RECEIVE' | 'SEND_RECEIVE'
 
 export interface WalletAddressDto {
@@ -26,6 +22,9 @@ type AddressWithWallet = LightningAddress & {
   remoteWallet: RemoteWallet | null
 }
 
+/** The wallet fields a capability is derived from. */
+type CapabilityWallet = Pick<RemoteWallet, 'status' | 'config'>
+
 /**
  * Pull the `mode` capability out of a RemoteWallet's `config`. Only ACTIVE
  * wallets contribute a capability — a disabled/revoked wallet reads as NONE
@@ -33,7 +32,7 @@ type AddressWithWallet = LightningAddress & {
  * `mode: 'RECEIVE' | 'SEND_RECEIVE'`; anything missing/odd falls back to
  * RECEIVE (the safer, more limited capability).
  */
-function walletCapability(wallet: RemoteWallet | null): EffectiveNwcMode {
+function walletCapability(wallet: CapabilityWallet | null): EffectiveNwcMode {
   if (!wallet || wallet.status !== 'ACTIVE') return 'NONE'
   const mode = (wallet.config as { mode?: unknown } | null)?.mode
   return mode === 'SEND_RECEIVE' ? 'SEND_RECEIVE' : 'RECEIVE'
@@ -48,10 +47,10 @@ function walletCapability(wallet: RemoteWallet | null): EffectiveNwcMode {
  * Centralised here so list, detail and create routes stay consistent and the
  * client never has to guess.
  */
-export function deriveEffectiveNwcMode(
-  address: AddressWithWallet,
-  defaultWallet: RemoteWallet | null
-): EffectiveNwcMode {
+export function deriveEffectiveNwcMode(address: {
+  mode: LightningAddress['mode']
+  remoteWallet: CapabilityWallet | null
+}): EffectiveNwcMode {
   switch (address.mode) {
     case 'IDLE':
     case 'ALIAS':
@@ -73,7 +72,7 @@ export function toWalletAddressDto(
     remoteWalletId: address.remoteWalletId ?? null,
     remoteWalletName: address.remoteWallet?.name ?? null,
     isPrimary: address.isPrimary,
-    nwcMode: deriveEffectiveNwcMode(address, defaultWallet),
+    nwcMode: deriveEffectiveNwcMode(address),
     createdAt: address.createdAt.toISOString(),
     updatedAt: address.updatedAt.toISOString()
   }

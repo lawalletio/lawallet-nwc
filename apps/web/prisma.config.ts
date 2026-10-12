@@ -27,7 +27,14 @@ if (process.env.E2E_DATABASE_URL) {
   process.env.DATABASE_URL = process.env.E2E_DATABASE_URL
 }
 
+// The CLI (migrate, studio) prefers `DATABASE_URL_UNPOOLED` — Neon/Vercel's
+// direct host — because `prisma migrate` takes a session advisory lock that a
+// transaction-mode pooler (PgBouncer, Neon `-pooler`) cannot hold. The app's
+// runtime client keeps using `DATABASE_URL`, which may be pooled. The E2E URL
+// still wins so a stray UNPOOLED value can never redirect an E2E migrate.
 const DATABASE_URL =
+  process.env.E2E_DATABASE_URL ||
+  process.env.DATABASE_URL_UNPOOLED ||
   process.env.DATABASE_URL ||
   'postgresql://placeholder:placeholder@localhost:5432/placeholder'
 
