@@ -23,6 +23,11 @@ export interface SSEEvent {
   // `activity:new` carries the new log row so subscribers can prepend it
   // without a round-trip to the API.
   log?: unknown
+  /**
+   * Scopes delivery to this account's clients (plus admins). Stripped from
+   * the wire payload. Unset = everyone allowed by the event's permission.
+   */
+  userId?: string
 }
 
 export const ALL_SSE_EVENT_TYPES: readonly SSEEventType[] = [

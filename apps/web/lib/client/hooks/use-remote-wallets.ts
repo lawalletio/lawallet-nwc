@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useVisibleInterval } from '@/lib/client/hooks/use-visible-interval'
 import {
   invalidateApiPath,
   useApi,
@@ -106,9 +106,8 @@ export function useRemoteWalletBalance(id: string | null) {
  * REVOKED wallets etc.) so we don't fire pointless requests for
  * wallets that have no live balance.
  *
- * A ref keeps `refetch` always pointing at the latest closure without
- * resubscribing the interval on every render — otherwise setInterval
- * would be torn down + recreated each render of the consumer.
+ * Polling pauses while the tab is hidden and catches up on return, so a
+ * backgrounded Connection Map doesn't hit the relay every 15 s per node.
  */
 export function useLiveRemoteWalletBalance(
   id: string | null,
@@ -116,23 +115,7 @@ export function useLiveRemoteWalletBalance(
 ) {
   const pollMs = opts?.pollMs ?? 15_000
   const result = useRemoteWalletBalance(id)
-  // Mirror `refetch` into a ref via a post-commit effect so the
-  // interval below reads the latest closure without depending on it
-  // (which would tear down + re-create the interval every render).
-  // Assigning the ref directly during render trips the
-  // react-hooks/immutability lint rule.
-  const refetchRef = useRef(result.refetch)
-  useEffect(() => {
-    refetchRef.current = result.refetch
-  }, [result.refetch])
-
-  useEffect(() => {
-    if (!id) return
-    const handle = setInterval(() => {
-      refetchRef.current()
-    }, pollMs)
-    return () => clearInterval(handle)
-  }, [id, pollMs])
+  useVisibleInterval(() => void result.refetch(), pollMs, id != null)
 
   return result
 }
