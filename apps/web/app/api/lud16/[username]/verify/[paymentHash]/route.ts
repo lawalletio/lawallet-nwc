@@ -5,6 +5,8 @@ import { NotFoundError } from '@/types/server/errors'
 import type { LUD21VerifySuccess, LUD21VerifyError } from '@/types/lnurl'
 import { settleInvoiceFromWallet } from '@/lib/invoices/settle-from-wallet'
 import { publishInvoiceZapReceipt } from '@/lib/nostr/zap-receipts'
+import { rateLimit, RateLimitPresets } from '@/lib/middleware/rate-limit'
+import { shouldLookupInvoice } from '@/lib/invoices/lookup-throttle'
 import {
   PUBLIC_READ_CORS_HEADERS,
   publicReadOptions,
@@ -29,13 +31,15 @@ export const OPTIONS = publicReadOptions
 export const GET = withErrorHandling(
   withPublicReadCors(
     async (
-      _req: NextRequest,
+      req: NextRequest,
       {
         params
       }: {
         params: Promise<{ username: string; paymentHash: string }>
       }
     ) => {
+      await rateLimit(req, RateLimitPresets.lud16)
+
       const { username: rawUsername, paymentHash: rawHash } = await params
       const username = rawUsername.trim().toLowerCase()
       const paymentHash = rawHash.trim().toLowerCase()
@@ -53,19 +57,34 @@ export const GET = withErrorHandling(
       // addresses scoped to the matching username (cheap by-PK lookup).
       const invoice = await prisma.invoice.findUnique({
         where: { paymentHash },
-        include: {
-          proxyPayment: {
-            select: { id: true, status: true }
-          },
+        // Exactly what this handler and `settleInvoiceFromWallet` read.
+        select: {
+          id: true,
+          bolt11: true,
+          paymentHash: true,
+          amountSats: true,
+          description: true,
+          purpose: true,
+          status: true,
+          preimage: true,
+          metadata: true,
+          userId: true,
+          expiresAt: true,
+          paidAt: true,
+          createdAt: true,
+          zapRequest: true,
+          proxyPayment: { select: { id: true } },
           remoteWallet: {
             select: { id: true, type: true, config: true, status: true }
           },
           user: {
             select: {
-              id: true,
               lightningAddresses: {
                 where: { username },
-                include: {
+                select: {
+                  username: true,
+                  mode: true,
+                  redirect: true,
                   remoteWallet: {
                     select: { id: true, type: true, config: true, status: true }
                   }
@@ -107,6 +126,16 @@ export const GET = withErrorHandling(
 
       // If expired, report as not settled (still returns pr for client to know)
       if (invoice.expiresAt < new Date()) {
+        const response: LUD21VerifySuccess = {
+          status: 'OK',
+          settled: false,
+          preimage: null,
+          pr: invoice.bolt11
+        }
+        return NextResponse.json(response)
+      }
+
+      if (!shouldLookupInvoice(paymentHash)) {
         const response: LUD21VerifySuccess = {
           status: 'OK',
           settled: false,

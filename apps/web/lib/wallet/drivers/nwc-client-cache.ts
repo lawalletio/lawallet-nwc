@@ -2,7 +2,15 @@ import type { NWCClient as NWCClientT } from '@getalby/sdk'
 
 type SdkModule = typeof import('@getalby/sdk')
 
+/**
+ * Each cached client holds open relay sockets, so the cache is an LRU: past
+ * this many connection strings the least recently used client is closed.
+ */
+export const MAX_CACHED_NWC_CLIENTS = 200
+
 let sdkPromise: Promise<SdkModule> | null = null
+// Map iteration order is insertion order; a hit re-inserts, so the first key
+// is always the least recently used.
 const clients = new Map<string, NWCClientT>()
 const clientCreations = new Map<string, Promise<NWCClientT>>()
 
@@ -23,7 +31,11 @@ export async function getServerNwcClient(
   connectionString: string
 ): Promise<NWCClientT> {
   const cached = clients.get(connectionString)
-  if (cached) return cached
+  if (cached) {
+    clients.delete(connectionString)
+    clients.set(connectionString, cached)
+    return cached
+  }
 
   const pending = clientCreations.get(connectionString)
   if (pending) return pending
@@ -34,6 +46,9 @@ export async function getServerNwcClient(
       if (existing) return existing
       const client = new NWCClient({ nostrWalletConnectUrl: connectionString })
       clients.set(connectionString, client)
+      if (clients.size > MAX_CACHED_NWC_CLIENTS) {
+        closeServerNwcClient(clients.keys().next().value!)
+      }
       return client
     })
     .finally(() => {

@@ -6,7 +6,10 @@ vi.mock('@/lib/nostr/zap-receipts', () => ({
   getZapReceiptCapability: vi.fn()
 }))
 
-import { resolveAddressProtocols } from '@/lib/wallet/address-protocols'
+import {
+  createAddressProtocolContext,
+  resolveAddressProtocols
+} from '@/lib/wallet/address-protocols'
 import { getActiveProxyConfig } from '@/lib/proxy/config'
 import { getListenerConfig } from '@/lib/listener-config'
 import { getZapReceiptCapability } from '@/lib/nostr/zap-receipts'
@@ -20,6 +23,7 @@ const user = {
 const base = { redirect: null, aliasProtocols: null, routable: true, user }
 
 beforeEach(() => {
+  vi.clearAllMocks()
   vi.mocked(getZapReceiptCapability).mockResolvedValue({
     lud21: true,
     nip57: true,
@@ -140,5 +144,48 @@ describe('resolveAddressProtocols', () => {
     })
     expect(result.protocols.nip05).toBe(false)
     expect(result.protocols.lud16).toBe(true)
+  })
+
+  it('shares one set of instance reads across every address in a list', async () => {
+    vi.mocked(getActiveProxyConfig).mockResolvedValue({
+      receiptPrivateKey: 'k',
+      row: { receiptPubkey: 'p' }
+    } as never)
+    vi.mocked(getListenerConfig).mockResolvedValue({ enabled: true } as never)
+    const context = createAddressProtocolContext()
+
+    const results = await Promise.all([
+      resolveAddressProtocols({ ...base, mode: 'CUSTOM_NWC' }, context),
+      resolveAddressProtocols({ ...base, mode: 'CUSTOM_NWC' }, context),
+      resolveAddressProtocols(
+        { ...base, mode: 'PROXY_ALIAS', redirect: 'bob@strike.me' },
+        context
+      ),
+      resolveAddressProtocols(
+        { ...base, mode: 'PROXY_ALIAS', redirect: 'carol@strike.me' },
+        context
+      )
+    ])
+
+    expect(results.map(r => r.protocols.nip57)).toEqual([
+      true,
+      true,
+      true,
+      true
+    ])
+    expect(getZapReceiptCapability).toHaveBeenCalledTimes(1)
+    expect(getActiveProxyConfig).toHaveBeenCalledTimes(1)
+    expect(getListenerConfig).toHaveBeenCalledTimes(1)
+  })
+
+  it('skips instance reads no address needs', async () => {
+    const context = createAddressProtocolContext()
+    await resolveAddressProtocols({ ...base, mode: 'IDLE' }, context)
+    await resolveAddressProtocols(
+      { ...base, mode: 'ALIAS', redirect: 'bob@strike.me' },
+      context
+    )
+    expect(getZapReceiptCapability).not.toHaveBeenCalled()
+    expect(getActiveProxyConfig).not.toHaveBeenCalled()
   })
 })

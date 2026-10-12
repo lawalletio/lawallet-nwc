@@ -28,7 +28,6 @@ import {
   getLud16AvatarMetadataEntry,
   warmNostrProfileForLud16
 } from '@/lib/nostr/lud16-avatar'
-import { getPrimaryRemoteWalletForUser } from '@/lib/wallet/primary-wallet'
 import { getActiveProxyConfig } from '@/lib/proxy/config'
 import { getListenerConfig } from '@/lib/listener-config'
 import {
@@ -37,7 +36,7 @@ import {
 } from '@/lib/proxy/lnurl'
 import { resolveLocalDestination } from '@/lib/proxy/local-destination'
 import { grossRangeForDestination } from '@/lib/proxy/money'
-import { getZapReceiptCapability } from '@/lib/nostr/zap-receipts'
+import { getAdvertisedZapReceiptCapability } from '@/lib/nostr/zap-receipts'
 import {
   PUBLIC_READ_CORS_HEADERS,
   publicReadOptions,
@@ -64,6 +63,18 @@ import {
  * the cap bounds a chain of distinct local aliases to one DB read per hop.
  */
 const MAX_ALIAS_HOPS = 16
+
+/**
+ * A payRequest is per address, never per payer, and wallets re-fetch it before
+ * every payment, so a CDN may share it briefly. The amount, comment and zap
+ * request only reach `/cb`, which is never cached. Errors carry no header (the
+ * error handler builds its own response), so a 404 is not pinned at the edge.
+ * The alias pass-through is left uncached: the remote may embed per-request
+ * state in its callback.
+ */
+const PAY_REQUEST_CACHE_HEADERS = {
+  'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300'
+}
 
 async function followLocalAliases(
   redirect: string,
@@ -152,10 +163,6 @@ export const GET = withErrorHandling(
       if (!lightningAddress) {
         throw new NotFoundError('Lightning address not found')
       }
-
-      const primaryWallet = await getPrimaryRemoteWalletForUser(
-        lightningAddress.user.id
-      )
 
       const route = resolveWalletRoute({
         mode: lightningAddress.mode,
@@ -313,23 +320,26 @@ export const GET = withErrorHandling(
           // Remote metadata images are optional; local identifiers remain valid.
         }
 
-        return NextResponse.json({
-          status: 'OK',
-          tag: 'payRequest',
-          callback,
-          ...range,
-          metadata: JSON.stringify(metadata),
-          commentAllowed: Math.min(
-            LUD12_MAX_COMMENT_LENGTH,
-            remote.commentAllowed ?? 0
-          ),
-          ...(proxy.row.receiptPubkey && proxy.receiptPrivateKey
-            ? {
-                allowsNostr: true,
-                nostrPubkey: proxy.row.receiptPubkey
-              }
-            : {})
-        } as LUD06Response)
+        return NextResponse.json(
+          {
+            status: 'OK',
+            tag: 'payRequest',
+            callback,
+            ...range,
+            metadata: JSON.stringify(metadata),
+            commentAllowed: Math.min(
+              LUD12_MAX_COMMENT_LENGTH,
+              remote.commentAllowed ?? 0
+            ),
+            ...(proxy.row.receiptPubkey && proxy.receiptPrivateKey
+              ? {
+                  allowsNostr: true,
+                  nostrPubkey: proxy.row.receiptPubkey
+                }
+              : {})
+          } as LUD06Response,
+          { headers: PAY_REQUEST_CACHE_HEADERS }
+        )
       }
 
       // route.kind === 'wallet' — return our own LUD-16 so /cb can mint an
@@ -341,12 +351,7 @@ export const GET = withErrorHandling(
       // `endpoint` setting / request host) — NOT the `domain`, which need not
       // serve the API. Mirrors the card `/scan` fix; without it, payments to
       // `user@domain` fail when the domain doesn't serve the API.
-      const [addressDomain, zapCapability] = await Promise.all([
-        resolveAddressDomain(req),
-        getZapReceiptCapability()
-      ])
-      const callback = `${await resolveApiUrl(req)}/api/lud16/${username}/cb`
-
+      //
       // Embed the user's cached Nostr avatar (kind:0) as a base64 image so payer
       // wallets show it next to the address — the same shape lacrypta.ar serves.
       // Read-only from the local cache (never blocks on a relay); `warm` kicks the
@@ -354,9 +359,14 @@ export const GET = withErrorHandling(
       // NOTE: the `/cb` route mints with a plain description (no description-hash
       // of this metadata), so enriching it here has no effect on invoice minting.
       const pubkey = lightningAddress.user.pubkey
-      const avatarEntry = pubkey
-        ? await getLud16AvatarMetadataEntry(pubkey)
-        : null
+      const [addressDomain, apiUrl, zapCapability, avatarEntry] =
+        await Promise.all([
+          resolveAddressDomain(req),
+          resolveApiUrl(req),
+          getAdvertisedZapReceiptCapability(),
+          pubkey ? getLud16AvatarMetadataEntry(pubkey) : null
+        ])
+      const callback = `${apiUrl}/api/lud16/${username}/cb`
       if (pubkey && !avatarEntry) warmNostrProfileForLud16(pubkey)
 
       const metadata: [string, string][] = [
@@ -365,31 +375,36 @@ export const GET = withErrorHandling(
         ...(avatarEntry ? [avatarEntry] : [])
       ]
 
-      return NextResponse.json({
-        status: 'OK',
-        tag: 'payRequest',
-        callback,
-        minSendable: 1000, // 1 satoshi in msats
-        maxSendable: 1000000000, // 1,000,000 sats in msats
-        metadata: JSON.stringify(metadata),
-        // LUD-12: declare the max comment length we accept on the callback.
-        // See: https://github.com/lnurl/luds/blob/luds/12.md
-        commentAllowed: LUD12_MAX_COMMENT_LENGTH,
-        payerData: {
-          name: { mandatory: false },
-          email: { mandatory: false }
-        },
-        ...(zapCapability.nip57
-          ? {
-              allowsNostr: true,
-              nostrPubkey: zapCapability.receiptPubkey!
-            }
-          : {}),
-        // Advertised only when the owner opted in. Absent reads as "don't send
-        // me coupons", which is the right default for an anonymous write
-        // surface — see the `allowVouchers` column comment.
-        ...(lightningAddress.user.allowVouchers ? { allowVouchers: true } : {})
-      } as LUD06Response)
+      return NextResponse.json(
+        {
+          status: 'OK',
+          tag: 'payRequest',
+          callback,
+          minSendable: 1000, // 1 satoshi in msats
+          maxSendable: 1000000000, // 1,000,000 sats in msats
+          metadata: JSON.stringify(metadata),
+          // LUD-12: declare the max comment length we accept on the callback.
+          // See: https://github.com/lnurl/luds/blob/luds/12.md
+          commentAllowed: LUD12_MAX_COMMENT_LENGTH,
+          payerData: {
+            name: { mandatory: false },
+            email: { mandatory: false }
+          },
+          ...(zapCapability.nip57
+            ? {
+                allowsNostr: true,
+                nostrPubkey: zapCapability.receiptPubkey!
+              }
+            : {}),
+          // Advertised only when the owner opted in. Absent reads as "don't send
+          // me coupons", which is the right default for an anonymous write
+          // surface — see the `allowVouchers` column comment.
+          ...(lightningAddress.user.allowVouchers
+            ? { allowVouchers: true }
+            : {})
+        } as LUD06Response,
+        { headers: PAY_REQUEST_CACHE_HEADERS }
+      )
     }
   ),
   { headers: PUBLIC_READ_CORS_HEADERS }

@@ -140,6 +140,7 @@ import {
   reviveDeadCourtesyWallet
 } from '@/lib/wallet/lncurl-wallet'
 import { DEV_ADMIN_USER_ID } from '@/lib/dev-identity'
+import { resetAdvertisedZapReceiptCapability } from '@/lib/nostr/zap-receipts'
 import { logger } from '@/lib/logger'
 
 function nwcUri(walletKey: string, secret: string, relay: string): string {
@@ -198,6 +199,7 @@ beforeEach(() => {
   closeAllServerNwcClients()
   mockPrimaryAddressWallet()
   vi.mocked(reviveDeadCourtesyWallet).mockResolvedValue(null)
+  resetAdvertisedZapReceiptCapability()
 })
 
 describe('GET /api/lud16/[username]', () => {
@@ -233,6 +235,7 @@ describe('GET /api/lud16/[username]', () => {
       `https://gateway.example.com/api/lud16/${LNURL_VERIFY_USERNAME}/cb?probe=probe-123`
     )
     expect(body.metadata).toContain('probe-123')
+    expect(res.headers.get('Cache-Control')).toBeNull()
   })
 
   it('returns LUD-06 pay response for valid username', async () => {
@@ -260,6 +263,32 @@ describe('GET /api/lud16/[username]', () => {
     expect(body.maxSendable).toBe(1000000000)
     expect(body.commentAllowed).toBe(200)
     expect(res.headers.get('Access-Control-Allow-Origin')).toBe('*')
+    // Per-address, never per-payer: a CDN may share it briefly.
+    expect(res.headers.get('Cache-Control')).toBe(
+      'public, s-maxage=60, stale-while-revalidate=300'
+    )
+    // The primary wallet was read on every lookup and never used.
+    expect(prismaMock.lightningAddress.findFirst).not.toHaveBeenCalled()
+  })
+
+  it('reads the zap signer once across repeated lookups', async () => {
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
+      username: 'alice',
+      mode: 'CUSTOM_NWC',
+      redirect: null,
+      remoteWallet: DEFAULT_WALLET,
+      user: { id: 'user-1', pubkey: null }
+    } as any)
+
+    for (let i = 0; i < 3; i++) {
+      const res = await Lud16Get(
+        createNextRequest('/api/lud16/alice'),
+        createParamsPromise({ username: 'alice' })
+      )
+      await assertResponse(res, 200)
+    }
+
+    expect(prismaMock.proxyServiceConfig.findUnique).toHaveBeenCalledTimes(1)
   })
 
   it('labels text/identifier with the address domain, not the API endpoint host', async () => {
@@ -329,6 +358,8 @@ describe('GET /api/lud16/[username]', () => {
 
     expect(res.status).toBe(404)
     expect(res.headers.get('Access-Control-Allow-Origin')).toBe('*')
+    // An error must never be pinned at the edge.
+    expect(res.headers.get('Cache-Control')).toBeNull()
   })
 
   it('returns 404 when user has no NWC configured', async () => {
@@ -731,6 +762,10 @@ describe('GET /api/lud16/[username]/cb', () => {
       `https://app.test.com/api/lud16/alice/verify/${'a'.repeat(64)}`
     )
     expect(res.headers.get('Access-Control-Allow-Origin')).toBe('*')
+    // Each invoice is unique to its payer.
+    expect(res.headers.get('Cache-Control')).toBeNull()
+    // The primary wallet only matters when an LNCurl mint fails.
+    expect(prismaMock.lightningAddress.findFirst).not.toHaveBeenCalled()
     // A fresh invoice must announce itself on the bus so any connected
     // dashboard (address detail / admin home / invoices feed) refetches
     // without a manual reload.
@@ -1325,6 +1360,55 @@ describe('GET /api/lud16/[username]/cb', () => {
     )
     expect(makeInvoiceMock).toHaveBeenCalledTimes(1)
     expect(prismaMock.invoice.upsert).toHaveBeenCalled()
+  })
+
+  it('reads the primary wallet only when an unbound LNCurl mint fails', async () => {
+    mockPrimaryAddressWallet(LNCURL_DEFAULT_WALLET as any)
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
+      username: 'pelo',
+      mode: 'CUSTOM_NWC',
+      redirect: null,
+      remoteWallet: null,
+      user: { id: 'user-1' }
+    } as any)
+    vi.mocked(getSettings).mockResolvedValue({
+      domain: 'test.com',
+      endpoint: 'https://app.test.com',
+      lncurl_enabled: 'true',
+      lncurl_auto_recreate: 'true'
+    })
+    vi.mocked(prismaMock.invoice.upsert).mockResolvedValue({
+      id: 'invoice-1',
+      paymentHash: 'a'.repeat(64)
+    } as any)
+    vi.mocked(createLncurlRemoteWallet).mockResolvedValue({
+      id: 'wallet-fresh',
+      type: 'NWC',
+      config: {
+        connectionString: FRESH_LNCURL_NWC_URI,
+        mode: 'SEND_RECEIVE',
+        provider: 'lncurl'
+      },
+      status: 'ACTIVE'
+    } as any)
+    makeInvoiceMock.mockRejectedValueOnce(new Error('relay timeout'))
+
+    const res = await Lud16CbGet(
+      createNextRequest('/api/lud16/pelo/cb', {
+        searchParams: { amount: '10000' }
+      }),
+      createParamsPromise({ username: 'pelo' })
+    )
+    await assertResponse(res, 200)
+
+    // The address has no bound wallet, so the dead one is the primary's.
+    expect(prismaMock.lightningAddress.findFirst).toHaveBeenCalledTimes(1)
+    expect(createLncurlRemoteWallet).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        previousWalletId: LNCURL_DEFAULT_WALLET.id,
+        revokePrevious: true
+      })
+    )
   })
 
   it('does NOT self-heal when lncurl_auto_recreate is off → 503', async () => {
