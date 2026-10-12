@@ -32,6 +32,21 @@ function mockVault(secret: string | null = ACTIVE_SECRET) {
   } as never)
 }
 
+/** Queue the boot-time EXISTS probe that precedes any batch work. */
+function mockState(hasNwc = true, pending = hasNwc) {
+  vi.mocked(prismaMock.$queryRaw).mockResolvedValueOnce([
+    { hasNwc, pending }
+  ] as never)
+}
+
+function plaintextRow(id: string) {
+  return {
+    id,
+    config: { connectionString: NWC_URI, mode: 'RECEIVE' },
+    nwcConfigEncryptedAt: null
+  }
+}
+
 beforeEach(() => {
   resetPrismaMock()
   vi.clearAllMocks()
@@ -40,7 +55,7 @@ beforeEach(() => {
 
 describe('RemoteWallet NWC startup migration', () => {
   it('encrypts every plaintext connection and stamps the row atomically', async () => {
-    vi.mocked(prismaMock.remoteWallet.count).mockResolvedValue(1)
+    mockState()
     vi.mocked(prismaMock.$queryRaw)
       .mockResolvedValueOnce([] as never) // advisory lock
       .mockResolvedValueOnce([
@@ -72,7 +87,7 @@ describe('RemoteWallet NWC startup migration', () => {
       'wallet-1',
       'other-remote-wallet-secret-0123456789abcdef0123456789abcdef'
     )
-    vi.mocked(prismaMock.remoteWallet.count).mockResolvedValue(1)
+    mockState()
     vi.mocked(prismaMock.$queryRaw)
       .mockResolvedValueOnce([] as never)
       .mockResolvedValueOnce([
@@ -96,7 +111,7 @@ describe('RemoteWallet NWC startup migration', () => {
       'wallet-1',
       'other-remote-wallet-secret-0123456789abcdef0123456789abcdef'
     )
-    vi.mocked(prismaMock.remoteWallet.count).mockResolvedValue(1)
+    mockState()
     vi.mocked(prismaMock.$queryRaw)
       .mockResolvedValueOnce([] as never)
       .mockResolvedValueOnce([
@@ -121,7 +136,7 @@ describe('RemoteWallet NWC startup migration', () => {
       'wallet-1',
       ACTIVE_SECRET
     )
-    vi.mocked(prismaMock.remoteWallet.count).mockResolvedValue(1)
+    mockState()
     vi.mocked(prismaMock.$queryRaw)
       .mockResolvedValueOnce([] as never) // advisory lock
       .mockResolvedValueOnce([
@@ -139,7 +154,7 @@ describe('RemoteWallet NWC startup migration', () => {
 
   it('fails closed when NWC rows exist without the vault key', async () => {
     mockVault(null)
-    vi.mocked(prismaMock.remoteWallet.count).mockResolvedValue(1)
+    mockState()
 
     await expect(migrateRemoteWalletNwcConfigs()).rejects.toThrow(
       'NWC_VAULT_SECRET is required'
@@ -149,12 +164,12 @@ describe('RemoteWallet NWC startup migration', () => {
 
   it('does not require the vault on an installation with no NWC wallets', async () => {
     mockVault(null)
-    vi.mocked(prismaMock.remoteWallet.count).mockResolvedValue(0)
+    mockState(false)
     await expect(migrateRemoteWalletNwcConfigs()).resolves.toBe(0)
   })
 
   it('processes multiple rows in batches', async () => {
-    vi.mocked(prismaMock.remoteWallet.count).mockResolvedValue(3)
+    mockState()
     vi.mocked(prismaMock.$queryRaw)
       .mockResolvedValueOnce([] as never) // advisory lock batch 1
       .mockResolvedValueOnce([
@@ -182,7 +197,7 @@ describe('RemoteWallet NWC startup migration', () => {
   })
 
   it('continues processing after batch boundary', async () => {
-    vi.mocked(prismaMock.remoteWallet.count).mockResolvedValue(51)
+    mockState()
     vi.mocked(prismaMock.$queryRaw)
       // First batch
       .mockResolvedValueOnce([] as never) // advisory lock
@@ -210,7 +225,7 @@ describe('RemoteWallet NWC startup migration', () => {
   })
 
   it('retries on transaction timeout', async () => {
-    vi.mocked(prismaMock.remoteWallet.count).mockResolvedValue(1)
+    mockState()
 
     let callCount = 0
     vi.mocked(prismaMock.$transaction).mockImplementation(async fn => {
@@ -248,7 +263,7 @@ describe('RemoteWallet NWC startup migration', () => {
   })
 
   it('fails after max retries', async () => {
-    vi.mocked(prismaMock.remoteWallet.count).mockResolvedValue(1)
+    mockState()
     vi.mocked(prismaMock.$transaction).mockRejectedValue(
       new Error(
         'Transaction already closed: A query cannot be executed on an expired transaction. ' +
@@ -262,7 +277,7 @@ describe('RemoteWallet NWC startup migration', () => {
   })
 
   it('skips rows with missing connectionString', async () => {
-    vi.mocked(prismaMock.remoteWallet.count).mockResolvedValue(2)
+    mockState()
     vi.mocked(prismaMock.$queryRaw)
       .mockResolvedValueOnce([] as never) // advisory lock
       .mockResolvedValueOnce([
@@ -281,6 +296,83 @@ describe('RemoteWallet NWC startup migration', () => {
 
     await expect(migrateRemoteWalletNwcConfigs()).rejects.toThrow(
       'no valid config.connectionString'
+    )
+  })
+
+  it('exits after one probe when every NWC row is already migrated', async () => {
+    mockState(true, false)
+
+    await expect(migrateRemoteWalletNwcConfigs()).resolves.toBe(0)
+    expect(prismaMock.$queryRaw).toHaveBeenCalledOnce()
+    expect(prismaMock.$transaction).not.toHaveBeenCalled()
+    expect(prismaMock.remoteWallet.update).not.toHaveBeenCalled()
+  })
+
+  it('still fails closed on the early-exit path when the vault key is gone', async () => {
+    mockVault(null)
+    mockState(true, false)
+
+    await expect(migrateRemoteWalletNwcConfigs()).rejects.toThrow(
+      'NWC_VAULT_SECRET is required'
+    )
+  })
+
+  it('pages with a keyset cursor instead of OFFSET', async () => {
+    const first = Array.from({ length: 50 }, (_, i) =>
+      plaintextRow(`wallet-${String(i + 1).padStart(3, '0')}`)
+    )
+    mockState()
+    vi.mocked(prismaMock.$queryRaw)
+      .mockResolvedValueOnce([] as never) // advisory lock
+      .mockResolvedValueOnce(first as never)
+      .mockResolvedValueOnce([] as never) // advisory lock
+      .mockResolvedValueOnce([plaintextRow('wallet-051')] as never)
+      .mockResolvedValueOnce([{ count: BigInt(0) }] as never)
+
+    await expect(migrateRemoteWalletNwcConfigs()).resolves.toBe(51)
+
+    // calls: [0] probe, [1] lock, [2] page 1, [3] lock, [4] page 2, [5] verify
+    const calls = vi.mocked(prismaMock.$queryRaw).mock.calls
+    const page1 = calls[2] as unknown as [TemplateStringsArray, ...unknown[]]
+    const page2 = calls[4] as unknown as [TemplateStringsArray, ...unknown[]]
+    const sql = page1[0].join('?')
+    expect(sql).toContain('"id" > ?')
+    expect(sql).not.toMatch(/OFFSET|SKIP LOCKED/)
+    expect(page1[1]).toBe('')
+    expect(page2[1]).toBe('wallet-050')
+  })
+
+  it('stops after a short page without fetching again', async () => {
+    mockState()
+    vi.mocked(prismaMock.$queryRaw)
+      .mockResolvedValueOnce([] as never) // advisory lock
+      .mockResolvedValueOnce([plaintextRow('wallet-1')] as never)
+      .mockResolvedValueOnce([{ count: BigInt(0) }] as never)
+
+    await expect(migrateRemoteWalletNwcConfigs()).resolves.toBe(1)
+    expect(prismaMock.$transaction).toHaveBeenCalledOnce()
+  })
+
+  it('finds nothing to do when another instance finished first', async () => {
+    mockState()
+    vi.mocked(prismaMock.$queryRaw)
+      .mockResolvedValueOnce([] as never) // advisory lock
+      .mockResolvedValueOnce([] as never) // empty page
+      .mockResolvedValueOnce([{ count: BigInt(0) }] as never)
+
+    await expect(migrateRemoteWalletNwcConfigs()).resolves.toBe(0)
+    expect(prismaMock.remoteWallet.update).not.toHaveBeenCalled()
+  })
+
+  it('fails when rows are still pending after the pass', async () => {
+    mockState()
+    vi.mocked(prismaMock.$queryRaw)
+      .mockResolvedValueOnce([] as never) // advisory lock
+      .mockResolvedValueOnce([] as never) // empty page
+      .mockResolvedValueOnce([{ count: BigInt(1) }] as never)
+
+    await expect(migrateRemoteWalletNwcConfigs()).rejects.toThrow(
+      'migration is incomplete'
     )
   })
 })
