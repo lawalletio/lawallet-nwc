@@ -136,3 +136,16 @@ describe('getOpenApiDocument', () => {
     ).toBeDefined()
   })
 })
+
+describe('getOpenApiDocument memoization', () => {
+  it('builds once and applies the server override per call', () => {
+    const a = getOpenApiDocument({ serverUrl: 'https://a.example' })
+    const b = getOpenApiDocument({ serverUrl: 'https://b.example' })
+    expect(a.paths).toBe(b.paths)
+    expect(a.servers).toEqual([
+      { url: 'https://a.example', description: 'rest-docs' }
+    ])
+    expect(b.servers?.[0].url).toBe('https://b.example')
+    expect(getOpenApiDocument().servers?.[0].url).toBe('http://localhost:3000')
+  })
+})

@@ -22,7 +22,8 @@ vi.mock('@/lib/middleware/maintenance', () => ({
   checkMaintenance: vi.fn()
 }))
 
-vi.mock('@/lib/auth/unified-auth', () => ({
+vi.mock('@/lib/auth/unified-auth', async importOriginal => ({
+  ...(await importOriginal<typeof import('@/lib/auth/unified-auth')>()),
   authenticate: vi.fn()
 }))
 
@@ -63,7 +64,11 @@ describe('POST /api/nostr/profiles', () => {
     const res = await POST(req)
     const body: any = await assertResponse(res, 200)
 
-    expect(resolveProfiles).toHaveBeenCalledWith([PUBKEY], { force: true })
+    // A plain USER can't force a relay fan-out; the flag is dropped.
+    expect(resolveProfiles).toHaveBeenCalledWith([PUBKEY], {
+      force: false,
+      schedule: expect.any(Function)
+    })
     expect(body.profiles).toEqual([
       {
         pubkey: PUBKEY,
@@ -72,6 +77,62 @@ describe('POST /api/nostr/profiles', () => {
         fetchedAt: 123
       }
     ])
+  })
+
+  it('defaults force to false when omitted', async () => {
+    vi.mocked(resolveProfiles).mockResolvedValue([])
+
+    const req = createNextRequest('/api/nostr/profiles', {
+      method: 'POST',
+      body: { pubkeys: [PUBKEY] }
+    })
+    await assertResponse(await POST(req), 200)
+
+    expect(resolveProfiles).toHaveBeenCalledWith(
+      [PUBKEY],
+      expect.objectContaining({ force: false })
+    )
+  })
+
+  it('honours force for a caller who can read users', async () => {
+    vi.mocked(authenticate).mockResolvedValue({
+      pubkey: PUBKEY,
+      role: 'ADMIN' as any,
+      method: 'jwt'
+    })
+    vi.mocked(resolveProfiles).mockResolvedValue([])
+
+    const req = createNextRequest('/api/nostr/profiles', {
+      method: 'POST',
+      body: { pubkeys: [PUBKEY], force: true }
+    })
+    await assertResponse(await POST(req), 200)
+
+    expect(resolveProfiles).toHaveBeenCalledWith([PUBKEY], {
+      force: true,
+      schedule: expect.any(Function)
+    })
+  })
+
+  it('drops force for a device token without users:read', async () => {
+    vi.mocked(authenticate).mockResolvedValue({
+      pubkey: PUBKEY,
+      role: 'ADMIN' as any,
+      method: 'jwt',
+      scopes: ['cards:read' as any]
+    })
+    vi.mocked(resolveProfiles).mockResolvedValue([])
+
+    const req = createNextRequest('/api/nostr/profiles', {
+      method: 'POST',
+      body: { pubkeys: [PUBKEY], force: true }
+    })
+    await assertResponse(await POST(req), 200)
+
+    expect(resolveProfiles).toHaveBeenCalledWith(
+      [PUBKEY],
+      expect.objectContaining({ force: false })
+    )
   })
 
   it('rejects unauthenticated requests', async () => {

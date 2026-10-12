@@ -26,16 +26,28 @@ export function WalletLoadingScreen() {
     if (!window.location.pathname.startsWith('/wallet')) return
 
     const timer = window.setTimeout(() => {
-      const hasStoredJwt = Boolean(window.localStorage.getItem(JWT_STORAGE_KEY))
-      const lastRecoveryAt = Number(
-        window.sessionStorage.getItem(RECOVERY_STORAGE_KEY) ?? '0'
-      )
+      // Reloading offline only swaps a loading screen for an error page.
+      if (!navigator.onLine) return
+      try {
+        const hasStoredJwt = Boolean(
+          window.localStorage.getItem(JWT_STORAGE_KEY)
+        )
+        const lastRecoveryAt = Number(
+          window.sessionStorage.getItem(RECOVERY_STORAGE_KEY) ?? '0'
+        )
 
-      if (!hasStoredJwt || Date.now() - lastRecoveryAt < RECOVERY_COOLDOWN_MS) {
+        if (
+          !hasStoredJwt ||
+          Date.now() - lastRecoveryAt < RECOVERY_COOLDOWN_MS
+        ) {
+          return
+        }
+
+        window.sessionStorage.setItem(RECOVERY_STORAGE_KEY, String(Date.now()))
+      } catch {
+        // Storage blocked: no cooldown to record, so never reload-loop.
         return
       }
-
-      window.sessionStorage.setItem(RECOVERY_STORAGE_KEY, String(Date.now()))
       window.location.reload()
     }, RECOVERY_DELAY_MS)
 

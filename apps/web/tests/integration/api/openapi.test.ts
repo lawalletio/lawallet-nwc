@@ -38,4 +38,21 @@ describe('GET /api/openapi.json', () => {
     expect(Object.keys(body.paths)).toContain('/api/lud16/{username}')
     expect(body.components?.schemas?.ErrorEnvelope).toBeDefined()
   })
+
+  it('is CDN-cacheable and applies the per-request server URL', async () => {
+    const { GET } = await import('@/app/api/openapi.json/route')
+    const res = await GET(
+      createNextRequest('/api/openapi.json?serverUrl=https://a.example')
+    )
+    expect(res.headers.get('Cache-Control')).toBe('public, s-maxage=3600')
+    const body = (await getResponseJson(res)) as { servers: { url: string }[] }
+    expect(body.servers[0].url).toBe('https://a.example')
+
+    const other = (await getResponseJson(
+      await GET(
+        createNextRequest('/api/openapi.json?serverUrl=https://b.example')
+      )
+    )) as { servers: { url: string }[] }
+    expect(other.servers[0].url).toBe('https://b.example')
+  })
 })

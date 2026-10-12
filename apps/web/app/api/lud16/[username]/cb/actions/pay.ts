@@ -91,10 +91,6 @@ export default async function pay(
     throw new NotFoundError('Lightning address not found')
   }
 
-  const primaryWallet = await getPrimaryRemoteWalletForUser(
-    lightningAddress.user.id
-  )
-
   let route
   try {
     route = resolveWalletRoute({
@@ -319,8 +315,12 @@ export default async function pay(
           'lncurl_server_url'
         ])
         // The dead wallet is the address's bound wallet (CUSTOM_NWC) or the
+        // user's primary one. Only this failure path needs the primary, so it
+        // is read here rather than on every invoice request.
         const deadWalletId =
-          lightningAddress.remoteWallet?.id ?? primaryWallet?.id ?? null
+          lightningAddress.remoteWallet?.id ??
+          (await getPrimaryRemoteWalletForUser(lightningAddress.user.id))?.id ??
+          null
 
         if (lncurl_auto_recreate === 'true' && deadWalletId) {
           try {

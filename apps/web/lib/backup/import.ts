@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { invalidateHotSettingsCache } from '@/lib/settings'
 import {
   safeTransaction,
   wrapTransactionError,
@@ -306,23 +307,29 @@ export async function applyBackup(
     return suggested
   }
 
-  if (resolution.mode === 'replace') {
-    await runReplace(
-      tablesInScope,
-      validByTable,
-      state,
-      result,
-      resolution.atomic
-    )
-  } else {
-    await runMerge(
-      tablesInScope,
-      validByTable,
-      state,
-      result,
-      resolution,
-      strategyFor
-    )
+  try {
+    if (resolution.mode === 'replace') {
+      await runReplace(
+        tablesInScope,
+        validByTable,
+        state,
+        result,
+        resolution.atomic
+      )
+    } else {
+      await runMerge(
+        tablesInScope,
+        validByTable,
+        state,
+        result,
+        resolution,
+        strategyFor
+      )
+    }
+  } finally {
+    // A restore can rewrite the Settings table (incl. `root`, `endpoint`,
+    // maintenance) — drop the hot snapshot even when it fails part-way.
+    invalidateHotSettingsCache()
   }
 
   result.hadErrors =

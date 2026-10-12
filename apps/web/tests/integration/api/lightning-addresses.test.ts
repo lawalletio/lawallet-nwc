@@ -122,6 +122,68 @@ describe('GET /api/lightning-addresses', () => {
     expect(body[0]).toMatchObject({ username: 'alice', pubkey: 'a'.repeat(64) })
   })
 
+  it('selects only the fields a row reads and keeps the response shape', async () => {
+    vi.mocked(prismaMock.lightningAddress.findMany).mockResolvedValue([
+      {
+        username: 'alice',
+        createdAt: new Date('2024-01-01T00:00:00.000Z'),
+        updatedAt: new Date('2024-01-02T00:00:00.000Z'),
+        mode: 'CUSTOM_NWC',
+        redirect: null,
+        remoteWalletId: 'wallet-1',
+        isPrimary: true,
+        aliasProtocols: null,
+        remoteWallet: {
+          name: 'Alby',
+          status: 'ACTIVE',
+          config: { mode: 'SEND_RECEIVE' }
+        },
+        user: { id: 'user-1', pubkey: 'a'.repeat(64), nostrIdentities: [] }
+      },
+      {
+        username: 'bob',
+        createdAt: new Date('2024-01-01T00:00:00.000Z'),
+        updatedAt: new Date('2024-01-01T00:00:00.000Z'),
+        mode: 'IDLE',
+        redirect: null,
+        remoteWalletId: null,
+        isPrimary: false,
+        aliasProtocols: null,
+        remoteWallet: null,
+        user: { id: 'user-2', pubkey: 'b'.repeat(64), nostrIdentities: [] }
+      }
+    ] as any)
+
+    const res = await ListGet(createNextRequest('/api/lightning-addresses'))
+    const body: any = await assertResponse(res, 200)
+
+    const args = vi.mocked(prismaMock.lightningAddress.findMany).mock
+      .calls[0][0] as any
+    expect(args.include).toBeUndefined()
+    expect(args.select.remoteWallet).toEqual({
+      select: { name: true, status: true, config: true }
+    })
+    // Owners' primary addresses were loaded per row and never read.
+    expect(args.select.user.select.lightningAddresses).toBeUndefined()
+
+    expect(body[0]).toEqual({
+      username: 'alice',
+      pubkey: 'a'.repeat(64),
+      mode: 'CUSTOM_NWC',
+      redirect: null,
+      remoteWalletId: 'wallet-1',
+      remoteWalletName: 'Alby',
+      isPrimary: true,
+      nwcMode: 'SEND_RECEIVE',
+      createdAt: '2024-01-01T00:00:00.000Z',
+      updatedAt: '2024-01-02T00:00:00.000Z',
+      protocols: expect.objectContaining({
+        protocols: expect.objectContaining({ lud16: true })
+      })
+    })
+    expect(body[1]).toMatchObject({ username: 'bob', nwcMode: 'NONE' })
+  })
+
   it('returns empty array when no addresses', async () => {
     vi.mocked(prismaMock.lightningAddress.findMany).mockResolvedValue([])
 

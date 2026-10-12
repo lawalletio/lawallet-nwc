@@ -62,7 +62,16 @@ export interface CatchupDeps {
    * wallet answered, so it should not count toward dead-wallet detection.
    */
   onResponsive?: (walletId: string) => void
+  /** How many wallets catch up at once. Defaults to {@link CATCHUP_CONCURRENCY}. */
+  maxConcurrent?: number
 }
+
+/**
+ * Wallets caught up in parallel. The periodic sweep and a boot reconcile both
+ * reach every wallet at once; unbounded, that is a relay request burst and a
+ * pg pool stampede for every wallet in the pool.
+ */
+export const CATCHUP_CONCURRENCY = 8
 
 /**
  * Hybrid missed-event recovery, anchored on the per-wallet persisted cursor:
@@ -83,9 +92,27 @@ export class CatchupRunner {
   private readonly inFlight = new Set<string>()
   private readonly listTransactionsUnsupported = new Set<string>()
   private readonly lastCatchupAt = new Map<string, Date>()
+  private active = 0
+  private readonly waiting: Array<() => void> = []
 
   constructor(deps: CatchupDeps) {
     this.deps = deps
+  }
+
+  /** Resolves once a concurrency slot is free; pair with {@link release}. */
+  private acquire(): Promise<void> {
+    if (this.active < (this.deps.maxConcurrent ?? CATCHUP_CONCURRENCY)) {
+      this.active++
+      return Promise.resolve()
+    }
+    // The releasing run hands its slot straight over, so `active` stays put.
+    return new Promise(resolve => this.waiting.push(resolve))
+  }
+
+  private release(): void {
+    const next = this.waiting.shift()
+    if (next) next()
+    else this.active--
   }
 
   /** Wallets may gain list_transactions after upgrades — retry periodically. */
@@ -100,7 +127,9 @@ export class CatchupRunner {
   async runForWallet(wallet: DesiredWallet, client: NWCClient): Promise<void> {
     const { env, log, pool, metrics } = this.deps
     if (this.inFlight.has(wallet.id)) return
+    // Marked in flight while queued too, so a wallet waits for a slot once.
     this.inFlight.add(wallet.id)
+    await this.acquire()
     try {
       const cursor = await getCursor(pool, wallet.id)
       const now = new Date()
@@ -140,6 +169,7 @@ export class CatchupRunner {
       metrics.catchupErrors++
       log.warn({ err, walletId: wallet.id }, 'catchup.failed')
     } finally {
+      this.release()
       this.inFlight.delete(wallet.id)
     }
   }

@@ -84,6 +84,42 @@ export async function getZapReceiptCapability(): Promise<ZapReceiptCapability> {
   }
 }
 
+const ADVERTISED_CAPABILITY_TTL_MS = 30_000
+let advertisedCapability: {
+  value: Promise<ZapReceiptCapability>
+  expiresAt: number
+} | null = null
+
+/**
+ * {@link getZapReceiptCapability} for advertising only (payRequest
+ * `allowsNostr`/`nostrPubkey`, address protocol badges). Every LUD-16 lookup
+ * reads it, and the uncached path is a DB read plus an nsec decrypt just to
+ * learn the pubkey, so it is memoised per instance for a short TTL. Decisions
+ * that commit to a receipt (minting a zap invoice, publishing) keep calling the
+ * uncached function. A config change shows up within the TTL.
+ */
+export function getAdvertisedZapReceiptCapability(): Promise<ZapReceiptCapability> {
+  const now = Date.now()
+  if (advertisedCapability && advertisedCapability.expiresAt > now) {
+    return advertisedCapability.value
+  }
+  const value = getZapReceiptCapability()
+  advertisedCapability = {
+    value,
+    expiresAt: now + ADVERTISED_CAPABILITY_TTL_MS
+  }
+  // A failed read must not be served from cache for the whole TTL.
+  value.catch(() => {
+    if (advertisedCapability?.value === value) advertisedCapability = null
+  })
+  return value
+}
+
+/** Test seam: forget the memoised advertised capability. */
+export function resetAdvertisedZapReceiptCapability(): void {
+  advertisedCapability = null
+}
+
 /**
  * Publish the receipt associated with an already-settled, local LUD-16
  * invoice. The lease makes webhook replays and LUD-21 polls race safely; a

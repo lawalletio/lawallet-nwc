@@ -209,6 +209,21 @@ export const nwcWebhookAckSchema = z.object({
 })
 export type NwcWebhookAck = z.infer<typeof nwcWebhookAckSchema>
 
+// ── POST {web}/api/internal/zaps/settle — listener tick ack ─────────────────
+
+/**
+ * Web's answer to a zap settlement tick. `pending` says whether any zap invoice
+ * is still open and `nextPollAt` (ISO) when the earliest one is due, so the
+ * listener can back off while idle. A web build that predates these fields
+ * answers just `{ accepted: true }`: the listener then keeps its fixed cadence.
+ */
+export const zapSettleAckSchema = z.object({
+  accepted: z.boolean().optional(),
+  pending: z.boolean().optional(),
+  nextPollAt: z.string().nullable().optional()
+})
+export type ZapSettleAck = z.infer<typeof zapSettleAckSchema>
+
 // ── POST {listener}/nwc/request — proxy NWC calls over the live pool ────────
 
 export const nwcProxyMethodSchema = z.enum([

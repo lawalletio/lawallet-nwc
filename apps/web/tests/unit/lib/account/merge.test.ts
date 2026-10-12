@@ -39,6 +39,8 @@ import {
   unlinkIdentity
 } from '@/lib/account/merge'
 import { logActivity } from '@/lib/activity-log'
+import { requestContext } from '@/lib/request-context'
+import { resolveAccountByPubkey } from '@/lib/auth/account'
 import {
   ConflictError,
   NotFoundError,
@@ -392,6 +394,28 @@ describe('identity mutations', () => {
     })
     await expect(linkPubkeyToAccount(A, PK_B)).rejects.toBeInstanceOf(
       ConflictError
+    )
+  })
+
+  it('linkPubkeyToAccount links, logs, and drops the request account memo', async () => {
+    vi.mocked(prismaMock.nostrIdentity.create).mockResolvedValue({} as any)
+    vi.mocked(prismaMock.nostrIdentity.findUnique).mockResolvedValue({
+      user: { id: A, pubkey: PK_A, role: 'USER' }
+    } as any)
+
+    await requestContext.run({ reqId: 'r1' }, async () => {
+      await resolveAccountByPubkey(PK_A)
+      await linkPubkeyToAccount(A, PK_B, 'phone')
+      // memo dropped → the next lookup in this request reads the DB again
+      await resolveAccountByPubkey(PK_A)
+    })
+
+    expect(prismaMock.nostrIdentity.create).toHaveBeenCalledWith({
+      data: { pubkey: PK_B, userId: A, isPrimary: false, label: 'phone' }
+    })
+    expect(prismaMock.nostrIdentity.findUnique).toHaveBeenCalledTimes(2)
+    expect(logActivity.fireAndForget).toHaveBeenCalledWith(
+      expect.objectContaining({ event: 'user.account_pubkey_linked' })
     )
   })
 

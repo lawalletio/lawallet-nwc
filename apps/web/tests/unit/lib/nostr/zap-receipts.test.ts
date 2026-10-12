@@ -41,8 +41,10 @@ vi.mock('@/lib/proxy/nostr', () => ({
 }))
 
 import {
+  getAdvertisedZapReceiptCapability,
   getZapReceiptCapability,
-  publishInvoiceZapReceipt
+  publishInvoiceZapReceipt,
+  resetAdvertisedZapReceiptCapability
 } from '@/lib/nostr/zap-receipts'
 import { eventBus } from '@/lib/events/event-bus'
 
@@ -75,6 +77,7 @@ beforeEach(() => {
   vi.mocked(prismaMock.proxyServiceConfig.findUnique).mockResolvedValue(
     signerConfig as never
   )
+  resetAdvertisedZapReceiptCapability()
 })
 
 describe('RemoteWallet NIP-57 receipts', () => {
@@ -93,6 +96,60 @@ describe('RemoteWallet NIP-57 receipts', () => {
       receiptPubkey: signerConfig.receiptPubkey,
       reason: expect.stringMatching(/listener/i)
     })
+  })
+
+  it('memoises the advertised capability so payRequests skip the DB read and decrypt', async () => {
+    const first = await getAdvertisedZapReceiptCapability()
+    const second = await getAdvertisedZapReceiptCapability()
+
+    expect(second).toBe(first)
+    expect(first.receiptPubkey).toBe(signerConfig.receiptPubkey)
+    expect(prismaMock.proxyServiceConfig.findUnique).toHaveBeenCalledTimes(1)
+  })
+
+  it('re-reads the advertised capability once the TTL lapses', async () => {
+    vi.useFakeTimers()
+    try {
+      await getAdvertisedZapReceiptCapability()
+      listenerState.enabled = false
+      vi.advanceTimersByTime(30_001)
+
+      const after = await getAdvertisedZapReceiptCapability()
+
+      expect(after.nip57).toBe(false)
+      expect(prismaMock.proxyServiceConfig.findUnique).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not cache a failed advertised read', async () => {
+    vi.mocked(prismaMock.proxyServiceConfig.findUnique).mockRejectedValueOnce(
+      new Error('db down')
+    )
+    await expect(getAdvertisedZapReceiptCapability()).rejects.toThrow('db down')
+
+    await expect(getAdvertisedZapReceiptCapability()).resolves.toMatchObject({
+      nip57: true
+    })
+  })
+
+  it('keeps a newer cached read when a superseded read fails', async () => {
+    let rejectStale!: (error: Error) => void
+    vi.mocked(prismaMock.proxyServiceConfig.findUnique).mockReturnValueOnce(
+      new Promise((_, reject) => {
+        rejectStale = reject
+      }) as never
+    )
+    const stale = getAdvertisedZapReceiptCapability()
+    resetAdvertisedZapReceiptCapability()
+    const fresh = await getAdvertisedZapReceiptCapability()
+
+    rejectStale(new Error('db down'))
+    await expect(stale).rejects.toThrow('db down')
+
+    await expect(getAdvertisedZapReceiptCapability()).resolves.toBe(fresh)
+    expect(prismaMock.proxyServiceConfig.findUnique).toHaveBeenCalledTimes(2)
   })
 
   it('claims, publishes, and persists one signed zap receipt', async () => {

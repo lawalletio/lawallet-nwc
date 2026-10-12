@@ -20,7 +20,11 @@ export const GET = withErrorHandling(async (request: Request) => {
 
   const users = await prisma.user.findMany({
     orderBy: { createdAt: 'desc' },
-    include: {
+    select: {
+      id: true,
+      pubkey: true,
+      role: true,
+      createdAt: true,
       lightningAddresses: {
         where: { isPrimary: true },
         take: 1,

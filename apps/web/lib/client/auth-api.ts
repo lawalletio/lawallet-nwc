@@ -1,8 +1,27 @@
 import type { NostrSigner } from '@nostrify/nostrify'
-import { createNip98Token } from '@/lib/nip98-client'
 import type { Role, Permission } from '@/lib/auth/permissions'
 
 const DEFAULT_AUTH_TIMEOUT_MS = 8_000
+
+// Loaded on demand: NIP-98 signing pulls in nostr-tools, which the first
+// paint of a stored session never needs.
+async function createNip98Token(
+  ...args: Parameters<typeof import('@/lib/nip98-client').createNip98Token>
+) {
+  const mod = await import('@/lib/nip98-client')
+  return mod.createNip98Token(...args)
+}
+
+/**
+ * The server answered GET /api/jwt with a non-2xx. `status` lets callers
+ * tell a rejected token (401/403) apart from an outage (5xx, 429).
+ */
+export class JwtValidationError extends Error {
+  constructor(readonly status: number) {
+    super('Invalid or expired token')
+    this.name = 'JwtValidationError'
+  }
+}
 
 export interface JwtResponse {
   token: string
@@ -100,7 +119,7 @@ export async function validateJwt(
   }
 
   if (!response.ok) {
-    throw new Error('Invalid or expired token')
+    throw new JwtValidationError(response.status)
   }
 
   return response.json()

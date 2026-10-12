@@ -85,7 +85,7 @@ describe('session cache cleanup', () => {
     expect(window.sessionStorage.getItem('lawallet:first-load-done')).toBeNull()
     expect(await readRecent(NWC_KEY)).toEqual([])
     expect(deleteCache).toHaveBeenCalledWith('lawallet-api-v2')
-    expect(deleteCache).toHaveBeenCalledWith('lawallet-pages-v2')
+    expect(deleteCache).not.toHaveBeenCalledWith('lawallet-pages-v2')
     expect(deleteCache).not.toHaveBeenCalledWith('lawallet-static-v2')
   })
 })

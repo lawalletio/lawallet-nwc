@@ -1,6 +1,9 @@
 import { getActiveProxyConfig } from '@/lib/proxy/config'
 import { getListenerConfig } from '@/lib/listener-config'
-import { getZapReceiptCapability } from '@/lib/nostr/zap-receipts'
+import {
+  getZapReceiptCapability,
+  type ZapReceiptCapability
+} from '@/lib/nostr/zap-receipts'
 import { resolveAccountPubkey } from '@/lib/nostr/account-pubkey'
 import type { LightningAddressProbeResult } from '@/lib/lnurl-probe'
 
@@ -78,6 +81,41 @@ export interface AddressProtocolInput {
 }
 
 /**
+ * The instance-wide reads behind {@link resolveAddressProtocols}. They do not
+ * depend on the address — the proxy read alone is a query plus two decrypts —
+ * so a route listing N addresses creates one context and shares it. Each read
+ * runs at most once, and only if some address needs it.
+ */
+export interface AddressProtocolContext {
+  proxy: () => Promise<{ ready: boolean; nip57: boolean }>
+  capability: () => Promise<ZapReceiptCapability>
+}
+
+function once<T>(read: () => Promise<T>): () => Promise<T> {
+  let result: Promise<T> | undefined
+  return () => (result ??= read())
+}
+
+export function createAddressProtocolContext(): AddressProtocolContext {
+  return {
+    proxy: once(async () => {
+      const [proxy, listener] = await Promise.all([
+        getActiveProxyConfig(),
+        getListenerConfig()
+      ])
+      const ready = Boolean(proxy && listener.enabled)
+      return {
+        ready,
+        nip57: Boolean(
+          ready && proxy?.receiptPrivateKey && proxy.row.receiptPubkey
+        )
+      }
+    }),
+    capability: once(getZapReceiptCapability)
+  }
+}
+
+/**
  * What a Lightning Address actually offers to a payer right now.
  *
  * The answer depends on who ends up serving the payRequest:
@@ -91,7 +129,8 @@ export interface AddressProtocolInput {
  * payment route, so it only needs the account to have a usable pubkey.
  */
 export async function resolveAddressProtocols(
-  input: AddressProtocolInput
+  input: AddressProtocolInput,
+  context: AddressProtocolContext = createAddressProtocolContext()
 ): Promise<AddressProtocols> {
   // Never let a capability read break the route that carries it: an account
   // with a malformed or absent key simply has no NIP-05.
@@ -144,14 +183,7 @@ export async function resolveAddressProtocols(
   }
 
   if (input.mode === 'PROXY_ALIAS') {
-    const [proxy, listener] = await Promise.all([
-      getActiveProxyConfig(),
-      getListenerConfig()
-    ])
-    const ready = Boolean(proxy && listener.enabled)
-    const nip57 = Boolean(
-      ready && proxy?.receiptPrivateKey && proxy.row.receiptPubkey
-    )
+    const { ready, nip57 } = await context.proxy()
     return {
       protocols: {
         lud16: ready,
@@ -171,7 +203,7 @@ export async function resolveAddressProtocols(
   }
 
   // CUSTOM_NWC — served by us through the bound wallet.
-  const capability = await getZapReceiptCapability()
+  const capability = await context.capability()
   return {
     protocols: {
       lud16: input.routable,

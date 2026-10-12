@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server'
-import { resolveAddressProtocols } from '@/lib/wallet/address-protocols'
+import {
+  createAddressProtocolContext,
+  resolveAddressProtocols
+} from '@/lib/wallet/address-protocols'
 import { prisma } from '@/lib/prisma'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { authenticateWithPermission } from '@/lib/auth/unified-auth'
@@ -11,7 +14,6 @@ import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { provisionLightningAddressSchema } from '@/lib/validation/schemas'
 import { createLightningAddressForUser } from '@/lib/wallet/create-address'
 import { deriveEffectiveNwcMode } from '@/lib/wallet/wallet-address-dto'
-import { derivePrimaryWallet } from '@/lib/wallet/primary-wallet'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -28,8 +30,18 @@ export const GET = withErrorHandling(async (request: Request) => {
   await authenticateWithPermission(request, Permission.ADDRESSES_READ)
 
   const addresses = await prisma.lightningAddress.findMany({
-    include: {
-      remoteWallet: true,
+    // Only what the row below reads — never the wallet's encrypted config
+    // beyond the `mode` the capability needs.
+    select: {
+      username: true,
+      mode: true,
+      redirect: true,
+      remoteWalletId: true,
+      isPrimary: true,
+      aliasProtocols: true,
+      createdAt: true,
+      updatedAt: true,
+      remoteWallet: { select: { name: true, status: true, config: true } },
       user: {
         select: {
           id: true,
@@ -38,13 +50,6 @@ export const GET = withErrorHandling(async (request: Request) => {
             where: { isPrimary: true },
             select: { pubkey: true },
             take: 1
-          },
-          // Pull each owner's primary address so the derived NWC capability
-          // resolves without N+1 queries.
-          lightningAddresses: {
-            where: { isPrimary: true },
-            take: 1,
-            include: { remoteWallet: true }
           }
         }
       }
@@ -52,6 +57,7 @@ export const GET = withErrorHandling(async (request: Request) => {
     orderBy: [{ isPrimary: 'desc' }, { createdAt: 'desc' }]
   })
 
+  const protocolContext = createAddressProtocolContext()
   const transformed = await Promise.all(
     addresses.map(async address => ({
       username: address.username,
@@ -61,19 +67,19 @@ export const GET = withErrorHandling(async (request: Request) => {
       remoteWalletId: address.remoteWalletId,
       remoteWalletName: address.remoteWallet?.name ?? null,
       isPrimary: address.isPrimary,
-      nwcMode: deriveEffectiveNwcMode(
-        address,
-        derivePrimaryWallet(address.user.lightningAddresses?.[0])
-      ),
+      nwcMode: deriveEffectiveNwcMode(address),
       createdAt: address.createdAt.toISOString(),
       updatedAt: address.updatedAt.toISOString(),
-      protocols: await resolveAddressProtocols({
-        mode: address.mode,
-        redirect: address.redirect,
-        aliasProtocols: address.aliasProtocols,
-        routable: address.remoteWallet?.status === 'ACTIVE',
-        user: address.user
-      })
+      protocols: await resolveAddressProtocols(
+        {
+          mode: address.mode,
+          redirect: address.redirect,
+          aliasProtocols: address.aliasProtocols,
+          routable: address.remoteWallet?.status === 'ACTIVE',
+          user: address.user
+        },
+        protocolContext
+      )
     }))
   )
 

@@ -430,21 +430,23 @@ PostgreSQL via Prisma ORM. 7 models + 1 enum.
 
 All environment variables are validated at startup via Zod schema in `lib/config/env.ts`. Invalid config crashes the process immediately.
 
-| Variable                         | Required | Purpose                                                                |
-| -------------------------------- | :------: | ---------------------------------------------------------------------- |
-| `DATABASE_URL`                   |    ✓     | PostgreSQL connection string                                           |
-| `JWT_SECRET`                     |          | 32+ char secret for HS256 signing                                      |
-| `NWC_VAULT_SECRET`               | NWC data | Encrypts RemoteWallet NWC URIs and proxy secrets; shared with listener |
-| `LISTENER_URL`                   |          | Private or public listener base URL                                    |
-| `LISTENER_AUTH_SECRET`           |          | Listener webhook HMAC secret                                           |
-| `LISTENER_REQUEST_AUTH_SECRET`   |          | Optional separate web-to-listener request secret                       |
-| `MAINTENANCE_MODE`               |          | Enable 503 for non-admins                                              |
-| `LOG_LEVEL`                      |          | Pino log level (default: `info`)                                       |
-| `LOG_PRETTY`                     |          | Human-readable logs (dev)                                              |
-| `RATE_LIMIT_WINDOW_MS`           |          | Rate limit window (default: 60000)                                     |
-| `RATE_LIMIT_MAX_REQUESTS`        |          | Max requests per window                                                |
-| `RATE_LIMIT_MAX_AUTHENTICATED`   |          | Max for authenticated users                                            |
-| `REQUEST_MAX_BODY_SIZE`          |          | Max body in bytes                                                      |
+| Variable                       | Required | Purpose                                                                  |
+| ------------------------------ | :------: | ------------------------------------------------------------------------ |
+| `DATABASE_URL`                 |    ✓     | PostgreSQL connection string                                             |
+| `DATABASE_URL_UNPOOLED`        |          | Direct (non-pooled) URL for the Prisma CLI; falls back to `DATABASE_URL` |
+| `DATABASE_POOL_MAX`            |          | Max connections per instance (default: 3 on Vercel, 10 elsewhere)        |
+| `JWT_SECRET`                   |          | 32+ char secret for HS256 signing                                        |
+| `NWC_VAULT_SECRET`             | NWC data | Encrypts RemoteWallet NWC URIs and proxy secrets; shared with listener   |
+| `LISTENER_URL`                 |          | Private or public listener base URL                                      |
+| `LISTENER_AUTH_SECRET`         |          | Listener webhook HMAC secret                                             |
+| `LISTENER_REQUEST_AUTH_SECRET` |          | Optional separate web-to-listener request secret                         |
+| `MAINTENANCE_MODE`             |          | Enable 503 for non-admins                                                |
+| `LOG_LEVEL`                    |          | Pino log level (default: `info`)                                         |
+| `LOG_PRETTY`                   |          | Human-readable logs (dev)                                                |
+| `RATE_LIMIT_WINDOW_MS`         |          | Rate limit window (default: 60000)                                       |
+| `RATE_LIMIT_MAX_REQUESTS`      |          | Max requests per window                                                  |
+| `RATE_LIMIT_MAX_AUTHENTICATED` |          | Max for authenticated users                                              |
+| `REQUEST_MAX_BODY_SIZE`        |          | Max body in bytes                                                        |
 
 ### Cached Config Object
 
@@ -736,23 +738,23 @@ Pino-based structured logging with AsyncLocalStorage for request ID correlation.
 
 ### Cards
 
-| Method | Path                            | Auth     | Purpose                                                                                                                                                                                      |
-| ------ | ------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| GET    | `/api/cards`                    | ADMIN    | List **all** cards (filter: paired, used). "Paired" === the card has an owner (`userId`)                                                                                                     |
-| GET    | `/api/wallet/cards`             | Auth     | List only the caller's **own** cards (paired to them). Any role; powers the per-user Cards view + Connection Map (**no keys**)                                                               |
-| POST   | `/api/cards`                    | Auth     | Create card with NTAG424 + OTC                                                                                                                                                               |
-| GET    | `/api/cards/[id]`               | Auth     | Get card details (**no keys**)                                                                                                                                                               |
-| GET    | `/api/cards/counts`             | Auth     | Count paired/unpaired/used (paired === has `userId`)                                                                                                                                         |
+| Method | Path                            | Auth     | Purpose                                                                                                                                                                                                                                    |
+| ------ | ------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| GET    | `/api/cards`                    | ADMIN    | List **all** cards (filter: paired, used). "Paired" === the card has an owner (`userId`)                                                                                                                                                   |
+| GET    | `/api/wallet/cards`             | Auth     | List only the caller's **own** cards (paired to them). Any role; powers the per-user Cards view + Connection Map (**no keys**)                                                                                                             |
+| POST   | `/api/cards`                    | Auth     | Create card with NTAG424 + OTC                                                                                                                                                                                                             |
+| GET    | `/api/cards/[id]`               | Auth     | Get card details (**no keys**)                                                                                                                                                                                                             |
+| GET    | `/api/cards/counts`             | Auth     | Count paired/unpaired/used (paired === has `userId`)                                                                                                                                                                                       |
 | GET    | `/api/cards/[id]/scan`          | Public   | LUD-03 withdraw request (NFC tap) plus optional LUD-19 `payLink` (`lnurlp://…`) when the card can receive; with request header `x-request-action: info` returns card status JSON instead (design, image, owner, paired/used — no keys/OTC) |
-| GET    | `/api/cards/[id]/scan/cb`       | Public   | LUD-03 callback, pay an invoice from the card wallet                                                                                                                                         |
-| GET    | `/api/cards/[id]/lnurlp`        | Public   | LUD-19 target: LUD-06 payRequest that tops up the card’s RemoteWallet (not the owner’s Lightning Address)                                                                                    |
-| GET    | `/api/cards/[id]/lnurlp/cb`     | Public   | LUD-06 callback; mints a `CARD_TOPUP` invoice on that RemoteWallet                                                                                                                           |
-| POST   | `/api/cards/[id]/write-token`   | OPERATOR | Mint a single-use BoltCard programming URL — only while the card is **fresh** (never tapped); **409** otherwise                                                                              |
-| GET    | `/api/cards/[id]/write`         | Public   | NFC program payload (keys). **Requires** the single-use `?token=` from `/write-token` (replay-protected; **403** without it or once tapped); **unpairs** the card and **consumes** the token |
-| GET    | `/api/cards/[id]/wipe`          | Public   | NFC reset payload (keys); **blocks** the card (unpairs + marks `Blocked`, decommissioned). Re-fetchable; delete to remove                                                                    |
-| POST   | `/api/cards/[id]/emulate-tap`   | Auth     | Server-side SUN signing for the card emulator (no keys)                                                                                                                                      |
-| GET    | `/api/cards/otc/[otc]`          | Public   | Lookup card by one-time code                                                                                                                                                                 |
-| POST   | `/api/cards/otc/[otc]/activate` | Auth     | Activate card with username                                                                                                                                                                  |
+| GET    | `/api/cards/[id]/scan/cb`       | Public   | LUD-03 callback, pay an invoice from the card wallet                                                                                                                                                                                       |
+| GET    | `/api/cards/[id]/lnurlp`        | Public   | LUD-19 target: LUD-06 payRequest that tops up the card’s RemoteWallet (not the owner’s Lightning Address)                                                                                                                                  |
+| GET    | `/api/cards/[id]/lnurlp/cb`     | Public   | LUD-06 callback; mints a `CARD_TOPUP` invoice on that RemoteWallet                                                                                                                                                                         |
+| POST   | `/api/cards/[id]/write-token`   | OPERATOR | Mint a single-use BoltCard programming URL — only while the card is **fresh** (never tapped); **409** otherwise                                                                                                                            |
+| GET    | `/api/cards/[id]/write`         | Public   | NFC program payload (keys). **Requires** the single-use `?token=` from `/write-token` (replay-protected; **403** without it or once tapped); **unpairs** the card and **consumes** the token                                               |
+| GET    | `/api/cards/[id]/wipe`          | Public   | NFC reset payload (keys); **blocks** the card (unpairs + marks `Blocked`, decommissioned). Re-fetchable; delete to remove                                                                                                                  |
+| POST   | `/api/cards/[id]/emulate-tap`   | Auth     | Server-side SUN signing for the card emulator (no keys)                                                                                                                                                                                    |
+| GET    | `/api/cards/otc/[otc]`          | Public   | Lookup card by one-time code                                                                                                                                                                                                               |
+| POST   | `/api/cards/otc/[otc]/activate` | Auth     | Activate card with username                                                                                                                                                                                                                |
 
 ### Card Designs
 
@@ -830,20 +832,20 @@ See: [DOCKER.md](./DOCKER.md)
 
 ## Open Standards
 
-| Protocol           | Usage                                |
-| ------------------ | ------------------------------------ |
-| NIP-47 (NWC)       | Wallet Connect — payment backend     |
-| NIP-98             | HTTP Auth with Nostr events          |
-| NIP-05             | Nostr identity verification          |
-| NIP-07 / NIP-46    | Browser extension and remote signing |
-| NIP-57             | Nostr zaps                           |
-| LUD-16             | Lightning Address (LNURL-pay)        |
-| LUD-03             | LNURL-withdraw (card taps)           |
-| LUD-17             | Raw `lnurlp://` URL on card `payLink` |
+| Protocol           | Usage                                                    |
+| ------------------ | -------------------------------------------------------- |
+| NIP-47 (NWC)       | Wallet Connect — payment backend                         |
+| NIP-98             | HTTP Auth with Nostr events                              |
+| NIP-05             | Nostr identity verification                              |
+| NIP-07 / NIP-46    | Browser extension and remote signing                     |
+| NIP-57             | Nostr zaps                                               |
+| LUD-16             | Lightning Address (LNURL-pay)                            |
+| LUD-03             | LNURL-withdraw (card taps)                               |
+| LUD-17             | Raw `lnurlp://` URL on card `payLink`                    |
 | LUD-19             | Pay link on the BoltCard withdraw response (card top-up) |
-| LUD-21             | Payment verification                 |
-| LUD-22             | Webhooks                             |
-| BoltCard / NTAG424 | NFC tap-to-pay cards                 |
+| LUD-21             | Payment verification                                     |
+| LUD-22             | Webhooks                                                 |
+| BoltCard / NTAG424 | NFC tap-to-pay cards                                     |
 
 ---
 

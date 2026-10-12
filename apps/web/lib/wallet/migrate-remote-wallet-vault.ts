@@ -36,19 +36,29 @@ async function acquireAdvisoryLock(tx: TransactionClient): Promise<void> {
   `
 }
 
+/**
+ * Keyset page over the rows that still need work, in id order. Plain FOR
+ * UPDATE (not SKIP LOCKED): the advisory lock already serializes migrators, so
+ * the only other lockers are short app writes, and skipping them would leave
+ * a row behind for `verifyMigrationComplete` to trip on.
+ */
 async function fetchBatchForUpdate(
   tx: TransactionClient,
-  offset: number,
+  afterId: string,
   limit: number
 ): Promise<NwcWalletRow[]> {
   return tx.$queryRaw<NwcWalletRow[]>`
     SELECT "id", "config", "nwcConfigEncryptedAt"
       FROM "RemoteWallet"
      WHERE "type" = 'NWC'
+       AND "id" > ${afterId}
+       AND (
+         "nwcConfigEncryptedAt" IS NULL
+         OR COALESCE("config"->>'connectionString', '') NOT LIKE 'lwrw1:%'
+       )
      ORDER BY "id"
-    OFFSET ${offset}
      LIMIT ${limit}
-       FOR UPDATE SKIP LOCKED
+       FOR UPDATE
   `
 }
 
@@ -133,18 +143,18 @@ interface BatchResult {
   processed: number
   unreadable: string[]
   readable: number
-  hasMore: boolean
+  lastId: string | null
 }
 
-async function processBatch(offset: number): Promise<BatchResult> {
+async function processBatch(afterId: string): Promise<BatchResult> {
   return safeTransaction(
     prisma,
     async tx => {
       await acquireAdvisoryLock(tx)
-      const rows = await fetchBatchForUpdate(tx, offset, BATCH_SIZE)
+      const rows = await fetchBatchForUpdate(tx, afterId, BATCH_SIZE)
 
       if (rows.length === 0) {
-        return { processed: 0, unreadable: [], readable: 0, hasMore: false }
+        return { processed: 0, unreadable: [], readable: 0, lastId: null }
       }
 
       for (const row of rows) {
@@ -173,7 +183,7 @@ async function processBatch(offset: number): Promise<BatchResult> {
         processed: changed,
         unreadable,
         readable,
-        hasMore: rows.length === BATCH_SIZE
+        lastId: rows.length === BATCH_SIZE ? rows[rows.length - 1].id : null
       }
     },
     { timeout: BATCH_TIMEOUT_MS, maxWait: MAX_WAIT_MS }
@@ -181,11 +191,11 @@ async function processBatch(offset: number): Promise<BatchResult> {
 }
 
 async function processBatchWithRetry(
-  offset: number,
+  afterId: string,
   attempt: number = 1
 ): Promise<BatchResult> {
   try {
-    return await processBatch(offset)
+    return await processBatch(afterId)
   } catch (error) {
     const isRetryable =
       error instanceof TransactionTimeoutError ||
@@ -193,13 +203,13 @@ async function processBatchWithRetry(
 
     if (isRetryable && attempt < MAX_RETRIES) {
       log.warn(
-        { err: error, offset, attempt, maxRetries: MAX_RETRIES },
+        { err: error, afterId, attempt, maxRetries: MAX_RETRIES },
         'remote_wallet_nwc_encryption.batch_retry'
       )
       await new Promise(resolve =>
         setTimeout(resolve, RETRY_DELAY_MS * attempt)
       )
-      return processBatchWithRetry(offset, attempt + 1)
+      return processBatchWithRetry(afterId, attempt + 1)
     }
 
     throw error
@@ -226,17 +236,34 @@ async function verifyMigrationComplete(): Promise<void> {
  *
  * Prisma's SQL migration adds the completion timestamp, but cannot safely
  * receive a deployment secret. Startup holds a PostgreSQL advisory lock,
- * encrypts every legacy NWC URI, verifies existing envelopes, and commits all
+ * encrypts every legacy NWC URI, verifies unstamped envelopes, and commits all
  * rows atomically before this application instance becomes ready.
  *
- * Processes in batches to avoid long-running transactions that can be killed
- * by Neon's idle-in-transaction timeout. Each batch is a separate transaction
- * with its own advisory lock. The advisory lock prevents concurrent batch
- * processing from causing conflicts.
+ * Processes in keyset-paged batches (`id > lastId`) to avoid long-running
+ * transactions that can be killed by Neon's idle-in-transaction timeout. Each
+ * batch is a separate transaction with its own advisory lock, which prevents
+ * concurrent instances from conflicting; a batch another instance already
+ * finished simply finds nothing left to do.
  */
 export async function migrateRemoteWalletNwcConfigs(): Promise<number> {
-  const count = await prisma.remoteWallet.count({ where: { type: 'NWC' } })
-  if (count === 0) return 0
+  // One round trip on every cold start; the common case (nothing left to
+  // migrate) returns here without a transaction, lock or decrypt.
+  const [state] = await prisma.$queryRaw<
+    { hasNwc: boolean; pending: boolean }[]
+  >`
+    SELECT
+      EXISTS(SELECT 1 FROM "RemoteWallet" WHERE "type" = 'NWC') AS "hasNwc",
+      EXISTS(
+        SELECT 1
+          FROM "RemoteWallet"
+         WHERE "type" = 'NWC'
+           AND (
+             "nwcConfigEncryptedAt" IS NULL
+             OR COALESCE("config"->>'connectionString', '') NOT LIKE 'lwrw1:%'
+           )
+      ) AS "pending"
+  `
+  if (!state?.hasNwc) return 0
 
   const vaultSecret = getConfig().nwcVault.secret
   if (!vaultSecret) {
@@ -245,28 +272,28 @@ export async function migrateRemoteWalletNwcConfigs(): Promise<number> {
     )
   }
 
+  if (!state.pending) return 0
+
   let totalMigrated = 0
   let totalReadable = 0
   const unreadable: string[] = []
-  let offset = 0
+  let afterId: string | null = ''
 
-  log.info({ totalRows: count }, 'remote_wallet_nwc_encryption.starting')
+  log.info('remote_wallet_nwc_encryption.starting')
 
-  while (true) {
-    const batch = await processBatchWithRetry(offset)
+  while (afterId !== null) {
+    const batch = await processBatchWithRetry(afterId)
     totalMigrated += batch.processed
     totalReadable += batch.readable
     unreadable.push(...batch.unreadable)
-    offset += BATCH_SIZE
+    afterId = batch.lastId
 
     if (batch.processed > 0) {
       log.debug(
-        { batchProcessed: batch.processed, totalMigrated, offset },
+        { batchProcessed: batch.processed, totalMigrated },
         'remote_wallet_nwc_encryption.batch_complete'
       )
     }
-
-    if (!batch.hasMore) break
   }
 
   await verifyMigrationComplete()

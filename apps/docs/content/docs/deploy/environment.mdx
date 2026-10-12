@@ -87,20 +87,24 @@ Every generated secret is independent. Do not use `JWT_SECRET`,
 
 ## Connection and runtime variables
 
-| Variable                      | Service           | Required when           | Purpose                                                                              |
-| ----------------------------- | ----------------- | ----------------------- | ------------------------------------------------------------------------------------ |
-| `DATABASE_URL`                | Web + listener    | External/cloud Postgres | Prisma-format connection string. Both services must reach the same database.         |
-| `LISTENER_URL`                | Web               | Listener enabled        | Listener base URL. Compose uses `http://listener:4100`; cloud deployments use HTTPS. |
-| `WEB_ORIGIN`                  | Listener          | Listener enabled        | Public or private origin where the listener sends authenticated webhooks.            |
-| `LISTENER_PORT`               | Listener          | Optional                | Listener HTTP port; defaults to `4100`.                                              |
-| `COMPOSE_PROFILES`            | Docker/Coolify    | Bundled listener        | Set to `listener` so Compose starts the listener service.                            |
-| `POSTGRES_DB`                 | Compose Postgres  | Bundled Postgres        | Database name; generator uses `lawallet`.                                            |
-| `POSTGRES_USER`               | Compose Postgres  | Bundled Postgres        | Database role; generator uses `lawallet`.                                            |
-| `NODE_ENV`                    | Web + listener    | Production              | Set to `production`.                                                                 |
-| `PORT`                        | Web               | Optional                | Web HTTP port; the container default is `2288`.                                      |
-| `LAWALLET_TAG`                | Published Compose | Optional                | Docker image version; defaults to `latest`. Pin a release for controlled upgrades.   |
-| `PROXY_RECONCILE_INTERVAL_MS` | Listener          | Optional                | Recovery sweep interval for proxy settlements; defaults to `600000` (ten minutes).   |
-| `ZAP_SETTLE_INTERVAL_MS`      | Listener          | Optional                | Zap settlement poll tick; defaults to `20000`. `0` disables.                         |
+| Variable                      | Service           | Required when           | Purpose                                                                                                                                 |
+| ----------------------------- | ----------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                | Web + listener    | External/cloud Postgres | Prisma-format connection string. Both services must reach the same database.                                                            |
+| `DATABASE_URL_UNPOOLED`       | Web (migrations)  | Optional                | Direct host for `prisma migrate deploy` when `DATABASE_URL` is pooled (Neon/Vercel set it automatically). Falls back to `DATABASE_URL`. |
+| `DATABASE_POOL_MAX`           | Web               | Optional                | Max Postgres connections per instance; defaults to `3` on Vercel and `10` elsewhere.                                                    |
+| `LISTENER_URL`                | Web               | Listener enabled        | Listener base URL. Compose uses `http://listener:4100`; cloud deployments use HTTPS.                                                    |
+| `WEB_ORIGIN`                  | Listener          | Listener enabled        | Public or private origin where the listener sends authenticated webhooks.                                                               |
+| `LISTENER_PORT`               | Listener          | Optional                | Listener HTTP port; defaults to `4100`.                                                                                                 |
+| `COMPOSE_PROFILES`            | Docker/Coolify    | Bundled listener        | Set to `listener` so Compose starts the listener service.                                                                               |
+| `POSTGRES_DB`                 | Compose Postgres  | Bundled Postgres        | Database name; generator uses `lawallet`.                                                                                               |
+| `POSTGRES_USER`               | Compose Postgres  | Bundled Postgres        | Database role; generator uses `lawallet`.                                                                                               |
+| `NODE_ENV`                    | Web + listener    | Production              | Set to `production`.                                                                                                                    |
+| `PORT`                        | Web               | Optional                | Web HTTP port; the container default is `2288`.                                                                                         |
+| `LAWALLET_TAG`                | Published Compose | Optional                | Docker image version; defaults to `latest`. Pin a release for controlled upgrades.                                                      |
+| `PROXY_RECONCILE_INTERVAL_MS` | Listener          | Optional                | Recovery sweep interval for proxy settlements; defaults to `600000` (ten minutes).                                                      |
+| `ZAP_SETTLE_INTERVAL_MS`      | Listener          | Optional                | Zap settlement poll tick; defaults to `20000`. `0` disables.                                                                            |
+| `ZAP_SETTLE_MAX_INTERVAL_MS`  | Listener          | Optional                | Idle backoff ceiling for the zap tick; defaults to `300000` (five minutes).                                                             |
+| `DATA_RETENTION_DAYS`         | Web               | Optional                | Days of activity log and delivery history kept; defaults to `90`. `0` keeps all.                                                        |
 
 The complete list of lower-level tuning variables is documented in
 [`apps/web/.env.example`](https://github.com/lawalletio/lawallet-nwc/blob/main/apps/web/.env.example)

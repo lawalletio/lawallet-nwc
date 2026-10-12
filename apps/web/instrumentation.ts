@@ -18,13 +18,14 @@ export async function register() {
   if (process.env.SENTRY_DSN) {
     const Sentry = await import('@sentry/nextjs')
     const { scrubEvent } = await import('@/lib/observability/pii')
+    const { DEFAULT_TRACES_SAMPLE_RATE, sampleServerTrace } =
+      await import('@/lib/observability/traces-sampler')
     Sentry.init({
       dsn: process.env.SENTRY_DSN,
       environment:
         process.env.VERCEL_ENV ?? process.env.NODE_ENV ?? 'development',
-      tracesSampleRate: 0.2,
-      tracesSampler: ({ name }) =>
-        name.includes('/api/health') || name.includes('/api/status') ? 0 : 0.2,
+      tracesSampleRate: DEFAULT_TRACES_SAMPLE_RATE,
+      tracesSampler: sampleServerTrace,
       sendDefaultPii: false,
       beforeSend: event => scrubEvent(event),
       beforeSendTransaction: event => scrubEvent(event)

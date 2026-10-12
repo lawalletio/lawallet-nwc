@@ -1,22 +1,14 @@
 import pino, { type Logger } from 'pino'
-import { AsyncLocalStorage } from 'node:async_hooks'
 import { randomUUID } from 'node:crypto'
 import { getConfig } from '@/lib/config'
+import { requestContext } from '@/lib/request-context'
 
 export type LogLevel =
-  | 'fatal'
-  | 'error'
-  | 'warn'
-  | 'info'
-  | 'debug'
-  | 'trace'
-  | 'silent'
+  'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace' | 'silent'
 
 type RequestContext = {
   reqId: string
 }
-
-const requestContext = new AsyncLocalStorage<RequestContext>()
 
 function asLogLevel(value: string | undefined): LogLevel | undefined {
   if (!value) return undefined

@@ -1,3 +1,4 @@
+import type { Prisma } from '@/lib/generated/prisma'
 import { settleInvoiceFromWallet } from '@/lib/invoices/settle-from-wallet'
 import { logger } from '@/lib/logger'
 import { getZapReceiptCapability } from '@/lib/nostr/zap-receipts'
@@ -42,8 +43,36 @@ export function nextPollDelayMs(attempts: number): number {
 export async function settlePendingZapInvoices(): Promise<number> {
   const capability = await getZapReceiptCapability()
   if (!capability.nip57) return 0
+  return sweepDueZapInvoices()
+}
 
-  const now = new Date()
+/**
+ * Whether the sweep has anything to do, and when. Lets the listener stop
+ * waking a serverless function every 20s while no zap invoice is open.
+ * `nextPollAt` is the earliest time an open invoice is due (never in the past).
+ */
+export interface ZapSettlementBacklog {
+  pending: boolean
+  nextPollAt: Date | null
+}
+
+export async function getZapSettlementBacklog(
+  now = new Date()
+): Promise<ZapSettlementBacklog> {
+  const capability = await getZapReceiptCapability()
+  if (!capability.nip57) return { pending: false, nextPollAt: null }
+  const next = await prisma.invoice.findFirst({
+    where: openZapInvoiceWhere(now),
+    select: { settlementNextPollAt: true },
+    orderBy: { settlementNextPollAt: { sort: 'asc', nulls: 'first' } }
+  })
+  if (!next) return { pending: false, nextPollAt: null }
+  const at = next.settlementNextPollAt
+  return { pending: true, nextPollAt: at && at > now ? at : now }
+}
+
+/** The sweep without the capability gate, for callers that already checked. */
+export async function sweepDueZapInvoices(now = new Date()): Promise<number> {
   const due = await findDueZapInvoices(now)
   if (due.length === 0) return 0
 
@@ -56,20 +85,26 @@ export async function settlePendingZapInvoices(): Promise<number> {
   return settled
 }
 
+function openZapInvoiceWhere(now: Date): Prisma.InvoiceWhereInput {
+  return {
+    status: 'PENDING',
+    zapRequestJson: { not: null },
+    // Proxy invoices have their own settlement reconciler, which also owns
+    // the forwarding state machine.
+    proxyPayment: null,
+    // Without the minting wallet there is nothing safe to ask: the address
+    // may since have been rebound, and polling a different wallet would be
+    // asking about an invoice it never issued. Those rows still settle
+    // through the payer's LUD-21 verify poll, which knows the address.
+    remoteWalletId: { not: null },
+    expiresAt: { gt: new Date(now.getTime() - EXPIRY_GRACE_MS) }
+  }
+}
+
 function findDueZapInvoices(now: Date) {
   return prisma.invoice.findMany({
     where: {
-      status: 'PENDING',
-      zapRequestJson: { not: null },
-      // Proxy invoices have their own settlement reconciler, which also owns
-      // the forwarding state machine.
-      proxyPayment: null,
-      // Without the minting wallet there is nothing safe to ask: the address
-      // may since have been rebound, and polling a different wallet would be
-      // asking about an invoice it never issued. Those rows still settle
-      // through the payer's LUD-21 verify poll, which knows the address.
-      remoteWalletId: { not: null },
-      expiresAt: { gt: new Date(now.getTime() - EXPIRY_GRACE_MS) },
+      ...openZapInvoiceWhere(now),
       OR: [
         { settlementNextPollAt: null },
         { settlementNextPollAt: { lte: now } }

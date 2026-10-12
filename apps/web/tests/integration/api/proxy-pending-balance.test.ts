@@ -211,7 +211,8 @@ describe('POST proxy pending balance', () => {
     })
     expect(mocks.emit).toHaveBeenCalledWith({
       type: 'invoices:updated',
-      timestamp: expect.any(Number)
+      timestamp: expect.any(Number),
+      userId: expect.any(String)
     })
   })
 

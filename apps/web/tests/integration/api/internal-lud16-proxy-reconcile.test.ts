@@ -21,6 +21,8 @@ const reconcileForwardingMock = vi.hoisted(() => vi.fn())
 const reconcileZapReceiptsMock = vi.hoisted(() => vi.fn())
 const settleSweepMock = vi.hoisted(() => vi.fn())
 const reconcileNotificationsMock = vi.hoisted(() => vi.fn())
+const expireInvoicesMock = vi.hoisted(() => vi.fn())
+const retentionMock = vi.hoisted(() => vi.fn())
 
 vi.mock('next/server', async importActual => ({
   ...(await importActual<typeof import('next/server')>()),
@@ -69,6 +71,13 @@ vi.mock('@/lib/remote-wallet-notifications/reconcile', () => ({
   reconcileRemoteWalletNotifications: reconcileNotificationsMock
 }))
 
+vi.mock('@/lib/maintenance/expire-invoices', () => ({
+  expireStaleInvoices: expireInvoicesMock
+}))
+vi.mock('@/lib/maintenance/retention', () => ({
+  runRetention: retentionMock
+}))
+
 import { POST } from '@/app/api/internal/lud16-proxy/reconcile/route'
 
 function signedRequest(
@@ -103,6 +112,8 @@ beforeEach(() => {
   reconcileZapReceiptsMock.mockResolvedValue(0)
   settleSweepMock.mockResolvedValue(0)
   reconcileNotificationsMock.mockResolvedValue(undefined)
+  expireInvoicesMock.mockResolvedValue(0)
+  retentionMock.mockResolvedValue(null)
 })
 
 describe('POST /api/internal/lud16-proxy/reconcile', () => {
@@ -114,6 +125,13 @@ describe('POST /api/internal/lud16-proxy/reconcile', () => {
     expect(reconcileForwardingMock).toHaveBeenCalledWith({ ids: undefined })
     expect(reconcileZapReceiptsMock).toHaveBeenCalled()
     expect(reconcileNotificationsMock).toHaveBeenCalled()
+  })
+
+  it('runs invoice expiry and retention on the same durable tick', async () => {
+    await POST(signedRequest())
+
+    expect(expireInvoicesMock).toHaveBeenCalledTimes(1)
+    expect(retentionMock).toHaveBeenCalledTimes(1)
   })
 
   it('sweeps zap settlement so an older listener still gets receipts', async () => {

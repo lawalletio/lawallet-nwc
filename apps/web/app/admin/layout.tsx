@@ -1,6 +1,5 @@
 import type React from 'react'
 import type { Metadata } from 'next'
-import { SpeedInsights } from '@vercel/speed-insights/next'
 import { AdminProviders } from '@/components/admin/admin-providers'
 
 export const metadata: Metadata = {
@@ -13,10 +12,5 @@ export default function AdminLayout({
 }: {
   children: React.ReactNode
 }) {
-  return (
-    <AdminProviders>
-      {children}
-      <SpeedInsights />
-    </AdminProviders>
-  )
+  return <AdminProviders>{children}</AdminProviders>
 }

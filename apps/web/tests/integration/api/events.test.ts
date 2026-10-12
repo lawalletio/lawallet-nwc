@@ -29,12 +29,18 @@ vi.mock('@/lib/auth/resolve-role', () => ({
   resolveRole: vi.fn()
 }))
 
+vi.mock('@/lib/auth/account', () => ({
+  resolveAccountByPubkey: vi.fn(async () => ({ id: 'acct-1' }))
+}))
+
 const { addClientMock, removeClientMock } = vi.hoisted(() => ({
   addClientMock: vi.fn(),
   removeClientMock: vi.fn()
 }))
 
-vi.mock('@/lib/events/event-bus', () => ({
+vi.mock('@/lib/events/event-bus', async importOriginal => ({
+  trySend: (await importOriginal<typeof import('@/lib/events/event-bus')>())
+    .trySend,
   eventBus: {
     addClient: addClientMock,
     removeClient: removeClientMock
@@ -119,6 +125,7 @@ describe('GET /api/events', () => {
     expect(addClientMock).toHaveBeenCalledTimes(1)
     const client = addClientMock.mock.calls[0][0]
     expect(client.id).toBeTruthy()
+    expect(client.userId).toBe('u1')
     expect(Array.isArray(client.permissions)).toBe(true)
     expect(client.permissions.length).toBeGreaterThan(0)
 
@@ -177,6 +184,48 @@ describe('GET /api/events', () => {
   })
 })
 
+describe('GET /api/events stream lifetime', () => {
+  it('recycles the stream before maxDuration with a `recycle` event', async () => {
+    vi.useFakeTimers()
+    vi.mocked(verifyJwtToken).mockReturnValue({
+      payload: { userId: 'u1', role: 'USER' },
+      header: {}
+    } as any)
+
+    const res = await GET(makeRequest('/api/events?token=va.li.d'))
+    const reader = res.body!.getReader()
+    await reader.read() // connected
+
+    await vi.advanceTimersByTimeAsync(290_000)
+    const chunks: string[] = []
+    for (;;) {
+      const { value, done } = await reader.read()
+      if (done) break
+      chunks.push(new TextDecoder().decode(value))
+    }
+    expect(chunks.join('')).toContain('event: recycle\n')
+    expect(removeClientMock).toHaveBeenCalled()
+  })
+
+  it('drops the client when a heartbeat can no longer be sent', async () => {
+    vi.useFakeTimers()
+    vi.mocked(verifyJwtToken).mockReturnValue({
+      payload: { userId: 'u1', role: 'USER' },
+      header: {}
+    } as any)
+
+    await GET(makeRequest('/api/events?token=va.li.d'))
+    const client = addClientMock.mock.calls.at(-1)![0]
+    // The bus closes a stalled client's stream; the next heartbeat notices.
+    client.controller.close()
+    removeClientMock.mockClear()
+
+    await vi.advanceTimersByTimeAsync(30_000)
+
+    expect(removeClientMock).toHaveBeenCalledWith(client.id)
+  })
+})
+
 describe('GET /api/events with a NIP-98 query token', () => {
   // Anything without the JWT's two dots routes to the NIP-98 branch.
   const nip98Token = 'bm90LWEtand0'
@@ -201,6 +250,7 @@ describe('GET /api/events with a NIP-98 query token', () => {
 
     const client = addClientMock.mock.calls[0][0]
     expect(client.permissions.length).toBeGreaterThan(0)
+    expect(client.userId).toBe('acct-1')
 
     await res.body!.cancel()
   })

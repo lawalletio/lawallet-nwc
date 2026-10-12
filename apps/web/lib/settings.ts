@@ -1,21 +1,15 @@
 import { prisma } from '@/lib/prisma'
 
-const HOT_SETTINGS_TTL_MS = 1000
-
-const HOT_SETTING_KEYS = [
-  'maintenance_enabled',
-  'root',
-  'domain',
-  'endpoint',
-  'listener_enabled',
-  'listener_url',
-  'listener_auth_secret'
-] as const
+// Every Settings write in this process calls `invalidateHotSettingsCache()`,
+// so the TTL only bounds how long OTHER instances serve a stale value.
+// ponytail: process-local; a shared cache (unstable_cache + tag) if 15s
+// cross-instance staleness ever matters.
+const HOT_SETTINGS_TTL_MS = 15_000
 
 type SettingsMap = Record<string, string>
 
 interface SettingsReadOptions {
-  /** Share the one-second snapshot used by latency-sensitive request paths. */
+  /** Share the process-wide snapshot used by hot request paths. */
   cache?: 'hot'
 }
 
@@ -74,9 +68,10 @@ export async function getSettings(
 }
 
 /**
- * Returns the small settings snapshot shared by latency-sensitive request
- * paths. Concurrent cache misses join one DB query and successful reads remain
- * valid for one second. Failed reads are never cached.
+ * Returns the whole-table settings snapshot shared by hot request paths (auth,
+ * maintenance, the public settings read, the manifest). Concurrent cache misses
+ * join one DB query and successful reads stay valid for
+ * {@link HOT_SETTINGS_TTL_MS}. Failed reads are never cached.
  */
 function getHotSettings(): Promise<SettingsMap> {
   const now = Date.now()
@@ -89,7 +84,7 @@ function getHotSettings(): Promise<SettingsMap> {
   }
 
   const generation = hotSettingsGeneration
-  const promise = loadSettings(HOT_SETTING_KEYS)
+  const promise = loadSettings()
     .then(values => {
       if (generation === hotSettingsGeneration) {
         hotSettingsSnapshot = {

@@ -544,6 +544,19 @@ describe('NWC listener settings', () => {
     expect(body.listener_url_effective).toBeUndefined()
   })
 
+  it('GET (public) reads the hot snapshot; settings readers read fresh', async () => {
+    vi.mocked(getSettings).mockResolvedValue({ root: mockPubkey })
+
+    vi.mocked(validateNip98Auth).mockRejectedValue(new Error('no auth'))
+    await GET(createNextRequest('/api/settings'))
+    expect(getSettings).toHaveBeenLastCalledWith(undefined, { cache: 'hot' })
+
+    // Admin UI: a save must show up at once, even on another instance.
+    vi.mocked(validateNip98Auth).mockResolvedValue(mockPubkey)
+    await GET(createNextRequest('/api/settings'))
+    expect(getSettings).toHaveBeenLastCalledWith(undefined, undefined)
+  })
+
   it('rejects a malformed listener_url', async () => {
     authAsRoot()
     const req = createNextRequest('/api/settings', {

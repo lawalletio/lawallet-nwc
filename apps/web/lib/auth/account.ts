@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 import type { UserRole } from '@/lib/generated/prisma'
 import { authenticate } from '@/lib/auth/unified-auth'
 import { NotFoundError } from '@/types/server/errors'
+import { getRequestScope } from '@/lib/request-context'
 
 /**
  * The account a pubkey resolves to. `primaryPubkey` is the account's public
@@ -25,9 +26,54 @@ export interface ResolvedAccount {
  * Falls back to `User.pubkey` for robustness (e.g. a row created before the
  * NostrIdentity backfill ran in the same deploy).
  */
-export async function resolveAccountByPubkey(
+export function resolveAccountByPubkey(
   pubkey: string
 ): Promise<ResolvedAccount | null> {
+  // Per-request memo: `authenticate()` (via `resolveRole`) and the route body
+  // both resolve the same pubkey, so without this every authenticated request
+  // ran the lookup twice. React `cache()` can't do this — it is a passthrough
+  // in Route Handlers (no render dispatcher) — so the memo hangs off the
+  // request's AsyncLocalStorage frame and dies with it.
+  const scope = getRequestScope()
+  if (!scope) return lookupAccount(pubkey)
+
+  let memo = accountMemo.get(scope)
+  if (!memo) accountMemo.set(scope, (memo = new Map()))
+  const cached = memo.get(pubkey)
+  if (cached) return cached
+
+  const pending = lookupAccount(pubkey).then(
+    account => {
+      // Never memoize a miss: signup/claim flows resolve, create the user,
+      // and may resolve again in the same request.
+      if (!account) memo.delete(pubkey)
+      return account
+    },
+    error => {
+      memo.delete(pubkey)
+      throw error
+    }
+  )
+  memo.set(pubkey, pending)
+  return pending
+}
+
+const accountMemo = new WeakMap<
+  object,
+  Map<string, Promise<ResolvedAccount | null>>
+>()
+
+/**
+ * Drops the current request's memoized lookups. Call after any write that
+ * changes which account a pubkey resolves to (link, unlink, merge, primary
+ * switch) so a later lookup in the same request reads the new state.
+ */
+export function forgetResolvedAccounts(): void {
+  const scope = getRequestScope()
+  if (scope) accountMemo.delete(scope)
+}
+
+async function lookupAccount(pubkey: string): Promise<ResolvedAccount | null> {
   const identity = await prisma.nostrIdentity.findUnique({
     where: { pubkey },
     select: {

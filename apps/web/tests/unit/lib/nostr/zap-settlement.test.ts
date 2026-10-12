@@ -22,6 +22,7 @@ vi.mock('@/lib/invoices/settle-from-wallet', () => ({
 }))
 
 import {
+  getZapSettlementBacklog,
   nextPollDelayMs,
   settlePendingZapInvoices
 } from '@/lib/nostr/zap-settlement'
@@ -171,6 +172,71 @@ describe('settlePendingZapInvoices', () => {
 
     await expect(settlePendingZapInvoices()).resolves.toBe(1)
     expect(settleMock).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('getZapSettlementBacklog', () => {
+  const now = new Date('2026-10-12T12:00:00Z')
+
+  it('reports nothing pending, without a query, while NIP-57 is off', async () => {
+    capability.nip57 = false
+
+    await expect(getZapSettlementBacklog(now)).resolves.toEqual({
+      pending: false,
+      nextPollAt: null
+    })
+    expect(prismaMock.invoice.findFirst).not.toHaveBeenCalled()
+  })
+
+  it('reports an idle backlog when no zap invoice is open', async () => {
+    vi.mocked(prismaMock.invoice.findFirst).mockResolvedValue(null)
+
+    await expect(getZapSettlementBacklog(now)).resolves.toEqual({
+      pending: false,
+      nextPollAt: null
+    })
+    // One cheap query over the same open-invoice predicate the sweep uses,
+    // earliest-due first.
+    const args = vi.mocked(prismaMock.invoice.findFirst).mock.calls[0][0]
+    expect(args?.where).toMatchObject({
+      status: 'PENDING',
+      zapRequestJson: { not: null },
+      proxyPayment: null,
+      remoteWalletId: { not: null }
+    })
+    expect(args?.orderBy).toEqual({
+      settlementNextPollAt: { sort: 'asc', nulls: 'first' }
+    })
+  })
+
+  it('says the next poll is due now for a never-polled invoice', async () => {
+    vi.mocked(prismaMock.invoice.findFirst).mockResolvedValue({
+      settlementNextPollAt: null
+    } as never)
+
+    await expect(getZapSettlementBacklog(now)).resolves.toEqual({
+      pending: true,
+      nextPollAt: now
+    })
+  })
+
+  it('passes on a future next poll, clamping an overdue one to now', async () => {
+    const later = new Date(now.getTime() + 60_000)
+    vi.mocked(prismaMock.invoice.findFirst).mockResolvedValueOnce({
+      settlementNextPollAt: later
+    } as never)
+    await expect(getZapSettlementBacklog(now)).resolves.toEqual({
+      pending: true,
+      nextPollAt: later
+    })
+
+    vi.mocked(prismaMock.invoice.findFirst).mockResolvedValueOnce({
+      settlementNextPollAt: new Date(now.getTime() - 60_000)
+    } as never)
+    await expect(getZapSettlementBacklog(now)).resolves.toEqual({
+      pending: true,
+      nextPollAt: now
+    })
   })
 })
 

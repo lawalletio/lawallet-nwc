@@ -16,6 +16,7 @@ vi.mock('@/lib/nostr/profile-cache', () => ({
 import { promises as fsPromises } from 'node:fs'
 import {
   getLud16AvatarMetadataEntry,
+  MAX_EMBEDDED_IMAGE_BYTES,
   warmNostrProfileForLud16
 } from '@/lib/nostr/lud16-avatar'
 import { resolveProfiles } from '@/lib/nostr/profile-cache'
@@ -78,6 +79,36 @@ describe('getLud16AvatarMetadataEntry', () => {
     } as any)
     expect(await getLud16AvatarMetadataEntry(PUBKEY)).toBeNull()
     expect(readFileMock).not.toHaveBeenCalled()
+  })
+
+  it('caps the inline avatar at 32 KB so payRequests stay small', async () => {
+    expect(MAX_EMBEDDED_IMAGE_BYTES).toBe(32 * 1024)
+    vi.mocked(prismaMock.nostrProfileImageCache.findUnique).mockResolvedValue({
+      cachePath: '/cache/avatar.jpg',
+      contentType: 'image/jpeg',
+      byteSize: MAX_EMBEDDED_IMAGE_BYTES + 1
+    } as any)
+    expect(await getLud16AvatarMetadataEntry(PUBKEY)).toBeNull()
+    expect(readFileMock).not.toHaveBeenCalled()
+  })
+
+  it('omits a file larger than the cap even when the row under-reports it', async () => {
+    vi.mocked(prismaMock.nostrProfileImageCache.findUnique).mockResolvedValue({
+      cachePath: '/cache/avatar.jpg',
+      contentType: 'image/jpeg',
+      byteSize: null
+    } as any)
+    readFileMock.mockResolvedValue(Buffer.alloc(MAX_EMBEDDED_IMAGE_BYTES + 1))
+    expect(await getLud16AvatarMetadataEntry(PUBKEY)).toBeNull()
+  })
+
+  it('skips webp, which LUD-06 does not define', async () => {
+    vi.mocked(prismaMock.nostrProfileImageCache.findUnique).mockResolvedValue({
+      cachePath: '/cache/avatar.webp',
+      contentType: 'image/webp',
+      byteSize: 3
+    } as any)
+    expect(await getLud16AvatarMetadataEntry(PUBKEY)).toBeNull()
   })
 
   it('returns null when the cache file cannot be read', async () => {

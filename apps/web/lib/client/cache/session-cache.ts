@@ -10,7 +10,9 @@ import { clearCurrencyPreferences } from '@/lib/client/currencies-store'
 import { clearNostrProfileCache } from '@/lib/client/cache/nostr-profile-cache'
 import { clearAllAvatars } from '@/lib/client/cache/avatar-cache'
 
-const USER_CACHE_STORAGE_PREFIXES = ['lawallet-api-', 'lawallet-pages-']
+// API reads only. The page cache holds the precached app shell, which is not
+// account data; the service worker prunes its other entries on logout.
+const USER_CACHE_STORAGE_PREFIXES = ['lawallet-api-']
 const USER_SESSION_STORAGE_PREFIXES = [
   'lawallet:pending-invoice',
   'lawallet:first-load-done',

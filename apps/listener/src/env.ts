@@ -112,6 +112,10 @@ const envSchema = z.object({
     'How often web polls pending zap invoices to settlement, covering wallets that emit no NIP-47 notifications (0 disables)'
   ),
 
+  ZAP_SETTLE_MAX_INTERVAL_MS: intEnv(300000).describe(
+    'Longest gap between zap settlement ticks while web reports no open zap invoice; the tick backs off exponentially from ZAP_SETTLE_INTERVAL_MS up to this'
+  ),
+
   LOG_LEVEL: blankIsUnset(
     z
       .string()

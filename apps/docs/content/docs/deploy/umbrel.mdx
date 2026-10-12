@@ -65,6 +65,10 @@ Configure the NIP-57 receipt signer as a write-only `nsec` under **Admin →
 Settings → NWC Services**; the `nsec` is encrypted with the vault key and is
 never placed in the Umbrel manifest.
 
+New tunables such as `ZAP_SETTLE_MAX_INTERVAL_MS` (listener) and
+`DATA_RETENTION_DAYS` (web) are optional and fall back to their defaults, so
+the package needs no change to pick them up.
+
 <Callout type="warn" title="Lightning Addresses need a public domain">
   An Umbrel app is reachable on your LAN and over Tor. Lightning Addresses are
   resolved by *other people's* wallets over the public internet, so
