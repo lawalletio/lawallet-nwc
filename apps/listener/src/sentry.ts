@@ -70,13 +70,40 @@ export function endSentrySession(): void {
   }
 }
 
+// Expected transport failures from @getalby/sdk: a relay that is down, a wallet
+// that never published its info event or never answers, a publish every relay
+// refused. Not bugs in our code, and already logged + retried with backoff by
+// the pool, so each kind lands as ONE warning-level issue (per relay for
+// connect failures) instead of an error flood (LAWALLET-LISTENER-1/2/4/5).
+const TRANSPORT_FAILURES: [kind: string, pattern: RegExp][] = [
+  ['relay_connect', /^Failed to connect to (\S+)/],
+  ['no_info_event', /no info event \(kind 13194\)/],
+  ['reply_timeout', /^reply timeout:/],
+  ['publish_failed', /^failed to publish:/]
+]
+
+/** Sentry fingerprint for a known transport failure, or null for anything else. */
+export function transportFailureFingerprint(err: unknown): string[] | null {
+  const message =
+    err instanceof Error ? err.message : typeof err === 'string' ? err : ''
+  for (const [kind, pattern] of TRANSPORT_FAILURES) {
+    const match = pattern.exec(message)
+    if (match) return ['nwc-transport', kind, ...match.slice(1)]
+  }
+  return null
+}
+
 export function captureException(
   err: unknown,
   ctx?: { tags?: Record<string, string> }
 ): void {
   if (!initialized) return
   try {
-    Sentry.captureException(err, ctx)
+    const fingerprint = transportFailureFingerprint(err)
+    Sentry.captureException(
+      err,
+      fingerprint ? { ...ctx, level: 'warning', fingerprint } : ctx
+    )
   } catch {
     // reporting must never take the daemon down
   }
