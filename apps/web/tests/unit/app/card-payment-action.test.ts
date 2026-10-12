@@ -527,6 +527,62 @@ describe('card payment callback action', () => {
     expect(mocks.driverPay).toHaveBeenCalledTimes(1)
   })
 
+  describe('owner fallback wallet (card has no bound wallet)', () => {
+    const ownerCard = (
+      mode: 'IDLE' | 'ALIAS' | 'PROXY_ALIAS' | 'CUSTOM_NWC'
+    ): CardPaymentActionCard => ({
+      ...card,
+      remoteWallet: null,
+      user: {
+        lightningAddresses: [
+          {
+            mode,
+            remoteWalletId: 'wallet-2',
+            remoteWallet: { ...card.remoteWallet!, id: 'wallet-2' }
+          }
+        ]
+      }
+    })
+
+    // The scan advertises 0–0 for these (derivePrimaryWallet), so the spend
+    // must agree. A stale wallet id can arrive via backup restore.
+    it.each(['IDLE', 'ALIAS', 'PROXY_ALIAS'] as const)(
+      'refuses a %s primary address that still carries a wallet',
+      async mode => {
+        const response = await pay(request(), ownerCard(mode), 7)
+
+        expect(await responseBody(response)).toEqual({
+          status: 'ERROR',
+          reason: 'Card is not configured for payments'
+        })
+        expect(mocks.driverForWallet).not.toHaveBeenCalled()
+        expect(mocks.claim).not.toHaveBeenCalled()
+        expect(mocks.driverPay).not.toHaveBeenCalled()
+      }
+    )
+
+    it('pays from a CUSTOM_NWC primary address', async () => {
+      mocks.claim.mockResolvedValue({
+        outcome: 'CREATED',
+        attempt: attempt({ walletId: 'wallet-2' })
+      })
+      mocks.driverPay.mockResolvedValue({
+        preimage: '01'.repeat(32),
+        feesPaidSats: 0,
+        feesPaidMsats: 0,
+        transport: 'DIRECT'
+      })
+
+      const response = await pay(request(), ownerCard('CUSTOM_NWC'), 7)
+
+      expect(await responseBody(response)).toEqual({ status: 'OK' })
+      expect(mocks.claim).toHaveBeenCalledWith(
+        expect.objectContaining({ walletId: 'wallet-2' })
+      )
+      expect(mocks.driverPay).toHaveBeenCalledTimes(1)
+    })
+  })
+
   it('rejects a receive-only wallet before consuming the tap', async () => {
     mocks.canSend.mockResolvedValueOnce(false)
     mocks.driverForWallet.mockReturnValueOnce({

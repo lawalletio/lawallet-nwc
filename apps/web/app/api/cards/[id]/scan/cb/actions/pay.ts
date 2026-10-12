@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import type {
   CardPaymentAttempt,
   CardPaymentTransport,
+  LightningAddressMode,
   RemoteWalletType
 } from '@/lib/generated/prisma'
 import { prisma } from '@/lib/prisma'
@@ -43,6 +44,7 @@ import {
   resolveListenerBridge
 } from '@/lib/wallet/drivers/listener-transport'
 import { nwcWalletCanSend } from '@/lib/wallet/nwc-send-capability'
+import { derivePrimaryWallet } from '@/lib/wallet/primary-wallet'
 import { ActivityEvent, logActivity } from '@/lib/activity-log'
 import { eventBus } from '@/lib/events/event-bus'
 
@@ -53,7 +55,11 @@ export interface CardPaymentActionCard {
   ntag424Cid: string | null
   remoteWallet: StoredWallet | null
   user: {
-    lightningAddresses: Array<{ remoteWallet: StoredWallet | null }>
+    lightningAddresses: Array<{
+      mode: LightningAddressMode
+      remoteWalletId: string | null
+      remoteWallet: StoredWallet | null
+    }>
   } | null
 }
 
@@ -86,10 +92,12 @@ export default async function pay(
 
   if (!card.ntag424Cid) return ludError('Card is not paired')
 
-  const defaultWallet = card.user?.lightningAddresses[0]?.remoteWallet ?? null
+  // Same owner fallback the scan advertised: only a CUSTOM_NWC primary address
+  // routes to its wallet, so a range-ignoring client can't spend from a wallet
+  // the scan reported as unconfigured.
   const route = resolveCardWallet({
     remoteWallet: card.remoteWallet,
-    defaultRemoteWallet: defaultWallet
+    defaultRemoteWallet: derivePrimaryWallet(card.user?.lightningAddresses[0])
   })
 
   // An exact retry must remain recoverable even if the operator changed or
