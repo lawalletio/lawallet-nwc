@@ -22,7 +22,7 @@ export async function resolveRole(pubkey: string): Promise<Role> {
   // Backwards compatibility: check if pubkey is the root in Settings.
   // `cache: 'hot'` because this now runs on EVERY authenticated request (the
   // session JWT's role claim is no longer trusted) and `root` is already in
-  // the 1s hot-settings snapshot — an uncached read here is a wasted query
+  // the hot-settings snapshot — an uncached read here is a wasted query
   // per request across every route that authenticates.
   const settings = await getSettings(['root'], { cache: 'hot' })
   if (pubkey === settings.root) {

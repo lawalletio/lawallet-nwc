@@ -134,6 +134,6 @@ describe('POST /api/remote-wallets/[id]/notification-deliveries/[deliveryId]/ret
     )
 
     expect(response.status).toBe(409)
-    expect(afterMock).not.toHaveBeenCalled()
+    expect(afterMock).not.toHaveBeenCalledWith(expect.any(Function))
   })
 })

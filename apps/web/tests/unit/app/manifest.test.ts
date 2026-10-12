@@ -24,6 +24,15 @@ describe('web app manifest', () => {
     expect(m.display).toBe('standalone')
   })
 
+  it('reads branding from the hot settings snapshot', async () => {
+    mockSettings({})
+    await manifest()
+    expect(getSettings).toHaveBeenCalledWith(
+      ['community_name', 'isotypo_url', 'brand_theme'],
+      { cache: 'hot' }
+    )
+  })
+
   it('falls back to default branding when settings are empty', async () => {
     mockSettings({})
     const m = await manifest()

@@ -6,6 +6,7 @@ import {
   ValidationError
 } from '@/types/server/errors'
 import { ActivityEvent, logActivity } from '@/lib/activity-log'
+import { forgetResolvedAccounts } from '@/lib/auth/account'
 import { parseStoredRelays } from '@/lib/nostr/relay-list'
 import { resolveProfiles } from '@/lib/nostr/profile-cache'
 
@@ -499,6 +500,7 @@ export async function mergeAccounts(params: {
     }
   })
 
+  forgetResolvedAccounts()
   logActivity.fireAndForget({
     category: 'USER',
     event: ActivityEvent.ACCOUNT_MERGED,
@@ -540,6 +542,7 @@ export async function linkPubkeyToAccount(
     throw err
   }
 
+  forgetResolvedAccounts()
   logActivity.fireAndForget({
     category: 'USER',
     event: ActivityEvent.ACCOUNT_PUBKEY_LINKED,
@@ -575,6 +578,7 @@ export async function setPrimaryIdentity(
     await tx.user.update({ where: { id: userId }, data: { pubkey } })
   })
 
+  forgetResolvedAccounts()
   logActivity.fireAndForget({
     category: 'USER',
     event: ActivityEvent.ACCOUNT_PRIMARY_CHANGED,
@@ -609,6 +613,7 @@ export async function unlinkIdentity(
     await tx.nostrIdentity.delete({ where: { pubkey } })
   })
 
+  forgetResolvedAccounts()
   logActivity.fireAndForget({
     category: 'USER',
     event: ActivityEvent.ACCOUNT_PUBKEY_UNLINKED,
