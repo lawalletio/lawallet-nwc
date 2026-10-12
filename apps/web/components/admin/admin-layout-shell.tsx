@@ -1,8 +1,8 @@
 'use client'
 
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { AlertTriangle, Database, RefreshCw } from 'lucide-react'
-import { usePathname, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
@@ -12,6 +12,7 @@ import { MobileTabBar } from '@/components/admin/mobile-tab-bar'
 import { LoginModal } from '@/components/admin/login-modal'
 import { MaintenanceGate } from '@/components/admin/maintenance-gate'
 import { SetupBanner } from '@/components/admin/setup-banner'
+import { useVisibleInterval } from '@/lib/client/hooks/use-visible-interval'
 
 interface DatabaseStatus {
   checking: boolean
@@ -19,22 +20,31 @@ interface DatabaseStatus {
 }
 
 const HEALTH_POLL_INTERVAL_MS = 25_000
+// One failed probe is often a blip (deploy, cold start, flaky network), so
+// the outage banner waits for a second consecutive failure, re-probed soon.
+const FAILURES_BEFORE_DOWN = 2
+const RECHECK_AFTER_FAILURE_MS = 3_000
 const ADMIN_SIDEBAR_BREAKPOINT = 1024
 
-function useDatabaseStatus(
+export function useDatabaseStatus(
   enabled: boolean
 ): DatabaseStatus & { refetch: () => Promise<void> } {
-  const [checking, setChecking] = useState(enabled)
+  const [checking, setChecking] = useState(false)
   const [error, setError] = useState<Error | null>(null)
+  const failuresRef = useRef(0)
+  const recheckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const check = useCallback(async () => {
+    if (recheckTimerRef.current) {
+      clearTimeout(recheckTimerRef.current)
+      recheckTimerRef.current = null
+    }
     if (!enabled) {
-      setChecking(false)
+      failuresRef.current = 0
       setError(null)
       return
     }
 
-    setChecking(true)
     try {
       const response = await fetch('/api/health', { cache: 'no-store' })
       const body = await response.json().catch(() => null)
@@ -45,32 +55,48 @@ function useDatabaseStatus(
           `${body?.message || 'Database server is not accessible'}${detail}`
         )
       }
+      failuresRef.current = 0
       setError(null)
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err
-          : new Error('Database server is not accessible')
-      )
-    } finally {
-      setChecking(false)
+      // The browser being offline says nothing about the database.
+      if (!navigator.onLine) return
+      failuresRef.current += 1
+      if (failuresRef.current >= FAILURES_BEFORE_DOWN) {
+        setError(
+          err instanceof Error
+            ? err
+            : new Error('Database server is not accessible')
+        )
+      } else {
+        recheckTimerRef.current = setTimeout(
+          () => void check(),
+          RECHECK_AFTER_FAILURE_MS
+        )
+      }
     }
   }, [enabled])
 
   useEffect(() => {
     void check()
-    if (!enabled) return
-    const interval = window.setInterval(
-      () => void check(),
-      HEALTH_POLL_INTERVAL_MS
-    )
-    return () => window.clearInterval(interval)
-  }, [check, enabled])
+    return () => {
+      if (recheckTimerRef.current) clearTimeout(recheckTimerRef.current)
+    }
+  }, [check])
+  useVisibleInterval(() => void check(), HEALTH_POLL_INTERVAL_MS, enabled)
 
-  return { checking, error, refetch: check }
+  const refetch = useCallback(async () => {
+    setChecking(true)
+    try {
+      await check()
+    } finally {
+      setChecking(false)
+    }
+  }, [check])
+
+  return { checking, error, refetch }
 }
 
-function DatabaseUnavailable({
+function DatabaseUnavailableBanner({
   error,
   checking,
   onRetry
@@ -80,42 +106,27 @@ function DatabaseUnavailable({
   onRetry: () => void
 }) {
   return (
-    <div className="flex min-h-[calc(100svh-4rem)] items-center justify-center p-6">
-      <div
-        role="alert"
-        className="w-full max-w-xl rounded-lg border border-destructive/40 bg-card p-6 shadow-sm"
-      >
-        <div className="flex items-start gap-4">
-          <div className="grid size-11 shrink-0 place-items-center rounded-md bg-destructive/10 text-destructive">
-            <Database className="size-5" />
-          </div>
-          <div className="min-w-0 flex-1 space-y-2">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="size-4 text-destructive" />
-              <h1 className="text-base font-semibold">Database unavailable</h1>
-            </div>
-            <p className="break-words text-sm text-muted-foreground">
-              {error.message}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Navigation is disabled until the database connection is restored.
-            </p>
-          </div>
-        </div>
-        <div className="mt-5 flex justify-end">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onRetry}
-            disabled={checking}
-          >
-            <RefreshCw
-              className={`mr-2 size-4 ${checking ? 'animate-spin' : ''}`}
-            />
-            Retry
-          </Button>
-        </div>
+    <div
+      role="alert"
+      className="flex items-start gap-3 border-b border-destructive/40 bg-destructive/10 px-4 py-3"
+    >
+      <Database className="mt-0.5 size-4 shrink-0 text-destructive" />
+      <div className="min-w-0 flex-1">
+        <p className="flex items-center gap-2 text-sm font-semibold">
+          <AlertTriangle className="size-4 text-destructive" />
+          Database unavailable
+        </p>
+        <p className="break-words text-xs text-muted-foreground">
+          {error.message}. Changes may not save until the connection is
+          restored.
+        </p>
       </div>
+      <Button variant="outline" size="sm" onClick={onRetry} disabled={checking}>
+        <RefreshCw
+          className={`mr-2 size-4 ${checking ? 'animate-spin' : ''}`}
+        />
+        Retry
+      </Button>
     </div>
   )
 }
@@ -123,7 +134,6 @@ function DatabaseUnavailable({
 export function AdminLayoutShell({ children }: { children: React.ReactNode }) {
   const { status } = useAuth()
   const router = useRouter()
-  const pathname = usePathname()
   const database = useDatabaseStatus(status === 'authenticated')
   const databaseDown = !!database.error
   const handleLoginOpenChange = useCallback(
@@ -132,12 +142,6 @@ export function AdminLayoutShell({ children }: { children: React.ReactNode }) {
     },
     [router]
   )
-
-  useEffect(() => {
-    if (databaseDown && pathname !== '/admin') {
-      router.replace('/admin')
-    }
-  }, [databaseDown, pathname, router])
 
   // Loading state - full page skeleton
   if (status === 'loading') {
@@ -190,18 +194,17 @@ export function AdminLayoutShell({ children }: { children: React.ReactNode }) {
           whole admin shell scrolls horizontally. */}
       <SidebarInset className="min-w-0">
         <main className="flex min-w-0 flex-1 flex-col pb-16 lg:pb-0">
-          {database.error ? (
-            <DatabaseUnavailable
+          {/* A banner, not a replacement page: unmounting the children
+              would throw away whatever form the admin was filling in. */}
+          {database.error && (
+            <DatabaseUnavailableBanner
               error={database.error}
               checking={database.checking}
               onRetry={() => void database.refetch()}
             />
-          ) : (
-            <>
-              <SetupBanner />
-              <MaintenanceGate>{children}</MaintenanceGate>
-            </>
           )}
+          <SetupBanner />
+          <MaintenanceGate>{children}</MaintenanceGate>
         </main>
       </SidebarInset>
       <MobileTabBar disabled={databaseDown} />

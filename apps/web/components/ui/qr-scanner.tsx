@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { BrowserMultiFormatReader, NotFoundException } from '@zxing/library'
+import type { BrowserMultiFormatReader } from '@zxing/library'
 import { Button } from './button'
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from './dialog'
 import { Camera, X, AlertCircle } from 'lucide-react'
@@ -61,7 +61,10 @@ export function QRScanner({ onScan, onError, children }: QRScannerProps) {
         return
       }
 
-      // Initialize reader if not exists
+      // Loaded on demand: @zxing is ~108KB gz and every importer of this
+      // component would otherwise ship it just to render the trigger.
+      const { BrowserMultiFormatReader, NotFoundException } =
+        await import('@zxing/library')
       if (!readerRef.current) {
         readerRef.current = new BrowserMultiFormatReader()
       }

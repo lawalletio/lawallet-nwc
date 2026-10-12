@@ -188,6 +188,7 @@ export function useNwcBalance(
 
     let cancelled = false
     let intervalId: ReturnType<typeof setInterval> | null = null
+    let pollInBackground: (() => void) | null = null
     let unsubscribe: (() => void) | null = null
     let subscribeRetryTimer: ReturnType<typeof setTimeout> | null = null
     let subscribeInFlight = false
@@ -217,10 +218,13 @@ export function useNwcBalance(
       const client = new NWCClient({ nostrWalletConnectUrl: nwcString! })
       clientRef.current = client
 
-      async function fetchOnce(fromNotification = false) {
+      // `background` fetches (poll ticks, payment notifications, tab
+      // refocus) refresh silently; only the first load and a manual
+      // `refetch` (which re-runs this effect) flip `loading`.
+      async function fetchOnce(fromNotification = false, background = false) {
         if (cancelled) return
         const myId = ++reqId
-        setLoading(true)
+        if (!background) setLoading(true)
         try {
           const res = await client.getBalance()
           // Ignore stale results from an in-flight fetch that is no longer
@@ -310,7 +314,7 @@ export function useNwcBalance(
               if (cancelled) return
               const tx = notification.notification
               // Refresh balance on any payment event so the UI stays in sync
-              fetchOnce(true)
+              fetchOnce(true, true)
               const event = {
                 type: tx.type,
                 amountSats: Math.floor(tx.amount / 1000),
@@ -360,7 +364,12 @@ export function useNwcBalance(
       }
 
       await fetchOnce()
-      intervalId = setInterval(fetchOnce, pollMs)
+      // A hidden tab skips polls; returning to it refreshes right away.
+      pollInBackground = () => {
+        if (!document.hidden) void fetchOnce(false, true)
+      }
+      intervalId = setInterval(pollInBackground, pollMs)
+      document.addEventListener('visibilitychange', pollInBackground)
       await subscribeNotifications()
     }
 
@@ -374,6 +383,9 @@ export function useNwcBalance(
     return () => {
       cancelled = true
       if (intervalId) clearInterval(intervalId)
+      if (pollInBackground) {
+        document.removeEventListener('visibilitychange', pollInBackground)
+      }
       if (subscribeRetryTimer) clearTimeout(subscribeRetryTimer)
       try {
         unsubscribe?.()

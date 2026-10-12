@@ -239,7 +239,11 @@ export const POST = withErrorHandling(
     })
 
     const reconciliation = await reconcileProxyPayments({ ids: paymentIds })
-    eventBus.emit({ type: 'invoices:updated', timestamp: Date.now() })
+    eventBus.emit({
+      type: 'invoices:updated',
+      timestamp: Date.now(),
+      userId: user.id
+    })
 
     return NextResponse.json({
       success: true,

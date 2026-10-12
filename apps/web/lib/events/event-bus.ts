@@ -9,7 +9,38 @@ export interface SSEClient {
   id: string
   controller: ReadableStreamDefaultController
   permissions: Permission[]
+  /** Account id, so user-scoped events reach only their owner (+ admins). */
+  userId?: string
   connectedAt: number
+}
+
+/**
+ * How many unread chunks a client may fall behind before it is dropped. The
+ * stream's default high-water mark is one chunk, so `desiredSize` goes
+ * negative by one per chunk the client hasn't drained. Dropping is safe: the
+ * client reconnects and refetches everything.
+ */
+const MAX_QUEUED_CHUNKS = 32
+
+/**
+ * Enqueues `chunk`, or closes the stream when the client is too far behind to
+ * keep buffering for it. Returns false when the client should be dropped.
+ */
+export function trySend(
+  controller: ReadableStreamDefaultController,
+  chunk: Uint8Array
+): boolean {
+  try {
+    if ((controller.desiredSize ?? 0) <= -MAX_QUEUED_CHUNKS) {
+      controller.close()
+      return false
+    }
+    controller.enqueue(chunk)
+    return true
+  } catch {
+    // Already closed or errored — the client is gone.
+    return false
+  }
 }
 
 // ─── Permission mapping ───────────────────────────────────────────────────
@@ -56,13 +87,15 @@ class EventBus {
   }
 
   /**
-   * Broadcasts an event to every subscriber whose permissions allow it.
-   * Subscribers that throw on `enqueue` (typically because they disconnected)
-   * are silently removed.
+   * Broadcasts an event to every subscriber whose permissions allow it. An
+   * event carrying `userId` only reaches that account's clients and admins
+   * (who can read any user's wallets). Subscribers that are gone or too far
+   * behind are dropped.
    */
   emit(event: SSEEvent): void {
     const requiredPermission = EVENT_PERMISSION_MAP[event.type]
-    const sseData = `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`
+    const { userId, ...payload } = event
+    const sseData = `event: ${event.type}\ndata: ${JSON.stringify(payload)}\n\n`
     const encoded = new TextEncoder().encode(sseData)
 
     const toRemove: string[] = []
@@ -75,13 +108,15 @@ class EventBus {
       ) {
         continue
       }
-
-      try {
-        client.controller.enqueue(encoded)
-      } catch {
-        // Client disconnected — mark for removal
-        toRemove.push(id)
+      if (
+        userId &&
+        client.userId !== userId &&
+        !client.permissions.includes(Permission.REMOTE_WALLETS_READ)
+      ) {
+        continue
       }
+
+      if (!trySend(client.controller, encoded)) toRemove.push(id)
     }
 
     // Clean up disconnected clients
