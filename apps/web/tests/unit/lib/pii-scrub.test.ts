@@ -279,7 +279,12 @@ describe('Sentry instrumentation wiring', () => {
     expect(server).toMatch(
       /beforeSendTransaction:\s*event\s*=>\s*scrubEvent\(event\)/
     )
-    expect(client).toMatch(/beforeSend:\s*event\s*=>\s*scrubEvent\(event\)/)
+    // Client drops third-party noise first, then scrubs everything else.
+    expect(client).toMatch(
+      /beforeSend:\s*event\s*=>\s*\(?isThirdPartyNoise\(event\)\s*\?\s*null\s*:\s*scrubEvent\(event\)\)?/
+    )
+    expect(client).toMatch(/ignoreErrors:\s*IGNORE_ERRORS/)
+    expect(client).toMatch(/denyUrls:\s*DENY_URLS/)
     expect(client).toMatch(
       /beforeSendTransaction:\s*event\s*=>\s*scrubEvent\(event\)/
     )
