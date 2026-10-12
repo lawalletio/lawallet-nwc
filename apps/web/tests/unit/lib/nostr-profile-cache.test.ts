@@ -6,7 +6,10 @@ import { resolveProfiles } from '@/lib/nostr/profile-cache'
 
 const PUBKEY_A = 'a'.repeat(64)
 const PUBKEY_B = 'b'.repeat(64)
+const PUBKEY_C = 'c'.repeat(64)
 const NPUB_A = nip19.npubEncode(PUBKEY_A)
+const NPUB_B = nip19.npubEncode(PUBKEY_B)
+const NPUB_C = nip19.npubEncode(PUBKEY_C)
 const NOW = new Date('2026-07-01T12:00:00.000Z')
 
 function kind0(
@@ -260,5 +263,140 @@ describe('resolveProfiles', () => {
 
     expect(relayFetcher).not.toHaveBeenCalled()
     expect(profiles).toHaveLength(0)
+  })
+  it('persists success, not-found and invalid-metadata pubkeys in one batch', async () => {
+    vi.mocked(prismaMock.user.findMany).mockResolvedValue([
+      { pubkey: PUBKEY_A },
+      { pubkey: PUBKEY_B },
+      { pubkey: PUBKEY_C }
+    ] as any)
+    vi.mocked(prismaMock.nostrProfileCache.findMany).mockResolvedValue([])
+    const relayFetcher = vi
+      .fn()
+      .mockResolvedValue([
+        kind0(PUBKEY_A, 100, { name: 'alice' }),
+        { pubkey: PUBKEY_C, created_at: 100, content: 'not json' }
+      ])
+    const precacheImages = vi.fn().mockResolvedValue(undefined)
+
+    const profiles = await resolveProfiles([PUBKEY_A, PUBKEY_B, PUBKEY_C], {
+      now: NOW,
+      relayFetcher,
+      precacheImages
+    })
+
+    expect(prismaMock.$transaction).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(prismaMock.$transaction).mock.calls[0][0]).toHaveLength(3)
+    expect(prismaMock.nostrProfileCache.upsert).toHaveBeenCalledTimes(3)
+    expect(prismaMock.nostrProfileCache.upsert).toHaveBeenCalledWith({
+      where: { npub: NPUB_A },
+      create: expect.objectContaining({
+        npub: NPUB_A,
+        pubkey: PUBKEY_A,
+        name: 'alice',
+        rawMetadata: { name: 'alice' },
+        fetchedAt: NOW,
+        lastFetchAttemptAt: NOW,
+        lastFetchError: null
+      }),
+      update: expect.not.objectContaining({ npub: expect.anything() })
+    })
+    expect(prismaMock.nostrProfileCache.upsert).toHaveBeenCalledWith({
+      where: { npub: NPUB_B },
+      create: {
+        npub: NPUB_B,
+        pubkey: PUBKEY_B,
+        lastFetchAttemptAt: NOW,
+        lastFetchError: 'Profile not found on relays'
+      },
+      update: {
+        lastFetchAttemptAt: NOW,
+        lastFetchError: 'Profile not found on relays'
+      }
+    })
+    expect(prismaMock.nostrProfileCache.upsert).toHaveBeenCalledWith({
+      where: { npub: NPUB_C },
+      create: {
+        npub: NPUB_C,
+        pubkey: PUBKEY_C,
+        lastFetchAttemptAt: NOW,
+        lastFetchError: 'Invalid kind-0 metadata'
+      },
+      update: {
+        lastFetchAttemptAt: NOW,
+        lastFetchError: 'Invalid kind-0 metadata'
+      }
+    })
+    expect(profiles.map(p => p.pubkey)).toEqual([PUBKEY_A])
+    expect(precacheImages).toHaveBeenCalledTimes(1)
+    expect(precacheImages).toHaveBeenCalledWith(
+      expect.objectContaining({ pubkey: PUBKEY_A })
+    )
+  })
+
+  it('marks every pubkey failed in one batch when the relay fetch throws', async () => {
+    vi.mocked(prismaMock.user.findMany).mockResolvedValue([
+      { pubkey: PUBKEY_A },
+      { pubkey: PUBKEY_B }
+    ] as any)
+    vi.mocked(prismaMock.nostrProfileCache.findMany).mockResolvedValue([])
+    const relayFetcher = vi.fn().mockRejectedValue(new Error('relay down'))
+    const precacheImages = vi.fn()
+
+    const profiles = await resolveProfiles([PUBKEY_A, PUBKEY_B], {
+      now: NOW,
+      relayFetcher,
+      precacheImages
+    })
+
+    expect(profiles).toEqual([])
+    expect(precacheImages).not.toHaveBeenCalled()
+    expect(prismaMock.$transaction).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(prismaMock.$transaction).mock.calls[0][0]).toHaveLength(2)
+    for (const [npub, pubkey] of [
+      [NPUB_A, PUBKEY_A],
+      [NPUB_B, PUBKEY_B]
+    ]) {
+      expect(prismaMock.nostrProfileCache.upsert).toHaveBeenCalledWith({
+        where: { npub },
+        create: {
+          npub,
+          pubkey,
+          lastFetchAttemptAt: NOW,
+          lastFetchError: 'relay down'
+        },
+        update: { lastFetchAttemptAt: NOW, lastFetchError: 'relay down' }
+      })
+    }
+  })
+
+  it('marks every pubkey failed and refreshes nothing when the batch write fails', async () => {
+    vi.mocked(prismaMock.user.findMany).mockResolvedValue([
+      { pubkey: PUBKEY_A }
+    ] as any)
+    vi.mocked(prismaMock.nostrProfileCache.findMany).mockResolvedValue([])
+    vi.mocked(prismaMock.$transaction)
+      .mockRejectedValueOnce(new Error('db down'))
+      .mockResolvedValueOnce([] as any)
+    const relayFetcher = vi
+      .fn()
+      .mockResolvedValue([kind0(PUBKEY_A, 100, { name: 'alice' })])
+    const precacheImages = vi.fn()
+
+    const profiles = await resolveProfiles([PUBKEY_A], {
+      now: NOW,
+      relayFetcher,
+      precacheImages
+    })
+
+    expect(profiles).toEqual([])
+    expect(precacheImages).not.toHaveBeenCalled()
+    expect(prismaMock.$transaction).toHaveBeenCalledTimes(2)
+    expect(prismaMock.nostrProfileCache.upsert).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        where: { npub: NPUB_A },
+        update: { lastFetchAttemptAt: NOW, lastFetchError: 'db down' }
+      })
+    )
   })
 })

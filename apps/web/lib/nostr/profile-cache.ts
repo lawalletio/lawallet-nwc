@@ -3,6 +3,7 @@ import {
   DEFAULT_NOSTR_RELAYS,
   NOSTR_PROFILE_CACHE_TTL_MS,
   normalizeNostrPubkey,
+  type NormalizedNostrPubkey,
   parseKind0ContentWithRaw,
   type NostrProfile
 } from '@/lib/nostr/profile'
@@ -85,12 +86,11 @@ export async function resolveProfiles(
   })
   const cachedByPubkey = new Map(cachedRows.map(row => [row.pubkey, row]))
 
-  const pubkeysToFetch = registered
-    .filter(n => {
-      const cached = cachedByPubkey.get(n.pubkey)
-      return force || !isFresh(cached, now)
-    })
-    .map(n => n.pubkey)
+  const toFetch = registered.filter(n => {
+    const cached = cachedByPubkey.get(n.pubkey)
+    return force || !isFresh(cached, now)
+  })
+  const pubkeysToFetch = toFetch.map(n => n.pubkey)
 
   const refreshed = new Map<string, NostrProfile>()
   if (pubkeysToFetch.length > 0) {
@@ -100,82 +100,70 @@ export async function resolveProfiles(
       const events = await relayFetcher(pubkeysToFetch)
       const latest = newestEventByPubkey(events)
 
-      await Promise.all(
-        pubkeysToFetch.map(async pubkey => {
-          const event = latest.get(pubkey)
-          if (!event) {
-            await markFetchFailure(
-              db,
-              pubkey,
-              attemptAt,
-              'Profile not found on relays'
-            )
-            return
-          }
+      // One transaction for every write instead of an upsert per pubkey
+      // (Sentry LAWALLET-WEB-Q, N+1 on POST /api/nostr/profiles).
+      const writes: Prisma.PrismaPromise<unknown>[] = []
+      const fetched: NostrProfile[] = []
+      for (const key of toFetch) {
+        const pubkey = key.pubkey
+        const event = latest.get(pubkey)
+        if (!event) {
+          writes.push(
+            fetchFailureWrite(db, key, attemptAt, 'Profile not found on relays')
+          )
+          continue
+        }
 
-          const parsed = parseKind0ContentWithRaw(pubkey, event.content, {
-            fetchedAt: attemptAt.getTime()
-          })
-          if (!parsed) {
-            await markFetchFailure(
-              db,
-              pubkey,
-              attemptAt,
-              'Invalid kind-0 metadata'
-            )
-            return
-          }
-
-          const profile = parsed.profile
-          const rawMetadata = parsed.rawMetadata as Prisma.InputJsonObject
-          await db.nostrProfileCache.upsert({
-            where: { npub: profile.npub },
-            create: {
-              npub: profile.npub,
-              pubkey: profile.pubkey,
-              name: profile.name ?? null,
-              displayName: profile.displayName ?? null,
-              about: profile.about ?? null,
-              nip05: profile.nip05 ?? null,
-              lud16: profile.lud16 ?? null,
-              website: profile.website ?? null,
-              pictureUrl: profile.picture ?? null,
-              bannerUrl: profile.banner ?? null,
-              kind0CreatedAt: new Date(event.created_at * 1000),
-              rawMetadata,
-              fetchedAt: attemptAt,
-              lastFetchAttemptAt: attemptAt,
-              lastFetchError: null
-            },
-            update: {
-              pubkey: profile.pubkey,
-              name: profile.name ?? null,
-              displayName: profile.displayName ?? null,
-              about: profile.about ?? null,
-              nip05: profile.nip05 ?? null,
-              lud16: profile.lud16 ?? null,
-              website: profile.website ?? null,
-              pictureUrl: profile.picture ?? null,
-              bannerUrl: profile.banner ?? null,
-              kind0CreatedAt: new Date(event.created_at * 1000),
-              rawMetadata,
-              fetchedAt: attemptAt,
-              lastFetchAttemptAt: attemptAt,
-              lastFetchError: null
-            }
-          })
-
-          refreshed.set(profile.pubkey, profile)
-          const precache = options.precacheImages ?? precacheProfileImages
-          void precache(profile).catch(() => {
-            // Image cache is intentionally best-effort; metadata remains valid.
-          })
+        const parsed = parseKind0ContentWithRaw(pubkey, event.content, {
+          fetchedAt: attemptAt.getTime()
         })
-      )
+        if (!parsed) {
+          writes.push(
+            fetchFailureWrite(db, key, attemptAt, 'Invalid kind-0 metadata')
+          )
+          continue
+        }
+
+        const profile = parsed.profile
+        const data = {
+          pubkey: profile.pubkey,
+          name: profile.name ?? null,
+          displayName: profile.displayName ?? null,
+          about: profile.about ?? null,
+          nip05: profile.nip05 ?? null,
+          lud16: profile.lud16 ?? null,
+          website: profile.website ?? null,
+          pictureUrl: profile.picture ?? null,
+          bannerUrl: profile.banner ?? null,
+          kind0CreatedAt: new Date(event.created_at * 1000),
+          rawMetadata: parsed.rawMetadata as Prisma.InputJsonObject,
+          fetchedAt: attemptAt,
+          lastFetchAttemptAt: attemptAt,
+          lastFetchError: null
+        }
+        writes.push(
+          db.nostrProfileCache.upsert({
+            where: { npub: profile.npub },
+            create: { npub: profile.npub, ...data },
+            update: data
+          })
+        )
+        fetched.push(profile)
+      }
+
+      await db.$transaction(writes)
+
+      const precache = options.precacheImages ?? precacheProfileImages
+      for (const profile of fetched) {
+        refreshed.set(profile.pubkey, profile)
+        void precache(profile).catch(() => {
+          // Image cache is intentionally best-effort; metadata remains valid.
+        })
+      }
     } catch (err) {
-      await Promise.all(
-        pubkeysToFetch.map(pubkey =>
-          markFetchFailure(db, pubkey, attemptAt, errorMessage(err))
+      await db.$transaction(
+        toFetch.map(key =>
+          fetchFailureWrite(db, key, attemptAt, errorMessage(err))
         )
       )
     }
@@ -256,19 +244,19 @@ function newestEventByPubkey(events: RelayProfileEvent[]) {
   return latest
 }
 
-async function markFetchFailure(
+// Returns the lazy (unexecuted) upsert so callers can batch it into one
+// transaction.
+function fetchFailureWrite(
   db: typeof prisma,
-  pubkey: string,
+  key: NormalizedNostrPubkey,
   attemptAt: Date,
   message: string
 ) {
-  const normalized = normalizeNostrPubkey(pubkey)
-  if (!normalized) return
-  await db.nostrProfileCache.upsert({
-    where: { npub: normalized.npub },
+  return db.nostrProfileCache.upsert({
+    where: { npub: key.npub },
     create: {
-      npub: normalized.npub,
-      pubkey: normalized.pubkey,
+      npub: key.npub,
+      pubkey: key.pubkey,
       lastFetchAttemptAt: attemptAt,
       lastFetchError: message
     },
