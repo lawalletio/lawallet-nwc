@@ -22,7 +22,10 @@ import {
   toWalletAddressDto,
   type WalletAddressDto
 } from '@/lib/wallet/wallet-address-dto'
-import { resolveAddressProtocols } from '@/lib/wallet/address-protocols'
+import {
+  createAddressProtocolContext,
+  resolveAddressProtocols
+} from '@/lib/wallet/address-protocols'
 import { derivePrimaryWallet } from '@/lib/wallet/primary-wallet'
 
 export const dynamic = 'force-dynamic'
@@ -57,16 +60,20 @@ export const GET = withErrorHandling(async (request: Request) => {
 
   // Alias protocols come from the probe stored at save time, so listing many
   // addresses never reaches out to their targets.
+  const protocolContext = createAddressProtocolContext()
   const dtos: WalletAddressDto[] = await Promise.all(
     user.lightningAddresses.map(async addr => ({
       ...toWalletAddressDto(addr, defaultWallet),
-      protocols: await resolveAddressProtocols({
-        mode: addr.mode,
-        redirect: addr.redirect,
-        aliasProtocols: addr.aliasProtocols,
-        routable: addr.remoteWallet?.status === 'ACTIVE',
-        user
-      })
+      protocols: await resolveAddressProtocols(
+        {
+          mode: addr.mode,
+          redirect: addr.redirect,
+          aliasProtocols: addr.aliasProtocols,
+          routable: addr.remoteWallet?.status === 'ACTIVE',
+          user
+        },
+        protocolContext
+      )
     }))
   )
   return NextResponse.json(dtos)
