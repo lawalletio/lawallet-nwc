@@ -206,6 +206,24 @@ describe('GET /api/events stream lifetime', () => {
     expect(chunks.join('')).toContain('event: recycle\n')
     expect(removeClientMock).toHaveBeenCalled()
   })
+
+  it('drops the client when a heartbeat can no longer be sent', async () => {
+    vi.useFakeTimers()
+    vi.mocked(verifyJwtToken).mockReturnValue({
+      payload: { userId: 'u1', role: 'USER' },
+      header: {}
+    } as any)
+
+    await GET(makeRequest('/api/events?token=va.li.d'))
+    const client = addClientMock.mock.calls.at(-1)![0]
+    // The bus closes a stalled client's stream; the next heartbeat notices.
+    client.controller.close()
+    removeClientMock.mockClear()
+
+    await vi.advanceTimersByTimeAsync(30_000)
+
+    expect(removeClientMock).toHaveBeenCalledWith(client.id)
+  })
 })
 
 describe('GET /api/events with a NIP-98 query token', () => {

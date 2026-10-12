@@ -97,12 +97,12 @@ export async function GET(request: NextRequest) {
   // Create SSE stream
   const clientId = crypto.randomUUID()
   const encoder = new TextEncoder()
-  let heartbeatTimer: ReturnType<typeof setInterval> | null = null
-  let lifetimeTimer: ReturnType<typeof setTimeout> | null = null
+  let heartbeatTimer: ReturnType<typeof setInterval> | undefined
+  let lifetimeTimer: ReturnType<typeof setTimeout> | undefined
 
   function dispose() {
-    if (heartbeatTimer) clearInterval(heartbeatTimer)
-    if (lifetimeTimer) clearTimeout(lifetimeTimer)
+    clearInterval(heartbeatTimer)
+    clearTimeout(lifetimeTimer)
     eventBus.removeClient(clientId)
   }
 

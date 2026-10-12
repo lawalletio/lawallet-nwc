@@ -60,6 +60,19 @@ vi.mock('@/lib/proxy/config', async importActual => ({
   getActiveProxyConfig: getActiveProxyConfigMock
 }))
 
+// Real capability by default; a test sets an implementation to force one.
+const getZapCapabilityMock = vi.hoisted(() => vi.fn())
+vi.mock('@/lib/nostr/zap-receipts', async importActual => {
+  const actual = await importActual<typeof import('@/lib/nostr/zap-receipts')>()
+  return {
+    ...actual,
+    getAdvertisedZapReceiptCapability: () =>
+      getZapCapabilityMock.getMockImplementation()
+        ? getZapCapabilityMock()
+        : actual.getAdvertisedZapReceiptCapability()
+  }
+})
+
 vi.mock('@/lib/proxy/pay-request', () => ({
   createProxyPayRequest: createProxyPayRequestMock
 }))
@@ -206,6 +219,7 @@ beforeEach(() => {
   mockPrimaryAddressWallet()
   vi.mocked(reviveDeadCourtesyWallet).mockResolvedValue(null)
   resetAdvertisedZapReceiptCapability()
+  getZapCapabilityMock.mockReset()
   getActiveProxyConfigMock.mockResolvedValue(null)
 })
 
@@ -637,6 +651,69 @@ describe('GET /api/lud16/[username]', () => {
       'image/png;base64',
       'AAAA'
     ])
+  })
+
+  it('omits zap fields and comments from a proxy payRequest without a receipt signer', async () => {
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
+      username: 'alice',
+      mode: 'PROXY_ALIAS',
+      redirect: 'bob@remote.example',
+      remoteWallet: null,
+      user: { id: 'user-1', pubkey: null }
+    } as any)
+    vi.mocked(getSettings).mockResolvedValue({
+      domain: 'test.com',
+      endpoint: 'https://app.test.com',
+      listener_enabled: 'true',
+      listener_url: 'http://listener.test',
+      listener_auth_secret: 's'.repeat(32)
+    })
+    getActiveProxyConfigMock.mockResolvedValue({
+      row: { feeBps: 100, receiptPubkey: null },
+      receiptPrivateKey: null
+    })
+    fetchDestinationMetadata.mockResolvedValue({
+      minSendable: 1000,
+      maxSendable: 1_000_000,
+      metadata: JSON.stringify([['text/plain', 'remote']])
+    })
+
+    const res = await Lud16Get(
+      createNextRequest('/api/lud16/alice'),
+      createParamsPromise({ username: 'alice' })
+    )
+    const body: any = await assertResponse(res, 200)
+
+    expect(body.commentAllowed).toBe(0)
+    expect(body).not.toHaveProperty('allowsNostr')
+    expect(body).not.toHaveProperty('nostrPubkey')
+  })
+
+  it('advertises zaps and vouchers on a wallet payRequest when both are on', async () => {
+    const receiptPubkey = 'e'.repeat(64)
+    getZapCapabilityMock.mockResolvedValue({
+      lud21: true,
+      nip57: true,
+      receiptPubkey,
+      reason: null
+    })
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
+      username: 'alice',
+      mode: 'CUSTOM_NWC',
+      redirect: null,
+      remoteWallet: DEFAULT_WALLET,
+      user: { id: 'user-1', pubkey: null, allowVouchers: true }
+    } as any)
+
+    const res = await Lud16Get(
+      createNextRequest('/api/lud16/alice'),
+      createParamsPromise({ username: 'alice' })
+    )
+    const body: any = await assertResponse(res, 200)
+
+    expect(body.allowsNostr).toBe(true)
+    expect(body.nostrPubkey).toBe(receiptPubkey)
+    expect(body.allowVouchers).toBe(true)
   })
 
   describe('ALIAS self-cycle detection (followLocalAliases)', () => {
@@ -1464,6 +1541,55 @@ describe('GET /api/lud16/[username]/cb', () => {
         revokePrevious: true
       })
     )
+  })
+
+  it('does not self-heal an unbound LNCurl mint when no primary wallet is found → 503', async () => {
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
+      username: 'pelo',
+      mode: 'CUSTOM_NWC',
+      redirect: null,
+      remoteWallet: null,
+      user: { id: 'user-1' }
+    } as any)
+    vi.mocked(getSettings).mockResolvedValue({
+      domain: 'test.com',
+      endpoint: 'https://app.test.com',
+      lncurl_enabled: 'true',
+      lncurl_auto_recreate: 'true'
+    })
+    vi.mocked(prismaMock.invoice.upsert).mockResolvedValue({
+      id: 'invoice-1',
+      paymentHash: 'a'.repeat(64)
+    } as any)
+    // The unbound address first gets a fresh LNCurl wallet, whose mint fails.
+    vi.mocked(createLncurlRemoteWallet).mockResolvedValue({
+      id: 'wallet-fresh',
+      type: 'NWC',
+      config: {
+        connectionString: FRESH_LNCURL_NWC_URI,
+        mode: 'SEND_RECEIVE',
+        provider: 'lncurl'
+      },
+      status: 'ACTIVE'
+    } as any)
+    makeInvoiceMock.mockRejectedValueOnce(new Error('relay timeout'))
+    // The failure path's primary-wallet read comes back empty.
+    vi.mocked(prismaMock.lightningAddress.findFirst).mockResolvedValue(null)
+
+    const res = await Lud16CbGet(
+      createNextRequest('/api/lud16/pelo/cb', {
+        searchParams: { amount: '10000' }
+      }),
+      createParamsPromise({ username: 'pelo' })
+    )
+
+    expect(res.status).toBe(503)
+    // Only the initial provisioning; no dead wallet to replace.
+    expect(createLncurlRemoteWallet).toHaveBeenCalledTimes(1)
+    expect(createLncurlRemoteWallet).toHaveBeenCalledWith(
+      expect.objectContaining({ revokePrevious: false })
+    )
+    expect(prismaMock.lightningAddress.findFirst).toHaveBeenCalled()
   })
 
   it('does NOT self-heal when lncurl_auto_recreate is off → 503', async () => {

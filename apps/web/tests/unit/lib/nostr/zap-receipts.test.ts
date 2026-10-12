@@ -134,6 +134,24 @@ describe('RemoteWallet NIP-57 receipts', () => {
     })
   })
 
+  it('keeps a newer cached read when a superseded read fails', async () => {
+    let rejectStale!: (error: Error) => void
+    vi.mocked(prismaMock.proxyServiceConfig.findUnique).mockReturnValueOnce(
+      new Promise((_, reject) => {
+        rejectStale = reject
+      }) as never
+    )
+    const stale = getAdvertisedZapReceiptCapability()
+    resetAdvertisedZapReceiptCapability()
+    const fresh = await getAdvertisedZapReceiptCapability()
+
+    rejectStale(new Error('db down'))
+    await expect(stale).rejects.toThrow('db down')
+
+    await expect(getAdvertisedZapReceiptCapability()).resolves.toBe(fresh)
+    expect(prismaMock.proxyServiceConfig.findUnique).toHaveBeenCalledTimes(2)
+  })
+
   it('claims, publishes, and persists one signed zap receipt', async () => {
     vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue(
       zapInvoice as never

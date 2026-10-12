@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { Permission } from '@/lib/auth/permissions'
 import { eventBus, trySend, type SSEClient } from '@/lib/events/event-bus'
 
@@ -44,6 +44,40 @@ describe('trySend', () => {
     expect(sent).toBeLessThan(64)
     // Closed: further sends keep failing.
     expect(trySend(client.controller, new Uint8Array([1]))).toBe(false)
+  })
+
+  it('still sends when the stream reports no desiredSize', () => {
+    const enqueue = vi.fn()
+    const controller = {
+      desiredSize: null,
+      enqueue
+    } as unknown as ReadableStreamDefaultController
+
+    expect(trySend(controller, new Uint8Array([1]))).toBe(true)
+    expect(enqueue).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('eventBus broadcast', () => {
+  it('drops a client the send fails for', () => {
+    const before = eventBus.getClientCount()
+    const enqueue = vi.fn(() => {
+      throw new Error('closed')
+    })
+    eventBus.addClient({
+      id: 'gone',
+      controller: {
+        desiredSize: 1,
+        enqueue
+      } as unknown as ReadableStreamDefaultController,
+      permissions: [],
+      connectedAt: Date.now()
+    })
+
+    eventBus.emit({ type: 'invoices:updated', timestamp: 1 })
+
+    expect(enqueue).toHaveBeenCalledTimes(1)
+    expect(eventBus.getClientCount()).toBe(before)
   })
 })
 
