@@ -18,6 +18,11 @@ import { logger } from '@/lib/logger'
 import { derivePrimaryWallet } from '@/lib/wallet/primary-wallet'
 import { nwcWalletCanSend } from '@/lib/wallet/nwc-send-capability'
 import { cardScanPayLink } from '@/lib/card-payments/lnurl-pay'
+import { loadTapCard } from '@/lib/card-payments/tap-card'
+import {
+  prepareListenerPaymentFastPath,
+  resolveListenerBridge
+} from '@/lib/wallet/drivers/listener-transport'
 
 export const OPTIONS = withErrorHandling(async (_req: NextRequest) => {
   return new NextResponse(null, {
@@ -80,36 +85,7 @@ export const GET = withErrorHandling(
     // tap fails fast. Start its independent DB/settings reads together.
     const { p, c } = validateQuery(req.url, scanCardQuerySchema)
     const [card, url] = await Promise.all([
-      prisma.card.findUnique({
-        where: { id: cardId },
-        select: {
-          blockedAt: true,
-          disabledAt: true,
-          remoteWallet: {
-            select: { id: true, type: true, config: true, status: true }
-          },
-          user: {
-            select: {
-              lightningAddresses: {
-                where: { isPrimary: true },
-                take: 1,
-                select: {
-                  mode: true,
-                  remoteWalletId: true,
-                  remoteWallet: {
-                    select: {
-                      id: true,
-                      type: true,
-                      config: true,
-                      status: true
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }),
+      loadTapCard(cardId),
       resolveApiUrl(req)
     ])
 
@@ -146,6 +122,18 @@ export const GET = withErrorHandling(
           walletId: route.walletId,
           config: route.config
         })))
+
+    // The callback follows within a second or two. Warm its one-time listener
+    // capability probe now, alongside the balance probe, so a fresh server
+    // instance doesn't spend a round-trip on it after the tap is committed.
+    if (configured && route.kind === 'wallet' && route.type === 'NWC') {
+      const walletId = route.walletId
+      if (walletId) {
+        void resolveListenerBridge().then(bridge =>
+          prepareListenerPaymentFastPath(bridge, walletId)
+        )
+      }
+    }
 
     // The advertised ceiling is the live spendable balance, not a fixed sats
     // cap. A 0–0 range (no spendable wallet, or an empty one) tells the

@@ -2,7 +2,10 @@
 
 import { useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { useWalletNwcTransactions } from '@/components/wallet/nwc-provider'
+import {
+  useWalletNwc,
+  useWalletNwcTransactions
+} from '@/components/wallet/nwc-provider'
 import { QrDisplay } from '@/components/wallet/shared/qr-display'
 import {
   BoltcardAccepted,
@@ -13,6 +16,11 @@ import {
   useBoltcardNfc
 } from '@/lib/client/hooks/use-boltcard-nfc'
 import { useReceiveFlow, receiveActions } from '@/lib/client/wallet-flow-store'
+import { lookupInvoice } from '@/lib/client/nwc/receive'
+
+/** How long an accepted tap keeps checking our own wallet for the payment. */
+const TAP_SETTLE_POLL_MS = 1000
+const TAP_SETTLE_TIMEOUT_MS = 30_000
 
 const PREVIEW_INVOICE = {
   bolt11: 'lnbc210n1test',
@@ -40,27 +48,64 @@ export function ReceiveInvoiceStep() {
     }
   })
 
-  // Watch the shared NIP-47 subscription; when a payment_received matches
-  // the minted invoice, advance to the summary screen. A BoltCard tap holds
-  // that navigation briefly so the success animation can play.
+  const { nwcString } = useWalletNwc()
+  const paymentHash = flow.invoice?.paymentHash ?? null
+
+  // Advance to the summary once the minted invoice is settled. A BoltCard tap
+  // holds that navigation briefly so the success animation can play.
+  function settle(settledAt: number) {
+    if (!paymentHash) return
+    receiveActions.markSettled(paymentHash, settledAt)
+    if (navTimerRef.current != null) return
+    const elapsed = celebratingRef.current
+      ? Date.now() - acceptedAtRef.current
+      : BOLTCARD_SUCCESS_HOLD_MS
+    const wait = Math.max(0, BOLTCARD_SUCCESS_HOLD_MS - elapsed)
+    navTimerRef.current = setTimeout(() => {
+      router.replace('/wallet/receive/summary')
+    }, wait)
+  }
+  const settleRef = useRef(settle)
+  useEffect(() => {
+    settleRef.current = settle
+  })
+
   useWalletNwcTransactions(tx => {
     if (
       tx.type === 'incoming' &&
-      flow.invoice &&
-      tx.paymentHash === flow.invoice.paymentHash &&
+      tx.paymentHash === paymentHash &&
       tx.settledAt !== null
     ) {
-      receiveActions.markSettled(tx.paymentHash, tx.settledAt)
-      if (navTimerRef.current != null) return
-      const elapsed = celebratingRef.current
-        ? Date.now() - acceptedAtRef.current
-        : BOLTCARD_SUCCESS_HOLD_MS
-      const wait = Math.max(0, BOLTCARD_SUCCESS_HOLD_MS - elapsed)
-      navTimerRef.current = setTimeout(() => {
-        router.replace('/wallet/receive/summary')
-      }, wait)
+      settle(tx.settledAt)
     }
   })
+
+  // Once the card's server accepts the tap, ask our own wallet directly
+  // instead of waiting on a NIP-47 notification — some wallets never send
+  // one, which left this screen stuck on "Card accepted".
+  const tapAccepted = nfc.phase === 'accepted'
+  useEffect(() => {
+    if (!tapAccepted || !nwcString || !paymentHash) return
+    let cancelled = false
+    void (async () => {
+      const deadline = Date.now() + TAP_SETTLE_TIMEOUT_MS
+      while (!cancelled && Date.now() < deadline) {
+        try {
+          const status = await lookupInvoice(nwcString, paymentHash)
+          if (status.settled) {
+            if (!cancelled) settleRef.current(Date.now())
+            return
+          }
+        } catch {
+          // Transient relay error — keep checking until the deadline.
+        }
+        await new Promise(resolve => setTimeout(resolve, TAP_SETTLE_POLL_MS))
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [tapAccepted, nwcString, paymentHash])
 
   useEffect(() => {
     if (!flow.invoice) {

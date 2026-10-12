@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { loadTapCard } from '@/lib/card-payments/tap-card'
 import { verifyNtag424FromPC } from '@/lib/ntag424'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { NotFoundError, ValidationError } from '@/types/server/errors'
@@ -47,36 +47,8 @@ export const GET = withErrorHandling(
 
     logger.info({ cardId, action }, 'Card scan callback request')
 
-    // Only fetch fields needed to authenticate and route this spend. In
-    // particular, no card design or owner presentation data is on the hot path.
-    const card = await prisma.card.findUnique({
-      where: { id: cardId },
-      select: {
-        id: true,
-        blockedAt: true,
-        disabledAt: true,
-        ntag424Cid: true,
-        ntag424: {
-          select: { cid: true, k1: true, k2: true, ctr: true }
-        },
-        remoteWallet: {
-          select: { id: true, type: true, config: true, status: true }
-        },
-        user: {
-          select: {
-            lightningAddresses: {
-              where: { isPrimary: true },
-              take: 1,
-              select: {
-                remoteWallet: {
-                  select: { id: true, type: true, config: true, status: true }
-                }
-              }
-            }
-          }
-        }
-      }
-    })
+    // One round-trip: SUN keys plus both wallet routes for this spend.
+    const card = await loadTapCard(cardId)
 
     if (!card) throw new NotFoundError('Card not found')
     if (card.blockedAt !== null) throw new ValidationError('Card is blocked')
