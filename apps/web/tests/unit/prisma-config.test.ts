@@ -45,3 +45,40 @@ describe('prisma.config.ts E2E_DATABASE_URL precedence', () => {
     expect(process.env.DATABASE_URL).not.toBe(E2E_URL)
   })
 })
+
+describe('prisma.config.ts DATABASE_URL_UNPOOLED', () => {
+  let savedEnv: NodeJS.ProcessEnv
+
+  beforeEach(() => {
+    vi.resetModules()
+    savedEnv = { ...process.env }
+    delete process.env.E2E_DATABASE_URL
+  })
+
+  afterEach(() => {
+    process.env = savedEnv
+  })
+
+  async function datasourceUrl() {
+    const { default: config } = await import('@/prisma.config')
+    return (config as { datasource?: { url?: string } }).datasource?.url
+  }
+
+  it('runs the CLI against the direct host when one is provided', async () => {
+    process.env.DATABASE_URL_UNPOOLED = 'postgresql://u:p@direct/db'
+    expect(await datasourceUrl()).toBe('postgresql://u:p@direct/db')
+  })
+
+  it('falls back to DATABASE_URL when no direct host is set', async () => {
+    delete process.env.DATABASE_URL_UNPOOLED
+    process.env.DATABASE_URL = 'postgresql://dev:dev@localhost:5432/dev_db'
+    // `.env.local` (when present) may override it, so compare post-load.
+    expect(await datasourceUrl()).toBe(process.env.DATABASE_URL)
+  })
+
+  it('never lets the direct host override an E2E database', async () => {
+    process.env.DATABASE_URL_UNPOOLED = 'postgresql://u:p@direct/db'
+    process.env.E2E_DATABASE_URL = 'postgresql://e2e:e2e@localhost/e2e'
+    expect(await datasourceUrl()).toBe('postgresql://e2e:e2e@localhost/e2e')
+  })
+})
