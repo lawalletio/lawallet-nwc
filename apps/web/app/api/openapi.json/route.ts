@@ -14,7 +14,9 @@ import { withErrorHandling } from '@/types/server/error-handler'
 //   4. Direct `host` header — normal local dev / direct deploys.
 //
 // Reading headers / search params forces dynamic rendering — fine since
-// `getOpenApiDocument()` is cheap.
+// `getOpenApiDocument()` builds the spec once per process and only swaps the
+// `servers` entry per call. The spec only changes on deploy, so let the CDN
+// hold it (keyed by host + query, which covers the per-request server URL).
 export const dynamic = 'force-dynamic'
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
@@ -24,7 +26,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     process.env.OPENAPI_SERVER_URL ||
     (queryServerUrl && isSafeUrl(queryServerUrl) ? queryServerUrl : null) ||
     resolveServerUrl(request.headers)
-  return NextResponse.json(getOpenApiDocument({ serverUrl }))
+  return NextResponse.json(getOpenApiDocument({ serverUrl }), {
+    headers: { 'Cache-Control': 'public, s-maxage=3600' }
+  })
 })
 
 function resolveServerUrl(h: Headers): string {

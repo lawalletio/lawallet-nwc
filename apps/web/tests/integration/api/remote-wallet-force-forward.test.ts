@@ -154,7 +154,7 @@ describe('POST /api/remote-wallets/[id]/receive-action/force', () => {
     // 409, matching /proxy-balance for the same condition — it is a state
     // conflict, not malformed input.
     expect(response.status).toBe(409)
-    expect(afterMock).not.toHaveBeenCalled()
+    expect(afterMock).not.toHaveBeenCalledWith(expect.any(Function))
   })
 
   it('recovers payments the listener never delivered before deciding there is nothing to do', async () => {
@@ -167,9 +167,9 @@ describe('POST /api/remote-wallets/[id]/receive-action/force', () => {
       ).mockResolvedValue({ count: 1 })
       return 1
     })
-    vi.mocked(prismaMock.remoteWalletForwardReceipt.updateMany).mockResolvedValue(
-      { count: 0 }
-    )
+    vi.mocked(
+      prismaMock.remoteWalletForwardReceipt.updateMany
+    ).mockResolvedValue({ count: 0 })
 
     const response = await POST(
       createNextRequest(

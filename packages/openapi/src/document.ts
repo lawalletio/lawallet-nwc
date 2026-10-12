@@ -18,9 +18,29 @@ export interface OpenApiDocumentOptions {
   serverUrl?: string
 }
 
+const DEFAULT_SERVER_URL = 'http://localhost:3000'
+
+let cachedDocument: OpenAPIObject | undefined
+
+/**
+ * Returns the OpenAPI document. The registry is fully populated at import
+ * time, so the (expensive) generation runs once per process; only `servers`
+ * varies per call and is applied on a shallow copy. Treat the result as
+ * read-only — nested objects are shared across calls.
+ */
 export function getOpenApiDocument(
   options: OpenApiDocumentOptions = {}
 ): OpenAPIObject {
+  cachedDocument ??= buildDocument()
+  return {
+    ...cachedDocument,
+    servers: [
+      { url: options.serverUrl ?? DEFAULT_SERVER_URL, description: 'rest-docs' }
+    ]
+  }
+}
+
+function buildDocument(): OpenAPIObject {
   const generator = new OpenApiGeneratorV31(registry.definitions)
 
   const document = generator.generateDocument({
@@ -34,12 +54,7 @@ export function getOpenApiDocument(
         'connections, and Nostr-backed authentication (NIP-98 / JWT).',
       license: { name: 'MIT' }
     },
-    servers: [
-      {
-        url: options.serverUrl ?? 'http://localhost:3000',
-        description: 'rest-docs'
-      }
-    ],
+    servers: [{ url: DEFAULT_SERVER_URL, description: 'rest-docs' }],
     security: [{ [BEARER_JWT]: [] }, { [NIP98]: [] }],
     tags: [
       {

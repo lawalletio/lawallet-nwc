@@ -28,8 +28,22 @@ import { ActivityEvent, logActivity } from '@/lib/activity-log'
 const SENSITIVE_SETTINGS_KEYS = new Set(['listener_auth_secret'])
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
-  // Fetch all settings records from the database
-  const settings = await getSettings()
+  // Validate authentication (JWT or NIP-98). Unauthenticated users only get public settings.
+  let canReadFullSettings = false
+  try {
+    await authenticateSettingsReadRequest(request)
+    canReadFullSettings = true
+  } catch {
+    canReadFullSettings = false
+  }
+
+  // Anonymous and wallet traffic (the bulk of calls) reads the shared hot
+  // snapshot; settings readers (the admin UI) read the table fresh so a save
+  // shows up at once even when the next request lands on another instance.
+  const settings = await getSettings(
+    undefined,
+    canReadFullSettings ? undefined : { cache: 'hot' }
+  )
   const hasRoot = Boolean(settings.root)
   const responseSettings = {
     ...Object.fromEntries(
@@ -38,15 +52,6 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       )
     ),
     hasRoot
-  }
-
-  // Validate authentication (JWT or NIP-98). Unauthenticated users only get public settings.
-  let canReadFullSettings = false
-  try {
-    await authenticateSettingsReadRequest(request)
-    canReadFullSettings = true
-  } catch {
-    canReadFullSettings = false
   }
 
   if (!canReadFullSettings) {

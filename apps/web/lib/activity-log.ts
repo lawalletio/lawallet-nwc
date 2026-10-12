@@ -3,6 +3,7 @@ import type {
   ActivityLevel,
   ActivityLog
 } from '@/lib/generated/prisma'
+import { after } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getCurrentReqId, logger } from '@/lib/logger'
 import { eventBus } from '@/lib/events/event-bus'
@@ -234,9 +235,21 @@ export async function logActivity(
  * Fire-and-forget variant. Use from hot paths where logging must never throw
  * or block — a broken DB connection for the `ActivityLog` table should not
  * kill the user-facing request. Errors are caught and logged via Pino.
+ *
+ * The write starts immediately; inside a request it is also handed to Next's
+ * `after()` so serverless platforms (Vercel `waitUntil`) keep the function
+ * alive until it lands instead of freezing it mid-INSERT once the response
+ * is sent. Outside a request scope (scripts, tests, instrumentation) `after`
+ * throws and the write simply runs untracked, as before.
  */
 logActivity.fireAndForget = (input: LogActivityInput): void => {
-  logActivityImpl(input).catch(err => {
+  // `logActivityImpl` is async, so every failure arrives as this rejection.
+  const write = logActivityImpl(input).catch(err => {
     logger.error({ err, activity_input: input }, 'activity_log.write_failed')
   })
+  try {
+    after(write)
+  } catch {
+    // Not in a request scope (or no waitUntil) — the write is already running.
+  }
 }

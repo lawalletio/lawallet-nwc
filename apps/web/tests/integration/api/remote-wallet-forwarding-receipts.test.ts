@@ -163,9 +163,7 @@ describe('POST /api/remote-wallets/[id]/forwarding-receipts/[receiptId]/retry', 
   it('conflicts when no leg actually needed a retry', async () => {
     vi.mocked(
       prismaMock.remoteWalletForwardReceipt.findFirst
-    ).mockResolvedValue(
-      receiptRow({ action: { enabled: true } }) as never
-    )
+    ).mockResolvedValue(receiptRow({ action: { enabled: true } }) as never)
     // Nothing rejected/expired, and nothing scheduled in the future: a leg that
     // is already READY and due is not a retry.
     vi.mocked(prismaMock.remoteWalletForwardLeg.updateMany).mockResolvedValue({
@@ -181,15 +179,13 @@ describe('POST /api/remote-wallets/[id]/forwarding-receipts/[receiptId]/retry', 
     )
 
     expect(response.status).toBe(409)
-    expect(afterMock).not.toHaveBeenCalled()
+    expect(afterMock).not.toHaveBeenCalledWith(expect.any(Function))
   })
 
   it('refuses to retry while forwarding is paused', async () => {
     vi.mocked(
       prismaMock.remoteWalletForwardReceipt.findFirst
-    ).mockResolvedValue(
-      receiptRow({ action: { enabled: false } }) as never
-    )
+    ).mockResolvedValue(receiptRow({ action: { enabled: false } }) as never)
 
     const response = await RETRY(
       createNextRequest(
@@ -206,9 +202,7 @@ describe('POST /api/remote-wallets/[id]/forwarding-receipts/[receiptId]/retry', 
   it('reschedules rejected legs and wakes the reconciler', async () => {
     vi.mocked(
       prismaMock.remoteWalletForwardReceipt.findFirst
-    ).mockResolvedValue(
-      receiptRow({ action: { enabled: true } }) as never
-    )
+    ).mockResolvedValue(receiptRow({ action: { enabled: true } }) as never)
     vi.mocked(prismaMock.remoteWalletForwardLeg.updateMany)
       .mockResolvedValueOnce({ count: 2 })
       .mockResolvedValueOnce({ count: 0 })

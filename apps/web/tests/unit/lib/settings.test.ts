@@ -36,32 +36,23 @@ describe('hot settings cache', () => {
     await expect(endpoint).resolves.toEqual({
       endpoint: 'https://wallet.example.com'
     })
+    // One whole-table read serves every hot consumer (incl. GET /api/settings).
     expect(prismaMock.settings.findMany).toHaveBeenCalledWith({
-      where: {
-        name: {
-          in: expect.arrayContaining([
-            'maintenance_enabled',
-            'root',
-            'endpoint',
-            'listener_enabled',
-            'listener_url',
-            'listener_auth_secret'
-          ])
-        }
-      }
+      where: undefined
     })
   })
 
-  it('reuses a successful read for one second and refreshes after expiry', async () => {
+  it('reuses a successful read for 15 seconds and refreshes after expiry', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(1000)
     vi.mocked(prismaMock.settings.findMany).mockResolvedValue(rows as any)
 
     await getSettings(['endpoint'], { cache: 'hot' })
+    vi.setSystemTime(15_999)
     await getSettings(['maintenance_enabled'], { cache: 'hot' })
     expect(prismaMock.settings.findMany).toHaveBeenCalledOnce()
 
-    vi.setSystemTime(2001)
+    vi.setSystemTime(16_001)
     await getSettings(['endpoint'], { cache: 'hot' })
     expect(prismaMock.settings.findMany).toHaveBeenCalledTimes(2)
   })
