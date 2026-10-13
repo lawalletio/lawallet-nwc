@@ -35,6 +35,8 @@ COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_module
 # Copy web app source + workspace packages (for shared imports)
 COPY apps/web ./apps/web
 COPY packages ./packages
+# Bundled into the What's New dialog at build time (lib/client/changelog.ts).
+COPY docs/changelogs ./docs/changelogs
 
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
