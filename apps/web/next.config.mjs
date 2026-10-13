@@ -43,6 +43,13 @@ const nextConfig = {
   // server.js) so the Dockerfile COPY stays correct, and silences the
   // "inferred workspace root" warning.
   outputFileTracingRoot: join(__dirname, '../..'),
+  // `import.meta.glob('…/docs/changelogs/*.md', { query: '?raw' })` loads the
+  // release notes as strings for the What's New dialog (lib/client/changelog.ts).
+  turbopack: {
+    rules: {
+      '*.md': { condition: { query: '?raw' }, type: 'text' }
+    }
+  },
   allowedDevOrigins,
   async headers() {
     return [
