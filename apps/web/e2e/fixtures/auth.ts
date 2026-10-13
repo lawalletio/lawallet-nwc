@@ -57,10 +57,13 @@ async function loginAs(
 ) {
   const token = mintSessionToken(pubkey, role, userId)
   await page.addInitScript(
-    ([key, value]) => {
-      localStorage.setItem(key, value)
+    token => {
+      localStorage.setItem('lawallet-jwt', token)
+      // The auto-opening What's New dialog (components/admin/whats-new-dialog.tsx)
+      // would cover every admin page and aria-hide what the specs look for.
+      localStorage.setItem('lawallet-whats-new-never', '1')
     },
-    ['lawallet-jwt', token] as const
+    token
   )
 }
 
