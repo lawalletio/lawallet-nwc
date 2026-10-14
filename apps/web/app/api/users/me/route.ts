@@ -8,8 +8,13 @@ import { resolveAddressDomain } from '@/lib/public-url'
 import { resolveWalletRoute } from '@/lib/wallet/resolve-payment-route'
 import { getPrimaryRemoteWalletForUser } from '@/lib/wallet/primary-wallet'
 import { decryptRemoteWalletConfig } from '@/lib/wallet/remote-wallet-vault'
-import { reviveDeadCourtesyWallet } from '@/lib/wallet/lncurl-wallet'
+import {
+  mintCourtesyLncurlWallet,
+  reviveDeadCourtesyWallet
+} from '@/lib/wallet/lncurl-wallet'
 import { currencyPrefsSchema } from '@/lib/validation/schemas'
+import { eventBus } from '@/lib/events/event-bus'
+import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
 
@@ -44,17 +49,6 @@ export const GET = withErrorHandling(async (request: Request) => {
 
   const user = existingUser || (await createNewUser(authenticatedPubkey))
 
-  // A courtesy LNCurl wallet the provider already destroyed must be replaced
-  // before send or receive read this connection string. Non-LNCurl wallets
-  // are left alone.
-  const revived = await reviveDeadCourtesyWallet(user.id)
-  const primaryAddressRecord = user.lightningAddresses[0]
-  if (revived && primaryAddressRecord) {
-    primaryAddressRecord.mode = 'CUSTOM_NWC'
-    primaryAddressRecord.redirect = null
-    primaryAddressRecord.remoteWallet = revived
-  }
-
   // Lightning addresses resolve as `username@<domain>`. The `endpoint`
   // setting (where the instance is publicly reachable) may differ from
   // the address domain — e.g. `endpoint=https://beta.lacrypta.ar` while
@@ -62,7 +56,70 @@ export const GET = withErrorHandling(async (request: Request) => {
   // domain directly rather than `resolvePublicEndpoint`, which mixes the
   // two concerns.
   const addressDomain = await resolveAddressDomain(request)
-  const primaryAddress = user.lightningAddresses[0]
+
+  // A courtesy LNCurl wallet the provider already destroyed must be replaced
+  // before send or receive read this connection string. Non-LNCurl wallets
+  // are left alone. `reviveDeadCourtesyWallet` re-points the primary address
+  // at the replacement, so mirror that onto the row already in hand.
+  const revived = await reviveDeadCourtesyWallet(user.id)
+  let primaryAddress = user.lightningAddresses[0]
+  if (revived && primaryAddress) {
+    primaryAddress = {
+      ...primaryAddress,
+      mode: 'CUSTOM_NWC',
+      redirect: null,
+      remoteWalletId: revived.id,
+      remoteWallet: revived
+    }
+  }
+
+  // A paid claim that ran when the account had no address used to insert a
+  // non-primary row. The account then has names and no primary, so nothing
+  // here can bind a wallet. Promote the oldest one; the block below mints.
+  if (!primaryAddress) {
+    const stray = await prisma.lightningAddress.findFirst({
+      where: { userId: user.id },
+      orderBy: { createdAt: 'asc' },
+      include: { remoteWallet: true }
+    })
+    if (stray) {
+      await prisma.lightningAddress.update({
+        where: { username: stray.username },
+        data: { isPrimary: true }
+      })
+      primaryAddress = { ...stray, isPrimary: true }
+    }
+  }
+
+  // A claim that finished with no wallet is stored as IDLE and only publishes
+  // NIP-05. When LNCurl is on and the account still has no ACTIVE wallet,
+  // mint one and bind this primary address now.
+  if (
+    primaryAddress &&
+    primaryAddress.mode === 'IDLE' &&
+    !primaryAddress.remoteWalletId
+  ) {
+    try {
+      const minted = await mintCourtesyLncurlWallet(user.id, {
+        bindPrimary: true
+      })
+      if (minted) {
+        const refreshed = await prisma.lightningAddress.findUnique({
+          where: { username: primaryAddress.username },
+          include: { remoteWallet: true }
+        })
+        if (refreshed) primaryAddress = refreshed
+        eventBus.emit({ type: 'listener:updated', timestamp: Date.now() })
+        eventBus.emit({ type: 'addresses:updated', timestamp: Date.now() })
+        eventBus.emit({ type: 'users:updated', timestamp: Date.now() })
+      }
+    } catch (err) {
+      logger.error(
+        { userId: user.id, err: String(err) },
+        'LNCurl auto-create failed for an unconfigured primary address'
+      )
+    }
+  }
   const lightningAddress = primaryAddress?.username
     ? `${primaryAddress.username}@${addressDomain}`
     : null

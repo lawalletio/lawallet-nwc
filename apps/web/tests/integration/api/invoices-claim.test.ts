@@ -348,6 +348,36 @@ describe('POST /api/invoices/[id]/claim', () => {
   })
 
   describe('WALLET_ADDRESS purpose', () => {
+    it('creates the primary and mints nothing when this is the only address and LNCurl is off', async () => {
+      vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue({
+        ...baseInvoice,
+        purpose: 'WALLET_ADDRESS',
+        metadata: { username: 'alice' }
+      } as any)
+      vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(null)
+      vi.mocked(prismaMock.lightningAddress.count).mockResolvedValue(0)
+      vi.mocked(prismaMock.lightningAddress.create).mockResolvedValue({} as any)
+
+      const req = createNextRequest('/api/invoices/inv-1/claim', {
+        method: 'POST',
+        body: { preimage: PREIMAGE }
+      })
+      const res = await POST(req, createParamsPromise({ id: 'inv-1' }))
+      await assertResponse(res, 200)
+
+      expect(prismaMock.lightningAddress.delete).not.toHaveBeenCalled()
+      expect(prismaMock.lightningAddress.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            username: 'alice',
+            userId: 'user-1',
+            isPrimary: true,
+            mode: 'IDLE'
+          })
+        })
+      )
+    })
+
     it('creates a non-primary address and does not touch the existing primary', async () => {
       vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue({
         ...baseInvoice,

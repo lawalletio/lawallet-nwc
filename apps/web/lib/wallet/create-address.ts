@@ -1,7 +1,9 @@
 import { prisma } from '@/lib/prisma'
-import { ConflictError } from '@/types/server/errors'
+import { logger } from '@/lib/logger'
+import { ConflictError, ServiceUnavailableError } from '@/types/server/errors'
 import { eventBus } from '@/lib/events/event-bus'
 import { ActivityEvent, logActivity } from '@/lib/activity-log'
+import { mintCourtesyLncurlWallet } from '@/lib/wallet/lncurl-wallet'
 import {
   toWalletAddressDto,
   type WalletAddressDto,
@@ -60,11 +62,38 @@ export async function createLightningAddressForUser({
   })
   const isPrimary = ownedCount === 0
 
+  // The first address is the account's public Lightning Address. If nothing
+  // can receive yet and the operator auto-creates courtesy wallets, mint one
+  // before the insert so the row is born CUSTOM_NWC instead of a NIP-05-only
+  // IDLE name. A mint failure aborts the insert: an address that cannot be
+  // paid is not what claim promised.
+  let courtesyWalletId: string | null = null
+  if (isPrimary) {
+    const candidate = await findInitialPrimaryWalletCandidate(userId)
+    if (candidate) {
+      courtesyWalletId = candidate.id
+    } else {
+      try {
+        courtesyWalletId = (await mintCourtesyLncurlWallet(userId))?.id ?? null
+      } catch (err) {
+        logger.error(
+          { userId, err: String(err) },
+          'LNCurl auto-create failed while creating a Lightning Address'
+        )
+        throw new ServiceUnavailableError(
+          'LNCurl could not provision a courtesy wallet, so the Lightning Address was not created. Retry when the LNCurl server is reachable.'
+        )
+      }
+    }
+  }
+
   let created
   try {
     created = await prisma.$transaction(async tx => {
       const primaryCandidate = isPrimary
-        ? await findInitialPrimaryWalletCandidate(userId, tx)
+        ? courtesyWalletId
+          ? { id: courtesyWalletId }
+          : await findInitialPrimaryWalletCandidate(userId, tx)
         : null
       // A non-primary address with no explicit mode inherits the primary
       // wallet as its own binding, so it routes immediately without depending
