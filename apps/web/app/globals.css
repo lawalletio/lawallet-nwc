@@ -266,60 +266,350 @@
   .animate-qr-credit {
     animation: payment-notice-fade 0.2s ease-out both;
   }
-  .claim-odo-reel,
-  .claim-pour {
+  .claim-fill::before,
+  .claim-track,
+  .claim-wobble,
+  .claim-listening {
     animation: none !important;
-    transition: none !important;
   }
 }
 
-/* LUD-03 claim — lightning strike, chest, pouring sats. */
-.claim-odo {
-  position: relative;
-  display: inline-block;
-  height: 1em;
-  overflow: hidden;
-  line-height: 1;
-  vertical-align: baseline;
-}
-.claim-odo-strut {
-  visibility: hidden;
-}
-.claim-odo-reel {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-}
-.claim-odo-num {
-  display: block;
-  height: 1em;
-  line-height: 1;
-  opacity: 1;
+/* LUD-03 claim — the chest opens, coins spray, the prize counts up. */
+.claim-gold {
+  background: linear-gradient(
+    180deg,
+    #fff8dc 0%,
+    #ffe08a 38%,
+    #f5b324 72%,
+    #c2780a 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 2px 18px rgba(251, 191, 36, 0.35))
+    drop-shadow(0 2px 2px rgba(0, 0, 0, 0.8));
 }
 
-@keyframes claim-pour-sheen {
+@keyframes claim-wobble {
+  0%,
+  62%,
+  100% {
+    transform: rotate(0deg);
+  }
+  70% {
+    transform: rotate(-2.2deg);
+  }
+  78% {
+    transform: rotate(2deg);
+  }
+  86% {
+    transform: rotate(-1.2deg);
+  }
+  94% {
+    transform: rotate(0.6deg);
+  }
+}
+.claim-wobble {
+  animation: claim-wobble 1.8s ease-in-out infinite;
+}
+
+@keyframes claim-listening {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+.claim-listening {
+  animation: claim-listening 1.6s ease-in-out infinite;
+}
+
+@keyframes claim-rise {
   from {
-    background-position: 120% 0;
+    opacity: 0;
+    transform: translateY(12px) scale(0.96);
   }
   to {
-    background-position: -20% 0;
+    opacity: 1;
+    transform: none;
   }
 }
-.claim-pour {
-  background-color: #f6c15a;
-  transition: width 180ms linear;
+.claim-rise {
+  animation: claim-rise 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
-.claim-pour.is-flowing {
-  background-image: linear-gradient(
-    100deg,
-    #92400e 0%,
-    #fbbf24 28%,
-    #fff7d6 48%,
-    #f59e0b 70%,
-    #fde68a 100%
+
+@keyframes claim-flash {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.2);
+  }
+  25% {
+    opacity: 0.95;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.6);
+  }
+}
+.claim-flash {
+  position: absolute;
+  width: 360px;
+  height: 360px;
+  border-radius: 9999px;
+  background: radial-gradient(
+    circle,
+    rgba(255, 246, 214, 0.85) 0%,
+    rgba(255, 196, 64, 0.35) 35%,
+    transparent 68%
   );
-  background-size: 220% 100%;
-  box-shadow: 0 0 12px rgba(251, 191, 36, 0.65);
-  animation: claim-pour-sheen 1.05s linear infinite;
+  animation: claim-flash 0.75s ease-out both;
+}
+
+/* Up along an ease-out, then down under gravity. */
+@keyframes claim-coin {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) scale(0.35) rotate(0deg);
+    animation-timing-function: cubic-bezier(0.15, 0.7, 0.35, 1);
+  }
+  8% {
+    opacity: 1;
+  }
+  42% {
+    transform: translate3d(var(--dx), var(--dy), 0) scale(1)
+      rotate(calc(var(--r) * 0.4));
+    animation-timing-function: cubic-bezier(0.55, 0, 0.9, 0.55);
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(
+        calc(var(--dx) * 1.4),
+        calc(var(--dy) + var(--fall)),
+        0
+      )
+      scale(0.85) rotate(var(--r));
+  }
+}
+@keyframes claim-coin-spin {
+  0%,
+  100% {
+    transform: scaleX(1);
+  }
+  50% {
+    transform: scaleX(0.18);
+  }
+}
+.claim-coin {
+  position: absolute;
+  left: calc(var(--size) / -2);
+  top: calc(var(--size) / -2);
+  opacity: 0;
+  will-change: transform, opacity;
+  animation-name: claim-coin;
+  animation-fill-mode: both;
+}
+.claim-coin-face {
+  display: block;
+  width: var(--size);
+  height: var(--size);
+  border-radius: 9999px;
+  background: radial-gradient(
+    circle at 34% 30%,
+    #fffbe0 0 14%,
+    #ffd84f 38%,
+    #eea218 72%,
+    #9a5806 100%
+  );
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 238, 170, 0.6),
+    0 0 10px rgba(255, 190, 60, 0.55);
+  animation: claim-coin-spin 0.55s linear infinite;
+}
+
+@keyframes claim-pop {
+  0% {
+    transform: scale(1);
+  }
+  28% {
+    transform: scale(1.16);
+  }
+  55% {
+    transform: scale(0.97);
+  }
+  78% {
+    transform: scale(1.02);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.claim-pop {
+  animation: claim-pop 0.7s cubic-bezier(0.3, 0.7, 0.4, 1) both;
+}
+
+@keyframes claim-halo {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.4);
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.9);
+  }
+}
+.claim-halo {
+  position: absolute;
+  width: 260px;
+  height: 120px;
+  border-radius: 9999px;
+  background: radial-gradient(
+    ellipse,
+    rgba(255, 214, 107, 0.45),
+    transparent 70%
+  );
+  animation: claim-halo 0.9s ease-out both;
+}
+
+@keyframes claim-glint {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(0) rotate(0deg);
+  }
+  60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy)))
+      scale(1) rotate(120deg);
+  }
+}
+.claim-glint {
+  position: absolute;
+  width: var(--size);
+  height: var(--size);
+  background: #fff3c4;
+  clip-path: polygon(
+    50% 0,
+    62% 38%,
+    100% 50%,
+    62% 62%,
+    50% 100%,
+    38% 62%,
+    0 50%,
+    38% 38%
+  );
+  filter: drop-shadow(0 0 4px rgba(255, 210, 90, 0.9));
+  animation: claim-glint 0.8s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+
+@keyframes claim-chip {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.claim-chip {
+  animation: claim-chip 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* Balance bar: a recessed capsule; the claimed sats slide in as liquid gold. */
+.claim-track {
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow:
+    inset 0 1px 3px rgba(0, 0, 0, 0.7),
+    0 1px 0 rgba(255, 255, 255, 0.04);
+}
+.claim-track-base {
+  background: linear-gradient(180deg, #a85d16 0%, #7a3f0c 100%);
+}
+@keyframes claim-track-land {
+  0% {
+    box-shadow:
+      inset 0 1px 3px rgba(0, 0, 0, 0.7),
+      0 0 0 rgba(251, 191, 36, 0);
+  }
+  35% {
+    box-shadow:
+      inset 0 1px 3px rgba(0, 0, 0, 0.7),
+      0 0 22px rgba(251, 191, 36, 0.55);
+  }
+  100% {
+    box-shadow:
+      inset 0 1px 3px rgba(0, 0, 0, 0.7),
+      0 0 8px rgba(251, 191, 36, 0.18);
+  }
+}
+.claim-track.is-landed {
+  animation: claim-track-land 1.1s ease-out both;
+}
+.claim-fill {
+  background: linear-gradient(180deg, #fff1b8 0%, #fcd34d 35%, #f59e0b 100%);
+  box-shadow: inset 0 -1px 0 rgba(120, 53, 15, 0.35);
+  will-change: transform;
+}
+/* Moving highlight while sats pour; one last sweep when they land. */
+.claim-fill::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: 45%;
+  background: linear-gradient(
+    100deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.75) 50%,
+    transparent 100%
+  );
+  transform: translateX(-120%);
+  opacity: 0;
+}
+@keyframes claim-fill-sheen {
+  from {
+    transform: translateX(-120%);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(260%);
+    opacity: 1;
+  }
+}
+.claim-fill.is-flowing::before {
+  animation: claim-fill-sheen 0.9s linear infinite;
+}
+.claim-fill.is-landed::before {
+  animation: claim-fill-sheen 0.7s ease-out 1 both;
+}
+/* Spark riding the leading edge. */
+.claim-fill::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: -2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  background: radial-gradient(
+    circle,
+    #fff 0%,
+    rgba(255, 236, 170, 0.9) 30%,
+    rgba(251, 191, 36, 0) 70%
+  );
+  transform: translateY(-50%);
+  opacity: 0;
+  transition: opacity 0.3s ease-out;
+}
+.claim-fill.is-flowing::after {
+  opacity: 1;
 }

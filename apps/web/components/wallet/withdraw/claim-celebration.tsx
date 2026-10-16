@@ -5,14 +5,17 @@ import {
   useRef,
   useState,
   useSyncExternalStore,
-  type ReactNode
+  type CSSProperties,
+  type RefObject
 } from 'react'
 import { createPortal } from 'react-dom'
-import { Volume2, VolumeX, X } from 'lucide-react'
+import { RotateCcw, Volume2, VolumeX, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { TreasureChest } from '@/components/wallet/withdraw/treasure-chest'
 import { cn } from '@/lib/utils'
 import {
+  claimCountEase,
+  claimCountWindow,
   claimSoundMuted,
   playClaimCelebration,
   setClaimSoundMuted,
@@ -71,8 +74,24 @@ interface ClaimCelebrationProps {
   snapshot: number | null
   captured: boolean
   liveBalance: number | null
+  /** Dev preview only: real claims play once. */
+  canReplay?: boolean
   onDone: () => void
   onDismiss: () => void
+}
+
+/** Used when the chest never reports a start (Lottie failed to load). */
+const FALLBACK_TIMING = { visualSec: 3.9, soundSec: 4.1 }
+const FALLBACK_AFTER_MS = 1500
+
+type Stage = 'idle' | 'open' | 'landed'
+
+const fmt = (n: number) => Math.max(0, Math.round(n)).toLocaleString()
+
+/** Writes into the text node React owns, so later renders stay in sync. */
+function setText(el: HTMLElement | null, text: string) {
+  const node = el?.firstChild
+  if (node && node.nodeValue !== text) node.nodeValue = text
 }
 
 export function ClaimCelebration({
@@ -82,6 +101,7 @@ export function ClaimCelebration({
   snapshot,
   captured,
   liveBalance,
+  canReplay = false,
   onDone,
   onDismiss
 }: ClaimCelebrationProps) {
@@ -115,56 +135,93 @@ export function ClaimCelebration({
   const celebrate = phase === 'celebrate'
   const animate = celebrate && !reduced
 
-  // Set when the Lottie actually starts, so the count and the sound share
-  // its clock. Reset during render on replay, before the new clip starts.
-  const [spanMs, setSpanMs] = useState(0)
-  const [spanFor, setSpanFor] = useState(runId)
-  if (spanFor !== runId) {
-    setSpanFor(runId)
-    setSpanMs(0)
+  // Sound length of the current run, set when the chest starts playing.
+  // Reset during render on replay, before the new clip starts.
+  const [soundSec, setSoundSec] = useState(0)
+  const [stage, setStage] = useState<Stage>('idle')
+  const [stageFor, setStageFor] = useState(runId)
+  if (stageFor !== runId) {
+    setStageFor(runId)
+    setSoundSec(0)
+    setStage('idle')
   }
-  const clockOn = spanMs > 0 && animate
-  // One clock for the claimed amount, the balance, and the bar.
-  const clock = useEasedClock({
-    duration: Math.max(1, spanMs),
-    run: clockOn,
-    runId
-  })
-  const gained = clock.done
-    ? amountSats
-    : clockOn
-      ? Math.round(amountSats * clock.t)
-      : 0
-  const claimed = gained
-  const balance = before == null ? null : before + (settled ? gained : 0)
-  const fillDone = clock.done
+  const startedRun = useRef(-1)
+
+  const amountRef = useRef<HTMLSpanElement>(null)
+  const balanceRef = useRef<HTMLSpanElement>(null)
+  const barRef = useRef<HTMLDivElement>(null)
+
+  function start(timing: { soundSec: number }) {
+    if (startedRun.current === runId) return
+    startedRun.current = runId
+    setSoundSec(timing.soundSec)
+    playClaimCelebration(false, timing.soundSec)
+  }
+
+  // The chest drives the clock; if it never loads, run without it.
+  useEffect(() => {
+    if (!animate || soundSec > 0) return
+    const id = setTimeout(() => start(FALLBACK_TIMING), FALLBACK_AFTER_MS)
+    return () => clearTimeout(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [animate, soundSec, runId])
+
+  // One rAF loop writes the count, the balance and the bar straight to the
+  // DOM, so the numbers move every frame without re-rendering React.
+  useEffect(() => {
+    if (!animate || soundSec <= 0) return
+    const { start: s, end: e } = claimCountWindow(soundSec)
+    const startMs = s * 1000
+    const spanMs = (e - s) * 1000
+    const base = before ?? 0
+    const t0 = performance.now()
+    let opened = false
+    let frame = 0
+    const tick = (now: number) => {
+      const elapsed = now - t0
+      if (!opened && elapsed >= startMs) {
+        opened = true
+        setStage('open')
+      }
+      const p = Math.min(1, Math.max(0, (elapsed - startMs) / spanMs))
+      const v = claimCountEase(p)
+      const gained = amountSats * v
+      setText(amountRef.current, fmt(gained))
+      if (settled) setText(balanceRef.current, fmt(base + gained))
+      if (barRef.current)
+        barRef.current.style.transform = `translateX(${(v - 1) * 100}%)`
+      if (p < 1) {
+        frame = requestAnimationFrame(tick)
+      } else {
+        setStage('landed')
+        navigator.vibrate?.([18, 40, 70])
+      }
+    }
+    frame = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(frame)
+  }, [animate, soundSec, runId, amountSats, settled, before])
 
   useEffect(() => {
     return () => stopClaimSound()
   }, [runId, celebrate])
-
-  function handleChestStart(timing: { visualSec: number; soundSec: number }) {
-    setSpanMs(Math.max(400, Math.round(timing.visualSec * 1000)))
-    playClaimCelebration(false, timing.soundSec)
-  }
 
   useEffect(() => {
     if (!celebrate || !reduced) return
     playClaimCelebration(true)
   }, [celebrate, reduced, runId])
 
-  const claimedShown = !animate ? amountSats : clockOn ? claimed : 0
+  const final = !animate || stage === 'landed'
+  const amountText = final ? fmt(amountSats) : '0'
   const balanceShown = !celebrate
     ? liveBalance
     : before == null
       ? null
-      : !animate
+      : final
         ? after
-        : clockOn
-          ? balance
-          : before
-  const balanceProgress = !animate || clock.done ? 1 : clock.t
+        : before
   const pour = before == null ? 1 : claimPourShare(before, amountSats)
+  const opened = !animate || stage !== 'idle'
+  const landed = celebrate && final
 
   function replay() {
     unlockClaimSound()
@@ -183,14 +240,17 @@ export function ClaimCelebration({
   return createPortal(
     <div className="fixed inset-0 z-[80] flex justify-center bg-[#070604] text-amber-50">
       <div className="relative flex h-full w-full max-w-md flex-col overflow-hidden">
-        <VaultAtmosphere />
+        <VaultAtmosphere glow={celebrate && opened} />
         <div className="pointer-events-none absolute inset-0 z-0 flex -translate-y-24 items-center justify-center">
-          <TreasureChest
-            play={animate}
-            reduced={reduced}
-            runId={runId}
-            onStart={animate ? handleChestStart : undefined}
-          />
+          <div className={cn(!celebrate && !reduced && 'claim-wobble')}>
+            <TreasureChest
+              play={animate}
+              reduced={reduced}
+              runId={runId}
+              onStart={animate ? start : undefined}
+            />
+          </div>
+          {animate && stage !== 'idle' && <CoinBurst key={runId} />}
         </div>
         <header className="relative z-10 flex items-center justify-between px-3 pt-3">
           <button
@@ -217,32 +277,59 @@ export function ClaimCelebration({
         </header>
 
         <div className="relative z-10 flex min-h-0 flex-1 flex-col items-center overflow-y-auto px-5 pb-6 text-center">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.32em] text-amber-200/70">
-            Lightning claim
-          </p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-amber-50">
-            {celebrate
-              ? settled
-                ? 'Funds received'
-                : 'Withdraw requested'
-              : 'Opening the vault'}
-          </h1>
-          <p className="mt-1 max-w-xs text-sm text-amber-100/60">
-            {celebrate
-              ? settled
-                ? 'Sats struck the chest and poured into your balance.'
-                : "The claim is in. They'll join your balance once the sender pays."
-              : `Calling ${amountSats.toLocaleString()} sats down the lightning.`}
-          </p>
+          <div
+            key={`${phase}-${runId}`}
+            className={cn(
+              'flex flex-col items-center',
+              animate && !opened && 'opacity-0',
+              animate && opened && 'claim-rise'
+            )}
+          >
+            <p className="text-[10px] font-semibold uppercase tracking-[0.32em] text-amber-200/70">
+              {celebrate ? 'Treasure claimed' : 'Lightning claim'}
+            </p>
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-amber-50">
+              {celebrate
+                ? settled
+                  ? 'You won!'
+                  : 'Prize on its way'
+                : 'Opening the treasure'}
+            </h1>
+            {!(celebrate && settled) && (
+              <p className="mt-1 max-w-xs text-sm text-amber-100/60">
+                {celebrate
+                  ? "The claim is in. They'll join your balance once the sender pays."
+                  : `Calling ${amountSats.toLocaleString()} sats down the lightning.`}
+              </p>
+            )}
+          </div>
 
-          <div className="flex flex-1 items-end justify-center pb-2">
-            <div className="flex items-baseline justify-center gap-2">
-              <OdometerNumber
-                value={claimedShown}
-                roll={animate}
-                className="text-[clamp(2.6rem,12vw,4.4rem)] font-semibold leading-none text-[#ffe7a3] drop-shadow-[0_2px_16px_rgba(0,0,0,0.9)]"
-              />
-              <span className="text-lg text-amber-200/70">sats</span>
+          <div
+            key={`amount-${runId}`}
+            className={cn(
+              'flex flex-1 items-end justify-center pb-2',
+              !celebrate || (animate && !opened)
+                ? 'invisible'
+                : animate && 'claim-rise'
+            )}
+          >
+            <div
+              key={landed ? `pop-${runId}` : 'count'}
+              className={cn(
+                'relative flex items-baseline justify-center gap-2',
+                landed && animate && 'claim-pop'
+              )}
+            >
+              {landed && animate && <LandingGlints />}
+              <span
+                aria-hidden
+                className="claim-gold text-[clamp(2.8rem,13vw,4.6rem)] font-bold leading-none tabular-nums"
+              >
+                +<span ref={amountRef}>{amountText}</span>
+              </span>
+              <span className="text-lg font-medium text-amber-200/80">
+                sats
+              </span>
             </div>
           </div>
           <p className="sr-only">
@@ -251,33 +338,44 @@ export function ClaimCelebration({
               : `${amountSats.toLocaleString()} sats are on the way.`}
           </p>
 
-          <BalanceCrucible
-            before={celebrate ? before : liveBalance}
-            shown={balanceShown}
+          <BalanceCard
+            balance={balanceShown}
+            balanceRef={balanceRef}
+            barRef={barRef}
+            before={celebrate ? before : null}
+            hasBase={celebrate ? before != null : liveBalance != null}
             pour={pour}
-            progress={celebrate ? balanceProgress : 0.18}
+            filled={celebrate && final}
             settled={settled && celebrate}
             pending={!celebrate}
-            flowing={!fillDone}
+            flowing={animate && stage === 'open'}
+            landed={landed}
             amountSats={amountSats}
           />
 
           <div className="mt-5 flex w-full flex-col gap-2">
             {celebrate ? (
               <>
-                <Button type="button" onClick={onDone} className="h-12 w-full">
-                  Done
-                </Button>
-                <button
+                <Button
                   type="button"
-                  onClick={replay}
-                  className="py-1 text-sm text-amber-200/70 underline-offset-4 hover:underline"
+                  onClick={onDone}
+                  className="h-12 w-full bg-gradient-to-b from-amber-300 to-amber-500 text-base font-semibold text-amber-950 shadow-[0_8px_30px_-8px_rgba(251,191,36,0.7)] hover:from-amber-200 hover:to-amber-400"
                 >
-                  Replay the strike
-                </button>
+                  Collect
+                </Button>
+                {canReplay && (
+                  <button
+                    type="button"
+                    onClick={replay}
+                    className="inline-flex items-center justify-center gap-1.5 py-1 text-sm text-amber-200/70 underline-offset-4 hover:underline"
+                  >
+                    <RotateCcw className="size-3.5" />
+                    Replay
+                  </button>
+                )}
               </>
             ) : (
-              <p className="py-6 text-xs uppercase tracking-[0.22em] text-amber-200/50">
+              <p className="claim-listening py-6 text-xs uppercase tracking-[0.22em] text-amber-200/50">
                 Listening for the payment
               </p>
             )}
@@ -289,7 +387,7 @@ export function ClaimCelebration({
   )
 }
 
-function VaultAtmosphere() {
+function VaultAtmosphere({ glow }: { glow: boolean }) {
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0">
       <div
@@ -299,212 +397,208 @@ function VaultAtmosphere() {
             'radial-gradient(ellipse at 50% 38%, rgba(56,189,248,0.16), transparent 46%), radial-gradient(ellipse at 50% 100%, rgba(255,186,72,0.12), transparent 42%)'
         }}
       />
+      <div
+        className="absolute inset-0 transition-opacity duration-700"
+        style={{
+          opacity: glow ? 1 : 0,
+          background:
+            'radial-gradient(circle at 50% 34%, rgba(255,214,107,0.22), transparent 42%)'
+        }}
+      />
     </div>
   )
 }
 
-function BalanceCrucible({
+// Fixed spray so every replay looks the same and render stays pure.
+const COINS = Array.from({ length: 22 }, (_, i) => {
+  const jitter = Math.sin(i * 12.9898) * 0.5 + 0.5
+  const angle = ((-90 + (jitter - 0.5) * 150) * Math.PI) / 180
+  const dist = 150 + ((i * 37) % 120)
+  return {
+    dx: Math.round(Math.cos(angle) * dist),
+    dy: Math.round(Math.sin(angle) * dist),
+    fall: 360 + ((i * 53) % 140),
+    rot: (i % 2 ? 1 : -1) * (240 + ((i * 71) % 300)),
+    size: 14 + ((i * 7) % 12),
+    delay: (i % 11) * 0.08 + Math.floor(i / 11) * 0.45,
+    dur: 1.35 + ((i * 13) % 50) / 100
+  }
+})
+
+function CoinBurst() {
+  return (
+    <div aria-hidden className="absolute left-1/2 top-1/2 size-0 translate-y-4">
+      <span className="claim-flash" />
+      {COINS.map((c, i) => (
+        <span
+          key={i}
+          className="claim-coin"
+          style={
+            {
+              '--dx': `${c.dx}px`,
+              '--dy': `${c.dy}px`,
+              '--fall': `${c.fall}px`,
+              '--r': `${c.rot}deg`,
+              '--size': `${c.size}px`,
+              animationDelay: `${c.delay}s`,
+              animationDuration: `${c.dur}s`
+            } as CSSProperties
+          }
+        >
+          <span className="claim-coin-face" />
+        </span>
+      ))}
+    </div>
+  )
+}
+
+const GLINTS = Array.from({ length: 10 }, (_, i) => {
+  const angle = (i / 10) * Math.PI * 2 + 0.3
+  const dist = 70 + (i % 3) * 22
+  return {
+    dx: Math.round(Math.cos(angle) * dist * 1.5),
+    dy: Math.round(Math.sin(angle) * dist * 0.8),
+    size: 8 + (i % 3) * 4
+  }
+})
+
+function LandingGlints() {
+  return (
+    <span
+      aria-hidden
+      className="pointer-events-none absolute left-1/2 top-1/2 size-0"
+    >
+      <span className="claim-halo" />
+      {GLINTS.map((g, i) => (
+        <span
+          key={i}
+          className="claim-glint"
+          style={
+            {
+              '--dx': `${g.dx}px`,
+              '--dy': `${g.dy}px`,
+              '--size': `${g.size}px`,
+              animationDelay: `${(i % 4) * 0.04}s`
+            } as CSSProperties
+          }
+        />
+      ))}
+    </span>
+  )
+}
+
+function BalanceCard({
+  balance,
+  balanceRef,
+  barRef,
   before,
-  shown,
+  hasBase,
   pour,
-  progress,
+  filled,
   settled,
   pending,
   flowing,
+  landed,
   amountSats
 }: {
+  balance: number | null
+  balanceRef: RefObject<HTMLSpanElement | null>
+  barRef: RefObject<HTMLDivElement | null>
   before: number | null
-  shown: number | null
+  hasBase: boolean
   pour: number
-  progress: number
+  filled: boolean
   settled: boolean
   pending: boolean
   flowing: boolean
+  landed: boolean
   amountSats: number
 }) {
-  const share = before == null ? 1 : pour
-  const base = before != null ? (1 - share) * 100 : 0
-  const added = share * progress * 100
+  const share = hasBase ? pour : 1
+  const base = hasBase ? (1 - share) * 100 : 0
   return (
-    <section className="mt-5 w-full rounded-3xl border border-amber-200/15 bg-black/35 px-4 py-3 text-left">
+    <section
+      className={cn(
+        'mt-5 w-full rounded-3xl border bg-black/35 px-4 py-3 text-left transition-colors duration-700',
+        landed && settled ? 'border-amber-300/40' : 'border-amber-200/15'
+      )}
+    >
       <div className="flex items-baseline justify-between gap-3">
         <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-amber-200/60">
           Balance
         </p>
-        <p className="text-xs text-amber-200/70">
-          {pending
-            ? 'Holding'
-            : settled
-              ? `+${amountSats.toLocaleString()} sats`
-              : 'Pending'}
-        </p>
+        {pending ? (
+          <p className="text-xs text-amber-200/70">Holding</p>
+        ) : !settled ? (
+          <p className="text-xs text-amber-200/70">Pending</p>
+        ) : landed ? (
+          <p className="claim-chip rounded-full bg-amber-300/15 px-2 py-0.5 text-xs font-semibold text-amber-200">
+            +{amountSats.toLocaleString()} sats
+          </p>
+        ) : null}
       </div>
       <div className="mt-1 flex items-baseline gap-2">
-        {shown == null ? (
+        {balance == null ? (
           <span className="text-2xl font-semibold text-amber-100/80">
             Syncing
           </span>
         ) : (
-          <OdometerNumber
-            value={shown}
-            roll={!pending}
-            className="text-2xl font-semibold text-amber-50"
-          />
+          <span
+            ref={balanceRef}
+            className="text-2xl font-semibold tabular-nums text-amber-50"
+          >
+            {balance.toLocaleString()}
+          </span>
         )}
         <span className="text-sm text-amber-200/60">sats</span>
       </div>
       <div
-        className="mt-3 h-3 overflow-hidden rounded-full bg-white/10"
+        className={cn(
+          'claim-track mt-3 flex h-4 gap-[3px] rounded-full p-[3px]',
+          landed && settled && 'is-landed'
+        )}
         role="meter"
         aria-valuemin={0}
         aria-valuemax={100}
-        aria-valuenow={Math.round(base + added)}
+        aria-valuenow={Math.round(base + (filled ? share * 100 : 0))}
         aria-label="Balance filling with claimed sats"
       >
-        <div className="flex h-full w-full">
+        {base > 0 && (
           <div
-            className="h-full shrink-0 bg-amber-800/80"
-            style={{ width: `${base}%` }}
+            className="claim-track-base h-full rounded-full"
+            style={{ flex: base }}
           />
+        )}
+        <div
+          className="relative h-full overflow-hidden rounded-full"
+          style={{ flex: share * 100 }}
+        >
           <div
+            ref={barRef}
             className={cn(
-              'h-full shrink-0 claim-pour',
+              'claim-fill absolute inset-0 rounded-full',
               flowing && 'is-flowing',
+              landed && settled && 'is-landed',
               !settled && 'opacity-55'
             )}
-            style={{ width: `${added}%` }}
+            style={{ transform: `translateX(${filled ? 0 : -100}%)` }}
           />
         </div>
       </div>
+      {before != null && (
+        <div className="mt-2 flex items-center justify-between text-[11px] tabular-nums text-amber-200/50">
+          <span className="flex items-center gap-1.5">
+            <span className="claim-track-base size-1.5 rounded-full" />
+            Before {before.toLocaleString()}
+          </span>
+          <span className="flex items-center gap-1.5 text-amber-200/80">
+            <span className="size-1.5 rounded-full bg-amber-300" />
+            Claimed +{amountSats.toLocaleString()}
+          </span>
+        </div>
+      )}
     </section>
   )
-}
-
-const REEL_CELLS = 20
-
-function OdometerNumber({
-  value,
-  roll,
-  className
-}: {
-  value: number
-  roll: boolean
-  className?: string
-}) {
-  const safe = Math.max(0, Math.floor(value))
-  const places = Math.max(1, String(safe).length)
-  const nodes: ReactNode[] = []
-  for (let place = places - 1; place >= 0; place--) {
-    nodes.push(
-      <OdometerReel
-        key={place}
-        ticks={Math.floor(safe / 10 ** place)}
-        roll={roll}
-      />
-    )
-    if (place % 3 === 0 && place !== 0) {
-      nodes.push(<span key={`c-${place}`}>,</span>)
-    }
-  }
-  return (
-    <span
-      className={cn('inline-flex items-baseline tabular-nums', className)}
-      aria-hidden
-    >
-      {nodes}
-    </span>
-  )
-}
-
-/**
- * One decimal place. `ticks` is how many times this digit has advanced
- * (ones = the number, tens = floor(n/10), …). The reel only travels
- * upward; 9 rolls into the next 0 instead of jumping back.
- */
-function OdometerReel({ ticks, roll }: { ticks: number; roll: boolean }) {
-  const reelRef = useRef<HTMLSpanElement>(null)
-  const posRef = useRef(ticks % 10)
-  const ticksRef = useRef(ticks)
-
-  useEffect(() => {
-    const reel = reelRef.current
-    if (!reel) return
-
-    const move = (pos: number, animate: boolean) => {
-      reel.style.transition = animate ? 'transform 0.16s linear' : 'none'
-      reel.style.transform = `translateY(-${pos}em)`
-      posRef.current = pos
-    }
-
-    const delta = ticks - ticksRef.current
-    ticksRef.current = ticks
-
-    if (!roll || delta <= 0) {
-      move(ticks % 10, false)
-      return
-    }
-
-    let steps = delta % 10
-    if (steps === 0) steps = 10
-    const from = posRef.current % 10
-    move(from, false)
-    void reel.offsetHeight
-    move(from + steps, true)
-  }, [ticks, roll])
-
-  return (
-    <span className="claim-odo">
-      <span className="claim-odo-strut">0</span>
-      <span
-        ref={reelRef}
-        className="claim-odo-reel"
-        style={{ transform: `translateY(-${ticks % 10}em)` }}
-      >
-        {Array.from({ length: REEL_CELLS }, (_, i) => (
-          <span key={i} className="claim-odo-num">
-            {i % 10}
-          </span>
-        ))}
-      </span>
-    </span>
-  )
-}
-
-/** Shared 0–1 clock. Linear so the count and the bar advance at one pace. */
-function useEasedClock(opts: {
-  duration: number
-  run: boolean
-  runId: number
-}): { t: number; done: boolean } {
-  const { duration, run, runId } = opts
-  const [t, setT] = useState(run ? 0 : 1)
-  const [done, setDone] = useState(!run)
-  const [stamp, setStamp] = useState({ run, runId })
-  if (stamp.run !== run || stamp.runId !== runId) {
-    setStamp({ run, runId })
-    setT(run ? 0 : 1)
-    setDone(!run)
-  }
-
-  useEffect(() => {
-    if (!run) return
-    const startAt = performance.now()
-    let frame = 0
-    let lastCommit = 0
-    const tick = (now: number) => {
-      const linear = Math.min(1, (now - startAt) / duration)
-      if (linear >= 1 || now - lastCommit >= 170) {
-        setT(linear)
-        lastCommit = now
-      }
-      if (linear < 1) frame = requestAnimationFrame(tick)
-      else setDone(true)
-    }
-    frame = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(frame)
-  }, [duration, run, runId])
-
-  return { t, done }
 }
 
 function usePrefersReducedMotion(): boolean {

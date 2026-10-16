@@ -64,6 +64,24 @@ const CHORD_TAIL_SEC = 0.64
 const LID_FRAME = 56
 const LOTTIE_FRAMES = 300
 
+/** Count-up curve shared by the counter and the coin ticks: fast, then settles. */
+export function claimCountEase(p: number): number {
+  return 1 - (1 - p) ** 3
+}
+
+/**
+ * When the sats count runs, in seconds from the start of the sting:
+ * from just after the lid opens to the resolving chord.
+ */
+export function claimCountWindow(durationSec: number): {
+  start: number
+  end: number
+} {
+  const span = Math.max(CHORD_TAIL_SEC + 0.4, durationSec)
+  const start = (LID_FRAME / LOTTIE_FRAMES) * span + 0.06
+  return { start, end: Math.max(start + 0.3, span - CHORD_TAIL_SEC - 0.1) }
+}
+
 /**
  * Plays the sting across `durationSec`, the Lottie's own duration.
  * The crack is the opening burst, the impact is the lid, coins spill
@@ -87,13 +105,18 @@ export function playClaimCelebration(reduced = false, durationSec = 5): void {
     const chordAt = now + span - CHORD_TAIL_SEC
     crack(audio, master, now)
     impact(audio, master, lid)
-    const coinStart = lid + 0.06
-    const coinEnd = chordAt - 0.1
+    const count = claimCountWindow(durationSec)
     const coins = 18
     for (let index = 0; index < coins; index++) {
-      const t = index / (coins - 1)
-      const eased = t
-      coin(audio, master, coinStart + (coinEnd - coinStart) * eased, 580 + index * 36)
+      // Tick each time the counter passes another 1/18th: dense, then slowing.
+      const share = index / (coins - 1)
+      const p = 1 - Math.cbrt(1 - share)
+      coin(
+        audio,
+        master,
+        now + count.start + (count.end - count.start) * p,
+        580 + index * 36
+      )
     }
     chord(audio, master, chordAt)
   } catch {
@@ -122,7 +145,11 @@ function tone(
   const amp = audio.createGain()
   osc.type = type
   osc.frequency.setValueAtTime(freq, start)
-  if (slideTo != null) osc.frequency.exponentialRampToValueAtTime(Math.max(40, slideTo), start + dur)
+  if (slideTo != null)
+    osc.frequency.exponentialRampToValueAtTime(
+      Math.max(40, slideTo),
+      start + dur
+    )
   amp.gain.setValueAtTime(gain, start)
   amp.gain.exponentialRampToValueAtTime(0.0001, start + dur)
   osc.connect(amp)
@@ -171,7 +198,12 @@ function impact(audio: AudioContext, output: GainNode, start: number): void {
   noiseBurst(audio, output, start, 0.08, 0.2, 400)
 }
 
-function coin(audio: AudioContext, output: GainNode, start: number, freq: number): void {
+function coin(
+  audio: AudioContext,
+  output: GainNode,
+  start: number,
+  freq: number
+): void {
   tone(audio, output, start, freq, 0.09, 0.11, 'triangle')
   tone(audio, output, start, freq * 2.71, 0.07, 0.05, 'sine')
 }

@@ -65,6 +65,7 @@ export function WithdrawScreen() {
   const [error, setError] = useState<string | null>(null)
   const [balanceSnapshot, setBalanceSnapshot] = useState<number | null>(null)
   const [balanceCaptured, setBalanceCaptured] = useState(false)
+  const [isPreview, setIsPreview] = useState(false)
   const cancelledRef = useRef(false)
   const claimingRef = useRef(false)
 
@@ -100,6 +101,7 @@ export function WithdrawScreen() {
       router.replace('/wallet')
       return
     }
+    setIsPreview(true)
     setBalanceSnapshot(wallet?.sats ?? preview * 4)
     setBalanceCaptured(true)
     withdrawActions.setParams({
@@ -183,6 +185,7 @@ export function WithdrawScreen() {
         snapshot={balanceSnapshot}
         captured={balanceCaptured}
         liveBalance={wallet?.sats ?? null}
+        canReplay={isPreview}
         onDone={() => {
           withdrawActions.reset()
           router.replace('/wallet')
