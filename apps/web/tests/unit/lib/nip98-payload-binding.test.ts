@@ -9,7 +9,9 @@ import {
 // Deliberately NOT mocking nostr-tools: the point of this file is that the
 // signature really is bound to the body, end to end with real crypto.
 vi.mock('@/lib/public-url', () => ({
-  resolveApiUrl: vi.fn().mockRejectedValue(new Error('settings unavailable'))
+  resolveConfiguredApiUrl: vi
+    .fn()
+    .mockRejectedValue(new Error('settings unavailable'))
 }))
 
 import { validateNip98 } from '@/lib/nip98'

@@ -103,13 +103,22 @@ export async function resolveAddressDomain(request?: {
 export async function resolveApiUrl(request?: {
   headers: { get: (k: string) => string | null }
 }): Promise<string> {
-  const { endpoint } = await getSettings(['endpoint'], { cache: 'hot' })
-
-  const parsed = parseEndpoint(endpoint)
-  if (parsed) {
-    return `${parsed.protocol}//${parsed.host}`
-  }
+  const configured = await resolveConfiguredApiUrl()
+  if (configured) return configured
 
   const headerHost = request?.headers.get('host') || 'localhost:3000'
   return buildPublicUrl(headerHost)
+}
+
+/**
+ * The admin-configured `endpoint` as an origin, or `null` when unset.
+ *
+ * Unlike {@link resolveApiUrl} this never falls back to request headers, so
+ * callers that bind a credential to this instance (NIP-98 `u` tags) can tell
+ * a trusted URL from a client-supplied one.
+ */
+export async function resolveConfiguredApiUrl(): Promise<string | null> {
+  const { endpoint } = await getSettings(['endpoint'], { cache: 'hot' })
+  const parsed = parseEndpoint(endpoint)
+  return parsed ? `${parsed.protocol}//${parsed.host}` : null
 }
