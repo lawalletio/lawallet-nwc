@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { nip98, NostrEvent } from 'nostr-tools'
-import { resolveApiUrl } from '@/lib/public-url'
+import { resolveConfiguredApiUrl } from '@/lib/public-url'
 
 /**
  * Server-side NIP-98 token validation.
@@ -32,33 +32,32 @@ function decodeNip98Token(base64Event: string): NostrEvent {
 /**
  * Candidate public origins for the signed `u` tag.
  *
- * The signed `u` tag commits to the *public* URL the client used, which is not
- * the internal one Next.js sees behind a proxy/tunnel. Reverse proxies (e.g.
- * Cloudflare Tunnel + Umbrel's app_proxy) frequently rewrite the `Host` header
- * to the internal origin and don't forward `x-forwarded-host`, so we anchor on
- * the admin-configured `endpoint` setting (this instance's true public URL) and
- * accept forwarded/host headers only as fallbacks.
+ * NIP-98 requires the `u` tag to equal the absolute request URL. When the
+ * admin has configured `endpoint` (this instance's true public URL) that is
+ * the **only** accepted origin: `Host` / `X-Forwarded-*` are client-supplied
+ * wherever the app is reachable without a header-rewriting proxy, so trusting
+ * them would accept a token the user signed for another site.
+ *
+ * Without a configured endpoint the instance has no other notion of its own
+ * URL, so the request headers are used — the fresh-install / local-dev path.
  */
 async function resolveCandidateOrigins(request: Request): Promise<Set<string>> {
-  const origins = new Set<string>()
-
-  // 1. Admin-configured public endpoint — authoritative behind proxies/tunnels.
   try {
-    const apiUrl = await resolveApiUrl(request)
-    if (apiUrl) origins.add(apiUrl)
+    const configured = await resolveConfiguredApiUrl()
+    if (configured) return new Set([configured])
   } catch {
     // Settings unavailable (e.g. fresh install or unit context) — fall back to
     // the request headers below.
   }
 
-  // 2. Headers set by a reverse proxy that forwards the original host.
+  const origins = new Set<string>()
+
   const forwardedHost = request.headers.get('x-forwarded-host')
   const forwardedProto = request.headers.get('x-forwarded-proto')
   if (forwardedHost) {
     origins.add(`${forwardedProto || 'https'}://${forwardedHost}`)
   }
 
-  // 3. The raw `Host` header / the URL Next.js actually received.
   const host = request.headers.get('host')
   if (host) {
     const protocol =
