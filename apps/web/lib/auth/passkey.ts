@@ -19,11 +19,16 @@ export interface RpContext {
 }
 
 /**
- * Resolves the WebAuthn Relying Party identity of this instance. Uses the same
- * source of truth as NIP-98 `u`-tag validation (`resolveApiUrl`: the admin
- * `endpoint` Setting first, Host header fallback) so passkeys and Nostr auth
- * agree on who the server is. Passkeys are cryptographically scoped to the
- * rpID — changing the instance domain invalidates existing credentials.
+ * Resolves the WebAuthn Relying Party identity of this instance.
+ *
+ * The browser stamps the page's real origin into clientDataJSON, and login
+ * asserts with `rpId: window.location.hostname` — so the RP must be the page
+ * the ceremony runs on. Prefer the request's `Origin` when it is this same
+ * host (a same-origin fetch); otherwise fall back to `resolveApiUrl` (the
+ * admin `endpoint` Setting, Host header fallback). When the page is served
+ * from `endpoint` both agree, so existing credentials keep their rpID.
+ * Passkeys are cryptographically scoped to the rpID — changing the instance
+ * domain invalidates existing credentials.
  */
 export async function resolveRpContext(request: {
   headers: { get: (k: string) => string | null }
@@ -32,11 +37,28 @@ export async function resolveRpContext(request: {
     resolveApiUrl(request),
     getSettings(['community_name'])
   ])
-  const url = new URL(apiUrl)
+  const url = new URL(sameHostOrigin(request) ?? apiUrl)
   return {
     rpId: url.hostname,
     origin: url.origin,
     rpName: settings.community_name?.trim() || 'LaWallet'
+  }
+}
+
+/** The request's `Origin`, only when it names the host the request came in on. */
+function sameHostOrigin(request: {
+  headers: { get: (k: string) => string | null }
+}): string | null {
+  const origin = request.headers.get('origin')
+  const host =
+    request.headers.get('x-forwarded-host')?.split(',')[0].trim() ||
+    request.headers.get('host')
+  if (!origin || !host) return null
+  try {
+    const url = new URL(origin)
+    return url.host === host ? url.origin : null
+  } catch {
+    return null
   }
 }
 
