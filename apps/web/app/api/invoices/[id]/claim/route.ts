@@ -156,7 +156,7 @@ export const POST = withErrorHandling(
           : null
 
       // First address: bind an existing ACTIVE wallet, or mint a courtesy
-      // LNCurl one when that feature is on. Doing this before the paid flip
+      // LNCurl one when auto-create is on. Doing this before the paid flip
       // means a provider outage leaves the invoice PENDING so the user can
       // retry instead of owning an unpayable name.
       let courtesyWalletId: string | null = null

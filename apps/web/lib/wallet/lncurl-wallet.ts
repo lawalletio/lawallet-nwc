@@ -408,32 +408,29 @@ export async function createLncurlRemoteWallet(
 /**
  * Mint a courtesy LNCurl wallet for an account that has none.
  *
- * Returns null when an ACTIVE wallet already exists, or when LNCurl itself
- * is off. An existing wallet is left untouched: this must not swap a wallet
- * the user already chose, nor reopen an address that was set IDLE while one
- * is still attached.
+ * Returns null when an ACTIVE wallet already exists, or when the operator has
+ * not turned on LNCurl auto-create. An existing wallet is left untouched: this
+ * must not swap a wallet the user already chose.
  *
- * `bindPrimary` attaches the new wallet to the account's existing primary
- * Lightning Address in the same transaction. Pass it when that address
- * already exists (a claim that finished as IDLE). Omit it when the address
- * is about to be inserted and the caller will store the binding itself.
+ * The new wallet is not bound to any address. The caller is about to insert
+ * the first address and stores the binding itself.
  */
 export async function mintCourtesyLncurlWallet(
-  userId: string,
-  options?: { bindPrimary?: boolean }
+  userId: string
 ): Promise<RemoteWallet | null> {
   const existing = await findInitialPrimaryWalletCandidate(userId)
   if (existing) return null
 
-  const { lncurl_enabled, lncurl_server_url } = await getSettings([
-    'lncurl_enabled',
-    'lncurl_server_url'
-  ])
-  if (lncurl_enabled !== 'true') return null
+  const { lncurl_enabled, lncurl_auto_create, lncurl_server_url } =
+    await getSettings([
+      'lncurl_enabled',
+      'lncurl_auto_create',
+      'lncurl_server_url'
+    ])
+  if (lncurl_enabled !== 'true' || lncurl_auto_create !== 'true') return null
 
   return createLncurlRemoteWallet({
     userId,
-    serverUrl: lncurl_server_url || undefined,
-    isDefault: options?.bindPrimary === true
+    serverUrl: lncurl_server_url || undefined
   })
 }

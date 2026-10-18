@@ -286,42 +286,27 @@ describe('mintCourtesyLncurlWallet', () => {
     expect(createLncurlWallet).not.toHaveBeenCalled()
   })
 
-  it('mints when LNCurl is enabled even if signup auto-create is off', async () => {
+  it('does not mint when auto-create is off, even with LNCurl enabled', async () => {
     vi.mocked(prismaMock.remoteWallet.findFirst).mockResolvedValue(null)
     vi.mocked(getSettings).mockResolvedValue({
       lncurl_enabled: 'true',
-      lncurl_auto_create: 'false',
-      lncurl_server_url: ''
+      lncurl_auto_create: 'false'
     })
+
+    await expect(mintCourtesyLncurlWallet(USER_ID)).resolves.toBeNull()
+    expect(createLncurlWallet).not.toHaveBeenCalled()
+  })
+
+  it('mints an unbound courtesy wallet when LNCurl auto-create is on', async () => {
+    vi.mocked(prismaMock.remoteWallet.findFirst).mockResolvedValue(null)
+    vi.mocked(getSettings).mockResolvedValue(enabled)
 
     const created = await mintCourtesyLncurlWallet(USER_ID)
 
     expect(created?.id).toBe('new-wallet')
-    expect(createLncurlWallet).toHaveBeenCalled()
-  })
-
-  it('mints a courtesy wallet and can bind the existing primary address', async () => {
-    vi.mocked(prismaMock.remoteWallet.findFirst).mockResolvedValue(null)
-    vi.mocked(getSettings).mockResolvedValue(enabled)
-    vi.mocked(prismaMock.lightningAddress.findFirst).mockResolvedValue({
-      username: 'alice'
-    } as never)
-
-    const created = await mintCourtesyLncurlWallet(USER_ID, {
-      bindPrimary: true
-    })
-
-    expect(created?.id).toBe('new-wallet')
     expect(createLncurlWallet).toHaveBeenCalledWith('https://lncurl.example')
-    expect(prismaMock.lightningAddress.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { username: 'alice' },
-        data: expect.objectContaining({
-          mode: 'CUSTOM_NWC',
-          remoteWalletId: 'new-wallet'
-        })
-      })
-    )
+    // The caller inserts the first address and stores the binding itself.
+    expect(prismaMock.lightningAddress.update).not.toHaveBeenCalled()
   })
 })
 
