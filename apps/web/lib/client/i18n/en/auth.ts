@@ -14,11 +14,11 @@ export const auth = {
   crossDeviceHint:
     'No passkey on this device? Choose “use a phone or tablet” when prompted and scan the QR with the device that has one.',
   passkeyErrors: {
-    cancelled: 'Passkey prompt was closed — try again',
+    cancelled: 'Passkey prompt was closed or timed out — try again',
     duplicate: 'This device already has a passkey for this account',
     unsupported: 'This device does not support passkeys',
     'prf-unsupported':
-      'This passkey cannot derive a key on this device — use iOS 18+/macOS 15+, a recent Chrome/Android, or another login method'
+      "Your passkey provider can't create the key LaWallet needs. Use Google Password Manager or iCloud Keychain, or sign in another way."
   },
   // nostr-connect-form
   login: 'Login',

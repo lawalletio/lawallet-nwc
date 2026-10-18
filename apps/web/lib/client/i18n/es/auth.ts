@@ -14,11 +14,12 @@ export const auth: typeof En = {
   crossDeviceHint:
     '¿No tienes una passkey en este dispositivo? Elige “usar un teléfono o tablet” cuando se te pida y escanea el QR con el dispositivo que la tiene.',
   passkeyErrors: {
-    cancelled: 'Se cerró la ventana de la passkey — inténtalo de nuevo',
+    cancelled:
+      'Se cerró la ventana de la passkey o se agotó el tiempo — inténtalo de nuevo',
     duplicate: 'Este dispositivo ya tiene una passkey para esta cuenta',
     unsupported: 'Este dispositivo no admite passkeys',
     'prf-unsupported':
-      'Esta passkey no puede derivar una clave en este dispositivo — usa iOS 18+/macOS 15+, un Chrome/Android reciente u otro método de inicio de sesión'
+      'Tu proveedor de passkeys no puede crear la clave que LaWallet necesita. Usa el Administrador de contraseñas de Google o el Llavero de iCloud, o inicia sesión de otra forma.'
   },
   login: 'Iniciar sesión',
   signingIn: 'Iniciando sesión...',
