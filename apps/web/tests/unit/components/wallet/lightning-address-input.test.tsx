@@ -3,7 +3,12 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { __resetContactsCacheForTests } from '@/lib/client/contacts-store'
-import { LightningAddressInput } from '@/components/wallet/shared/lightning-address-input'
+import {
+  LightningAddressInput,
+  knownAvatarFor
+} from '@/components/wallet/shared/lightning-address-input'
+import { writeAvatar } from '@/lib/client/cache/avatar-cache'
+import type { Contact } from '@/lib/client/contacts-store'
 
 vi.mock('@/lib/client/hooks/use-api', () => ({
   useApi: () => ({ data: { lightningAddress: 'me@lawallet.io' } })
@@ -143,6 +148,37 @@ describe('LightningAddressInput', () => {
     expect(options[0]).toHaveAttribute('aria-selected', 'true')
   })
 
+  it('collapses a saved exact match to one row and leaves only the field once picked', async () => {
+    const user = userEvent.setup()
+    window.localStorage.setItem(
+      'lawallet-contacts',
+      JSON.stringify([
+        {
+          id: 'c-agustin',
+          name: 'agustin',
+          displayName: 'Agustin',
+          lightningAddress: 'agustin@lacrypta.ar',
+          avatarUrl: 'https://example.com/a.png',
+          profileFetchedAt: Date.now(),
+          createdAt: 1
+        }
+      ])
+    )
+    __resetContactsCacheForTests()
+    render(<Harness variant="inline" />)
+
+    await user.type(screen.getByRole('combobox'), 'agustin@lacrypta.ar')
+
+    // The saved row carries the profile — no duplicate suggestion row.
+    expect(screen.getAllByRole('option')).toHaveLength(1)
+    expect(screen.queryByRole('group', { name: 'Suggestions' })).toBeNull()
+
+    await user.click(screen.getByRole('option'))
+
+    expect(screen.queryByRole('option')).toBeNull()
+    expect(screen.getByText('Agustin')).toBeInTheDocument()
+  })
+
   it('commits the exact match on Enter with no arrow keys', async () => {
     const user = userEvent.setup()
     const onSelect = vi.fn()
@@ -234,5 +270,30 @@ describe('LightningAddressInput', () => {
     expect(
       screen.getByRole('group', { name: 'Suggestions' })
     ).toHaveTextContent('fierillo@lacrypta.ar')
+  })
+
+  it('gives a candidate the saved avatar by exact address or shared pubkey', () => {
+    const contacts: Contact[] = [
+      {
+        id: 'c',
+        name: 'agustin',
+        lightningAddress: 'agustin@lawallet.io',
+        pubkey: 'abc123',
+        avatarUrl: 'https://example.com/agustin.png',
+        createdAt: 1
+      }
+    ]
+
+    expect(knownAvatarFor('agustin@lawallet.io', contacts)).toBe(
+      'https://example.com/agustin.png'
+    )
+    // Unknown key behind the other address: nothing to go on, no lookup.
+    expect(knownAvatarFor('agustin@lacrypta.ar', contacts)).toBeNull()
+
+    // Once resolved, the same Nostr key means the same person.
+    writeAvatar('agustin@lacrypta.ar', { avatarUrl: null, pubkey: 'abc123' })
+    expect(knownAvatarFor('agustin@lacrypta.ar', contacts)).toBe(
+      'https://example.com/agustin.png'
+    )
   })
 })

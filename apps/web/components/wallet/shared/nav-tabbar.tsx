@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Settings, ScanLine } from 'lucide-react'
+import { Home, Settings, ScanQrCode } from 'lucide-react'
 import { useT, type Dict } from '@/lib/client/i18n'
 import { cn } from '@/lib/utils'
 
@@ -44,7 +44,7 @@ export function NavTabbar() {
             aria-label={t.shared.nav.scan}
             className="absolute left-1/2 -top-3 flex size-[87px] -translate-x-1/2 items-center justify-center rounded-full border border-[var(--theme-300)] bg-gradient-to-b from-[var(--theme-200)] to-[var(--theme-400)] text-foreground shadow-[inset_0_2px_2px_var(--theme-400)] shadow-xl transition-transform active:scale-95"
           >
-            <ScanLine className="size-[37px]" />
+            <ScanQrCode className="size-[37px]" />
           </Link>
 
           <span className="size-[54px]" aria-hidden />

@@ -39,20 +39,53 @@ describe('RecipientInput', () => {
     expect(screen.getByRole('combobox')).toHaveAttribute('autocomplete', 'off')
   })
 
-  it('does not list saved recipients or suggestions', async () => {
+  it('shows at most the last 10 recipients when the input is empty', () => {
+    seedContacts(12)
+    render(<RecipientInput />)
+    expect(screen.getByRole('group', { name: 'Saved' })).toBeInTheDocument()
+    expect(screen.getAllByRole('option')).toHaveLength(10)
+  })
+
+  it('hides unmatched recents once the user types a new local-part', async () => {
     const user = userEvent.setup()
     seedContacts(12)
     render(<RecipientInput />)
 
-    expect(screen.queryByRole('group', { name: 'Saved' })).toBeNull()
-    expect(screen.queryByRole('group', { name: 'Suggestions' })).toBeNull()
-    expect(screen.queryByRole('option')).toBeNull()
-
     await user.type(screen.getByRole('combobox'), 'satoshi')
 
     expect(screen.queryByRole('group', { name: 'Saved' })).toBeNull()
-    expect(screen.queryByRole('group', { name: 'Suggestions' })).toBeNull()
-    expect(screen.queryByRole('option')).toBeNull()
+    expect(
+      screen.getByRole('group', { name: 'Suggestions' })
+    ).toBeInTheDocument()
+    for (const option of screen.getAllByRole('option')) {
+      expect(option.textContent).toContain('satoshi@')
+    }
+  })
+
+  it('keeps a stored recipient and domain completions when typing its local-part', async () => {
+    const user = userEvent.setup()
+    window.localStorage.setItem(
+      'lawallet-contacts',
+      JSON.stringify([
+        {
+          id: 'c-fierillo',
+          name: 'fierillo',
+          lightningAddress: 'fierillo@lawallet.io',
+          createdAt: 1
+        }
+      ])
+    )
+    __resetContactsCacheForTests()
+    render(<RecipientInput />)
+
+    await user.type(screen.getByRole('combobox'), 'fierillo')
+
+    const saved = screen.getByRole('group', { name: 'Saved' })
+    expect(saved).toHaveTextContent('fierillo@lawallet.io')
+
+    const suggestions = screen.getByRole('group', { name: 'Suggestions' })
+    expect(suggestions).toHaveTextContent('fierillo@lawallet.io')
+    expect(suggestions).toHaveTextContent('fierillo@blink.sv')
   })
 
   it('shows a spinner while the next screen loads', async () => {

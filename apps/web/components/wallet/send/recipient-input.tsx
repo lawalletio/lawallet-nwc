@@ -17,10 +17,10 @@ import { useT } from '@/lib/client/i18n'
 import { errorText } from '@/lib/client/i18n/errors'
 
 /**
- * Send-flow recipient step. The field is the shared
- * {@link LightningAddressInput}; saved recipients and domain suggestions stay
- * off this screen. What stays here is resolving the destination (a bolt11 or
- * LNURL as well as an address) and routing onward.
+ * Send-flow recipient step. The field itself — suggestions, saved recipients,
+ * avatars, keyboard handling — is the shared {@link LightningAddressInput};
+ * what stays here is what only the send flow does: resolve the destination
+ * (which may be a bolt11 or LNURL, not just an address) and route onward.
  */
 export function RecipientInput() {
   const router = useRouter()
@@ -130,8 +130,6 @@ export function RecipientInput() {
           id="recipient"
           variant="inline"
           allowNonAddress
-          hideContacts
-          hideSuggestions
           value={value}
           onChange={next => {
             setValue(next)
