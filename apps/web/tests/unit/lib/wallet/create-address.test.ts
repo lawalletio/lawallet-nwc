@@ -39,8 +39,9 @@ vi.mock('@/lib/wallet/lncurl-wallet', () => ({
 import { prismaMock, resetPrismaMock } from '@/tests/helpers/prisma-mock'
 import { createLightningAddressForUser } from '@/lib/wallet/create-address'
 import { mintCourtesyLncurlWallet } from '@/lib/wallet/lncurl-wallet'
-import { ConflictError } from '@/types/server/errors'
+import { ConflictError, ServiceUnavailableError } from '@/types/server/errors'
 import { logActivity } from '@/lib/activity-log'
+import { findInitialPrimaryWalletCandidate } from '@/lib/wallet/primary-wallet'
 
 const address = (overrides: Record<string, unknown> = {}) => ({
   username: 'alice',
@@ -149,5 +150,90 @@ describe('createLightningAddressForUser', () => {
         })
       })
     )
+  })
+
+  it('aborts the first address with a 503 when the courtesy mint fails', async () => {
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(null)
+    vi.mocked(prismaMock.lightningAddress.count).mockResolvedValue(0)
+    vi.mocked(mintCourtesyLncurlWallet).mockRejectedValue(
+      new Error('LNCurl server unreachable')
+    )
+
+    await expect(
+      createLightningAddressForUser({ userId: 'user-1', username: 'alice' })
+    ).rejects.toBeInstanceOf(ServiceUnavailableError)
+    expect(prismaMock.$transaction).not.toHaveBeenCalled()
+  })
+
+  describe('first-address wallet binding', () => {
+    function runTransaction(ownedCount: number) {
+      vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(null)
+      vi.mocked(prismaMock.lightningAddress.count).mockResolvedValue(ownedCount)
+      vi.mocked(prismaMock.$transaction).mockImplementation(async fn =>
+        (fn as (tx: typeof prismaMock) => Promise<unknown>)(prismaMock)
+      )
+      vi.mocked(prismaMock.lightningAddress.create).mockResolvedValue(
+        address() as any
+      )
+    }
+
+    it('binds an ACTIVE wallet the account already has, without minting', async () => {
+      runTransaction(0)
+      vi.mocked(findInitialPrimaryWalletCandidate).mockResolvedValueOnce({
+        id: 'own-wallet'
+      })
+
+      await createLightningAddressForUser({
+        userId: 'user-1',
+        username: 'alice'
+      })
+
+      expect(mintCourtesyLncurlWallet).not.toHaveBeenCalled()
+      expect(prismaMock.lightningAddress.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            mode: 'CUSTOM_NWC',
+            remoteWalletId: 'own-wallet',
+            isPrimary: true
+          })
+        })
+      )
+    })
+
+    it('stores an IDLE first address when there is no wallet and no mint', async () => {
+      runTransaction(0)
+
+      await createLightningAddressForUser({
+        userId: 'user-1',
+        username: 'alice'
+      })
+
+      expect(mintCourtesyLncurlWallet).toHaveBeenCalledWith('user-1')
+      expect(prismaMock.lightningAddress.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            mode: 'IDLE',
+            remoteWalletId: null,
+            isPrimary: true
+          })
+        })
+      )
+    })
+
+    it('never mints for a secondary address', async () => {
+      runTransaction(1)
+
+      await createLightningAddressForUser({
+        userId: 'user-1',
+        username: 'alice'
+      })
+
+      expect(mintCourtesyLncurlWallet).not.toHaveBeenCalled()
+      expect(prismaMock.lightningAddress.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ isPrimary: false })
+        })
+      )
+    })
   })
 })

@@ -38,8 +38,13 @@ vi.mock('@/lib/events/event-bus', () => ({
   eventBus: { emit: vi.fn() }
 }))
 
+vi.mock('@/lib/wallet/lncurl-wallet', () => ({
+  mintCourtesyLncurlWallet: vi.fn(async () => null)
+}))
+
 import { POST } from '@/app/api/invoices/[id]/claim/route'
 import { getSettings } from '@/lib/settings'
+import { mintCourtesyLncurlWallet } from '@/lib/wallet/lncurl-wallet'
 
 // Deterministic preimage + matching payment hash
 const PREIMAGE = 'a'.repeat(64)
@@ -67,6 +72,7 @@ beforeEach(() => {
   resetPrismaMock()
   vi.clearAllMocks()
   vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com' })
+  vi.mocked(mintCourtesyLncurlWallet).mockResolvedValue(null)
   vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
     id: 'user-1',
     pubkey: 'a'.repeat(64)
@@ -376,6 +382,73 @@ describe('POST /api/invoices/[id]/claim', () => {
           })
         })
       )
+    })
+
+    function firstWalletAddressClaim() {
+      vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue({
+        ...baseInvoice,
+        purpose: 'WALLET_ADDRESS',
+        metadata: { username: 'alice' }
+      } as any)
+      vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(null)
+      vi.mocked(prismaMock.lightningAddress.count).mockResolvedValue(0)
+      vi.mocked(prismaMock.lightningAddress.create).mockResolvedValue({} as any)
+      return POST(
+        createNextRequest('/api/invoices/inv-1/claim', {
+          method: 'POST',
+          body: { preimage: PREIMAGE }
+        }),
+        createParamsPromise({ id: 'inv-1' })
+      )
+    }
+
+    it('binds an ACTIVE wallet the account already has to its first address', async () => {
+      vi.mocked(prismaMock.remoteWallet.findFirst).mockResolvedValue({
+        id: 'own-wallet'
+      } as any)
+
+      await assertResponse(await firstWalletAddressClaim(), 200)
+
+      expect(mintCourtesyLncurlWallet).not.toHaveBeenCalled()
+      expect(prismaMock.lightningAddress.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            isPrimary: true,
+            mode: 'CUSTOM_NWC',
+            remoteWalletId: 'own-wallet'
+          })
+        })
+      )
+    })
+
+    it('binds a minted courtesy wallet to the first address', async () => {
+      vi.mocked(mintCourtesyLncurlWallet).mockResolvedValue({
+        id: 'curl-1'
+      } as any)
+
+      await assertResponse(await firstWalletAddressClaim(), 200)
+
+      expect(mintCourtesyLncurlWallet).toHaveBeenCalledWith('user-1')
+      expect(prismaMock.lightningAddress.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            isPrimary: true,
+            mode: 'CUSTOM_NWC',
+            remoteWalletId: 'curl-1'
+          })
+        })
+      )
+    })
+
+    it('returns 503 and leaves the invoice PENDING when the courtesy mint fails', async () => {
+      vi.mocked(mintCourtesyLncurlWallet).mockRejectedValue(
+        new Error('LNCurl server unreachable')
+      )
+
+      await assertResponse(await firstWalletAddressClaim(), 503)
+
+      expect(prismaMock.invoice.updateMany).not.toHaveBeenCalled()
+      expect(prismaMock.lightningAddress.create).not.toHaveBeenCalled()
     })
 
     it('creates a non-primary address and does not touch the existing primary', async () => {
