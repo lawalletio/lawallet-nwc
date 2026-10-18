@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import {
   generateSecretKey,
@@ -234,6 +235,44 @@ describe('POST /api/auth/passkey/registration/options', () => {
     } finally {
       vi.mocked(getSettings).mockRestore()
     }
+  })
+
+  it('binds the RP to the page origin when it is this host, not the endpoint', async () => {
+    // endpoint (resolveApiUrl) says localhost:3000, but the page runs on
+    // wallet.example.com — login asserts with that hostname, so must we.
+    const response = await optionsRoute(
+      createNextRequest('/api/auth/passkey/registration/options', {
+        method: 'POST',
+        body: {},
+        headers: {
+          origin: 'https://wallet.example.com',
+          'x-forwarded-host': 'wallet.example.com'
+        }
+      })
+    )
+    const body = await response.json()
+    expect(body.options.rp.id).toBe('wallet.example.com')
+    expect(prismaMock.webAuthnChallenge.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        rpId: 'wallet.example.com',
+        origin: 'https://wallet.example.com'
+      })
+    })
+  })
+
+  it('ignores an Origin from another host and keeps the endpoint', async () => {
+    const response = await optionsRoute(
+      createNextRequest('/api/auth/passkey/registration/options', {
+        method: 'POST',
+        body: {},
+        headers: { origin: 'https://evil.example', host: 'localhost:3000' }
+      })
+    )
+    const body = await response.json()
+    expect(body.options.rp.id).toBe('localhost')
+    expect(prismaMock.webAuthnChallenge.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ origin: 'http://localhost:3000' })
+    })
   })
 
   it('does not request community_name through the hot settings cache', async () => {
