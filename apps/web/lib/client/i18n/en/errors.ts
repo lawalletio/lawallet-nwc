@@ -23,6 +23,27 @@ export const errors = {
     withdrawStatus: (status: number) => `Withdraw service returned ${status}`,
     rejected: 'The withdraw request was rejected'
   },
+  boltcard: {
+    noInvoice: 'There is no invoice to charge.',
+    notBoltcard: 'This tag is not a BoltCard.',
+    aboveMax: (limit: number, amount: number) =>
+      `This card can pay up to ${limit.toLocaleString()} sats. This invoice is ${amount.toLocaleString()} sats.`,
+    belowMin: (limit: number, amount: number) =>
+      `This card's minimum is ${limit.toLocaleString()} sats. This invoice is ${amount.toLocaleString()} sats.`,
+    rejected: 'The card payment was rejected.',
+    unreachable: 'Could not reach the card.',
+    cannotPay: 'This card cannot pay right now.'
+  },
+  nfc: {
+    readError: 'Could not read the card. Hold it steady and try again.',
+    noLink: 'This tag has no BoltCard link.',
+    startError: 'Could not start NFC. Try again.'
+  },
+  payment: {
+    amountRequired: 'Enter an amount',
+    zeroAmountInvoice: 'Enter an amount for this zero-amount invoice',
+    npubUnsupported: 'Zaps to npubs are not supported yet'
+  },
   nwc: {
     relayOffline:
       "Couldn't reach your wallet. Its relay looks offline — check the wallet connection and try again.",

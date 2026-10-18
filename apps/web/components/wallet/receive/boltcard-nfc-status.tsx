@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import type { BoltcardNfcPhase } from '@/lib/client/hooks/use-boltcard-nfc'
 import { useT } from '@/lib/client/i18n'
+import { errorText } from '@/lib/client/i18n/errors'
 
 const CONFETTI_COLORS = [
   'hsl(var(--primary))',
@@ -119,7 +120,7 @@ export function BoltcardNfcStatus({
   onRetry
 }: {
   phase: BoltcardNfcPhase
-  detail: string | null
+  detail: Error | null
   onEnable: () => void
   onRetry: () => void
 }) {
@@ -191,7 +192,11 @@ export function BoltcardNfcStatus({
       <p className="flex items-start justify-center gap-2 text-center text-xs text-destructive">
         <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
         <span>
-          {detail ?? (blocked ? t.receive.nfc.blocked : t.receive.nfc.failed)}
+          {detail
+            ? errorText(t, detail, t.receive.nfc.failed)
+            : blocked
+              ? t.receive.nfc.blocked
+              : t.receive.nfc.failed}
         </span>
       </p>
       <Button type="button" variant="outline" size="sm" onClick={onRetry}>

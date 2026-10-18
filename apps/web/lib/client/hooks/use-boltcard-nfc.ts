@@ -35,9 +35,21 @@ export type BoltcardNfcPhase =
 /** Keep the tap celebration on screen long enough to read before summary. */
 export const BOLTCARD_SUCCESS_HOLD_MS = 1100
 
-const READ_ERROR = 'Could not read the card. Hold it steady and try again.'
-const NO_LINK = 'This tag has no BoltCard link.'
-const START_ERROR = 'Could not start NFC. Try again.'
+export type BoltcardNfcErrorCode = 'readError' | 'noLink' | 'startError'
+
+const NFC_MESSAGES: Record<BoltcardNfcErrorCode, string> = {
+  readError: 'Could not read the card. Hold it steady and try again.',
+  noLink: 'This tag has no BoltCard link.',
+  startError: 'Could not start NFC. Try again.'
+}
+
+/** Reader failures. `code` lets the wallet localize the message. */
+export class BoltcardNfcError extends Error {
+  constructor(readonly code: BoltcardNfcErrorCode) {
+    super(NFC_MESSAGES[code])
+    this.name = 'BoltcardNfcError'
+  }
+}
 
 type NfcSupport = 'unknown' | 'yes' | 'no'
 
@@ -51,8 +63,11 @@ function getNfcSupport(): NfcSupport {
 
 export interface BoltcardNfcSession {
   phase: BoltcardNfcPhase
-  /** Readable failure copy. Null while scanning or after a successful tap. */
-  detail: string | null
+  /**
+   * Failure to show (localize via `errorText`). Null while scanning, after a
+   * successful tap, or when the phase alone says it (`denied`).
+   */
+  detail: Error | null
   /** User-gesture entry when the browser will not start a scan on mount. */
   enable: () => void
   /** Clear an error and listen for another tap, restarting the scan if it died. */
@@ -80,7 +95,7 @@ export function useBoltcardNfc(input: {
     (): NfcSupport => 'unknown'
   )
   const [sessionPhase, setPhase] = useState<BoltcardNfcPhase>('checking')
-  const [detail, setDetail] = useState<string | null>(null)
+  const [detail, setDetail] = useState<Error | null>(null)
 
   const abortRef = useRef<AbortController | null>(null)
   const readerRef = useRef<NDEFReaderLike | null>(null)
@@ -140,7 +155,7 @@ export function useBoltcardNfc(input: {
         if (busyRef.current || acceptedRef.current) return
         const url = firstBoltcardUrl(event.message?.records)
         if (!url) {
-          setDetail(NO_LINK)
+          setDetail(new BoltcardNfcError('noLink'))
           setPhase('error')
           return
         }
@@ -169,8 +184,11 @@ export function useBoltcardNfc(input: {
             busyRef.current = false
             setDetail(
               err instanceof BoltcardPayError
-                ? err.message
-                : 'The card payment was rejected.'
+                ? err
+                : new BoltcardPayError(
+                    'The card payment was rejected.',
+                    'rejected'
+                  )
             )
             setPhase('error')
           })
@@ -179,7 +197,7 @@ export function useBoltcardNfc(input: {
       const onReadingError = () => {
         if (generation !== generationRef.current) return
         if (busyRef.current || acceptedRef.current) return
-        setDetail(READ_ERROR)
+        setDetail(new BoltcardNfcError('readError'))
         setPhase('error')
       }
 
@@ -220,14 +238,16 @@ export function useBoltcardNfc(input: {
           return
         }
         if (kind === 'denied') {
-          setDetail(
-            'NFC permission was blocked. Allow it in the browser, then try again.'
-          )
+          setDetail(null)
           setPhase('denied')
           return
         }
-        const message = err instanceof Error ? err.message : START_ERROR
-        setDetail(message || START_ERROR)
+        // A browser-authored reason shows verbatim.
+        setDetail(
+          err instanceof Error && err.message
+            ? err
+            : new BoltcardNfcError('startError')
+        )
         setPhase('error')
       }
     },

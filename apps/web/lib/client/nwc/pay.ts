@@ -21,6 +21,22 @@ export interface PaymentQuote {
   comment: string | null
 }
 
+export type PaymentInputErrorCode =
+  | 'amountRequired'
+  | 'zeroAmountInvoice'
+  | 'npubUnsupported'
+
+/** Bad pay/quote input. `code` lets the wallet localize the message. */
+export class PaymentInputError extends Error {
+  constructor(
+    readonly code: PaymentInputErrorCode,
+    message: string
+  ) {
+    super(message)
+    this.name = 'PaymentInputError'
+  }
+}
+
 const NWC_FEE_QUOTE_UNAVAILABLE =
   'NWC returns routing fees only after pay_invoice settles.'
 
@@ -83,7 +99,10 @@ export async function quotePayment(
       destination.amountSats === null &&
       (amountSats === null || amountSats <= 0)
     ) {
-      throw new Error('Enter an amount for this zero-amount invoice')
+      throw new PaymentInputError(
+        'zeroAmountInvoice',
+        'Enter an amount for this zero-amount invoice'
+      )
     }
     const amount = destination.amountSats ?? amountSats ?? 0
     return {
@@ -100,7 +119,7 @@ export async function quotePayment(
 
   if (destination.kind === 'lnurl-pay') {
     if (amountSats === null || amountSats <= 0)
-      throw new Error('Enter an amount')
+      throw new PaymentInputError('amountRequired', 'Enter an amount')
     const invoice = await requestLnurlInvoice(
       destination.lnurlpUrl,
       amountSats,
@@ -124,7 +143,10 @@ export async function quotePayment(
     }
   }
 
-  throw new Error('Zaps to npubs are not supported yet')
+  throw new PaymentInputError(
+    'npubUnsupported',
+    'Zaps to npubs are not supported yet'
+  )
 }
 
 export async function payQuotedInvoice(
@@ -148,7 +170,10 @@ export async function pay(
       destination.amountSats === null &&
       (amountSats === null || amountSats <= 0)
     ) {
-      throw new Error('Enter an amount for this zero-amount invoice')
+      throw new PaymentInputError(
+        'zeroAmountInvoice',
+        'Enter an amount for this zero-amount invoice'
+      )
     }
     const amt = destination.amountSats ?? amountSats ?? 0
     return payInvoice(
@@ -160,7 +185,7 @@ export async function pay(
 
   if (destination.kind === 'lnurl-pay') {
     if (amountSats === null || amountSats <= 0)
-      throw new Error('Enter an amount')
+      throw new PaymentInputError('amountRequired', 'Enter an amount')
     return payLnurl(
       nwcString,
       {
@@ -172,5 +197,8 @@ export async function pay(
     )
   }
 
-  throw new Error('Zaps to npubs are not supported yet')
+  throw new PaymentInputError(
+    'npubUnsupported',
+    'Zaps to npubs are not supported yet'
+  )
 }

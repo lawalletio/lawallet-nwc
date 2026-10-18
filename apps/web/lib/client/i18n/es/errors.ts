@@ -23,6 +23,28 @@ export const errors: typeof En = {
     withdrawStatus: status => `El servicio de retiro respondió ${status}`,
     rejected: 'La solicitud de retiro fue rechazada'
   },
+  boltcard: {
+    noInvoice: 'No hay ninguna factura para cobrar.',
+    notBoltcard: 'Esta etiqueta no es una BoltCard.',
+    aboveMax: (limit, amount) =>
+      `Esta tarjeta puede pagar hasta ${limit.toLocaleString()} sats. Esta factura es de ${amount.toLocaleString()} sats.`,
+    belowMin: (limit, amount) =>
+      `El mínimo de esta tarjeta es ${limit.toLocaleString()} sats. Esta factura es de ${amount.toLocaleString()} sats.`,
+    rejected: 'Se rechazó el pago con la tarjeta.',
+    unreachable: 'No se pudo conectar con la tarjeta.',
+    cannotPay: 'Esta tarjeta no puede pagar en este momento.'
+  },
+  nfc: {
+    readError:
+      'No se pudo leer la tarjeta. Mantenla quieta y vuelve a intentarlo.',
+    noLink: 'Esta etiqueta no tiene un enlace de BoltCard.',
+    startError: 'No se pudo iniciar NFC. Inténtalo de nuevo.'
+  },
+  payment: {
+    amountRequired: 'Ingresa un monto',
+    zeroAmountInvoice: 'Ingresa un monto para esta factura sin monto',
+    npubUnsupported: 'Todavía no se pueden enviar zaps a npubs'
+  },
   nwc: {
     relayOffline:
       'No se pudo conectar con tu billetera. Su relay parece estar desconectado — revisa la conexión de la billetera e inténtalo de nuevo.',
