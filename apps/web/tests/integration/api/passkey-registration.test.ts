@@ -19,6 +19,9 @@ vi.mock('@/lib/config', () => ({
   }))
 }))
 
+const { captureException } = vi.hoisted(() => ({ captureException: vi.fn() }))
+vi.mock('@sentry/nextjs', () => ({ captureException }))
+
 vi.mock('@/lib/logger', () => ({
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
   withRequestLogging: (fn: any) => fn,
@@ -102,6 +105,7 @@ import { linkPubkeyToAccount } from '@/lib/account/merge'
 import { createNewUser } from '@/lib/user'
 import { getSettings } from '@/lib/settings'
 import { Role } from '@/lib/auth/permissions'
+import { logger } from '@/lib/logger'
 
 const CHALLENGE = 'x'.repeat(43)
 
@@ -320,6 +324,36 @@ describe('POST /api/auth/passkey/registration/verify — signup', () => {
       })
     )
     expect(response.status).toBe(401)
+  })
+
+  it('401s generically but logs and reports why the attestation was rejected', async () => {
+    vi.stubEnv('SENTRY_DSN', 'https://key@sentry.example/1')
+    const reason = new Error('Unexpected registration response origin')
+    vi.mocked(verifyRegistrationResponse).mockRejectedValue(reason)
+    try {
+      const response = await verifyRoute(
+        createNextRequest('/api/auth/passkey/registration/verify', {
+          method: 'POST',
+          body: verifyBody()
+        })
+      )
+      expect(response.status).toBe(401)
+      expect((await response.json()).error.message).toBe(
+        'Passkey verification failed'
+      )
+      expect(vi.mocked(logger.warn)).toHaveBeenCalledWith(
+        expect.objectContaining({ err: String(reason) }),
+        'Passkey registration verify rejected'
+      )
+      await vi.waitFor(() =>
+        expect(captureException).toHaveBeenCalledWith(
+          reason,
+          expect.objectContaining({ level: 'warning' })
+        )
+      )
+    } finally {
+      vi.unstubAllEnvs()
+    }
   })
 
   it('401s on challenge replay (row already consumed)', async () => {
