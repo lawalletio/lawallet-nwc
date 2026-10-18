@@ -14,6 +14,7 @@ import {
   translatePasskeyError
 } from '@/lib/client/passkey-api'
 import { useT } from '@/lib/client/i18n'
+import { errorText } from '@/lib/client/i18n/errors'
 
 interface PasskeyLoginButtonProps {
   /**
@@ -95,12 +96,7 @@ export function PasskeyLoginButton({
     } catch (err) {
       const passkeyError = translatePasskeyError(err)
       const { kind } = passkeyError
-      // Fixed-copy kinds are localized; `security`/`unknown` keep the raw
-      // (dev-facing or server) message.
-      const localized =
-        kind in t.auth.passkeyErrors
-          ? t.auth.passkeyErrors[kind as keyof typeof t.auth.passkeyErrors]
-          : passkeyError.message
+      const localized = errorText(t, passkeyError, passkeyError.message)
       if (kind === 'cancelled') {
         if (surfaceCancel) setError(localized)
         return

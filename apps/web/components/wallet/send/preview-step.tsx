@@ -39,6 +39,7 @@ import {
 } from '@/lib/client/use-yadio-ticker'
 import { cn } from '@/lib/utils'
 import { useT, type Dict } from '@/lib/client/i18n'
+import { errorText, nwcErrorText } from '@/lib/client/i18n/errors'
 
 interface UserMeResponse {
   effectiveNwcString: string | null
@@ -168,8 +169,7 @@ export function SendPreviewStep() {
         if (!cancelled) setQuoteState({ key: quoteKey, status: 'ready', quote })
       },
       err => {
-        const message =
-          err instanceof Error ? err.message : t.send.preview.quoteFailed
+        const message = errorText(t, err, t.send.preview.quoteFailed)
         if (!cancelled)
           setQuoteState({ key: quoteKey, status: 'error', message })
       }
@@ -239,8 +239,7 @@ export function SendPreviewStep() {
       })
       router.replace('/wallet/send/summary')
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : t.send.preview.paymentFailed
+      const message = nwcErrorText(t, err, t.send.preview.paymentFailed)
       sendActions.setError(message)
       toast.error(message)
       setPaying(false)

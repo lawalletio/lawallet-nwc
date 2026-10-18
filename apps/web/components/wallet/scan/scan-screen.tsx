@@ -25,6 +25,7 @@ import {
 import { trackEvent } from '@/lib/analytics/gtag'
 import { AnalyticsEvent } from '@/lib/analytics/events'
 import { useT } from '@/lib/client/i18n'
+import { errorText } from '@/lib/client/i18n/errors'
 
 /**
  * Auto-opening QR scanner reachable from the home tabbar's center button.
@@ -137,9 +138,7 @@ export function ScanScreen() {
             return
           }
         } catch (err) {
-          const message =
-            err instanceof Error ? err.message : t.scan.unrecognizedLnurl
-          toast.error(message)
+          toast.error(errorText(t, err, t.scan.unrecognizedLnurl))
         } finally {
           processingRef.current = false
           setResolving(false)
@@ -155,9 +154,7 @@ export function ScanScreen() {
         trackEvent(AnalyticsEvent.WALLET_SCAN_USED, { kind: destination.kind })
         routeInvoiceOrAddress(text, destination)
       } catch (err) {
-        const message =
-          err instanceof Error ? err.message : t.scan.unrecognizedQr
-        toast.error(message)
+        toast.error(errorText(t, err, t.scan.unrecognizedQr))
       }
     },
     [router, routeInvoiceOrAddress, stopScanner, t]

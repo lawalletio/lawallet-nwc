@@ -13,6 +13,7 @@ import { remoteWallets } from './remoteWallets'
 import { onboarding } from './onboarding'
 import { activate } from './activate'
 import { auth } from './auth'
+import { errors } from './errors'
 
 const en = {
   common,
@@ -29,7 +30,8 @@ const en = {
   remoteWallets,
   onboarding,
   activate,
-  auth
+  auth,
+  errors
 }
 
 /** Every locale must match this shape — `tsc` flags missing or extra keys. */

@@ -15,11 +15,12 @@ import { useApi, invalidateApiPath } from '@/lib/client/hooks/use-api'
 import { useSettings } from '@/lib/client/hooks/use-settings'
 import { resolveFreshUserNwc, resolveUserNwc } from '@/lib/client/wallet-nwc'
 import { useAuth } from '@/components/admin/auth-context'
-import { makeInvoice, describeNwcError } from '@/lib/client/nwc'
+import { makeInvoice } from '@/lib/client/nwc'
 import { receiveActions } from '@/lib/client/wallet-flow-store'
 import { trackEvent } from '@/lib/analytics/gtag'
 import { AnalyticsEvent } from '@/lib/analytics/events'
 import { useT } from '@/lib/client/i18n'
+import { nwcErrorText } from '@/lib/client/i18n/errors'
 
 interface UserMeResponse {
   effectiveNwcString: string | null
@@ -89,7 +90,7 @@ export function ReceiveAmountStep() {
       receiveActions.setInvoice(invoice)
       router.push('/wallet/receive/invoice')
     } catch (err) {
-      const message = describeNwcError(err)
+      const message = nwcErrorText(t, err)
       receiveActions.setError(message)
       toast.error(message)
     } finally {

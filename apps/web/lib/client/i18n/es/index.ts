@@ -13,6 +13,7 @@ import { remoteWallets } from './remoteWallets'
 import { onboarding } from './onboarding'
 import { activate } from './activate'
 import { auth } from './auth'
+import { errors } from './errors'
 
 import type { Dict } from '../en'
 
@@ -31,7 +32,8 @@ const es: Dict = {
   remoteWallets,
   onboarding,
   activate,
-  auth
+  auth,
+  errors
 }
 
 export default es

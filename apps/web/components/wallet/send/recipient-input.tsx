@@ -14,6 +14,7 @@ import {
 } from '@/lib/client/wallet-flow-store'
 import { contactsActions } from '@/lib/client/contacts-store'
 import { useT } from '@/lib/client/i18n'
+import { errorText } from '@/lib/client/i18n/errors'
 
 /**
  * Send-flow recipient step. The field is the shared
@@ -106,8 +107,7 @@ export function RecipientInput() {
       }
       // Leave the spinner up — this screen unmounts when the next one loads.
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : t.send.invalidRecipient
+      const message = errorText(t, err, t.send.invalidRecipient)
       setError(message)
       toast.error(message)
       setLoading(false)

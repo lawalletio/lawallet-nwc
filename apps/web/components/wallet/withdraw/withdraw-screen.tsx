@@ -18,7 +18,7 @@ import { AmountDisplay } from '@/components/wallet/shared/amount-display'
 import { invalidateApiPath, useApi } from '@/lib/client/hooks/use-api'
 import { resolveFreshUserNwc, resolveUserNwc } from '@/lib/client/wallet-nwc'
 import { useAuth } from '@/components/admin/auth-context'
-import { makeInvoice, lookupInvoice, describeNwcError } from '@/lib/client/nwc'
+import { makeInvoice, lookupInvoice } from '@/lib/client/nwc'
 import { submitLnurlWithdraw, LnurlError } from '@/lib/client/lnurl-scan'
 import {
   useWithdrawFlow,
@@ -27,6 +27,7 @@ import {
 import { trackEvent } from '@/lib/analytics/gtag'
 import { AnalyticsEvent } from '@/lib/analytics/events'
 import { useT } from '@/lib/client/i18n'
+import { errorText, nwcErrorText } from '@/lib/client/i18n/errors'
 import { ScreenHeader } from '@/components/wallet/shared/screen-header'
 
 interface UserMeResponse {
@@ -177,8 +178,11 @@ export function WithdrawScreen() {
     } catch (err) {
       claimingRef.current = false
       if (cancelledRef.current) return
+      // LNURL-service reasons must not be read as NWC relay errors.
       const message =
-        err instanceof LnurlError ? err.message : describeNwcError(err)
+        err instanceof LnurlError
+          ? errorText(t, err, err.message)
+          : nwcErrorText(t, err)
       setError(message)
       toast.error(message)
       setPhase('confirm')

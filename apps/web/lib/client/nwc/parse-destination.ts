@@ -35,13 +35,17 @@ export interface NpubDestination {
 }
 
 export type ParsedDestination =
-  | InvoiceDestination
-  | LnAddressDestination
-  | LnurlDestination
-  | NpubDestination
+  InvoiceDestination | LnAddressDestination | LnurlDestination | NpubDestination
+
+/** Stable reason, so the wallet can show localized copy instead of `message`. */
+export type DestinationErrorCode =
+  'empty' | 'unsupported' | 'invalidInvoice' | 'invalidLnurl' | 'invalidAddress'
 
 export class DestinationParseError extends Error {
-  constructor(message: string) {
+  constructor(
+    readonly code: DestinationErrorCode,
+    message: string
+  ) {
     super(message)
     this.name = 'DestinationParseError'
   }
@@ -73,7 +77,7 @@ const LN_ADDRESS_RE = /^([a-z0-9._-]+)@([a-z0-9.-]+\.[a-z]{2,})$/i
  */
 export function parseDestination(rawInput: string): ParsedDestination {
   const input = normalize(rawInput)
-  if (!input) throw new DestinationParseError('Enter a recipient')
+  if (!input) throw new DestinationParseError('empty', 'Enter a recipient')
 
   const lower = input.toLowerCase()
 
@@ -94,6 +98,7 @@ export function parseDestination(rawInput: string): ParsedDestination {
   }
 
   throw new DestinationParseError(
+    'unsupported',
     'Unsupported recipient. Use a Lightning address, bolt11 invoice, or LNURL.'
   )
 }
@@ -103,7 +108,10 @@ function parseBolt11(bolt11: string): InvoiceDestination {
   try {
     decoded = decode(bolt11)
   } catch {
-    throw new DestinationParseError('Invalid Lightning invoice')
+    throw new DestinationParseError(
+      'invalidInvoice',
+      'Invalid Lightning invoice'
+    )
   }
 
   let amountSats: number | null = null
@@ -157,13 +165,17 @@ function parseLnurl(lnurl: string): LnurlDestination {
       host: null
     }
   } catch {
-    throw new DestinationParseError('Invalid LNURL')
+    throw new DestinationParseError('invalidLnurl', 'Invalid LNURL')
   }
 }
 
 function parseLnAddress(address: string): LnAddressDestination {
   const match = address.match(LN_ADDRESS_RE)
-  if (!match) throw new DestinationParseError('Invalid Lightning address')
+  if (!match)
+    throw new DestinationParseError(
+      'invalidAddress',
+      'Invalid Lightning address'
+    )
   const [, username, host] = match
   const lnurlpUrl = `https://${host}/.well-known/lnurlp/${encodeURIComponent(username)}`
   return {

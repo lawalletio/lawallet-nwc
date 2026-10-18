@@ -16,6 +16,7 @@ import {
   demoActivityTransactions
 } from '@/lib/client/activity-detail'
 import { useLocale, useT, type Dict } from '@/lib/client/i18n'
+import { nwcErrorText } from '@/lib/client/i18n/errors'
 import { cn } from '@/lib/utils'
 
 const PAGE_SIZE = 25
@@ -268,7 +269,7 @@ function Body({
   if (error && groups.length === 0) {
     return (
       <div className="flex flex-1 items-center justify-center px-6 text-center">
-        <p className="text-sm text-destructive">{error.message}</p>
+        <p className="text-sm text-destructive">{nwcErrorText(t, error)}</p>
       </div>
     )
   }
@@ -317,7 +318,7 @@ function Body({
       )}
       {error && groups.length > 0 && (
         <p className="py-2 text-center text-xs text-destructive">
-          {error.message}
+          {nwcErrorText(t, error)}
         </p>
       )}
     </div>

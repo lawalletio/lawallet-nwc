@@ -32,6 +32,7 @@ import {
 } from '@/lib/client/passkey-api'
 import { truncateNpub } from '@/lib/client/format'
 import { useLocale, useT } from '@/lib/client/i18n'
+import { errorText } from '@/lib/client/i18n/errors'
 
 const UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
   ['year', 31_536_000],
@@ -110,11 +111,11 @@ export function PasskeysSection({
       await addPasskey()
       toast.success(p.added)
     } catch (err) {
-      const error = err as { kind?: string; message?: string }
-      if (error.kind === 'duplicate' && onDuplicatePasskey) {
+      const kind = (err as { kind?: string }).kind
+      if (kind === 'duplicate' && onDuplicatePasskey) {
         onDuplicatePasskey()
-      } else if (error.kind !== 'cancelled') {
-        toast.error(error.message || p.addFailed)
+      } else if (kind !== 'cancelled') {
+        toast.error(errorText(t, err, p.addFailed))
       }
     }
   }
@@ -154,9 +155,7 @@ export function PasskeysSection({
         )}
 
         {!loading && credentials.length === 0 && (
-          <p className="px-4 py-4 text-sm text-muted-foreground">
-            {p.empty}
-          </p>
+          <p className="px-4 py-4 text-sm text-muted-foreground">{p.empty}</p>
         )}
 
         {credentials.map(credential => (

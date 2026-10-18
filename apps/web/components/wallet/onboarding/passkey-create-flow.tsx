@@ -15,6 +15,7 @@ import {
   translatePasskeyError
 } from '@/lib/client/passkey-api'
 import { useT } from '@/lib/client/i18n'
+import { errorText } from '@/lib/client/i18n/errors'
 
 /**
  * Create-account flow for passkey users. The account's Nostr key is DERIVED
@@ -28,7 +29,8 @@ export function PasskeyCreateFlow() {
   const router = useRouter()
   const { login } = useAuth()
   const { data: settings } = useSettings()
-  const t = useT().onboarding.passkey
+  const tAll = useT()
+  const t = tAll.onboarding.passkey
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const community = settings?.community_name?.trim() || null
@@ -47,8 +49,9 @@ export function PasskeyCreateFlow() {
       if (passkeyError.kind === 'cancelled') {
         setError(t.cancelled)
       } else {
-        setError(passkeyError.message)
-        toast.error(passkeyError.message)
+        const message = errorText(tAll, passkeyError, passkeyError.message)
+        setError(message)
+        toast.error(message)
       }
       setBusy(false)
     }
