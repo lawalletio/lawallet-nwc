@@ -268,7 +268,30 @@ const envSchema = z.object({
     .string()
     .min(1, 'NOSTR_PROFILE_CACHE_DIR must not be empty')
     .optional()
-    .describe('Optional filesystem directory for cached Nostr profile images')
+    .describe('Optional filesystem directory for cached Nostr profile images'),
+
+  // Native Android wallet (App Links + passkeys via /.well-known/assetlinks.json)
+  ANDROID_APP_PACKAGE: z.preprocess(
+    emptyEnvToUndefined,
+    z
+      .string()
+      .regex(
+        /^[a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*)+$/,
+        'ANDROID_APP_PACKAGE must be a valid Android package name'
+      )
+      .default('io.lawallet.wallet')
+      .describe('Package name of the native Android wallet app')
+  ),
+
+  ANDROID_APP_CERT_SHA256: z.preprocess(
+    emptyEnvToUndefined,
+    z
+      .string()
+      .optional()
+      .describe(
+        'Comma-separated SHA-256 signing-cert fingerprints (AA:BB:…) of the Android app. Empty disables Android App Links and native passkeys.'
+      )
+  )
 })
 
 /**

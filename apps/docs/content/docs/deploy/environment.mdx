@@ -123,6 +123,27 @@ and no Sentry code is activated.
 | `SENTRY_AUTH_TOKEN`      | Build only     | Optional      | Used only during the build to upload sourcemaps to Sentry. Never needed at runtime.                                                                                                             |
 | `SENTRY_RELEASE`         | Listener       | Optional      | Commit the running image was built from. Baked in by `--build-arg SENTRY_RELEASE=<sha>`; enables release health (crash-free sessions). The web app detects its release automatically on Vercel. |
 
+## Native Android wallet (optional)
+
+Lets a native Android wallet open this domain's links (App Links) and use its
+passkeys (Credential Manager). Leave `ANDROID_APP_CERT_SHA256` unset to keep
+it off — `/.well-known/assetlinks.json` then returns `[]`.
+
+| Variable                  | Service | Required when  | Purpose                                                                                                            |
+| ------------------------- | ------- | -------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `ANDROID_APP_PACKAGE`     | Web     | Optional       | Android package name; defaults to `io.lawallet.wallet`.                                                            |
+| `ANDROID_APP_CERT_SHA256` | Web     | Android wallet | Comma-separated SHA-256 fingerprints of the app's signing certificate (`AA:BB:…:FF`). Invalid entries are skipped. |
+
+When set, the instance serves a Digital Asset Links statement for the app and
+accepts its `android:apk-key-hash:` origin during passkey registration.
+
+<Callout type="warn" title="Only list a privately held signing key">
+  Use your release/upload key or the Play App Signing key — never a public debug
+  key. Any app signed with a listed key can run passkey ceremonies for your
+  domain, and the passkey output is the user's Nostr key, so a public key lets
+  anyone take over passkey accounts.
+</Callout>
+
 ## Vault secrets are not rotatable
 
 `KEY_VAULT_SECRET` and `NWC_VAULT_SECRET` each have exactly one value, and it

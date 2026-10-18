@@ -17,6 +17,7 @@ import { createNewUser } from '@/lib/user'
 import { ActivityEvent, logActivity } from '@/lib/activity-log'
 import { logger } from '@/lib/logger'
 import {
+  androidApkKeyHashOrigins,
   consumeWebAuthnChallenge,
   toCredentialSummary
 } from '@/lib/auth/passkey'
@@ -78,7 +79,9 @@ export const POST = withErrorHandling(async (request: Request) => {
     const result = await verifyRegistrationResponse({
       response: body.credential as unknown as RegistrationResponseJSON,
       expectedChallenge: row.challenge,
-      expectedOrigin: row.origin,
+      // The native Android wallet registers through Credential Manager,
+      // which stamps its signing-cert hash instead of a web origin.
+      expectedOrigin: [row.origin, ...androidApkKeyHashOrigins()],
       expectedRPID: row.rpId,
       requireUserVerification: true
     })

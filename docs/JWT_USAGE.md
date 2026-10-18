@@ -365,6 +365,35 @@ Each role inherits all permissions from roles below it.
 2. If pubkey matches the `root` setting, return `ADMIN`
 3. Default to `USER`
 
+## Native Android Passkeys
+
+A native Android wallet (default package `io.lawallet.wallet`) can create and
+use this instance's passkeys through Credential Manager and open its links as
+App Links. Two optional env vars turn it on:
+
+| Variable                  | Default              | Purpose                                                                     |
+| ------------------------- | -------------------- | --------------------------------------------------------------------------- |
+| `ANDROID_APP_PACKAGE`     | `io.lawallet.wallet` | Package name published in `/.well-known/assetlinks.json`.                   |
+| `ANDROID_APP_CERT_SHA256` | _(empty = off)_      | Comma-separated SHA-256 signing-cert fingerprints (`AA:BB:…:FF`, 32 bytes). |
+
+With fingerprints set:
+
+- `GET /.well-known/assetlinks.json` grants
+  `delegate_permission/common.get_login_creds` and
+  `delegate_permission/common.handle_all_urls` to the app. Without them it
+  returns `[]`. Malformed fingerprints are ignored.
+- `POST /api/auth/passkey/registration/verify` also accepts the clientDataJSON
+  origin Android stamps, `android:apk-key-hash:<base64url(raw cert SHA-256)>`
+  (`androidApkKeyHashOrigins()` in `lib/auth/passkey.ts`). The rpID stays the
+  instance hostname.
+
+> **Use a private signing key only.** Each listed fingerprint lets any app
+> signed with that key run passkey ceremonies for this domain, and passkey
+> PRF output IS the account's Nostr key. Listing a public key (an Android
+> debug keystore, a key committed to a repo) lets anyone build an app that
+> takes over every passkey account. Publish only the release / upload key you
+> hold privately, or the Play App Signing key (Play Console → App integrity).
+
 ## Security Considerations
 
 1. **JWT Secret**: Use a strong, random secret key (32+ characters) and keep it secure
