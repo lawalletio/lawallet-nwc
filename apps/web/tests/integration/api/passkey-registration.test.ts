@@ -356,6 +356,25 @@ describe('POST /api/auth/passkey/registration/verify — signup', () => {
     }
   })
 
+  it('still logs but skips Sentry when SENTRY_DSN is unset', async () => {
+    vi.stubEnv('SENTRY_DSN', '')
+    captureException.mockClear()
+    vi.mocked(verifyRegistrationResponse).mockRejectedValue(new Error('bad'))
+    try {
+      const response = await verifyRoute(
+        createNextRequest('/api/auth/passkey/registration/verify', {
+          method: 'POST',
+          body: verifyBody()
+        })
+      )
+      expect(response.status).toBe(401)
+      expect(vi.mocked(logger.warn)).toHaveBeenCalled()
+      expect(captureException).not.toHaveBeenCalled()
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
   it('401s on challenge replay (row already consumed)', async () => {
     vi.mocked(prismaMock.webAuthnChallenge.delete).mockRejectedValue(
       new Error('not found')
