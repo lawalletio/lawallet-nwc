@@ -5,6 +5,9 @@ import { errorText, nwcErrorText } from '@/lib/client/i18n/errors'
 import { DestinationParseError } from '@/lib/client/nwc/parse-destination'
 import { LnurlError } from '@/lib/client/lnurl-scan'
 import { PasskeyError } from '@/lib/client/passkey-api'
+import { BoltcardPayError } from '@/lib/client/boltcard-pay'
+import { BoltcardNfcError } from '@/lib/client/hooks/use-boltcard-nfc'
+import { PaymentInputError } from '@/lib/client/nwc/pay'
 
 describe('nwcErrorText', () => {
   it('maps the "all relays rejected" publish failure to a relay-offline message', () => {
@@ -66,5 +69,48 @@ describe('errorText', () => {
   it('keeps English identical to the lib messages', () => {
     const err = new LnurlError('LNURL endpoint returned 404', 'httpStatus', 404)
     expect(errorText(en, err, '')).toBe(err.message)
+  })
+
+  it('localizes BoltCard, NFC and payment-input errors', () => {
+    const aboveMax = new BoltcardPayError('x', 'aboveMax', {
+      limitSats: 10,
+      amountSats: 500
+    })
+    expect(errorText(es, aboveMax, '')).toBe(
+      'Esta tarjeta puede pagar hasta 10 sats. Esta factura es de 500 sats.'
+    )
+    expect(errorText(es, new BoltcardNfcError('noLink'), '')).toBe(
+      es.errors.nfc.noLink
+    )
+    expect(
+      errorText(es, new PaymentInputError('npubUnsupported', 'x'), '')
+    ).toBe(es.errors.payment.npubUnsupported)
+  })
+
+  it('localizes a wrapped LnurlError by its code, else keeps its text', () => {
+    const coded = new BoltcardPayError('x', undefined, undefined, {
+      cause: new LnurlError('x', 'withdrawStatus', 502)
+    })
+    expect(errorText(es, coded, '')).toBe('El servicio de retiro respondió 502')
+    const reason = new BoltcardPayError(
+      'counter value too old',
+      undefined,
+      undefined,
+      {
+        cause: new LnurlError('counter value too old')
+      }
+    )
+    expect(errorText(es, reason, '')).toBe('counter value too old')
+  })
+
+  it('keeps English identical for the BoltCard and NFC messages', () => {
+    const belowMin = new BoltcardPayError(
+      `This card's minimum is ${(1000).toLocaleString()} sats. This invoice is ${(500).toLocaleString()} sats.`,
+      'belowMin',
+      { limitSats: 1000, amountSats: 500 }
+    )
+    expect(errorText(en, belowMin, '')).toBe(belowMin.message)
+    const nfc = new BoltcardNfcError('readError')
+    expect(errorText(en, nfc, '')).toBe(nfc.message)
   })
 })

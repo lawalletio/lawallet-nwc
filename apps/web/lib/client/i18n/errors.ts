@@ -2,6 +2,9 @@ import type { Dict } from './en'
 import type { DestinationParseError } from '@/lib/client/nwc/parse-destination'
 import type { LnurlError } from '@/lib/client/lnurl-scan'
 import type { PasskeyError } from '@/lib/client/passkey-api'
+import type { BoltcardPayError } from '@/lib/client/boltcard-pay'
+import type { BoltcardNfcError } from '@/lib/client/hooks/use-boltcard-nfc'
+import type { PaymentInputError } from '@/lib/client/nwc/pay'
 import { nwcErrorKind } from '@/lib/client/nwc/errors'
 
 /**
@@ -15,6 +18,20 @@ export function errorText(t: Dict, err: unknown, fallback: string): string {
   if (!(err instanceof Error)) return fallback
   if (err.name === 'DestinationParseError') {
     return t.errors.destination[(err as DestinationParseError).code]
+  }
+  if (err.name === 'PaymentInputError') {
+    return t.errors.payment[(err as PaymentInputError).code]
+  }
+  if (err.name === 'BoltcardNfcError') {
+    return t.errors.nfc[(err as BoltcardNfcError).code]
+  }
+  if (err.name === 'BoltcardPayError') {
+    const { code, limits, cause } = err as BoltcardPayError
+    if (!code) return errorText(t, cause, err.message || fallback)
+    const text = t.errors.boltcard[code]
+    return typeof text === 'function'
+      ? text(limits?.limitSats ?? 0, limits?.amountSats ?? 0)
+      : text
   }
   if (err.name === 'LnurlError') {
     const { code, status = 0 } = err as LnurlError
