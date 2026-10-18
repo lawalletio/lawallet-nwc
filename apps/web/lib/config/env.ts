@@ -268,7 +268,25 @@ const envSchema = z.object({
     .string()
     .min(1, 'NOSTR_PROFILE_CACHE_DIR must not be empty')
     .optional()
-    .describe('Optional filesystem directory for cached Nostr profile images')
+    .describe('Optional filesystem directory for cached Nostr profile images'),
+
+  // iOS app association (passkeys + universal links). Unset → AASA is a 404.
+  APPLE_APP_IDS: z.preprocess(
+    emptyEnvToUndefined,
+    z
+      .string()
+      .optional()
+      .transform(
+        val =>
+          val
+            ?.split(',')
+            .map(id => id.trim())
+            .filter(Boolean) ?? []
+      )
+      .describe(
+        'Comma-separated Apple app IDs (TEAMID.bundle.id) served in /.well-known/apple-app-site-association'
+      )
+  )
 })
 
 /**
