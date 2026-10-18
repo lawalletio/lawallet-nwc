@@ -43,6 +43,7 @@ import {
   findCourtesyReviveTarget,
   isLncurlWalletConfig,
   lncurlHealTarget,
+  mintCourtesyLncurlWallet,
   reviveDeadCourtesyWallet
 } from '@/lib/wallet/lncurl-wallet'
 import { createLncurlWallet } from '@/lib/lncurl'
@@ -254,6 +255,57 @@ describe('createLncurlRemoteWallet', () => {
   it('does not bind the primary address unless isDefault is requested', async () => {
     await createLncurlRemoteWallet({ userId: USER_ID })
 
+    expect(prismaMock.lightningAddress.update).not.toHaveBeenCalled()
+  })
+})
+
+describe('mintCourtesyLncurlWallet', () => {
+  const enabled = {
+    lncurl_enabled: 'true',
+    lncurl_auto_create: 'true',
+    lncurl_server_url: 'https://lncurl.example'
+  }
+
+  it('does not mint when the account already has an ACTIVE wallet', async () => {
+    vi.mocked(prismaMock.remoteWallet.findFirst).mockResolvedValue({
+      id: 'already'
+    } as never)
+
+    await expect(mintCourtesyLncurlWallet(USER_ID)).resolves.toBeNull()
+    expect(createLncurlWallet).not.toHaveBeenCalled()
+  })
+
+  it('does not mint when LNCurl is disabled', async () => {
+    vi.mocked(prismaMock.remoteWallet.findFirst).mockResolvedValue(null)
+    vi.mocked(getSettings).mockResolvedValue({
+      lncurl_enabled: 'false',
+      lncurl_auto_create: 'true'
+    })
+
+    await expect(mintCourtesyLncurlWallet(USER_ID)).resolves.toBeNull()
+    expect(createLncurlWallet).not.toHaveBeenCalled()
+  })
+
+  it('does not mint when auto-create is off, even with LNCurl enabled', async () => {
+    vi.mocked(prismaMock.remoteWallet.findFirst).mockResolvedValue(null)
+    vi.mocked(getSettings).mockResolvedValue({
+      lncurl_enabled: 'true',
+      lncurl_auto_create: 'false'
+    })
+
+    await expect(mintCourtesyLncurlWallet(USER_ID)).resolves.toBeNull()
+    expect(createLncurlWallet).not.toHaveBeenCalled()
+  })
+
+  it('mints an unbound courtesy wallet when LNCurl auto-create is on', async () => {
+    vi.mocked(prismaMock.remoteWallet.findFirst).mockResolvedValue(null)
+    vi.mocked(getSettings).mockResolvedValue(enabled)
+
+    const created = await mintCourtesyLncurlWallet(USER_ID)
+
+    expect(created?.id).toBe('new-wallet')
+    expect(createLncurlWallet).toHaveBeenCalledWith('https://lncurl.example')
+    // The caller inserts the first address and stores the binding itself.
     expect(prismaMock.lightningAddress.update).not.toHaveBeenCalled()
   })
 })

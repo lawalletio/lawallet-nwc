@@ -32,8 +32,13 @@ vi.mock('@/lib/wallet/default-address-mode', () => ({
   }))
 }))
 
+vi.mock('@/lib/wallet/lncurl-wallet', () => ({
+  mintCourtesyLncurlWallet: vi.fn(async () => null)
+}))
+
 import { prismaMock, resetPrismaMock } from '@/tests/helpers/prisma-mock'
 import { createLightningAddressForUser } from '@/lib/wallet/create-address'
+import { mintCourtesyLncurlWallet } from '@/lib/wallet/lncurl-wallet'
 import { ConflictError } from '@/types/server/errors'
 import { logActivity } from '@/lib/activity-log'
 
@@ -53,6 +58,7 @@ const address = (overrides: Record<string, unknown> = {}) => ({
 beforeEach(() => {
   resetPrismaMock()
   vi.clearAllMocks()
+  vi.mocked(mintCourtesyLncurlWallet).mockResolvedValue(null)
 })
 
 describe('createLightningAddressForUser', () => {
@@ -114,5 +120,34 @@ describe('createLightningAddressForUser', () => {
     const call = vi.mocked(logActivity.fireAndForget).mock.calls[0][0]
     expect(call.message).toContain('created')
     expect(call.metadata).not.toHaveProperty('provisionedBy')
+  })
+
+  it('binds a minted courtesy wallet onto the first address', async () => {
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(null)
+    vi.mocked(prismaMock.lightningAddress.count).mockResolvedValue(0)
+    vi.mocked(mintCourtesyLncurlWallet).mockResolvedValue({
+      id: 'curl-1'
+    } as never)
+    vi.mocked(prismaMock.$transaction).mockImplementation(async fn =>
+      (fn as (tx: typeof prismaMock) => Promise<unknown>)(prismaMock)
+    )
+    vi.mocked(prismaMock.lightningAddress.create).mockResolvedValue(
+      address({
+        mode: 'CUSTOM_NWC',
+        remoteWalletId: 'curl-1'
+      }) as any
+    )
+
+    await createLightningAddressForUser({ userId: 'user-1', username: 'alice' })
+
+    expect(prismaMock.lightningAddress.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          mode: 'CUSTOM_NWC',
+          remoteWalletId: 'curl-1',
+          isPrimary: true
+        })
+      })
+    )
   })
 })

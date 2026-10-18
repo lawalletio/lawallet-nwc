@@ -44,17 +44,6 @@ export const GET = withErrorHandling(async (request: Request) => {
 
   const user = existingUser || (await createNewUser(authenticatedPubkey))
 
-  // A courtesy LNCurl wallet the provider already destroyed must be replaced
-  // before send or receive read this connection string. Non-LNCurl wallets
-  // are left alone.
-  const revived = await reviveDeadCourtesyWallet(user.id)
-  const primaryAddressRecord = user.lightningAddresses[0]
-  if (revived && primaryAddressRecord) {
-    primaryAddressRecord.mode = 'CUSTOM_NWC'
-    primaryAddressRecord.redirect = null
-    primaryAddressRecord.remoteWallet = revived
-  }
-
   // Lightning addresses resolve as `username@<domain>`. The `endpoint`
   // setting (where the instance is publicly reachable) may differ from
   // the address domain — e.g. `endpoint=https://beta.lacrypta.ar` while
@@ -62,7 +51,41 @@ export const GET = withErrorHandling(async (request: Request) => {
   // domain directly rather than `resolvePublicEndpoint`, which mixes the
   // two concerns.
   const addressDomain = await resolveAddressDomain(request)
-  const primaryAddress = user.lightningAddresses[0]
+
+  // A courtesy LNCurl wallet the provider already destroyed must be replaced
+  // before send or receive read this connection string. Non-LNCurl wallets
+  // are left alone. `reviveDeadCourtesyWallet` re-points the primary address
+  // at the replacement, so mirror that onto the row already in hand.
+  const revived = await reviveDeadCourtesyWallet(user.id)
+  let primaryAddress = user.lightningAddresses[0]
+  if (revived && primaryAddress) {
+    primaryAddress = {
+      ...primaryAddress,
+      mode: 'CUSTOM_NWC',
+      redirect: null,
+      remoteWalletId: revived.id,
+      remoteWallet: revived
+    }
+  }
+
+  // A paid claim that ran when the account had no address used to insert a
+  // non-primary row. The account then has names and no primary. Promote the
+  // oldest one.
+  if (!primaryAddress) {
+    const stray = await prisma.lightningAddress.findFirst({
+      where: { userId: user.id },
+      orderBy: { createdAt: 'asc' },
+      include: { remoteWallet: true }
+    })
+    if (stray) {
+      await prisma.lightningAddress.update({
+        where: { username: stray.username },
+        data: { isPrimary: true }
+      })
+      primaryAddress = { ...stray, isPrimary: true }
+    }
+  }
+
   const lightningAddress = primaryAddress?.username
     ? `${primaryAddress.username}@${addressDomain}`
     : null
