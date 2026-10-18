@@ -32,8 +32,10 @@ interface PasskeyLoginButtonProps {
   showCrossDeviceHint?: boolean
   disabled?: boolean
   /**
-   * Show the "prompt was closed" line so a cancelled ceremony has an obvious
-   * retry. Login surfaces stay silent — a cancel there is just "not now".
+   * Show the "prompt was closed" line (inline, never a toast) so a cancelled
+   * ceremony has an obvious retry. On Android `NotAllowedError` also means
+   * "no passkey on this device", a provider failure or no screen lock, so
+   * login surfaces opt in too — staying silent there reads as a dead button.
    */
   surfaceCancel?: boolean
   /**

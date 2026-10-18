@@ -33,6 +33,7 @@ export function LoginOptions() {
             className="h-12 w-full"
             label={t.passkey}
             showCrossDeviceHint
+            surfaceCancel
             onSuccess={() => router.replace(postAuthPath('/wallet'))}
           />
 

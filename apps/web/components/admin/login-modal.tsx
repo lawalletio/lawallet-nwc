@@ -943,6 +943,7 @@ function PasskeyTab() {
         mode="authenticate"
         className="h-11 w-full"
         showCrossDeviceHint
+        surfaceCancel
       />
 
       {/* First-time visitors have no passkey to sign in with — this is the
