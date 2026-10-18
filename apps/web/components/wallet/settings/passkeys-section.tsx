@@ -30,7 +30,29 @@ import {
   isPasskeySupported,
   type PasskeyCredentialSummary
 } from '@/lib/client/passkey-api'
-import { formatRelativeTime, truncateNpub } from '@/lib/client/format'
+import { truncateNpub } from '@/lib/client/format'
+import { useLocale, useT } from '@/lib/client/i18n'
+
+const UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
+  ['year', 31_536_000],
+  ['month', 2_592_000],
+  ['day', 86_400],
+  ['hour', 3_600],
+  ['minute', 60]
+]
+
+function relativeTime(iso: string, locale: string) {
+  const rtf = new Intl.RelativeTimeFormat(locale, {
+    numeric: 'auto',
+    style: 'short'
+  })
+  const sec = (new Date(iso).getTime() - Date.now()) / 1000
+  const [unit, size] = UNITS.find(([, s]) => Math.abs(sec) >= s) ?? [
+    'second',
+    1
+  ]
+  return rtf.format(Math.round(sec / size), unit)
+}
 
 /**
  * Passkey management for the wallet security screen: list, rename, delete,
@@ -58,6 +80,12 @@ export function PasskeysSection({
     renaming,
     deleting
   } = usePasskeys()
+  const t = useT()
+  const p = t.settings.passkeysScreen
+  const locale = useLocale()
+  const credentialName = (credential: PasskeyCredentialSummary) =>
+    credential.label ||
+    p.untitled(new Date(credential.createdAt).toLocaleDateString(locale))
 
   const [supported] = useState(() => isPasskeySupported())
   const [selected, setSelected] = useState<PasskeyCredentialSummary | null>(
@@ -80,13 +108,13 @@ export function PasskeysSection({
   async function handleAdd() {
     try {
       await addPasskey()
-      toast.success('Passkey added')
+      toast.success(p.added)
     } catch (err) {
       const error = err as { kind?: string; message?: string }
       if (error.kind === 'duplicate' && onDuplicatePasskey) {
         onDuplicatePasskey()
       } else if (error.kind !== 'cancelled') {
-        toast.error(error.message || 'Could not add passkey')
+        toast.error(error.message || p.addFailed)
       }
     }
   }
@@ -95,10 +123,10 @@ export function PasskeysSection({
     if (!selected) return
     try {
       await renameCredential(selected.id, label.trim())
-      toast.success('Passkey renamed')
+      toast.success(p.renamed)
       setSelected(null)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Rename failed')
+      toast.error(err instanceof Error ? err.message : p.renameFailed)
     }
   }
 
@@ -106,12 +134,12 @@ export function PasskeysSection({
     if (!selected) return
     try {
       await deleteCredential(selected.id)
-      toast.success('Passkey deleted')
+      toast.success(p.deleted)
       setConfirmingDelete(false)
       setSelected(null)
     } catch (err) {
       setConfirmingDelete(false)
-      const message = err instanceof Error ? err.message : 'Delete failed'
+      const message = err instanceof Error ? err.message : p.deleteFailed
       toast.error(message)
     }
   }
@@ -127,8 +155,7 @@ export function PasskeysSection({
 
         {!loading && credentials.length === 0 && (
           <p className="px-4 py-4 text-sm text-muted-foreground">
-            No passkeys yet. Add one to sign in with Face ID, Touch ID, or your
-            device screen lock — no keys to paste.
+            {p.empty}
           </p>
         )}
 
@@ -149,8 +176,8 @@ export function PasskeysSection({
                 </p>
                 <p className="truncate text-xs text-muted-foreground">
                   {credential.lastUsedAt
-                    ? `Last used ${formatRelativeTime(credential.lastUsedAt)}`
-                    : `Added ${formatRelativeTime(credential.createdAt)}`}
+                    ? p.lastUsed(relativeTime(credential.lastUsedAt, locale))
+                    : p.addedAgo(relativeTime(credential.createdAt, locale))}
                 </p>
                 {credential.pubkey && (
                   <p className="truncate font-mono text-[11px] text-muted-foreground/80">
@@ -160,7 +187,7 @@ export function PasskeysSection({
               </div>
             </div>
             {credential.deviceType === 'multiDevice' && credential.backedUp && (
-              <Badge variant="secondary">Synced</Badge>
+              <Badge variant="secondary">{p.synced}</Badge>
             )}
           </button>
         ))}
@@ -175,7 +202,7 @@ export function PasskeysSection({
           disabled={adding}
         >
           {adding ? <Spinner size={16} /> : <Plus data-icon="inline-start" />}
-          {adding ? 'Waiting for your device…' : 'Add a passkey'}
+          {adding ? p.waiting : p.add}
         </Button>
       )}
 
@@ -188,19 +215,19 @@ export function PasskeysSection({
       >
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Manage passkey</DialogTitle>
+            <DialogTitle>{p.manage}</DialogTitle>
             <DialogDescription>
               {selected ? credentialName(selected) : ''}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="passkey-label">Name</Label>
+              <Label htmlFor="passkey-label">{p.name}</Label>
               <Input
                 id="passkey-label"
                 value={label}
                 onChange={e => setLabel(e.target.value)}
-                placeholder="e.g. MacBook Touch ID"
+                placeholder={p.namePlaceholder}
                 maxLength={64}
               />
             </div>
@@ -211,7 +238,7 @@ export function PasskeysSection({
               disabled={renaming || !label.trim()}
             >
               {renaming ? <Spinner size={16} /> : null}
-              Save name
+              {p.saveName}
             </Button>
             <Button
               type="button"
@@ -221,7 +248,7 @@ export function PasskeysSection({
               disabled={deleting}
             >
               <Trash2 className="size-4" />
-              Delete passkey
+              {p.delete}
             </Button>
           </div>
         </DialogContent>
@@ -237,31 +264,21 @@ export function PasskeysSection({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {isLastCredential
-                ? 'Delete your only passkey?'
-                : 'Delete this passkey?'}
+              {isLastCredential ? p.deleteOnlyTitle : p.deleteTitle}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {isLastCredential
-                ? 'This is your only passkey. Its key stays derivable from the passkey itself, but make sure you can still sign in another way before removing it here.'
-                : 'You can no longer sign in with this passkey after deleting it. The identity it derives stays linked to your account.'}
+              {isLastCredential ? p.deleteOnlyBody : p.deleteBody}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t.common.cancel}</AlertDialogCancel>
             <AlertDialogAction onClick={() => void handleDelete()}>
               {deleting ? <Spinner size={16} /> : null}
-              Delete
+              {p.deleteConfirm}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </>
   )
-}
-
-function credentialName(credential: PasskeyCredentialSummary) {
-  if (credential.label) return credential.label
-  const created = new Date(credential.createdAt)
-  return `Passkey · ${created.toLocaleDateString()}`
 }

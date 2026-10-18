@@ -1,4 +1,5 @@
 import { nip19 } from 'nostr-tools'
+import { intlLocale } from '@/lib/client/i18n/active-locale'
 
 /**
  * Encodes a hex pubkey to its full `npub1…` (NIP-19) form. Falls back to the
@@ -61,6 +62,9 @@ export function formatRelativeTime(
   const diffMs = now.getTime() - d.getTime()
   const diffSec = Math.floor(diffMs / 1000)
 
+  const locale = intlLocale()
+  if (locale) return relativeTime(locale, diffSec)
+
   if (diffSec < 60) return 'just now'
 
   const diffMin = Math.floor(diffSec / 60)
@@ -77,6 +81,23 @@ export function formatRelativeTime(
 
   const diffYears = Math.floor(diffDays / 365)
   return `${diffYears}y ago`
+}
+
+/** Non-English path of `formatRelativeTime`, same buckets via Intl. */
+function relativeTime(locale: string, diffSec: number): string {
+  const rtf = new Intl.RelativeTimeFormat(locale, {
+    numeric: 'auto',
+    style: 'narrow'
+  })
+  const min = Math.floor(diffSec / 60)
+  const hours = Math.floor(min / 60)
+  const days = Math.floor(hours / 24)
+  if (diffSec < 60) return rtf.format(0, 'second')
+  if (min < 60) return rtf.format(-min, 'minute')
+  if (hours < 24) return rtf.format(-hours, 'hour')
+  if (days < 30) return rtf.format(-days, 'day')
+  if (days < 365) return rtf.format(-Math.floor(days / 30), 'month')
+  return rtf.format(-Math.floor(days / 365), 'year')
 }
 
 /**
@@ -100,7 +121,7 @@ export function formatMsats(value: string): string {
 }
 
 /**
- * Absolute date+time in the viewer's locale. Accepts anything the platform
+ * Absolute date+time in the wallet's language (device locale otherwise). Accepts anything the platform
  * hands us — an ISO string, epoch millis, or a Date — and returns `fallback`
  * for a missing or unparseable value instead of rendering "Invalid Date".
  */
@@ -111,7 +132,7 @@ export function formatDateTime(
   if (value === null || value === undefined) return fallback
   const date = value instanceof Date ? value : new Date(value)
   if (Number.isNaN(date.getTime())) return fallback
-  return date.toLocaleString(undefined, {
+  return date.toLocaleString(intlLocale(), {
     dateStyle: 'medium',
     timeStyle: 'short'
   })

@@ -14,11 +14,12 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { NavTabbar } from '@/components/wallet/shared/nav-tabbar'
 import { SecretKeyReveal } from '@/components/shared/secret-key-reveal'
-import { useAuth, type LoginMethod } from '@/components/admin/auth-context'
+import { useAuth } from '@/components/admin/auth-context'
 import { PasskeysSection } from '@/components/wallet/settings/passkeys-section'
 import { ConnectedApps } from '@/components/oauth/connected-apps'
 import { hexToNsec } from '@/lib/nostr'
 import { toNpub, truncateNpub } from '@/lib/client/format'
+import { useT } from '@/lib/client/i18n'
 import { cn } from '@/lib/utils'
 
 const SIGNER_SECRET_KEY = 'lawallet-signer-secret'
@@ -36,29 +37,31 @@ export function SecurityScreen() {
     status
   } = useAuth()
   const [revealedSecret, setRevealedSecret] = useState<string | null>(null)
+  const t = useT()
+  const s = t.settings.securityScreen
 
   async function handleCopyPubkey() {
     if (!pubkey) return
     const npub = toNpub(pubkey)
     try {
       await copyText(npub)
-      toast.success('npub copied')
+      toast.success(s.npubCopied)
     } catch {
-      toast.error('Could not copy npub')
+      toast.error(s.copyFailed)
     }
   }
 
   async function handleVerifySigner() {
     try {
       await requestSigner()
-      toast.success('Signer ready')
+      toast.success(s.signerReady)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Signer unavailable')
+      toast.error(err instanceof Error ? err.message : s.signerUnavailable)
     }
   }
 
   function handleRemoveDevice() {
-    const confirmed = window.confirm('Remove this wallet from this device?')
+    const confirmed = window.confirm(s.removeConfirm)
     if (!confirmed) return
     logout()
     router.replace('/wallet/landing')
@@ -74,7 +77,7 @@ export function SecurityScreen() {
       // Storage blocked — same as nothing stored.
     }
     if (!stored) {
-      toast.error('No secret key is stored on this device')
+      toast.error(s.noSecret)
       return
     }
     setRevealedSecret(
@@ -91,50 +94,54 @@ export function SecurityScreen() {
           className="flex h-9 w-fit items-center gap-1.5 rounded-full bg-card px-3 text-sm font-medium text-foreground transition-colors hover:bg-accent"
         >
           <ChevronLeft className="size-4" />
-          Back
+          {t.common.back}
         </button>
         <h1 className="text-center text-base font-semibold text-foreground">
-          Security
+          {t.settings.security}
         </h1>
         <span aria-hidden />
       </header>
 
       <main className="flex flex-1 flex-col gap-6 px-4 pt-4">
-        <Section title="Account">
+        <Section title={t.settings.account}>
           <RowGroup>
             <InfoRow
               icon={<UserRound className="size-5" />}
-              label="Public key"
-              value={pubkey ? truncateNpub(pubkey) : 'Not signed in'}
+              label={s.publicKey}
+              value={pubkey ? truncateNpub(pubkey) : s.notSignedIn}
               onClick={pubkey ? () => void handleCopyPubkey() : undefined}
             />
             <InfoRow
-              label="Role"
-              value={role ? role.toLowerCase() : 'Unknown'}
+              label={s.role}
+              value={role ? (s.roles[role] ?? role.toLowerCase()) : s.unknown}
               valueClassName="capitalize"
             />
             <InfoRow
-              label="Login method"
-              value={loginMethodLabel(loginMethod)}
+              label={s.loginMethod}
+              value={
+                loginMethod && loginMethod in s.methods
+                  ? s.methods[loginMethod as keyof typeof s.methods]
+                  : s.unknown
+              }
             />
           </RowGroup>
         </Section>
 
-        <Section title="Session">
+        <Section title={s.session}>
           <RowGroup>
             <StatusRow
               icon={<ShieldCheck className="size-5" />}
-              label="Session"
+              label={s.session}
               active={status === 'authenticated' && Boolean(jwt)}
-              activeLabel="Active"
-              inactiveLabel="Locked"
+              activeLabel={s.active}
+              inactiveLabel={s.sessionLocked}
             />
             <StatusRow
               icon={<KeyRound className="size-5" />}
-              label="Signer"
+              label={s.signer}
               active={Boolean(signer)}
-              activeLabel="Unlocked"
-              inactiveLabel="Locked"
+              activeLabel={s.unlocked}
+              inactiveLabel={s.signerLocked}
             />
           </RowGroup>
           <Button
@@ -144,20 +151,20 @@ export function SecurityScreen() {
             onClick={() => void handleVerifySigner()}
           >
             <ShieldCheck data-icon="inline-start" />
-            Verify signer
+            {s.verifySigner}
           </Button>
         </Section>
 
-        <Section title="Passkeys">
+        <Section title={s.passkeys}>
           <PasskeysSection />
         </Section>
 
-        <Section title="Connected apps">
+        <Section title={s.connectedApps}>
           <ConnectedApps />
         </Section>
 
         {(loginMethod === 'nsec' || loginMethod === 'passkey') && (
-          <Section title="Secret key">
+          <Section title={s.secretKey}>
             {revealedSecret ? (
               <SecretKeyReveal nsec={revealedSecret} />
             ) : (
@@ -168,18 +175,16 @@ export function SecurityScreen() {
                 onClick={handleRevealSecret}
               >
                 <KeyRound data-icon="inline-start" />
-                Reveal secret key
+                {s.revealSecret}
               </Button>
             )}
             <p className="px-1 text-xs text-muted-foreground">
-              {loginMethod === 'passkey'
-                ? 'Your key is derived from your passkey and stored only on this device. Back it up to use this identity in other Nostr apps.'
-                : 'Your key is stored only on this device. Back it up to keep access if this device is lost.'}
+              {loginMethod === 'passkey' ? s.passkeyKeyHint : s.nsecKeyHint}
             </p>
           </Section>
         )}
 
-        <Section title="Device" className="mt-auto">
+        <Section title={s.device} className="mt-auto">
           <Button
             type="button"
             variant="destructive"
@@ -187,7 +192,7 @@ export function SecurityScreen() {
             onClick={handleRemoveDevice}
           >
             <LogOut data-icon="inline-start" />
-            Remove wallet from device
+            {s.removeDevice}
           </Button>
         </Section>
       </main>
@@ -231,6 +236,7 @@ function InfoRow({
   value: string
   valueClassName?: string
 }) {
+  const t = useT()
   const content = (
     <>
       <div className="flex min-w-0 items-center gap-3">
@@ -257,7 +263,7 @@ function InfoRow({
       <button
         type="button"
         onClick={onClick}
-        aria-label={`Copy ${label}`}
+        aria-label={t.settings.securityScreen.copyLabel(label)}
         className="flex min-h-14 w-full items-center justify-between gap-3 border-b border-border/40 px-4 text-left transition-colors hover:bg-accent/40 active:bg-accent/60 last:border-b-0"
       >
         {content}
@@ -300,21 +306,6 @@ function StatusRow({
       </Badge>
     </div>
   )
-}
-
-function loginMethodLabel(method: LoginMethod | null) {
-  switch (method) {
-    case 'bunker':
-      return 'Bunker'
-    case 'extension':
-      return 'Extension'
-    case 'nsec':
-      return 'Private key'
-    case 'passkey':
-      return 'Passkey'
-    default:
-      return 'Unknown'
-  }
 }
 
 async function copyText(value: string) {

@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { cn } from '@/lib/utils'
+import { useT } from '@/lib/client/i18n'
 
 interface SecretKeyRevealProps {
   /** The bech32 nsec (or any secret string) to reveal/copy. */
@@ -30,8 +31,9 @@ export function SecretKeyReveal({
   disabled,
   confirmed,
   onConfirmedChange,
-  confirmLabel = "I've saved my private key. I understand that if I lose it, I'll lose access to my account."
+  confirmLabel
 }: SecretKeyRevealProps) {
+  const t = useT()
   const [revealed, setRevealed] = useState(false)
   const [copied, setCopied] = useState(false)
 
@@ -39,10 +41,10 @@ export function SecretKeyReveal({
     try {
       await navigator.clipboard.writeText(nsec)
       setCopied(true)
-      toast.success('Private key copied')
+      toast.success(t.auth.keyCopied)
       setTimeout(() => setCopied(false), 2000)
     } catch {
-      toast.error('Copy failed — please reveal and write down the key')
+      toast.error(t.auth.keyCopyFailed)
     }
   }
 
@@ -61,7 +63,7 @@ export function SecretKeyReveal({
           <button
             type="button"
             onClick={() => setRevealed(v => !v)}
-            aria-label={revealed ? 'Hide private key' : 'Reveal private key'}
+            aria-label={revealed ? t.auth.hideKey : t.auth.revealKey}
             className="shrink-0 text-muted-foreground hover:text-foreground"
           >
             {revealed ? (
@@ -81,7 +83,7 @@ export function SecretKeyReveal({
         disabled={disabled}
       >
         {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
-        {copied ? 'Copied' : 'Copy private key'}
+        {copied ? t.common.copied : t.auth.copyKey}
       </Button>
 
       {onConfirmedChange && (
@@ -92,7 +94,9 @@ export function SecretKeyReveal({
             disabled={disabled}
             className="mt-0.5"
           />
-          <span className="leading-snug">{confirmLabel}</span>
+          <span className="leading-snug">
+            {confirmLabel ?? t.auth.savedKeyConfirm}
+          </span>
         </label>
       )}
     </div>

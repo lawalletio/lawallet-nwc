@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { ArrowUpRight, ArrowDownLeft } from 'lucide-react'
+import { useLocale, useT, type Dict } from '@/lib/client/i18n'
 import { cn } from '@/lib/utils'
 import type { NwcTransaction } from '@/lib/client/nwc/transactions'
 import { rememberActivityTx } from '@/lib/client/activity-detail-store'
@@ -13,10 +14,13 @@ interface TransactionRowProps {
 }
 
 export function TransactionRow({ tx, href, className }: TransactionRowProps) {
+  const t = useT()
+  const locale = useLocale()
   const incoming = tx.type === 'incoming'
   const Icon = incoming ? ArrowDownLeft : ArrowUpRight
   const timestamp = tx.settledAt ?? tx.createdAt
-  const title = tx.description || (incoming ? 'Received' : 'Sent')
+  const title =
+    tx.description || (incoming ? t.shared.tx.received : t.shared.tx.sent)
 
   function remember() {
     rememberActivityTx(tx)
@@ -45,7 +49,7 @@ export function TransactionRow({ tx, href, className }: TransactionRowProps) {
           {title}
         </span>
         <span className="text-xs text-muted-foreground">
-          {formatRelative(timestamp)}
+          {formatRelative(timestamp, t, locale)}
         </span>
       </div>
 
@@ -84,15 +88,16 @@ export function TransactionRow({ tx, href, className }: TransactionRowProps) {
   return <div className={classNames}>{body}</div>
 }
 
-function formatRelative(ms: number): string {
+function formatRelative(ms: number, t: Dict, locale: string): string {
+  const s = t.shared.tx
   const diff = Date.now() - ms
-  if (diff < 0) return 'Just now'
+  if (diff < 0) return s.justNow
   const minutes = Math.round(diff / 60_000)
-  if (minutes < 1) return 'Just now'
-  if (minutes < 60) return `${minutes}m ago`
+  if (minutes < 1) return s.justNow
+  if (minutes < 60) return s.minutesAgo(minutes)
   const hours = Math.round(minutes / 60)
-  if (hours < 24) return `${hours}h ago`
+  if (hours < 24) return s.hoursAgo(hours)
   const days = Math.round(hours / 24)
-  if (days < 7) return `${days}d ago`
-  return new Date(ms).toLocaleDateString()
+  if (days < 7) return s.daysAgo(days)
+  return new Date(ms).toLocaleDateString(locale)
 }

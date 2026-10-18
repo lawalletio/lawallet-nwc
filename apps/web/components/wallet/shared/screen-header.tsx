@@ -3,6 +3,7 @@
 import React from 'react'
 import { useRouter } from 'next/navigation'
 import { ChevronLeft, X } from 'lucide-react'
+import { useT } from '@/lib/client/i18n'
 import { cn } from '@/lib/utils'
 
 interface ScreenHeaderProps {
@@ -23,6 +24,7 @@ export function ScreenHeader({
   trailing,
   className
 }: ScreenHeaderProps) {
+  const t = useT()
   const router = useRouter()
   const Icon = closeStyle ? X : ChevronLeft
 
@@ -41,7 +43,7 @@ export function ScreenHeader({
       <button
         type="button"
         onClick={back}
-        aria-label="Go back"
+        aria-label={t.shared.goBack}
         className="flex size-10 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <Icon className="size-5" />

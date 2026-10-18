@@ -1,5 +1,6 @@
 import type React from 'react'
 import type { Metadata, Viewport } from 'next'
+import { I18nProvider } from '@/lib/client/i18n'
 
 export const metadata: Metadata = {
   title: 'Wallet - LaWallet',
@@ -21,15 +22,15 @@ export const viewport: Viewport = {
 }
 
 /**
- * Thin passthrough — the real layout for authenticated pages lives in
- * `(app)/layout.tsx`, and the public onboarding pages use `(auth)/layout.tsx`.
- * Keeping this file minimal means Next's route-group conventions pick the
- * right shell per branch.
+ * Thin passthrough plus the wallet's language — the real layout for
+ * authenticated pages lives in `(app)/layout.tsx`, and the public onboarding
+ * pages use `(auth)/layout.tsx`. Keeping this file minimal means Next's
+ * route-group conventions pick the right shell per branch.
  */
 export default function WalletLayout({
   children
 }: {
   children: React.ReactNode
 }) {
-  return children
+  return <I18nProvider>{children}</I18nProvider>
 }

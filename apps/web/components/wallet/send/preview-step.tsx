@@ -5,10 +5,7 @@ import { useRouter } from 'next/navigation'
 import { ArrowRight } from 'lucide-react'
 import { toast } from 'sonner'
 import { invalidateApiPath, useApi } from '@/lib/client/hooks/use-api'
-import {
-  resolveFreshUserNwc,
-  resolveUserNwc
-} from '@/lib/client/wallet-nwc'
+import { resolveFreshUserNwc, resolveUserNwc } from '@/lib/client/wallet-nwc'
 import { useAuth } from '@/components/admin/auth-context'
 import {
   useSendFlow,
@@ -41,6 +38,7 @@ import {
   type BtcRates
 } from '@/lib/client/use-yadio-ticker'
 import { cn } from '@/lib/utils'
+import { useT, type Dict } from '@/lib/client/i18n'
 
 interface UserMeResponse {
   effectiveNwcString: string | null
@@ -64,6 +62,7 @@ type CurrentQuoteState =
 
 export function SendPreviewStep() {
   const router = useRouter()
+  const t = useT()
   const flow = useSendFlow()
   const contacts = useContacts()
   const activeCurrencies = useActiveCurrencies()
@@ -99,9 +98,10 @@ export function SendPreviewStep() {
     () =>
       buildRecipientDetails(
         flow.recipient,
-        hydratedContactForRecipient ?? savedContact
+        hydratedContactForRecipient ?? savedContact,
+        t
       ),
-    [flow.recipient, hydratedContactForRecipient, savedContact]
+    [flow.recipient, hydratedContactForRecipient, savedContact, t]
   )
   const currentQuote = useMemo<CurrentQuoteState>(() => {
     if (!quoteKey || quoteState?.key !== quoteKey) {
@@ -168,7 +168,8 @@ export function SendPreviewStep() {
         if (!cancelled) setQuoteState({ key: quoteKey, status: 'ready', quote })
       },
       err => {
-        const message = err instanceof Error ? err.message : 'Quote failed'
+        const message =
+          err instanceof Error ? err.message : t.send.preview.quoteFailed
         if (!cancelled)
           setQuoteState({ key: quoteKey, status: 'error', message })
       }
@@ -177,7 +178,7 @@ export function SendPreviewStep() {
     return () => {
       cancelled = true
     }
-  }, [quoteKey, flow.recipient, flow.amountSats, flow.comment])
+  }, [quoteKey, flow.recipient, flow.amountSats, flow.comment, t])
 
   const typedNote = flow.comment.trim()
   const acceptedNote =
@@ -198,10 +199,10 @@ export function SendPreviewStep() {
   )
   const paymentButtonLabel =
     currentQuote.status === 'ready'
-      ? `Pay ${currentQuote.quote.amountSats.toLocaleString()} sats`
+      ? t.send.preview.pay(currentQuote.quote.amountSats.toLocaleString())
       : currentQuote.status === 'error'
-        ? 'Quote unavailable'
-        : 'Quoting payment...'
+        ? t.send.preview.quoteUnavailable
+        : t.send.preview.quotingPayment
 
   async function confirm() {
     if (paying) return
@@ -209,7 +210,7 @@ export function SendPreviewStep() {
       toast.error(
         currentQuote.status === 'error'
           ? currentQuote.message
-          : 'Preparing payment quote'
+          : t.send.preview.preparingQuote
       )
       return
     }
@@ -221,7 +222,7 @@ export function SendPreviewStep() {
       )
       invalidateApiPath('/api/users/me')
       if (!nwc) {
-        toast.error('No wallet connected')
+        toast.error(t.send.preview.noWallet)
         setPaying(false)
         return
       }
@@ -238,7 +239,8 @@ export function SendPreviewStep() {
       })
       router.replace('/wallet/send/summary')
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Payment failed'
+      const message =
+        err instanceof Error ? err.message : t.send.preview.paymentFailed
       sendActions.setError(message)
       toast.error(message)
       setPaying(false)
@@ -262,7 +264,7 @@ export function SendPreviewStep() {
 
           <div className="flex flex-col items-center gap-2 px-5 pb-7 pt-6 text-center">
             <span className="text-xs font-medium uppercase tracking-[0.22em] text-muted-foreground">
-              Sending
+              {t.send.preview.sending}
             </span>
             <div className="flex items-baseline gap-2 tabular-nums">
               <span className="text-6xl font-semibold leading-none text-foreground">
@@ -292,7 +294,7 @@ export function SendPreviewStep() {
 
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                    To
+                    {t.send.to}
                   </p>
                   <p className="truncate text-xl font-semibold text-foreground">
                     {recipientDetails.displayName}
@@ -305,8 +307,8 @@ export function SendPreviewStep() {
 
               <div className="mt-4 rounded-2xl border border-border/70 bg-card/70 p-3">
                 <DetailRow
-                  label="Type"
-                  value={labelForKind(flow.recipient.destination.kind)}
+                  label={t.send.preview.type}
+                  value={labelForKind(flow.recipient.destination.kind, t)}
                 />
                 <PaymentNote comment={acceptedNote} omitted={noteOmitted} />
               </div>
@@ -323,11 +325,11 @@ export function SendPreviewStep() {
 
         {!recipientDetails && (
           <div className="rounded-2xl border border-border bg-card p-4">
-            <DetailRow label="To" value={recipientLabel} />
+            <DetailRow label={t.send.to} value={recipientLabel} />
             <div className="my-3 border-t border-border/60" />
             <DetailRow
-              label="Type"
-              value={labelForKind(flow.recipient.destination.kind)}
+              label={t.send.preview.type}
+              value={labelForKind(flow.recipient.destination.kind, t)}
             />
             <PaymentNote comment={acceptedNote} omitted={noteOmitted} />
           </div>
@@ -343,11 +345,11 @@ export function SendPreviewStep() {
           className="sm:hidden"
           label={
             currentQuote.status === 'loading'
-              ? 'Quoting payment...'
-              : 'Swipe to pay'
+              ? t.send.preview.quotingPayment
+              : t.send.preview.swipeToPay
           }
-          activeLabel="Release to confirm"
-          loadingLabel="Paying..."
+          activeLabel={t.send.preview.releaseToConfirm}
+          loadingLabel={t.send.preview.paying}
           onConfirm={confirm}
           disabled={!canPay}
         />
@@ -378,7 +380,7 @@ export function SendPreviewStep() {
             )}
           >
             <Spinner size={16} />
-            Paying...
+            {t.send.preview.paying}
           </span>
         </Button>
       </div>
@@ -397,53 +399,56 @@ function PaymentQuotePanel({
   rates: BtcRates | null
   state: CurrentQuoteState
 }) {
+  const t = useT()
   const quotedAmount =
     state.status === 'ready' ? state.quote.amountSats : amountSats
   const feeSats = state.status === 'ready' ? state.quote.feeSats : null
   const totalSats = quotedAmount + (feeSats ?? 0)
   const feeText =
     state.status === 'loading'
-      ? 'Quoting...'
+      ? t.send.preview.feeQuoting
       : state.status === 'error'
-        ? 'Unavailable'
+        ? t.send.preview.feeUnavailable
         : feeSats === null
-          ? 'Not quoted by wallet'
-          : `${feeSats.toLocaleString()} sats`
+          ? t.send.preview.feeNotQuoted
+          : t.common.sats(feeSats.toLocaleString())
   const totalText =
     state.status === 'ready' && feeSats !== null
-      ? `${totalSats.toLocaleString()} sats`
-      : `${quotedAmount.toLocaleString()} sats + fee`
+      ? t.common.sats(totalSats.toLocaleString())
+      : t.send.preview.plusFee(quotedAmount.toLocaleString())
 
   return (
     <section className="rounded-3xl border border-border/80 bg-card/85 p-4 shadow-sm">
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
-            Quote
+            {t.send.preview.quote}
           </p>
-          <p className="text-sm font-medium text-foreground">Before sending</p>
+          <p className="text-sm font-medium text-foreground">
+            {t.send.preview.beforeSending}
+          </p>
         </div>
         <QuoteStatus state={state} />
       </div>
 
       <div className="mt-4 rounded-2xl border border-border/70 bg-background/35 p-3">
         <QuoteLine
-          label="Amount"
-          value={`${quotedAmount.toLocaleString()} sats`}
+          label={t.send.preview.amount}
+          value={t.common.sats(quotedAmount.toLocaleString())}
         />
         <div className="my-3 border-t border-border/60" />
         <QuoteLine
-          label="Network fee"
+          label={t.send.networkFee}
           value={feeText}
           muted={feeSats === null}
         />
         <div className="my-3 border-t border-border/60" />
-        <QuoteLine label="Total" value={totalText} strong />
+        <QuoteLine label={t.send.preview.total} value={totalText} strong />
       </div>
 
       {state.status === 'ready' && state.quote.feeSats === null && (
         <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-          {state.quote.feeQuoteMessage}
+          {t.send.preview.feeQuoteUnavailable}
         </p>
       )}
       {state.status === 'error' && (
@@ -454,7 +459,7 @@ function PaymentQuotePanel({
 
       <div className="mt-4">
         <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
-          Equivalents
+          {t.send.preview.equivalents}
         </p>
         <div className="mt-2 grid grid-cols-3 gap-2">
           {currencies.map(currency => (
@@ -477,11 +482,12 @@ function PaymentQuotePanel({
 }
 
 function QuoteStatus({ state }: { state: CurrentQuoteState }) {
+  const t = useT()
   if (state.status === 'loading') {
     return (
       <span className="inline-flex items-center gap-2 rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-muted-foreground">
         <Spinner size={12} />
-        Quoting
+        {t.send.preview.statusQuoting}
       </span>
     )
   }
@@ -489,14 +495,14 @@ function QuoteStatus({ state }: { state: CurrentQuoteState }) {
   if (state.status === 'error') {
     return (
       <span className="rounded-full bg-destructive/15 px-3 py-1 text-xs font-semibold text-destructive">
-        Failed
+        {t.send.preview.statusFailed}
       </span>
     )
   }
 
   return (
     <span className="rounded-full border border-[var(--theme-300)] bg-[var(--theme-400)]/20 px-3 py-1 text-xs font-semibold text-foreground">
-      Ready
+      {t.send.preview.statusReady}
     </span>
   )
 }
@@ -535,16 +541,16 @@ function PaymentNote({
   comment: string | null
   omitted: boolean
 }) {
+  const t = useT()
   if (!comment && !omitted) return null
   return (
     <>
       <div className="my-3 border-t border-border/60" />
       {comment ? (
-        <DetailRow label="Note" value={comment} />
+        <DetailRow label={t.send.note} value={comment} />
       ) : (
         <p className="text-xs leading-relaxed text-muted-foreground">
-          The recipient did not accept the note. This payment will be sent
-          without it.
+          {t.send.preview.noteOmitted}
         </p>
       )}
     </>
@@ -587,7 +593,8 @@ function trimFixed(value: number, digits: number): string {
 
 function buildRecipientDetails(
   recipient: ResolvedRecipient | null,
-  contact: Contact | null
+  contact: Contact | null,
+  t: Dict
 ): RecipientPreviewDetails | null {
   if (!recipient) return null
   const address = getLightningAddress(recipient)
@@ -602,7 +609,7 @@ function buildRecipientDetails(
 
   return {
     displayName,
-    subtitle: address ?? labelForRecipient(recipient),
+    subtitle: address ?? labelForRecipient(recipient, t),
     avatarUrl: contact?.avatarUrl ?? recipient.profile?.image ?? fallbackAvatar
   }
 }
@@ -641,14 +648,14 @@ function firstUseful(...values: Array<string | null | undefined>): string {
   return values.find(value => value?.trim())?.trim() ?? ''
 }
 
-function labelForRecipient(recipient: ResolvedRecipient): string {
+function labelForRecipient(recipient: ResolvedRecipient, t: Dict): string {
   switch (recipient.destination.kind) {
     case 'invoice':
-      return 'Lightning invoice'
+      return t.send.kind.invoice
     case 'lnurl-pay':
-      return 'Lightning address'
+      return t.send.kind.address
     case 'npub':
-      return 'Nostr profile'
+      return t.send.kind.nostrProfile
     default:
       return recipient.raw
   }
@@ -664,14 +671,14 @@ function initialsFor(source: string): string {
   return `${first}${second ?? ''}`.toUpperCase()
 }
 
-function labelForKind(kind: string): string {
+function labelForKind(kind: string, t: Dict): string {
   switch (kind) {
     case 'invoice':
-      return 'Lightning invoice'
+      return t.send.kind.invoice
     case 'lnurl-pay':
-      return 'Lightning address'
+      return t.send.kind.address
     case 'npub':
-      return 'Nostr zap'
+      return t.send.kind.nostrZap
     default:
       return kind
   }

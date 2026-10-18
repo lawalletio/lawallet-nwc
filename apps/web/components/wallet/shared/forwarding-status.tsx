@@ -4,6 +4,7 @@ import { AlertTriangle, CheckCircle2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
 import { humanizeStatus } from '@/lib/client/format'
+import { useT } from '@/lib/client/i18n'
 import { cn } from '@/lib/utils'
 
 type Tone = 'positive' | 'negative' | 'pending' | 'neutral'
@@ -47,7 +48,10 @@ export function ForwardingStatusBadge({
   status: string
   className?: string
 }) {
+  const t = useT()
   const tone = forwardingStatusTone(status)
+  const statuses: Record<string, string | undefined> =
+    t.shared.forwarding.statuses
   return (
     <Badge
       variant={tone === 'negative' ? 'destructive' : 'outline'}
@@ -60,7 +64,7 @@ export function ForwardingStatusBadge({
       )}
     >
       {tone === 'positive' ? <CheckCircle2 data-icon="inline-start" /> : null}
-      {humanizeStatus(status)}
+      {statuses[status.toUpperCase()] ?? humanizeStatus(status)}
     </Badge>
   )
 }
@@ -68,18 +72,19 @@ export function ForwardingStatusBadge({
 export function ForwardingStatusIcon({
   status,
   size = 10,
-  busyLabel = 'Payment forwarding in progress'
+  busyLabel
 }: {
   status: string
   size?: 8 | 10
   busyLabel?: string
 }) {
+  const t = useT()
   const tone = forwardingStatusTone(status)
   const busy = tone === 'pending'
   return (
     <span
       role={busy ? 'status' : undefined}
-      aria-label={busy ? busyLabel : undefined}
+      aria-label={busy ? (busyLabel ?? t.shared.forwarding.busy) : undefined}
       className={cn(
         'flex shrink-0 items-center justify-center rounded-full',
         size === 8 ? 'size-8' : 'size-10',

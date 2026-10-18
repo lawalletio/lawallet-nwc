@@ -3,6 +3,7 @@
 import { WifiOff } from 'lucide-react'
 import { Spinner } from '@/components/ui/spinner'
 import { useNwcBalance } from '@/lib/client/use-nwc-balance'
+import { useT } from '@/lib/client/i18n'
 import { cn } from '@/lib/utils'
 
 /**
@@ -18,6 +19,7 @@ export function WalletBalanceInline({
   connectionString: string | null
   className?: string
 }) {
+  const t = useT()
   const balance = useNwcBalance(connectionString)
   if (!connectionString) return null
 
@@ -38,10 +40,10 @@ export function WalletBalanceInline({
       ) : balance.error ? (
         <>
           <WifiOff className="size-3" aria-hidden />
-          Unavailable
+          {t.shared.balance.unavailable}
         </>
       ) : (
-        <Spinner size={12} aria-label="Loading balance" />
+        <Spinner size={12} aria-label={t.shared.balance.loading} />
       )}
     </span>
   )

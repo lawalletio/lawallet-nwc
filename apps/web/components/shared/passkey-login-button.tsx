@@ -13,6 +13,7 @@ import {
   registerPasskeyAccount,
   translatePasskeyError
 } from '@/lib/client/passkey-api'
+import { useT } from '@/lib/client/i18n'
 
 interface PasskeyLoginButtonProps {
   /**
@@ -62,6 +63,7 @@ export function PasskeyLoginButton({
   surfaceCancel = false,
   duplicateMessage
 }: PasskeyLoginButtonProps) {
+  const t = useT()
   const { login } = useAuth()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -72,7 +74,9 @@ export function PasskeyLoginButton({
 
   const buttonLabel =
     label ??
-    (mode === 'register' ? 'Create with a passkey' : 'Continue with passkey')
+    (mode === 'register'
+      ? t.auth.createWithPasskey
+      : t.auth.continueWithPasskey)
 
   async function handleClick() {
     setError(null)
@@ -90,14 +94,19 @@ export function PasskeyLoginButton({
       onSuccess?.()
     } catch (err) {
       const passkeyError = translatePasskeyError(err)
-      if (passkeyError.kind === 'cancelled') {
-        if (surfaceCancel) setError(passkeyError.message)
+      const { kind } = passkeyError
+      // Fixed-copy kinds are localized; `security`/`unknown` keep the raw
+      // (dev-facing or server) message.
+      const localized =
+        kind in t.auth.passkeyErrors
+          ? t.auth.passkeyErrors[kind as keyof typeof t.auth.passkeyErrors]
+          : passkeyError.message
+      if (kind === 'cancelled') {
+        if (surfaceCancel) setError(localized)
         return
       }
       const message =
-        passkeyError.kind === 'duplicate' && duplicateMessage
-          ? duplicateMessage
-          : passkeyError.message
+        kind === 'duplicate' && duplicateMessage ? duplicateMessage : localized
       setError(message)
       toast.error(message)
     } finally {
@@ -115,13 +124,12 @@ export function PasskeyLoginButton({
         disabled={busy || disabled}
       >
         {busy ? <Spinner size={16} /> : <Fingerprint className="size-4" />}
-        {busy ? 'Waiting for your device…' : buttonLabel}
+        {busy ? t.auth.waitingForDevice : buttonLabel}
       </Button>
       {error && <p className="text-xs text-destructive">{error}</p>}
       {showCrossDeviceHint && (
         <p className="text-xs text-muted-foreground">
-          No passkey on this device? Choose &ldquo;use a phone or tablet&rdquo;
-          when prompted and scan the QR with the device that has one.
+          {t.auth.crossDeviceHint}
         </p>
       )}
     </div>

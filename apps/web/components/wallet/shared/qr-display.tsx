@@ -6,6 +6,7 @@ import { Copy, Check, Share2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useT } from '@/lib/client/i18n'
 import { cn } from '@/lib/utils'
 
 // The QR renderer (qrcode.react) is code-split so it never lands in the shared
@@ -48,6 +49,7 @@ export function QrDisplay({
   centerImageSize,
   overlay
 }: QrDisplayProps) {
+  const t = useT()
   const [copied, setCopied] = useState(false)
   const encoded = uppercasePayload ? value.toUpperCase() : value
   const overlaySize = centerImageSize ?? Math.round(size * 0.22)
@@ -64,10 +66,10 @@ export function QrDisplay({
     try {
       await navigator.clipboard.writeText(value)
       setCopied(true)
-      toast.success('Copied')
+      toast.success(t.common.copied)
       setTimeout(() => setCopied(false), 1500)
     } catch {
-      toast.error('Copy failed')
+      toast.error(t.shared.qr.copyFailed)
     }
   }
 
@@ -129,7 +131,7 @@ export function QrDisplay({
           className="flex-1"
         >
           {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
-          {copied ? 'Copied' : 'Copy'}
+          {copied ? t.common.copied : t.common.copy}
         </Button>
         {canShare && (
           <Button
@@ -139,7 +141,7 @@ export function QrDisplay({
             className="flex-1"
           >
             <Share2 className="size-4" />
-            Share
+            {t.common.share}
           </Button>
         )}
       </div>

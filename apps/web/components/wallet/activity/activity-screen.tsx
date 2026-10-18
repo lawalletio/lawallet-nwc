@@ -15,6 +15,7 @@ import {
   activityDetailHref,
   demoActivityTransactions
 } from '@/lib/client/activity-detail'
+import { useLocale, useT, type Dict } from '@/lib/client/i18n'
 import { cn } from '@/lib/utils'
 
 const PAGE_SIZE = 25
@@ -25,6 +26,8 @@ interface UserMeResponse {
 }
 
 export function ActivityScreen() {
+  const t = useT()
+  const locale = useLocale()
   const { data: me } = useApi<UserMeResponse>('/api/users/me')
   const nwcString = resolveUserNwc(me)
 
@@ -88,9 +91,7 @@ export function ActivityScreen() {
       })
       .catch(err => {
         if (cancelled || id !== fetchIdRef.current) return
-        setError(
-          err instanceof Error ? err : new Error('Failed to load activity')
-        )
+        setError(err instanceof Error ? err : new Error(t.activity.loadFailed))
         // If we don't have a cached fallback, mark hasMore false so the
         // sentinel doesn't keep retrying. With cache, leave it true so a
         // network recovery can resume.
@@ -142,7 +143,9 @@ export function ActivityScreen() {
       upsertMany(nwcCacheKey(nwcString), next)
     } catch (err) {
       if (id !== fetchIdRef.current) return
-      setError(err instanceof Error ? err : new Error('Failed to load more'))
+      setError(
+        err instanceof Error ? err : new Error(t.activity.loadMoreFailed)
+      )
       setHasMore(false)
     } finally {
       if (id === fetchIdRef.current) {
@@ -150,7 +153,7 @@ export function ActivityScreen() {
       }
       fetchingRef.current = false
     }
-  }, [nwcString, hasMore, transactions])
+  }, [nwcString, hasMore, transactions, t])
 
   const [previewTxs, setPreviewTxs] = useState<NwcTransaction[]>([])
   useEffect(() => {
@@ -165,16 +168,16 @@ export function ActivityScreen() {
     [transactions, tab]
   )
   const rows = previewTxs.length > 0 ? previewTxs : filtered
-  const groups = useMemo(() => groupByDay(rows), [rows])
+  const groups = useMemo(() => groupByDay(rows, t, locale), [rows, t, locale])
 
   return (
     <div className="flex flex-1 flex-col pb-32">
-      <ScreenHeader title="Activity" />
+      <ScreenHeader title={t.activity.title} />
 
       <main className="flex flex-1 flex-col gap-4 px-4 pt-2">
         <div className="flex w-fit gap-1 rounded-full bg-card p-1">
           <Tab active={tab === 'all'} onClick={() => setTab('all')}>
-            All
+            {t.activity.all}
           </Tab>
           <button
             type="button"
@@ -182,7 +185,7 @@ export function ActivityScreen() {
             aria-disabled
             className="cursor-not-allowed rounded-full px-3 py-1 text-xs font-medium text-muted-foreground/50"
           >
-            Transfers
+            {t.activity.transfers}
           </button>
         </div>
 
@@ -244,11 +247,12 @@ function Body({
   groups: { label: string; items: NwcTransaction[] }[]
   onLoadMore: () => void
 }) {
+  const t = useT()
   if (!nwcString && groups.length === 0) {
     return (
       <div className="flex flex-1 items-center justify-center px-6 text-center">
         <p className="text-sm text-muted-foreground">
-          Connect a wallet to see your transaction history.
+          {t.activity.connectWallet}
         </p>
       </div>
     )
@@ -257,7 +261,7 @@ function Body({
     return (
       <div className="flex flex-1 items-center justify-center gap-2 text-sm text-muted-foreground">
         <Spinner size={16} />
-        Loading activity…
+        {t.activity.loading}
       </div>
     )
   }
@@ -271,7 +275,7 @@ function Body({
   if (groups.length === 0) {
     return (
       <div className="flex flex-1 items-center justify-center px-6 text-center">
-        <p className="text-sm text-muted-foreground">No activity yet.</p>
+        <p className="text-sm text-muted-foreground">{t.activity.empty}</p>
       </div>
     )
   }
@@ -308,7 +312,7 @@ function Body({
       )}
       {!hasMore && groups.length > 0 && (
         <p className="py-4 text-center text-xs text-muted-foreground">
-          You’ve reached the end.
+          {t.activity.end}
         </p>
       )}
       {error && groups.length > 0 && (
@@ -333,6 +337,7 @@ function InfiniteSentinel({
   onIntersect: () => void
   loading: boolean
 }) {
+  const t = useT()
   const ref = useRef<HTMLDivElement>(null)
   const onIntersectRef = useRef(onIntersect)
   useEffect(() => {
@@ -362,10 +367,10 @@ function InfiniteSentinel({
       {loading ? (
         <span className="inline-flex items-center gap-2">
           <Spinner size={16} />
-          Loading more…
+          {t.activity.loadingMore}
         </span>
       ) : (
-        <span className="opacity-0">Load more</span>
+        <span className="opacity-0">{t.activity.loadMore}</span>
       )}
     </div>
   )
@@ -396,12 +401,12 @@ function mergeNewerFirst(
  * preserving the input order (which `listTransactions` returns most-recent-
  * first). Empty buckets are dropped.
  */
-function groupByDay(transactions: NwcTransaction[]) {
+function groupByDay(transactions: NwcTransaction[], t: Dict, locale: string) {
   const out: { label: string; items: NwcTransaction[] }[] = []
   let currentLabel: string | null = null
   for (const tx of transactions) {
     const ts = tx.settledAt ?? tx.createdAt
-    const label = labelForTimestamp(ts)
+    const label = labelForTimestamp(ts, t, locale)
     if (label !== currentLabel) {
       out.push({ label, items: [] })
       currentLabel = label
@@ -411,18 +416,18 @@ function groupByDay(transactions: NwcTransaction[]) {
   return out
 }
 
-function labelForTimestamp(ms: number): string {
+function labelForTimestamp(ms: number, t: Dict, locale: string): string {
   const d = new Date(ms)
   const today = new Date()
   const yesterday = new Date()
   yesterday.setDate(today.getDate() - 1)
-  if (sameDay(d, today)) return 'Today'
-  if (sameDay(d, yesterday)) return 'Yesterday'
+  if (sameDay(d, today)) return t.activity.today
+  if (sameDay(d, yesterday)) return t.activity.yesterday
   const diffMs = today.getTime() - d.getTime()
   if (diffMs < 7 * 24 * 60 * 60 * 1000) {
-    return d.toLocaleDateString(undefined, { weekday: 'long' })
+    return d.toLocaleDateString(locale, { weekday: 'long' })
   }
-  return d.toLocaleDateString(undefined, {
+  return d.toLocaleDateString(locale, {
     day: 'numeric',
     month: 'short',
     year: d.getFullYear() === today.getFullYear() ? undefined : 'numeric'

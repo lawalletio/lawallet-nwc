@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { NostrConnectForm } from '@/components/shared/nostr-connect-form'
 import { ScreenHeader } from '@/components/wallet/shared/screen-header'
+import { useT } from '@/lib/client/i18n'
 
 /**
  * The Nostr sign-in methods, split out of the login screen so `/wallet/login`
@@ -14,6 +15,7 @@ import { ScreenHeader } from '@/components/wallet/shared/screen-header'
  */
 export function NostrLoginMethods() {
   const router = useRouter()
+  const t = useT().onboarding.nostr
 
   return (
     <div className="flex flex-1 flex-col">
@@ -21,17 +23,15 @@ export function NostrLoginMethods() {
 
       <div className="flex flex-1 flex-col gap-8 pb-8 pt-2">
         <div className="space-y-2">
-          <h1 className="text-2xl font-semibold text-foreground">
-            Continue with Nostr
-          </h1>
+          <h1 className="text-2xl font-semibold text-foreground">{t.title}</h1>
           <p className="text-sm leading-relaxed text-muted-foreground">
-            Choose how you want to connect your Nostr key.
+            {t.subtitle}
           </p>
         </div>
 
         <NostrConnectForm
-          submitLabel="Login"
-          loadingLabel="Signing in..."
+          submitLabel={t.submit}
+          loadingLabel={t.loading}
           onSuccess={() => router.replace('/wallet')}
         />
       </div>

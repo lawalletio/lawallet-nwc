@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useT } from '@/lib/client/i18n'
 
 /**
  * Page stack for the server's opaque cursors. The API returns one page plus a
@@ -70,13 +71,15 @@ export function CursorPagination({
   onPrevious: () => void
   onNext: () => void
 }) {
+  const t = useT()
+  const p = t.shared.pagination
   if (page === 1 && !hasNext) return null
   return (
     <div
       className="flex flex-wrap items-center justify-between gap-3 border-t px-5 py-3"
-      aria-label={`${label} pagination`}
+      aria-label={p.label(label)}
     >
-      <span className="text-xs text-muted-foreground">Page {page}</span>
+      <span className="text-xs text-muted-foreground">{p.page(page)}</span>
       <div className="flex gap-2">
         <Button
           type="button"
@@ -84,10 +87,10 @@ export function CursorPagination({
           size="sm"
           disabled={page === 1 || loading}
           onClick={onPrevious}
-          aria-label={`Previous ${label} page`}
+          aria-label={p.previousPage(label)}
         >
           <ChevronLeft data-icon="inline-start" />
-          Previous
+          {p.previous}
         </Button>
         <Button
           type="button"
@@ -95,9 +98,9 @@ export function CursorPagination({
           size="sm"
           disabled={!hasNext || loading}
           onClick={onNext}
-          aria-label={`Next ${label} page`}
+          aria-label={p.nextPage(label)}
         >
-          Next
+          {p.next}
           <ChevronRight data-icon="inline-end" />
         </Button>
       </div>

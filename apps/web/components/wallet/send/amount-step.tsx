@@ -24,6 +24,7 @@ import {
 import { getDomainAvatarUrl } from '@/lib/client/lightning-address-suggestions'
 import { trackEvent } from '@/lib/analytics/gtag'
 import { AnalyticsEvent } from '@/lib/analytics/events'
+import { useT, type Dict } from '@/lib/client/i18n'
 
 interface RecipientDetails {
   displayName: string
@@ -39,6 +40,7 @@ interface LightweightProfile {
 
 export function SendAmountStep() {
   const router = useRouter()
+  const t = useT()
   const flow = useSendFlow()
   const contacts = useContacts()
   const {
@@ -68,8 +70,8 @@ export function SendAmountStep() {
   }, [contacts, flow.recipient])
 
   const baseDetails = useMemo(
-    () => buildRecipientDetails(flow.recipient, savedContact),
-    [flow.recipient, savedContact]
+    () => buildRecipientDetails(flow.recipient, savedContact, t),
+    [flow.recipient, savedContact, t]
   )
   const recipientAddress = getLightningAddress(flow.recipient)
   const lnurlpUrl =
@@ -161,7 +163,9 @@ export function SendAmountStep() {
   useEffect(() => {
     if (!commentAllowed) return
     setNote(current =>
-      current.length > commentAllowed ? current.slice(0, commentAllowed) : current
+      current.length > commentAllowed
+        ? current.slice(0, commentAllowed)
+        : current
     )
   }, [commentAllowed])
 
@@ -227,7 +231,7 @@ export function SendAmountStep() {
           disabled={canonicalAmount === null}
           className="h-12 w-full"
         >
-          Continue
+          {t.common.continue}
           <ArrowRight className="size-4" />
         </Button>
       </div>
@@ -247,6 +251,7 @@ function PayerNoteField({
   maxLength: number | null
   onChange: (value: string) => void
 }) {
+  const t = useT()
   const budget = maxLength !== null && maxLength > 0 ? maxLength : null
   const remaining = budget === null ? null : budget - value.length
   const atLimit = remaining === 0
@@ -258,8 +263,8 @@ function PayerNoteField({
         id="send-payer-note"
         value={value}
         maxLength={budget ?? undefined}
-        placeholder="Add a note (optional)"
-        aria-label="Note for recipient"
+        placeholder={t.send.amount.notePlaceholder}
+        aria-label={t.send.amount.noteAria}
         aria-describedby={
           budget === null
             ? 'send-payer-note-hint'
@@ -269,28 +274,29 @@ function PayerNoteField({
         autoCapitalize="sentences"
         spellCheck
         onChange={event =>
-          onChange(budget === null ? event.target.value : event.target.value.slice(0, budget))
+          onChange(
+            budget === null
+              ? event.target.value
+              : event.target.value.slice(0, budget)
+          )
         }
         className="h-11"
       />
       <div className="flex items-baseline justify-between gap-3 px-0.5">
-        <p
-          id="send-payer-note-hint"
-          className="text-xs text-muted-foreground"
-        >
-          The recipient will see this.
+        <p id="send-payer-note-hint" className="text-xs text-muted-foreground">
+          {t.send.amount.noteHint}
         </p>
         {remaining !== null && (
           <p
             id="send-payer-note-count"
             className={cn(
               'shrink-0 text-xs tabular-nums',
-              atLimit
-                ? 'font-medium text-foreground'
-                : 'text-muted-foreground'
+              atLimit ? 'font-medium text-foreground' : 'text-muted-foreground'
             )}
           >
-            {value.length === 0 ? `${budget} max` : `${remaining} left`}
+            {value.length === 0
+              ? t.send.amount.noteMax(budget ?? 0)
+              : t.send.amount.noteLeft(remaining)}
           </p>
         )}
       </div>
@@ -299,6 +305,7 @@ function PayerNoteField({
 }
 
 function RecipientPreview({ details }: { details: RecipientDetails }) {
+  const t = useT()
   return (
     <section className="rounded-3xl border border-border/70 bg-card/80 p-3 shadow-sm">
       <div className="flex items-center gap-3">
@@ -315,7 +322,7 @@ function RecipientPreview({ details }: { details: RecipientDetails }) {
 
         <div className="min-w-0 flex-1">
           <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
-            To
+            {t.send.to}
           </p>
           <p className="truncate text-base font-semibold text-foreground">
             {details.displayName}
@@ -331,7 +338,8 @@ function RecipientPreview({ details }: { details: RecipientDetails }) {
 
 function buildRecipientDetails(
   recipient: ResolvedRecipient | null,
-  savedContact: Contact | null
+  savedContact: Contact | null,
+  t: Dict
 ): RecipientDetails | null {
   if (!recipient) return null
   const address = getLightningAddress(recipient)
@@ -346,7 +354,7 @@ function buildRecipientDetails(
 
   return {
     displayName,
-    subtitle: address ?? labelForRecipient(recipient),
+    subtitle: address ?? labelForRecipient(recipient, t),
     avatarUrl:
       savedContact?.avatarUrl ?? recipient.profile?.image ?? fallbackAvatar,
     loading: Boolean(
@@ -418,14 +426,14 @@ function firstUseful(...values: Array<string | null | undefined>): string {
   return values.find(value => value?.trim())?.trim() ?? ''
 }
 
-function labelForRecipient(recipient: ResolvedRecipient): string {
+function labelForRecipient(recipient: ResolvedRecipient, t: Dict): string {
   switch (recipient.destination.kind) {
     case 'invoice':
-      return 'Lightning invoice'
+      return t.send.kind.invoice
     case 'lnurl-pay':
-      return 'Lightning address'
+      return t.send.kind.address
     case 'npub':
-      return 'Nostr profile'
+      return t.send.kind.nostrProfile
     default:
       return recipient.raw
   }

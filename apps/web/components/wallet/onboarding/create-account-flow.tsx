@@ -11,6 +11,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { useAuth } from '@/components/admin/auth-context'
 import { createNsecSigner } from '@/lib/client/nostr-signer'
 import { SecretKeyReveal } from '@/components/shared/secret-key-reveal'
+import { useT } from '@/lib/client/i18n'
 
 /**
  * Two-step create-account flow:
@@ -24,6 +25,8 @@ import { SecretKeyReveal } from '@/components/shared/secret-key-reveal'
 export function CreateAccountFlow() {
   const router = useRouter()
   const { login } = useAuth()
+  const t = useT()
+  const tc = t.onboarding.createAccount
 
   const { nsec, hex } = useMemo(() => {
     const secretKey = generateSecretKey()
@@ -46,8 +49,7 @@ export function CreateAccountFlow() {
       await login(signer, 'nsec', { secret: nsec })
       router.replace('/wallet/welcome')
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : 'Failed to create account'
+      const message = err instanceof Error ? err.message : tc.failed
       setError(message)
       toast.error(message)
     } finally {
@@ -59,13 +61,8 @@ export function CreateAccountFlow() {
     <div className="flex flex-1 flex-col justify-between py-6">
       <div className="space-y-6">
         <div className="space-y-2">
-          <h1 className="text-2xl font-semibold text-foreground">
-            Create Account
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            We generated a private key for your new wallet. Save it somewhere
-            safe — losing it means losing access to your account.
-          </p>
+          <h1 className="text-2xl font-semibold text-foreground">{tc.title}</h1>
+          <p className="text-sm text-muted-foreground">{tc.subtitle}</p>
         </div>
 
         <SecretKeyReveal
@@ -73,6 +70,7 @@ export function CreateAccountFlow() {
           disabled={loading}
           confirmed={confirmed}
           onConfirmedChange={setConfirmed}
+          confirmLabel={tc.confirmLabel}
         />
 
         {error && <p className="text-xs text-destructive">{error}</p>}
@@ -88,10 +86,10 @@ export function CreateAccountFlow() {
           {loading ? (
             <>
               <Spinner size={16} />
-              Creating account...
+              {tc.creating}
             </>
           ) : (
-            'Continue'
+            t.common.continue
           )}
         </Button>
       </div>

@@ -68,6 +68,12 @@ Migrations run against the per-checkout DB from `.env.local`
   dispatcher. Event names + permission gating: `lib/events/event-types.ts` +
   `EVENT_PERMISSION_MAP` (a total Record — adding an event type without a map
   entry is a compile error).
+- i18n (`/wallet` only; admin stays English): never hard-code wallet copy —
+  `const t = useT()` from `lib/client/i18n`, then `t.<namespace>.<key>`.
+  Add the key to `lib/client/i18n/en/<ns>.ts` AND `es/<ns>.ts` (typed
+  against `en`, so a missing translation is a compile error); interpolation
+  is a function value. English is bundled; other locales are lazy chunks.
+  New locale = `LOCALES` entry + loader + `<locale>/` folder.
 
 ## Testing (Vitest 5 + MSW + happy-dom)
 

@@ -24,6 +24,7 @@ import {
 } from '@/lib/client/wallet-flow-store'
 import { trackEvent } from '@/lib/analytics/gtag'
 import { AnalyticsEvent } from '@/lib/analytics/events'
+import { useT } from '@/lib/client/i18n'
 
 /**
  * Auto-opening QR scanner reachable from the home tabbar's center button.
@@ -42,6 +43,7 @@ import { AnalyticsEvent } from '@/lib/analytics/events'
  */
 export function ScanScreen() {
   const router = useRouter()
+  const t = useT()
   const videoRef = useRef<HTMLVideoElement>(null)
   const readerRef = useRef<BrowserMultiFormatReader | null>(null)
   const cancelledRef = useRef(false)
@@ -99,7 +101,7 @@ export function ScanScreen() {
           router.replace(`/wallet/activate/${activation.tokenId}`)
         } else {
           setNotice({
-            message: `This card belongs to ${activation.host}, not ${window.location.host}. Open it there to activate.`,
+            message: t.scan.foreignCard(activation.host, window.location.host),
             url: text.trim()
           })
         }
@@ -136,7 +138,7 @@ export function ScanScreen() {
           }
         } catch (err) {
           const message =
-            err instanceof Error ? err.message : 'Unrecognized LNURL'
+            err instanceof Error ? err.message : t.scan.unrecognizedLnurl
           toast.error(message)
         } finally {
           processingRef.current = false
@@ -154,11 +156,11 @@ export function ScanScreen() {
         routeInvoiceOrAddress(text, destination)
       } catch (err) {
         const message =
-          err instanceof Error ? err.message : 'Unrecognized QR code'
+          err instanceof Error ? err.message : t.scan.unrecognizedQr
         toast.error(message)
       }
     },
-    [router, routeInvoiceOrAddress, stopScanner]
+    [router, routeInvoiceOrAddress, stopScanner, t]
   )
 
   const startScanner = useCallback(async () => {
@@ -193,9 +195,9 @@ export function ScanScreen() {
     } catch (err) {
       if (cancelledRef.current) return
       setPermission('denied')
-      setError(err instanceof Error ? err.message : 'Camera unavailable')
+      setError(err instanceof Error ? err.message : t.scan.cameraUnavailable)
     }
-  }, [handleResult])
+  }, [handleResult, t])
 
   // Start the camera whenever we're in the scanning view. Skipped while the
   // foreign-domain notice is up (the <video> is unmounted then); "Scan another"
@@ -225,14 +227,14 @@ export function ScanScreen() {
     return (
       <div className="flex flex-1 flex-col bg-background">
         <ScreenHeader
-          title="Scan"
+          title={t.scan.title}
           closeStyle
           onBack={() => router.replace('/wallet')}
         />
         <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 pb-10 text-center">
           <AlertCircle className="size-10 text-lw-gold" />
           <h2 className="text-base font-semibold text-foreground">
-            Different community
+            {t.scan.differentCommunity}
           </h2>
           <p className="max-w-xs text-sm text-muted-foreground">
             {notice.message}
@@ -242,10 +244,10 @@ export function ScanScreen() {
               onClick={() => window.open(notice.url, '_blank', 'noopener')}
             >
               <ExternalLink className="size-4" />
-              Open link
+              {t.scan.openLink}
             </Button>
             <Button variant="secondary" onClick={scanAgain}>
-              Scan another
+              {t.scan.scanAnother}
             </Button>
           </div>
         </div>
@@ -256,7 +258,7 @@ export function ScanScreen() {
   return (
     <div className="flex flex-1 flex-col bg-background">
       <ScreenHeader
-        title="Scan"
+        title={t.scan.title}
         closeStyle
         onBack={() => router.replace('/wallet')}
       />
@@ -266,14 +268,14 @@ export function ScanScreen() {
           <div className="flex flex-col items-center gap-3 text-center">
             <AlertCircle className="size-10 text-destructive" />
             <h2 className="text-base font-semibold text-foreground">
-              Camera unavailable
+              {t.scan.cameraUnavailable}
             </h2>
             <p className="text-sm text-muted-foreground">{error}</p>
             <Button
               variant="secondary"
               onClick={() => router.replace('/wallet')}
             >
-              Back to wallet
+              {t.scan.backToWallet}
             </Button>
           </div>
         ) : (
@@ -289,20 +291,19 @@ export function ScanScreen() {
               {permission !== 'granted' && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/70 text-center text-muted-foreground">
                   <Camera className="size-10" />
-                  <span className="text-sm">Requesting camera access…</span>
+                  <span className="text-sm">{t.scan.requestingCamera}</span>
                 </div>
               )}
               {resolving && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/70 text-center text-muted-foreground">
                   <Spinner size={32} />
-                  <span className="text-sm">Reading code…</span>
+                  <span className="text-sm">{t.scan.readingCode}</span>
                 </div>
               )}
             </div>
 
             <p className="text-center text-sm text-muted-foreground">
-              Point your camera at a Lightning invoice, address, LNURL, or card
-              QR.
+              {t.scan.hint}
             </p>
           </>
         )}

@@ -31,6 +31,7 @@ import {
   createNostrConnectSigner,
   hasBrowserExtension
 } from '@/lib/client/nostr-signer'
+import { useT, type Dict } from '@/lib/client/i18n'
 
 /**
  * Callback signature for consumers that want to reuse the NIP-07/nsec/bunker
@@ -72,11 +73,14 @@ function useDefaultLoginHandler(): NostrSignerHandler {
 
 export function NostrConnectForm({
   onSuccess,
-  submitLabel = 'Login',
-  loadingLabel = 'Signing in...',
+  submitLabel,
+  loadingLabel,
   handleSigner,
   showExtension = true
 }: NostrConnectFormProps) {
+  const t = useT()
+  submitLabel ??= t.auth.login
+  loadingLabel ??= t.auth.signingIn
   const [extensionAvailable] = useState(() => hasBrowserExtension())
   const defaultHandler = useDefaultLoginHandler()
   const onSigner = handleSigner ?? defaultHandler
@@ -90,7 +94,7 @@ export function NostrConnectForm({
             value="nsec"
             className="flex-1 rounded-none bg-transparent py-4 text-sm data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b data-[state=active]:border-primary"
           >
-            Private key
+            {t.auth.privateKeyTab}
           </TabsTrigger>
           <TabsTrigger
             value="bunker"
@@ -126,7 +130,7 @@ export function NostrConnectForm({
             </div>
             <div className="relative flex justify-center text-xs uppercase">
               <span className="bg-background px-2 text-muted-foreground">
-                Or continue with
+                {t.auth.orContinueWith}
               </span>
             </div>
           </div>
@@ -151,6 +155,7 @@ function NsecForm({
   loadingLabel: string
   onSigner: NostrSignerHandler
 }) {
+  const t = useT()
   const [nsec, setNsec] = useState('')
   const [showKey, setShowKey] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -166,7 +171,7 @@ function NsecForm({
       await onSigner(signer, 'nsec', { secret: nsec.trim() })
       onSuccess?.()
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to login'
+      const message = err instanceof Error ? err.message : t.auth.loginFailed
       setError(message)
       toast.error(message)
     } finally {
@@ -180,7 +185,7 @@ function NsecForm({
         <div className="relative">
           <Input
             type={showKey ? 'text' : 'password'}
-            placeholder="nsec or hex private key..."
+            placeholder={t.auth.nsecPlaceholder}
             value={nsec}
             onChange={e => {
               setNsec(e.target.value)
@@ -229,22 +234,22 @@ function NsecForm({
 
 // ─── Bunker Form ───────────────────────────────────────────────────────────
 
-function isValidBunkerUrl(url: string): string | null {
+function isValidBunkerUrl(url: string, t: Dict): string | null {
   if (!url.startsWith('bunker://')) {
-    return 'URL must start with bunker://'
+    return t.auth.bunkerMustStart
   }
   try {
     const withoutScheme = url.slice('bunker://'.length)
     const [pubkeyPart] = withoutScheme.split('?')
     if (!pubkeyPart || !/^[0-9a-f]{64}$/.test(pubkeyPart)) {
-      return 'Invalid bunker URL: missing or invalid public key'
+      return t.auth.bunkerBadPubkey
     }
     const params = new URLSearchParams(withoutScheme.split('?')[1] || '')
     if (!params.get('relay')) {
-      return 'Invalid bunker URL: missing relay parameter'
+      return t.auth.bunkerNoRelay
     }
   } catch {
-    return 'Invalid bunker URL format'
+    return t.auth.bunkerBadFormat
   }
   return null
 }
@@ -260,6 +265,7 @@ function BunkerForm({
   loadingLabel: string
   onSigner: NostrSignerHandler
 }) {
+  const t = useT()
   const [mode, setMode] = useState<'qr' | 'paste'>('qr')
 
   return (
@@ -276,7 +282,7 @@ function BunkerForm({
           )}
         >
           <QrCode className="mr-1.5 inline size-3.5" />
-          Show QR
+          {t.auth.showQr}
         </button>
         <button
           type="button"
@@ -289,7 +295,7 @@ function BunkerForm({
           )}
         >
           <Link className="mr-1.5 inline size-3.5" />
-          Paste URL
+          {t.auth.pasteUrl}
         </button>
       </div>
 
@@ -316,6 +322,7 @@ function BunkerQRMode({
   onSuccess?: () => void
   onSigner: NostrSignerHandler
 }) {
+  const t = useT()
   const [uri, setUri] = useState<string | null>(null)
   const [status, setStatus] = useState<
     'generating' | 'waiting' | 'connecting' | 'error'
@@ -351,15 +358,15 @@ function BunkerQRMode({
       onSuccess?.()
     } catch (err) {
       if (controller.signal.aborted) return
-      const message = err instanceof Error ? err.message : 'Failed to connect'
+      const message = err instanceof Error ? err.message : t.auth.connectFailed
       setError(
         message.includes('timed out') || message.includes('abort')
-          ? 'Connection timed out. Make sure your signer app scanned the QR code.'
+          ? t.auth.connectTimedOut
           : message
       )
       setStatus('error')
     }
-  }, [onSigner, onSuccess])
+  }, [onSigner, onSuccess, t])
 
   useEffect(() => {
     const id = requestAnimationFrame(() => startConnection())
@@ -381,7 +388,7 @@ function BunkerQRMode({
       <div className="flex flex-col items-center gap-3 py-6">
         <Spinner size={24} />
         <p className="text-sm text-muted-foreground">
-          Generating connection...
+          {t.auth.generatingConnection}
         </p>
       </div>
     )
@@ -392,7 +399,7 @@ function BunkerQRMode({
       <div className="flex flex-col items-center gap-3 py-6">
         <Spinner size={24} />
         <p className="text-sm text-muted-foreground">
-          Signer connected, logging in...
+          {t.auth.signerConnected}
         </p>
       </div>
     )
@@ -404,7 +411,7 @@ function BunkerQRMode({
         <p className="text-sm text-destructive text-center">{error}</p>
         <Button variant="outline" size="sm" onClick={startConnection}>
           <RefreshCw className="mr-2 size-3.5" />
-          Try Again
+          {t.auth.tryAgain}
         </Button>
       </div>
     )
@@ -423,16 +430,16 @@ function BunkerQRMode({
         className="text-xs"
       >
         <Copy className="mr-1.5 size-3.5" />
-        {copied ? 'Copied!' : 'Copy URI'}
+        {copied ? t.auth.copiedBang : t.auth.copyUri}
       </Button>
 
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <Spinner size={12} />
-        Waiting for signer to connect...
+        {t.auth.waitingForSigner}
       </div>
 
       <p className="text-xs text-muted-foreground text-center">
-        Scan with your signer app (
+        {t.auth.scanWithSignerPrefix}
         <a
           href="https://nsec.app"
           target="_blank"
@@ -441,7 +448,7 @@ function BunkerQRMode({
         >
           nsec.app
         </a>
-        , Amber, etc.)
+        {t.auth.scanWithSignerSuffix}
       </p>
     </div>
   )
@@ -460,6 +467,7 @@ function BunkerPasteMode({
   loadingLabel: string
   onSigner: NostrSignerHandler
 }) {
+  const t = useT()
   const [bunkerUrl, setBunkerUrl] = useState('')
   const [showUrl, setShowUrl] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -469,7 +477,7 @@ function BunkerPasteMode({
     e.preventDefault()
     setError(null)
 
-    const validationError = isValidBunkerUrl(bunkerUrl)
+    const validationError = isValidBunkerUrl(bunkerUrl, t)
     if (validationError) {
       setError(validationError)
       return
@@ -482,7 +490,7 @@ function BunkerPasteMode({
       onSuccess?.()
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : 'Failed to connect to bunker'
+        err instanceof Error ? err.message : t.auth.bunkerConnectFailed
       setError(message)
       toast.error(message)
     } finally {
@@ -553,6 +561,7 @@ function ExtensionButton({
   onSuccess?: () => void
   onSigner: NostrSignerHandler
 }) {
+  const t = useT()
   const [loading, setLoading] = useState(false)
 
   async function handleConnect() {
@@ -563,9 +572,7 @@ function ExtensionButton({
       onSuccess?.()
     } catch (error) {
       toast.error(
-        error instanceof Error
-          ? error.message
-          : 'Failed to connect with extension'
+        error instanceof Error ? error.message : t.auth.extensionConnectFailed
       )
     } finally {
       setLoading(false)
@@ -581,12 +588,12 @@ function ExtensionButton({
       {loading ? (
         <>
           <Spinner size={16} className="mr-2" />
-          Connecting...
+          {t.auth.connecting}
         </>
       ) : (
         <>
           <Puzzle className="mr-2 size-4" />
-          With extension
+          {t.auth.withExtension}
         </>
       )}
     </Button>

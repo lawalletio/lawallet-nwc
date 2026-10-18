@@ -51,6 +51,7 @@ import {
   type RemoteWalletNotificationData,
   type RemoteWalletNotificationDeliveryData
 } from '@/lib/client/hooks/use-remote-wallet-notifications'
+import { useLocale, useT } from '@/lib/client/i18n'
 import { cn } from '@/lib/utils'
 
 const PAGE_SIZE = 8
@@ -60,6 +61,8 @@ export function RemoteWalletNotificationsPanel({
 }: {
   walletId: string
 }) {
+  const rw = useT().remoteWallets
+  const n = rw.notifications
   const notifications = useRemoteWalletNotifications(walletId)
   const pagination = useCursorPagination()
   const deliveries = useRemoteWalletNotificationDeliveries(walletId, {
@@ -75,7 +78,7 @@ export function RemoteWalletNotificationsPanel({
     try {
       await mutations.setEnabled(notification.id, !notification.enabled)
       toast.success(
-        notification.enabled ? 'Notification paused' : 'Notification resumed'
+        notification.enabled ? n.pausedToast : n.resumedToast
       )
       await Promise.all([notifications.refetch(), deliveries.refetch()])
     } catch (error) {
@@ -86,7 +89,7 @@ export function RemoteWalletNotificationsPanel({
   async function retry(deliveryId: string) {
     try {
       await mutations.retry(deliveryId)
-      toast.success('Retry queued')
+      toast.success(n.retryQueued)
       await deliveries.refetch()
     } catch (error) {
       toast.error(errorMessage(error))
@@ -104,20 +107,19 @@ export function RemoteWalletNotificationsPanel({
             </span>
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <h2 className="font-semibold">Wallet notifications</h2>
+                <h2 className="font-semibold">{n.title}</h2>
                 <Badge variant="outline">
-                  {notifications.data?.notifications.length ?? 0} channels
+                  {n.channels(notifications.data?.notifications.length ?? 0)}
                 </Badge>
               </div>
               <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-                Deliver received and forwarded events through audited webhooks
-                or signed Nostr events.
+                {n.subtitle}
               </p>
             </div>
           </div>
           <Button onClick={() => setCreateOpen(true)}>
             <Plus data-icon="inline-start" />
-            Add notification
+            {n.add}
           </Button>
         </div>
       </div>
@@ -129,7 +131,7 @@ export function RemoteWalletNotificationsPanel({
           </div>
         ) : notifications.error ? (
           <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
-            Notifications are unavailable.
+            {n.unavailable}
           </div>
         ) : notifications.data?.notifications.length ? (
           <div className="grid gap-3 md:grid-cols-2">
@@ -145,10 +147,9 @@ export function RemoteWalletNotificationsPanel({
         ) : (
           <div className="flex flex-col items-center rounded-2xl border border-dashed py-12 text-center">
             <BellRing className="size-8 text-muted-foreground" />
-            <p className="mt-3 font-medium">No outbound notifications</p>
+            <p className="mt-3 font-medium">{n.emptyTitle}</p>
             <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-              Add a webhook or Nostr channel. Delivery only starts with new
-              wallet events.
+              {n.emptyBody}
             </p>
           </div>
         )}
@@ -157,13 +158,14 @@ export function RemoteWalletNotificationsPanel({
       <div className="border-t border-border/60">
         <div className="flex items-center justify-between px-5 py-4">
           <div>
-            <h3 className="text-sm font-semibold">Delivery journal</h3>
+            <h3 className="text-sm font-semibold">{n.journal}</h3>
             <p className="text-xs text-muted-foreground">
-              Persisted attempts, responses and ambiguous outcomes.
+              {n.journalBody}
             </p>
           </div>
           <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Radio className="size-3.5 text-emerald-500" /> Live
+            <Radio className="size-3.5 text-emerald-500" />{' '}
+            {rw.live}
           </span>
         </div>
         <div className="divide-y border-t">
@@ -183,8 +185,7 @@ export function RemoteWalletNotificationsPanel({
             ))
           ) : (
             <div className="px-5 py-10 text-center text-sm text-muted-foreground">
-              Delivery activity will appear here after the next matching wallet
-              event.
+              {n.journalEmpty}
             </div>
           )}
         </div>
@@ -225,11 +226,13 @@ function NotificationCard({
   busy: boolean
   onToggle: () => void
 }) {
+  const rw = useT().remoteWallets
+  const n = rw.notifications
   const latest = notification.deliveries[0]
   const channelLabel =
     notification.channel === 'WEBHOOK'
       ? notification.webhookUrl
-      : `Kind ${notification.nostrKind}`
+      : n.kind(notification.nostrKind ?? '')
   return (
     <article
       className={cn(
@@ -259,7 +262,7 @@ function NotificationCard({
                 {notification.name}
               </h3>
               <Badge variant={notification.enabled ? 'default' : 'secondary'}>
-                {notification.enabled ? 'Live' : 'Paused'}
+                {notification.enabled ? rw.live : rw.paused}
               </Badge>
             </div>
             <p className="mt-1 truncate font-mono text-xs text-muted-foreground">
@@ -269,11 +272,14 @@ function NotificationCard({
         </div>
         <Button variant="outline" size="sm" disabled={busy} onClick={onToggle}>
           {notification.enabled ? <Pause /> : <Play />}
-          {notification.enabled ? 'Pause' : 'Resume'}
+          {notification.enabled ? rw.pause : rw.resume}
         </Button>
       </div>
       <div className="mt-4 flex flex-wrap items-center gap-2 border-t pt-3 text-xs text-muted-foreground">
-        <Badge variant="outline">On {notification.action.toLowerCase()}</Badge>
+        <Badge variant="outline">
+          {n.trigger[notification.action] ??
+            `On ${notification.action.toLowerCase()}`}
+        </Badge>
         {notification.nip44 && (
           <Badge variant="outline" className="gap-1">
             <LockKeyhole className="size-3" />
@@ -282,8 +288,8 @@ function NotificationCard({
         )}
         <span className="ml-auto">
           {latest
-            ? `Last: ${latest.status.toLowerCase()}`
-            : 'Waiting for first event'}
+            ? n.last(latest.status.toLowerCase())
+            : n.waitingFirst}
         </span>
       </div>
     </article>
@@ -301,6 +307,9 @@ function DeliveryRow({
   onInspect: () => void
   onRetry: () => void
 }) {
+  const t = useT()
+  const n = t.remoteWallets.notifications
+  const locale = useLocale()
   const retryable =
     delivery.status === 'REJECTED' ||
     delivery.status === 'EXPIRED' ||
@@ -329,15 +338,14 @@ function DeliveryRow({
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm font-medium">
-            {delivery.notification?.name ?? 'Removed notification'}
+            {delivery.notification?.name ?? n.removed}
           </span>
           <ForwardingStatusBadge status={delivery.status} />
           <Badge variant="outline">{delivery.action}</Badge>
         </div>
         <p className="mt-1 truncate text-xs text-muted-foreground">
-          {new Date(delivery.createdAt).toLocaleString()} ·{' '}
-          {delivery.attemptCount}{' '}
-          {delivery.attemptCount === 1 ? 'attempt' : 'attempts'}
+          {new Date(delivery.createdAt).toLocaleString(locale)} ·{' '}
+          {n.attemptCount(delivery.attemptCount)}
           {delivery.lastError ? ` · ${delivery.lastError}` : ''}
         </p>
       </div>
@@ -345,12 +353,12 @@ function DeliveryRow({
         {retryable && (
           <Button size="sm" variant="outline" disabled={busy} onClick={onRetry}>
             <RotateCcw />
-            Retry
+            {t.common.retry}
           </Button>
         )}
         <Button size="sm" variant="ghost" onClick={onInspect}>
           <Eye />
-          Details
+          {n.details}
         </Button>
       </div>
     </div>
@@ -368,6 +376,8 @@ function CreateNotificationDialog({
   loading: boolean
   onCreate: (input: CreateRemoteWalletNotificationInput) => Promise<void>
 }) {
+  const t = useT()
+  const n = t.remoteWallets.notifications
   const [channel, setChannel] = useState<'WEBHOOK' | 'NOSTR'>('WEBHOOK')
   const [name, setName] = useState('')
   const [action, setAction] =
@@ -382,7 +392,7 @@ function CreateNotificationDialog({
   async function submit(event: React.FormEvent) {
     event.preventDefault()
     try {
-      if (!name.trim()) throw new Error('Give this notification a name')
+      if (!name.trim()) throw new Error(n.nameRequired)
       const input: CreateRemoteWalletNotificationInput =
         channel === 'WEBHOOK'
           ? {
@@ -402,7 +412,7 @@ function CreateNotificationDialog({
               nip44
             }
       await onCreate(input)
-      toast.success('Notification is live')
+      toast.success(n.liveToast)
       onOpenChange(false)
     } catch (error) {
       toast.error(errorMessage(error))
@@ -414,10 +424,9 @@ function CreateNotificationDialog({
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <form onSubmit={submit}>
           <DialogHeader>
-            <DialogTitle>Add wallet notification</DialogTitle>
+            <DialogTitle>{n.addTitle}</DialogTitle>
             <DialogDescription>
-              Choose the event and how LaWallet should deliver its full audit
-              payload.
+              {n.addBody}
             </DialogDescription>
           </DialogHeader>
           <div className="mt-5 space-y-5">
@@ -427,7 +436,7 @@ function CreateNotificationDialog({
               onValueChange={value => {
                 if (value) setChannel(value as 'WEBHOOK' | 'NOSTR')
               }}
-              aria-label="Delivery channel"
+              aria-label={n.channelLabel}
               className="grid w-full grid-cols-2"
             >
               <ToggleGroupItem value="WEBHOOK" className="gap-2">
@@ -440,14 +449,14 @@ function CreateNotificationDialog({
               </ToggleGroupItem>
             </ToggleGroup>
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Name">
+              <Field label={n.name}>
                 <Input
                   value={name}
                   onChange={event => setName(event.target.value)}
-                  placeholder="Accounting webhook"
+                  placeholder={n.namePlaceholder}
                 />
               </Field>
-              <Field label="Action">
+              <Field label={n.action}>
                 <NativeSelect
                   value={action}
                   onChange={event =>
@@ -456,14 +465,14 @@ function CreateNotificationDialog({
                     )
                   }
                 >
-                  <option value="RECEIVED">Payment received</option>
-                  <option value="FORWARDED">Forwarding completed</option>
+                  <option value="RECEIVED">{n.actionReceived}</option>
+                  <option value="FORWARDED">{n.actionForwarded}</option>
                 </NativeSelect>
               </Field>
             </div>
             {channel === 'WEBHOOK' ? (
               <div className="space-y-3 rounded-2xl border bg-sky-500/[0.04] p-4">
-                <Field label="HTTPS endpoint">
+                <Field label={n.endpoint}>
                   <Input
                     type="url"
                     value={webhookUrl}
@@ -472,15 +481,15 @@ function CreateNotificationDialog({
                   />
                 </Field>
                 <p className="text-xs leading-relaxed text-muted-foreground">
-                  POST receives the full JSON payload with{' '}
-                  <code>Idempotency-Key</code> and <code>X-LaWallet-Event</code>
-                  . Keep the first key to deduplicate retries.
+                  {n.webhookHint.before} <code>Idempotency-Key</code>{' '}
+                  {n.webhookHint.and} <code>X-LaWallet-Event</code>
+                  {n.webhookHint.after}
                 </p>
               </div>
             ) : (
               <div className="space-y-4 rounded-2xl border bg-violet-500/[0.04] p-4">
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <Field label="Event kind">
+                  <Field label={n.eventKind}>
                     <Input
                       type="number"
                       min={0}
@@ -488,7 +497,7 @@ function CreateNotificationDialog({
                       onChange={event => setKind(event.target.value)}
                     />
                   </Field>
-                  <Field label="p tag (hex or npub)">
+                  <Field label={n.pTag}>
                     <Input
                       value={pTag}
                       onChange={event => setPTag(event.target.value)}
@@ -496,14 +505,14 @@ function CreateNotificationDialog({
                     />
                   </Field>
                 </div>
-                <Field label="Relays (one per line)">
+                <Field label={n.relays}>
                   <Textarea
                     value={relays}
                     onChange={event => setRelays(event.target.value)}
                     className="min-h-24"
                   />
                 </Field>
-                <Field label="Content">
+                <Field label={n.content}>
                   <Textarea
                     value={content}
                     onChange={event => setContent(event.target.value)}
@@ -511,16 +520,16 @@ function CreateNotificationDialog({
                   />
                 </Field>
                 <p className="text-xs text-muted-foreground">
-                  Tokens: {'{{payload}}'}, {'{{action}}'}, {'{{walletId}}'},{' '}
+                  {n.tokens} {'{{payload}}'}, {'{{action}}'}, {'{{walletId}}'},{' '}
                   {'{{paymentHash}}'}, {'{{amountMsats}}'}.
                 </p>
                 <div className="flex items-center justify-between gap-4 rounded-xl border bg-background/50 p-3">
                   <div>
                     <Label htmlFor="notification-nip44">
-                      Encrypt with NIP-44
+                      {n.encrypt}
                     </Label>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      Only the p-tag recipient can read the content.
+                      {n.encryptHint}
                     </p>
                   </div>
                   <Switch
@@ -538,10 +547,11 @@ function CreateNotificationDialog({
               variant="outline"
               onClick={() => onOpenChange(false)}
             >
-              Cancel
+              {t.common.cancel}
             </Button>
             <Button type="submit" disabled={loading}>
-              {loading && <Spinner className="size-4" />}Create notification
+              {loading && <Spinner className="size-4" />}
+              {n.create}
             </Button>
           </DialogFooter>
         </form>
@@ -559,13 +569,16 @@ function DeliveryDetailDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
+  const rw = useT().remoteWallets
+  const n = rw.notifications
+  const locale = useLocale()
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Code2 className="size-5" />
-            Notification delivery{' '}
+            {n.deliveryTitle}{' '}
             {delivery && <ForwardingStatusBadge status={delivery.status} />}
           </DialogTitle>
           <DialogDescription>{delivery?.eventKey}</DialogDescription>
@@ -573,11 +586,11 @@ function DeliveryDetailDialog({
         {delivery && (
           <div className="space-y-5">
             <div className="grid gap-3 sm:grid-cols-3">
-              <Metric label="Action" value={delivery.action} />
-              <Metric label="Attempts" value={String(delivery.attemptCount)} />
+              <Metric label={n.action} value={delivery.action} />
+              <Metric label={n.attempts} value={String(delivery.attemptCount)} />
               <Metric
-                label="Created"
-                value={new Date(delivery.createdAt).toLocaleString()}
+                label={n.created}
+                value={new Date(delivery.createdAt).toLocaleString(locale)}
               />
             </div>
             {delivery.lastError && (
@@ -587,7 +600,7 @@ function DeliveryDetailDialog({
             )}
             <div>
               <h4 className="mb-2 text-xs font-semibold uppercase tracking-[0.15em] text-muted-foreground">
-                Attempts
+                {n.attempts}
               </h4>
               <div className="divide-y rounded-xl border">
                 {delivery.attempts.length ? (
@@ -597,7 +610,7 @@ function DeliveryDetailDialog({
                       className="grid gap-1 px-4 py-3 text-sm sm:grid-cols-[100px_1fr_auto]"
                     >
                       <span className="font-medium">
-                        Attempt {attempt.attemptNo}
+                        {rw.attempt(attempt.attemptNo)}
                       </span>
                       <span className="min-w-0 truncate font-mono text-xs text-muted-foreground">
                         {attempt.errorMessage ??
@@ -619,14 +632,14 @@ function DeliveryDetailDialog({
                   ))
                 ) : (
                   <div className="p-4 text-sm text-muted-foreground">
-                    No attempt started yet.
+                    {n.noAttempt}
                   </div>
                 )}
               </div>
             </div>
             <div>
               <h4 className="mb-2 text-xs font-semibold uppercase tracking-[0.15em] text-muted-foreground">
-                Payload snapshot
+                {n.payload}
               </h4>
               <pre className="max-h-80 overflow-auto rounded-xl border bg-black/40 p-4 text-xs leading-relaxed text-zinc-200">
                 {JSON.stringify(delivery.payload, null, 2)}

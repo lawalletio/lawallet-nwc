@@ -18,6 +18,7 @@ import {
   useRemoteWallets,
   type RemoteWalletData
 } from '@/lib/client/hooks/use-remote-wallets'
+import { useLocale, useT } from '@/lib/client/i18n'
 import { cn } from '@/lib/utils'
 
 type PendingAction = 'primary' | 'status'
@@ -26,6 +27,8 @@ export function RemoteWalletsScreen() {
   const router = useRouter()
   const { data: wallets, loading, error, refetch } = useRemoteWallets()
   const { setPrimary, setStatus } = useRemoteWalletMutations()
+  const t = useT()
+  const l = t.remoteWallets.list
   const [pending, setPending] = useState<{
     id: string
     action: PendingAction
@@ -54,7 +57,7 @@ export function RemoteWalletsScreen() {
       await refetch()
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : 'Could not update wallet'
+        err instanceof Error ? err.message : l.updateFailed
       )
     } finally {
       setPending(null)
@@ -66,7 +69,7 @@ export function RemoteWalletsScreen() {
       wallet,
       'primary',
       () => setPrimary(wallet.id),
-      `${wallet.name} is now primary`
+      l.nowPrimary(wallet.name)
     )
   }
 
@@ -75,7 +78,7 @@ export function RemoteWalletsScreen() {
       wallet,
       'status',
       () => setStatus(wallet.id, checked ? 'ACTIVE' : 'DISABLED'),
-      checked ? `${wallet.name} enabled` : `${wallet.name} disabled`
+      checked ? l.enabledToast(wallet.name) : l.disabledToast(wallet.name)
     )
   }
 
@@ -88,10 +91,10 @@ export function RemoteWalletsScreen() {
           className="flex h-9 w-fit items-center gap-1.5 rounded-full bg-card px-3 text-sm font-medium text-foreground transition-colors hover:bg-accent"
         >
           <ChevronLeft className="size-4" />
-          Back
+          {t.common.back}
         </button>
         <h1 className="text-center text-base font-semibold text-foreground">
-          Remote wallets
+          {t.settings.remoteWallets}
         </h1>
         <span aria-hidden />
       </header>
@@ -114,7 +117,7 @@ export function RemoteWalletsScreen() {
             </div>
             <section
               className="flex flex-col gap-3"
-              aria-label="Remote wallets"
+              aria-label={t.settings.remoteWallets}
             >
               {sortedWallets.map(wallet => (
                 <WalletRow
@@ -148,6 +151,15 @@ function WalletRow({
   onSetPrimary: () => void
   onToggleStatus: (checked: boolean) => void
 }) {
+  const l = useT().remoteWallets.list
+  const locale = useLocale()
+  const updated = l.updated(
+    wallet.type,
+    new Date(wallet.updatedAt).toLocaleDateString(locale, {
+      day: 'numeric',
+      month: 'short'
+    })
+  )
   const rowPending = pending?.id === wallet.id
   const active = wallet.status === 'ACTIVE'
   const primary = wallet.isDefault
@@ -173,7 +185,7 @@ function WalletRow({
             {wallet.name}
           </h2>
           <p className="truncate text-xs text-muted-foreground">
-            {wallet.type} · Updated {formatDate(wallet.updatedAt)}
+            {updated}
           </p>
           {wallet.provider && (
             <div className="mt-1 flex">
@@ -195,13 +207,13 @@ function WalletRow({
               ) : (
                 <Star data-icon="inline-start" />
               )}
-              Set primary
+              {l.setPrimary}
             </Button>
           )}
           <Switch
             checked={active}
             disabled={rowPending}
-            aria-label={`${active ? 'Disable' : 'Enable'} ${wallet.name}`}
+            aria-label={active ? l.disable(wallet.name) : l.enable(wallet.name)}
             onCheckedChange={onToggleStatus}
           />
         </div>
@@ -231,18 +243,18 @@ function WalletRow({
                 {wallet.name}
               </h2>
               <p className="text-xs text-muted-foreground">
-                {wallet.type} · Updated {formatDate(wallet.updatedAt)}
+                {updated}
               </p>
             </Link>
             <Switch
               checked={active}
               disabled={statusToggleDisabled}
-              aria-label={`${active ? 'Disable' : 'Enable'} ${wallet.name}`}
+              aria-label={active ? l.disable(wallet.name) : l.enable(wallet.name)}
               onCheckedChange={onToggleStatus}
             />
           </div>
           <div className="flex flex-wrap gap-2">
-            {wallet.isDefault && <Badge>Primary</Badge>}
+            {wallet.isDefault && <Badge>{l.primary}</Badge>}
             {wallet.provider && <Badge variant="secondary">LNCurl</Badge>}
           </div>
         </div>
@@ -252,8 +264,9 @@ function WalletRow({
 }
 
 function WalletSkeleton() {
+  const l = useT().remoteWallets.list
   return (
-    <section className="flex flex-col gap-3" aria-label="Loading wallets">
+    <section className="flex flex-col gap-3" aria-label={l.loading}>
       {Array.from({ length: 3 }).map((_, index) => (
         <div
           key={index}
@@ -274,6 +287,7 @@ function WalletSkeleton() {
 }
 
 function EmptyState({ onCreated }: { onCreated: () => Promise<void> }) {
+  const l = useT().remoteWallets.list
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border bg-card/40 px-6 py-12 text-center">
       <div className="flex size-12 items-center justify-center rounded-full bg-card ring-1 ring-border/50">
@@ -281,10 +295,10 @@ function EmptyState({ onCreated }: { onCreated: () => Promise<void> }) {
       </div>
       <div className="flex flex-col gap-1">
         <h2 className="text-base font-semibold text-foreground">
-          No remote wallets
+          {l.emptyTitle}
         </h2>
         <p className="max-w-64 text-sm leading-relaxed text-muted-foreground">
-          Connect a wallet to send and receive from this device.
+          {l.emptyBody}
         </p>
       </div>
       <CreateRemoteWalletDialog onCreated={onCreated} />
@@ -293,27 +307,21 @@ function EmptyState({ onCreated }: { onCreated: () => Promise<void> }) {
 }
 
 function ErrorState({ onRetry }: { onRetry: () => Promise<void> }) {
+  const t = useT()
   return (
     <div className="flex flex-col items-center gap-4 rounded-2xl bg-card px-6 py-10 text-center">
       <div className="flex flex-col gap-1">
         <h2 className="text-base font-semibold text-foreground">
-          Wallets unavailable
+          {t.remoteWallets.list.errorTitle}
         </h2>
         <p className="text-sm leading-relaxed text-muted-foreground">
-          Try again in a moment.
+          {t.remoteWallets.list.tryAgain}
         </p>
       </div>
       <Button type="button" variant="outline" onClick={() => void onRetry()}>
         <RefreshCw data-icon="inline-start" />
-        Retry
+        {t.common.retry}
       </Button>
     </div>
   )
-}
-
-function formatDate(value: string) {
-  return new Date(value).toLocaleDateString(undefined, {
-    day: 'numeric',
-    month: 'short'
-  })
 }

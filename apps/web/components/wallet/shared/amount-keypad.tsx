@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, type RefObject } from 'react'
 import { Delete } from 'lucide-react'
+import { useT } from '@/lib/client/i18n'
 import { cn } from '@/lib/utils'
 
 interface AmountKeypadProps {
@@ -77,6 +78,7 @@ export function AmountKeypad({
   className,
   buttonClassName
 }: AmountKeypadProps) {
+  const t = useT()
   const keys: readonly (Key | null)[] = integerOnly
     ? INTEGER_KEYS
     : DECIMAL_KEYS
@@ -203,7 +205,7 @@ export function AmountKeypad({
         className
       )}
       role="group"
-      aria-label="Amount keypad"
+      aria-label={t.shared.keypad.label}
     >
       {keys.map((key, index) =>
         key === null ? (
@@ -225,7 +227,9 @@ export function AmountKeypad({
               buttonClassName
             )}
             aria-label={
-              key === 'backspace' ? 'Delete last digit' : `Enter ${key}`
+              key === 'backspace'
+                ? t.shared.keypad.deleteLast
+                : t.shared.keypad.enter(key)
             }
           >
             {key === 'backspace' ? <Delete className="size-6" /> : key}

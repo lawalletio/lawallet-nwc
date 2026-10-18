@@ -69,6 +69,7 @@ import {
   mergeReceivedPayments,
   type ReceivedPaymentRow
 } from '@/lib/client/received-payments'
+import { useT } from '@/lib/client/i18n'
 import { cn } from '@/lib/utils'
 
 const FORWARDING_PAGE_SIZE = 5
@@ -96,6 +97,9 @@ export function RemoteWalletForwardingPanel({
    */
   readOnly?: boolean
 }) {
+  const t = useT()
+  const rw = t.remoteWallets
+  const f = rw.forwarding
   const action = useRemoteWalletReceiveAction(walletId)
   const activityPagination = useCursorPagination()
   const receipts = useRemoteWalletForwardReceipts(walletId, {
@@ -177,11 +181,11 @@ export function RemoteWalletForwardingPanel({
   async function toggle(enabled: boolean) {
     try {
       await mutations.setEnabled(enabled)
-      toast.success(enabled ? 'Forwarding resumed' : 'Forwarding paused')
+      toast.success(enabled ? f.resumedToast : f.pausedToast)
       await Promise.all([action.refetch(), refetchForwarding()])
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : 'Could not update forwarding'
+        error instanceof Error ? error.message : f.updateFailed
       )
     }
   }
@@ -200,14 +204,12 @@ export function RemoteWalletForwardingPanel({
     })
     try {
       const result = await mutations.forceForward()
-      toast.success(
-        `Forwarding started for ${result.forwardingReceipts} pending ${result.forwardingReceipts === 1 ? 'receipt' : 'receipts'}`
-      )
+      toast.success(f.startedToast(result.forwardingReceipts))
       await Promise.all([action.refetch(), refetchForwarding()])
     } catch (error) {
       setQueuedForwarding(null)
       toast.error(
-        error instanceof Error ? error.message : 'Could not start forwarding'
+        error instanceof Error ? error.message : f.startFailed
       )
     }
   }
@@ -222,7 +224,7 @@ export function RemoteWalletForwardingPanel({
   if (action.error || !action.data) {
     return (
       <div className="rounded-2xl border border-destructive/40 bg-destructive/5 p-5 text-sm text-destructive">
-        Forwarding settings are unavailable.
+        {f.unavailable}
       </div>
     )
   }
@@ -237,11 +239,11 @@ export function RemoteWalletForwardingPanel({
           </span>
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="font-semibold">On receive · Forward</h2>
+              <h2 className="font-semibold">{f.title}</h2>
               <StateBadge action={data} />
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
-              Retain a fee in this wallet and distribute every new receipt.
+              {f.subtitle}
             </p>
           </div>
         </div>
@@ -253,10 +255,10 @@ export function RemoteWalletForwardingPanel({
               disabled={!data.enabled || mutations.forcing || attemptInProgress}
               title={
                 !data.enabled
-                  ? 'Resume forwarding first'
+                  ? f.resumeFirst
                   : attemptInProgress
-                    ? 'A forwarding attempt is already in progress'
-                    : 'Forward all currently pending funds now'
+                    ? f.attemptRunning
+                    : f.forwardNow
               }
             >
               {mutations.forcing || attemptInProgress ? (
@@ -269,8 +271,8 @@ export function RemoteWalletForwardingPanel({
                 <FastForward data-icon="inline-start" />
               )}
               {mutations.forcing || attemptInProgress
-                ? 'Forwarding…'
-                : 'Force Forward'}
+                ? f.forwardingBusy
+                : f.forceForward}
             </Button>
           )}
           {!readOnly && data.configured && (
@@ -284,7 +286,7 @@ export function RemoteWalletForwardingPanel({
               ) : (
                 <Play data-icon="inline-start" />
               )}
-              {data.enabled ? 'Pause' : 'Resume'}
+              {data.enabled ? rw.pause : rw.resume}
             </Button>
           )}
           {!readOnly && (
@@ -294,7 +296,7 @@ export function RemoteWalletForwardingPanel({
               title={data.reason ?? undefined}
             >
               <Settings2 data-icon="inline-start" />
-              {data.configured ? 'Edit plan' : 'Configure'}
+              {data.configured ? f.editPlan : f.configure}
             </Button>
           )}
         </div>
@@ -311,15 +313,15 @@ export function RemoteWalletForwardingPanel({
         <TabsList className="h-auto w-full justify-start gap-1 rounded-none border-b bg-transparent px-4 pt-2">
           <TabsTrigger value="overview" className="gap-2 rounded-b-none">
             <WalletCards className="size-4" />
-            Overview
+            {f.tabOverview}
           </TabsTrigger>
           <TabsTrigger value="payments" className="gap-2 rounded-b-none">
             <CircleDollarSign className="size-4" />
-            Payments received
+            {f.tabPayments}
           </TabsTrigger>
           <TabsTrigger value="activity" className="gap-2 rounded-b-none">
             <Activity className="size-4" />
-            Forwarding
+            {f.tabActivity}
           </TabsTrigger>
         </TabsList>
         <TabsContent value="overview" className="m-0 p-5">
@@ -387,11 +389,11 @@ export function RemoteWalletForwardingPanel({
         onRetry={async receipt => {
           try {
             await mutations.retryReceipt(receipt.id)
-            toast.success('Forwarding retry queued')
+            toast.success(f.retryQueued)
             await refetchForwarding()
           } catch (error) {
             toast.error(
-              error instanceof Error ? error.message : 'Could not retry'
+              error instanceof Error ? error.message : f.retryFailed
             )
           }
         }}
@@ -434,14 +436,14 @@ function RemoteWalletPaymentDialog({
 }
 
 function Overview({ action }: { action: RemoteWalletReceiveActionData }) {
+  const f = useT().remoteWallets.forwarding
   if (!action.revision) {
     return (
       <div className="flex flex-col items-center gap-2 py-10 text-center">
         <GitBranch className="size-8 text-muted-foreground" />
-        <p className="font-medium">No forwarding plan yet</p>
+        <p className="font-medium">{f.noPlan}</p>
         <p className="max-w-sm text-sm text-muted-foreground">
-          Add one or more Lightning Addresses and choose how the net amount is
-          split.
+          {f.noPlanBody}
         </p>
       </div>
     )
@@ -450,23 +452,23 @@ function Overview({ action }: { action: RemoteWalletReceiveActionData }) {
     <div className="space-y-5">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Metric
-          label="Pending balance"
+          label={f.pendingBalance}
           value={formatMsats(String(action.pendingAmountMsats))}
           accent
         />
-        <Metric label="Open receipts" value={String(action.pendingReceipts)} />
+        <Metric label={f.openReceipts} value={String(action.pendingReceipts)} />
         <Metric
-          label="Entry fee"
+          label={f.entryFee}
           value={`${(action.revision.feeBps / 100).toFixed(2)}% + ${action.revision.baseFeeSats} sat`}
         />
         <Metric
-          label="Routing reserve"
+          label={f.routingReserve}
           value={`${(action.routingReserveBps / 100).toFixed(2)}% + ${action.routingReserveBaseSats} sat`}
         />
       </div>
       <div>
         <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-          Destinations
+          {f.destinations}
         </div>
         <div className="divide-y overflow-hidden rounded-xl border">
           {action.revision.destinations.map(destination => (
@@ -530,6 +532,7 @@ function ReceivedPaymentsList({
   onOpenReceipt: (receipt: ForwardReceiptData) => void
   onOpenTransaction: (transaction: NwcTransaction) => void
 }) {
+  const f = useT().remoteWallets.forwarding
   if (loading && rows.length === 0)
     return (
       <div className="flex justify-center py-14">
@@ -541,10 +544,10 @@ function ReceivedPaymentsList({
       <EmptyActivity
         text={
           error
-            ? 'Could not load wallet payments. Forwarding receipts will appear when available.'
+            ? f.paymentsError
             : !walletActive
-              ? 'Payment activity is only available while the wallet is active.'
-              : 'No payments have been received by this wallet yet.'
+              ? f.paymentsInactive
+              : f.paymentsEmpty
         }
       />
     )
@@ -552,8 +555,7 @@ function ReceivedPaymentsList({
     <div>
       {error && (
         <div className="border-b border-amber-500/20 bg-amber-500/5 px-5 py-2 text-xs text-amber-700 dark:text-amber-300">
-          The live wallet history is unavailable; showing known forwarding
-          receipts.
+          {f.historyUnavailable}
         </div>
       )}
       <div className="divide-y">
@@ -578,7 +580,7 @@ function ReceivedPaymentsList({
               ) : row.awaitingForwarding ? (
                 <ForwardingStatusIcon
                   status="AWAITING_FORWARDING"
-                  busyLabel="Waiting to be forwarded"
+                  busyLabel={f.waitingForward}
                 />
               ) : (
                 <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-500">
@@ -588,14 +590,14 @@ function ReceivedPaymentsList({
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="truncate font-medium">
-                    {transaction?.description || 'Payment received'}
+                    {transaction?.description || f.paymentReceived}
                   </span>
                   {receipt ? (
                     <ForwardingStatusBadge status={receipt.status} />
                   ) : row.awaitingForwarding ? (
                     <ForwardingStatusBadge status="AWAITING_FORWARDING" />
                   ) : (
-                    <Badge variant="outline">regular</Badge>
+                    <Badge variant="outline">{f.regular}</Badge>
                   )}
                 </div>
                 {receipt?.comment && (
@@ -606,9 +608,9 @@ function ReceivedPaymentsList({
                 <div className="mt-1 text-xs text-muted-foreground">
                   {formatDateTime(row.timestamp)}
                   {receipt
-                    ? ` · ${receipt.legs.length} destination${receipt.legs.length === 1 ? '' : 's'}`
+                    ? ` · ${f.destinationCount(receipt.legs.length)}`
                     : transaction?.settledAt == null
-                      ? ' · pending'
+                      ? ` · ${f.pendingTag}`
                       : ''}
                 </div>
                 {receipt?.lastError && (
@@ -627,10 +629,12 @@ function ReceivedPaymentsList({
                 </div>
                 <div className="text-xs text-muted-foreground">
                   {receipt
-                    ? `sent ${formatMsats(String(receipt.forwardedAmountMsats))}`
+                    ? f.sentAmount(
+                        formatMsats(String(receipt.forwardedAmountMsats))
+                      )
                     : row.awaitingForwarding
-                      ? 'not forwarded yet'
-                      : 'kept in wallet'}
+                      ? f.notForwardedYet
+                      : f.keptInWallet}
                 </div>
               </div>
               <ArrowRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
@@ -655,6 +659,8 @@ function ForwardingActivity({
     destinations: string[]
   } | null
 }) {
+  const rw = useT().remoteWallets
+  const f = rw.forwarding
   if (loading && activity.length === 0)
     return (
       <div className="flex justify-center py-14">
@@ -663,7 +669,7 @@ function ForwardingActivity({
     )
   if (activity.length === 0 && !queuedForwarding)
     return (
-      <EmptyActivity text="Attempts and retries will appear here in real time." />
+      <EmptyActivity text={f.activityEmpty} />
     )
   return (
     <div className="divide-y">
@@ -671,7 +677,7 @@ function ForwardingActivity({
         <div className="flex gap-3 bg-amber-500/5 px-5 py-4">
           <span
             role="status"
-            aria-label="Forwarding attempt in progress"
+            aria-label={f.attemptInProgress}
             className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-amber-500/10 text-amber-500"
           >
             <Spinner
@@ -683,19 +689,21 @@ function ForwardingActivity({
           </span>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="font-medium">Attempt processing</span>
+              <span className="font-medium">{f.attemptProcessing}</span>
               <Badge variant="outline">PENDING</Badge>
             </div>
             <div className="mt-1 truncate font-mono text-xs text-muted-foreground">
               {queuedForwarding.destinations.length === 0
-                ? 'Preparing destination payment'
-                : `Preparing ${queuedForwarding.destinations.length} destination${queuedForwarding.destinations.length === 1 ? '' : 's'}`}
+                ? f.preparingPayment
+                : f.preparingDestinations(
+                    queuedForwarding.destinations.length
+                  )}
             </div>
           </div>
           <div className="text-right text-xs text-muted-foreground">
             {formatDateTime(new Date(queuedForwarding.startedAt).toISOString())}
             <div className="mt-1 tabular-nums">
-              {formatMsats(String(queuedForwarding.amountMsats))} pending
+              {f.amountPending(formatMsats(String(queuedForwarding.amountMsats)))}
             </div>
           </div>
         </div>
@@ -708,7 +716,7 @@ function ForwardingActivity({
             <span
               role={inProgress ? 'status' : undefined}
               aria-label={
-                inProgress ? 'Forwarding attempt in progress' : undefined
+                inProgress ? f.attemptInProgress : undefined
               }
               className={cn(
                 'mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full',
@@ -734,7 +742,7 @@ function ForwardingActivity({
             </span>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="font-medium">Attempt {entry.attemptNo}</span>
+                <span className="font-medium">{rw.attempt(entry.attemptNo)}</span>
                 <Badge variant="outline">{entry.status}</Badge>
               </div>
               <div className="mt-1 truncate font-mono text-xs text-muted-foreground">
@@ -777,6 +785,8 @@ function ForwardingConfigDialog({
   }) => Promise<void>
   loading: boolean
 }) {
+  const t = useT()
+  const f = t.remoteWallets.forwarding
   const revision = action.revision
   const [feePercent, setFeePercent] = useState(() =>
     ((revision?.feeBps ?? 50) / 100).toFixed(2)
@@ -823,13 +833,11 @@ function ForwardingConfigDialog({
           allocationBps: Math.round(Number(destination.percent) * 100)
         }))
       })
-      toast.success('Forwarding plan saved and enabled')
+      toast.success(f.planSaved)
       onOpenChange(false)
     } catch (error) {
       toast.error(
-        error instanceof Error
-          ? error.message
-          : 'Could not save forwarding plan'
+        error instanceof Error ? error.message : f.saveFailed
       )
     }
   }
@@ -837,15 +845,14 @@ function ForwardingConfigDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>Forward incoming payments</DialogTitle>
+          <DialogTitle>{f.configTitle}</DialogTitle>
           <DialogDescription>
-            The entry fee stays in this wallet. Routing fees are reported
-            separately. Changes apply atomically to unpaid forwarding balances.
+            {f.configBody}
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
-            <Label htmlFor="forward-fee">Percentage fee</Label>
+            <Label htmlFor="forward-fee">{f.percentageFee}</Label>
             <div className="relative">
               <Input
                 id="forward-fee"
@@ -862,7 +869,7 @@ function ForwardingConfigDialog({
             </div>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="forward-base-fee">Base fee</Label>
+            <Label htmlFor="forward-base-fee">{f.baseFee}</Label>
             <div className="relative">
               <Input
                 id="forward-base-fee"
@@ -880,7 +887,7 @@ function ForwardingConfigDialog({
         </div>
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <Label>Destinations</Label>
+            <Label>{f.destinations}</Label>
             <Badge variant={valid ? 'secondary' : 'destructive'}>
               {total.toFixed(2)}%
             </Badge>
@@ -891,7 +898,7 @@ function ForwardingConfigDialog({
               className="grid grid-cols-[minmax(0,1fr)_6rem_auto] gap-2"
             >
               <LightningAddressInput
-                aria-label={`Destination ${index + 1}`}
+                aria-label={f.destinationN(index + 1)}
                 placeholder="name@example.com"
                 value={destination.address}
                 onChange={next =>
@@ -904,7 +911,7 @@ function ForwardingConfigDialog({
               />
               <div className="relative">
                 <Input
-                  aria-label={`Allocation ${index + 1}`}
+                  aria-label={f.allocationN(index + 1)}
                   type="number"
                   min="0.01"
                   max="100"
@@ -936,7 +943,7 @@ function ForwardingConfigDialog({
                 }
               >
                 <Trash2 className="size-4" />
-                <span className="sr-only">Remove destination</span>
+                <span className="sr-only">{f.removeDestination}</span>
               </Button>
             </div>
           ))}
@@ -956,16 +963,16 @@ function ForwardingConfigDialog({
             }
           >
             <Plus data-icon="inline-start" />
-            Add destination
+            {f.addDestination}
           </Button>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
+            {t.common.cancel}
           </Button>
           <Button onClick={() => void submit()} disabled={!valid || loading}>
             {loading && <Spinner data-icon="inline-start" size={16} />}
-            {action.enabled ? 'Save changes' : 'Save and enable'}
+            {action.enabled ? f.saveChanges : f.saveAndEnable}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -988,6 +995,7 @@ function ForwardReceiptDialog({
   retrying: boolean
   readOnly?: boolean
 }) {
+  const f = useT().remoteWallets.forwarding
   const payment = useRemoteWalletPayment(
     receipt?.walletId ?? null,
     receipt?.sourcePaymentHash ?? null
@@ -1004,62 +1012,62 @@ function ForwardReceiptDialog({
       <DialogContent className="max-h-[90vh] overflow-y-auto p-0 sm:max-w-4xl">
         <DialogHeader className="px-5 pt-5 sm:px-6 sm:pt-6">
           <div className="flex flex-wrap items-center gap-2">
-            <DialogTitle>Forwarding receipt</DialogTitle>
+            <DialogTitle>{f.receiptTitle}</DialogTitle>
             <ForwardingStatusBadge status={receipt.status} />
           </div>
           <DialogDescription>
-            {formatDateTime(receipt.sourceSettledAt)} · revision{' '}
-            {receipt.configRevision}
+            {formatDateTime(receipt.sourceSettledAt)} ·{' '}
+            {f.revision(receipt.configRevision)}
           </DialogDescription>
         </DialogHeader>
         <Tabs defaultValue="overview" className="min-h-0">
           <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto rounded-none border-y bg-muted/20 px-5 py-2 sm:px-6">
             <TabsTrigger value="overview" className="shrink-0 gap-2">
               <WalletCards className="size-4" />
-              Overview
+              {f.tabOverview}
             </TabsTrigger>
             <TabsTrigger value="destinations" className="shrink-0 gap-2">
               <GitBranch className="size-4" />
-              Destinations
+              {f.destinations}
             </TabsTrigger>
             <TabsTrigger value="zap-request" className="shrink-0 gap-2">
               <FileJson className="size-4" />
-              Zap request
+              {f.zapRequest}
             </TabsTrigger>
             <TabsTrigger value="zap-receipt" className="shrink-0 gap-2">
               <Radio className="size-4" />
-              Zap receipt
+              {f.zapReceipt}
             </TabsTrigger>
           </TabsList>
           <TabsContent value="overview" className="m-0 space-y-4 p-5 sm:p-6">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <Metric
-                label="Received"
+                label={f.received}
                 value={formatMsats(String(receipt.grossAmountMsats))}
               />
               <Metric
-                label="Service fee retained"
+                label={f.feeRetained}
                 value={formatMsats(String(receipt.retainedFeeMsats))}
               />
               <Metric
-                label="Forwarded"
+                label={f.forwarded}
                 value={formatMsats(String(receipt.forwardedAmountMsats))}
                 accent
               />
               <Metric
-                label="Routing reserve"
+                label={f.routingReserve}
                 value={formatMsats(String(receipt.routingReserveMsats))}
               />
               <Metric
-                label="Actual routing fee"
+                label={f.actualRoutingFee}
                 value={formatMsats(String(receipt.routingFeeMsats))}
               />
               <Metric
-                label="Unused reserve"
+                label={f.unusedReserve}
                 value={formatMsats(String(receipt.unusedRoutingReserveMsats))}
               />
               <Metric
-                label="Destination shortfall"
+                label={f.destinationShortfall}
                 value={formatMsats(String(receipt.shortfallMsats))}
               />
             </div>
@@ -1072,7 +1080,7 @@ function ForwardReceiptDialog({
             {receipt.comment && (
               <div className="rounded-xl border bg-background/40 p-4">
                 <p className="text-xs font-medium text-muted-foreground">
-                  Payer comment
+                  {f.payerComment}
                 </p>
                 <p className="mt-1 whitespace-pre-wrap break-words text-sm italic">
                   “{receipt.comment}”
@@ -1081,25 +1089,25 @@ function ForwardReceiptDialog({
             )}
             <div className="grid gap-3 rounded-xl border bg-background/40 p-4 sm:grid-cols-2">
               <AuditValue
-                label="Source payment hash"
+                label={f.sourcePaymentHash}
                 value={receipt.sourcePaymentHash}
               />
-              <AuditValue label="Listener event" value={receipt.eventKey} />
+              <AuditValue label={f.listenerEvent} value={receipt.eventKey} />
               <AuditValue
-                label="Recovered event"
-                value={receipt.recovered ? 'Yes' : 'No'}
+                label={f.recoveredEvent}
+                value={receipt.recovered ? f.yes : f.no}
               />
               <AuditValue
-                label={`Applied revision ${receipt.configRevision}`}
+                label={f.appliedRevision(receipt.configRevision)}
                 value={
                   receipt.revision
                     ? `${(receipt.revision.feeBps / 100).toFixed(2)}% + ${receipt.revision.baseFeeSats} sat`
-                    : 'Configuration snapshot unavailable'
+                    : f.snapshotUnavailable
                 }
               />
               <AuditValue
-                label="Source invoice"
-                value={receipt.sourceInvoice ?? 'Not reported'}
+                label={f.sourceInvoice}
+                value={receipt.sourceInvoice ?? f.notReported}
               />
             </div>
           </TabsContent>
@@ -1112,9 +1120,9 @@ function ForwardReceiptDialog({
           <TabsContent value="zap-request" className="m-0 p-5 sm:p-6">
             <ZapAuditDocument
               loading={payment.loading}
-              label="Kind 9734 event"
+              label={f.kind9734}
               value={zap?.requestJson ?? null}
-              empty="No zap request was attached to this payment."
+              empty={f.noZapRequest}
             />
           </TabsContent>
           <TabsContent value="zap-receipt" className="m-0 p-5 sm:p-6">
@@ -1129,7 +1137,7 @@ function ForwardReceiptDialog({
               ) : (
                 <RotateCcw data-icon="inline-start" />
               )}
-              Retry failed legs
+              {f.retryFailedLegs}
             </Button>
           )}
         </DialogFooter>
@@ -1139,19 +1147,23 @@ function ForwardReceiptDialog({
 }
 
 function ForwardReceiptLegs({ receipt }: { receipt: ForwardReceiptData }) {
+  const rw = useT().remoteWallets
+  const f = rw.forwarding
   return receipt.legs.map(leg => (
     <div key={leg.id} className="rounded-xl border p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
           <div className="truncate font-mono text-sm">{leg.destination}</div>
           <div className="mt-1 text-xs text-muted-foreground">
-            {(leg.allocationBps / 100).toFixed(2)}% · requested{' '}
-            {formatMsats(String(leg.requestedAmountMsats))} · forwarded{' '}
-            {formatMsats(String(leg.forwardedAmountMsats ?? 0))} · reserved{' '}
-            {formatMsats(String(leg.routingReserveMsats))} · routing fee{' '}
-            {formatMsats(String(leg.routingFeeMsats ?? 0))} · unused{' '}
-            {formatMsats(String(leg.unusedRoutingReserveMsats))} · destination
-            shortfall {formatMsats(String(leg.destinationShortfallMsats))}
+            {f.legSummary({
+              pct: (leg.allocationBps / 100).toFixed(2),
+              requested: formatMsats(String(leg.requestedAmountMsats)),
+              forwarded: formatMsats(String(leg.forwardedAmountMsats ?? 0)),
+              reserved: formatMsats(String(leg.routingReserveMsats)),
+              fee: formatMsats(String(leg.routingFeeMsats ?? 0)),
+              unused: formatMsats(String(leg.unusedRoutingReserveMsats)),
+              shortfall: formatMsats(String(leg.destinationShortfallMsats))
+            })}
           </div>
         </div>
         <Badge variant="outline">{leg.status}</Badge>
@@ -1164,42 +1176,44 @@ function ForwardReceiptLegs({ receipt }: { receipt: ForwardReceiptData }) {
               className="rounded-lg border bg-background/50 p-3 text-xs text-muted-foreground"
             >
               <summary className="cursor-pointer font-medium text-foreground">
-                {leg.batchAnchorId ? 'Batch attempt' : 'Attempt'}{' '}
-                {attempt.attemptNo} · {attempt.status} ·{' '}
+                {leg.batchAnchorId
+                  ? f.batchAttempt(attempt.attemptNo)
+                  : rw.attempt(attempt.attemptNo)}{' '}
+                · {attempt.status} ·{' '}
                 {formatMsats(String(attempt.amountMsats))}
               </summary>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                <AuditValue label="Request ID" value={attempt.requestId} />
-                <AuditValue label="Payment hash" value={attempt.paymentHash} />
+                <AuditValue label={f.requestId} value={attempt.requestId} />
+                <AuditValue label={f.paymentHash} value={attempt.paymentHash} />
                 <AuditValue label="BOLT11" value={attempt.bolt11} />
                 <AuditValue
-                  label="Preimage"
-                  value={attempt.preimage ?? 'Not available'}
+                  label={f.preimage}
+                  value={attempt.preimage ?? f.notAvailable}
                 />
                 <AuditValue
-                  label="Routing reserve"
+                  label={f.routingReserve}
                   value={formatMsats(String(attempt.routingReserveMsats))}
                 />
                 <AuditValue
-                  label="Routing fee"
+                  label={f.routingFee}
                   value={formatMsats(String(attempt.routingFeeMsats ?? 0))}
                 />
                 {leg.routingFeeOverageMsats > 0 && (
                   <AuditValue
-                    label="Routing fee over reserve"
+                    label={f.feeOverReserve}
                     value={formatMsats(String(leg.routingFeeOverageMsats))}
                     destructive
                   />
                 )}
                 <AuditValue
-                  label="Expires"
+                  label={f.expires}
                   value={formatDateTime(attempt.expiresAt)}
                 />
                 {(attempt.errorCode || attempt.errorMessage) && (
                   <div className="sm:col-span-2">
                     <AuditValue
-                      label={attempt.errorCode ?? 'Error'}
-                      value={attempt.errorMessage ?? 'Rejected'}
+                      label={attempt.errorCode ?? f.error}
+                      value={attempt.errorMessage ?? f.rejected}
                       destructive
                     />
                   </div>
@@ -1224,11 +1238,12 @@ function ZapAuditDocument({
   value: string | null
   empty: string
 }) {
+  const f = useT().remoteWallets.forwarding
   if (loading) {
     return (
       <div className="flex items-center justify-center gap-2 py-14 text-sm text-muted-foreground">
         <Spinner size={16} />
-        Loading zap audit…
+        {f.loadingZapAudit}
       </div>
     )
   }
@@ -1243,30 +1258,31 @@ function ZapReceiptDocument({
   loading: boolean
   zap: RemoteWalletZapData | null
 }) {
+  const f = useT().remoteWallets.forwarding
   if (loading) {
     return (
       <div className="flex items-center justify-center gap-2 py-14 text-sm text-muted-foreground">
         <Spinner size={16} />
-        Loading zap receipt…
+        {f.loadingZapReceipt}
       </div>
     )
   }
   if (!zap) {
-    return <EmptyActivity text="This payment did not include a zap request." />
+    return <EmptyActivity text={f.noZap} />
   }
   if (!zap.receiptJson) {
     return (
       <div className="space-y-3 rounded-xl border border-amber-500/25 bg-amber-500/5 p-4">
         <div className="flex items-center gap-2 font-medium text-amber-500">
           <Clock3 className="size-4" />
-          Zap receipt pending
+          {f.zapPending}
         </div>
         <p className="text-sm text-muted-foreground">
-          {zap.error ?? 'Awaiting listener-confirmed settlement.'}
+          {zap.error ?? f.awaitingSettlement}
         </p>
         {zap.nextRetryAt && (
           <p className="text-xs text-muted-foreground">
-            Next retry {formatDateTime(zap.nextRetryAt)}
+            {f.nextRetry(formatDateTime(zap.nextRetryAt))}
           </p>
         )}
       </div>
@@ -1276,19 +1292,19 @@ function ZapReceiptDocument({
     <div className="space-y-4">
       <div className="grid gap-3 rounded-xl border bg-background/40 p-4 sm:grid-cols-2">
         <AuditValue
-          label="Receipt event ID"
-          value={zap.receiptEventId ?? 'Not published'}
+          label={f.receiptEventId}
+          value={zap.receiptEventId ?? f.notPublished}
         />
         <AuditValue
-          label="Published"
+          label={f.published}
           value={
             zap.receiptPublishedAt
               ? formatDateTime(zap.receiptPublishedAt)
-              : 'Not published'
+              : f.notPublished
           }
         />
       </div>
-      <ZapEventJson label="Kind 9735 event" value={zap.receiptJson} />
+      <ZapEventJson label={f.kind9735} value={zap.receiptJson} />
     </div>
   )
 }
@@ -1320,11 +1336,13 @@ function AuditValue({
 }
 
 function StateBadge({ action }: { action: RemoteWalletReceiveActionData }) {
-  if (!action.configured) return <Badge variant="outline">Not configured</Badge>
+  const rw = useT().remoteWallets
+  if (!action.configured)
+    return <Badge variant="outline">{rw.forwarding.notConfigured}</Badge>
   return action.enabled ? (
-    <Badge className="bg-emerald-600">Live</Badge>
+    <Badge className="bg-emerald-600">{rw.live}</Badge>
   ) : (
-    <Badge variant="secondary">Paused</Badge>
+    <Badge variant="secondary">{rw.paused}</Badge>
   )
 }
 function EmptyActivity({ text }: { text: string }) {

@@ -8,6 +8,7 @@ import {
 } from '@/components/ui/popover'
 import { Button } from '@/components/ui/button'
 import { type NwcStatus } from '@/lib/client/use-nwc-balance'
+import { useT, type Dict } from '@/lib/client/i18n'
 import { cn } from '@/lib/utils'
 
 interface RelayErrorBadgeProps {
@@ -41,17 +42,18 @@ export function RelayErrorBadge({
   onRetry,
   className
 }: RelayErrorBadgeProps) {
+  const t = useT()
   const inError = status === 'disconnected' || error !== null
   if (!inError) return null
 
-  const message = humaniseError(error)
+  const message = humaniseError(error, t)
 
   return (
     <Popover>
       <PopoverTrigger asChild>
         <button
           type="button"
-          aria-label="Relay error — tap for details"
+          aria-label={t.shared.relay.badge}
           className={cn(
             'inline-flex items-center gap-1 rounded-full transition-colors',
             hasCachedValue
@@ -68,7 +70,7 @@ export function RelayErrorBadge({
           ) : (
             <>
               <AlertCircle className="size-3.5" />
-              Offline
+              {t.shared.relay.offline}
             </>
           )}
         </button>
@@ -79,7 +81,7 @@ export function RelayErrorBadge({
             <AlertCircle className="mt-0.5 size-4 shrink-0 text-destructive" />
             <div className="flex flex-col gap-1">
               <p className="text-sm font-semibold text-foreground">
-                Wallet relay unavailable
+                {t.shared.relay.title}
               </p>
               <p className="text-xs leading-relaxed text-muted-foreground">
                 {message}
@@ -94,7 +96,7 @@ export function RelayErrorBadge({
             className="self-start"
           >
             <RefreshCw className="size-3.5" />
-            Retry
+            {t.common.retry}
           </Button>
         </div>
       </PopoverContent>
@@ -102,16 +104,10 @@ export function RelayErrorBadge({
   )
 }
 
-function humaniseError(error: Error | null): string {
-  if (!error) {
-    return 'Last request to the wallet relay failed. The wallet will keep retrying in the background.'
-  }
+function humaniseError(error: Error | null, t: Dict): string {
+  if (!error) return t.shared.relay.generic
   const msg = error.message
-  if (/reply timeout/i.test(msg)) {
-    return 'The wallet relay timed out. Check the device hosting your wallet, or your internet connection.'
-  }
-  if (/failed to connect/i.test(msg)) {
-    return 'Could not reach the wallet relay. Check your internet connection and try again.'
-  }
+  if (/reply timeout/i.test(msg)) return t.shared.relay.timeout
+  if (/failed to connect/i.test(msg)) return t.shared.relay.unreachable
   return msg
 }

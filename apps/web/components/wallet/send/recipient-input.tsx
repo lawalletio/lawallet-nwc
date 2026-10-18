@@ -13,6 +13,7 @@ import {
   type ResolvedRecipient
 } from '@/lib/client/wallet-flow-store'
 import { contactsActions } from '@/lib/client/contacts-store'
+import { useT } from '@/lib/client/i18n'
 
 /**
  * Send-flow recipient step. The field is the shared
@@ -22,6 +23,7 @@ import { contactsActions } from '@/lib/client/contacts-store'
  */
 export function RecipientInput() {
   const router = useRouter()
+  const t = useT()
   const [value, setValue] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -104,7 +106,8 @@ export function RecipientInput() {
       }
       // Leave the spinner up — this screen unmounts when the next one loads.
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Invalid recipient'
+      const message =
+        err instanceof Error ? err.message : t.send.invalidRecipient
       setError(message)
       toast.error(message)
       setLoading(false)
@@ -121,7 +124,7 @@ export function RecipientInput() {
           htmlFor="recipient"
           className="text-sm font-medium text-foreground"
         >
-          To
+          {t.send.to}
         </label>
         <LightningAddressInput
           id="recipient"
@@ -145,7 +148,7 @@ export function RecipientInput() {
 
       <div className="flex min-h-0 flex-1 items-center justify-center">
         {loading && (
-          <Spinner size={32} role="status" aria-label="Loading next screen" />
+          <Spinner size={32} role="status" aria-label={t.send.loadingNext} />
         )}
       </div>
 
@@ -160,7 +163,7 @@ export function RecipientInput() {
             <Spinner size={16} />
           ) : (
             <>
-              Continue
+              {t.common.continue}
               <ArrowRight className="size-4" />
             </>
           )}

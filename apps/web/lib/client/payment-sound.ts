@@ -11,20 +11,6 @@ export type PaymentSoundId = (typeof PAYMENT_SOUND_IDS)[number]
 
 export const DEFAULT_PAYMENT_SOUND: PaymentSoundId = 'off'
 
-export const PAYMENT_SOUNDS: {
-  id: PaymentSoundId
-  label: string
-  description: string
-}[] = [
-  { id: 'chime', label: 'Chime', description: 'Short tone' },
-  {
-    id: 'bananero',
-    label: 'Sapeee',
-    description: 'El Bananero'
-  },
-  { id: 'off', label: 'Off', description: 'No sound' }
-]
-
 const listeners = new Set<() => void>()
 const playedCueIds = new Set<string>()
 
