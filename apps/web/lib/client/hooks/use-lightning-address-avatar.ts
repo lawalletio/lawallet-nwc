@@ -69,7 +69,8 @@ export function useLightningAddressAvatar(
           // re-asking on every remount is the expensive case, not the hit.
           writeAvatar(normalized, {
             avatarUrl: profile?.avatarUrl ?? null,
-            name: profile?.displayName ?? profile?.name ?? null
+            name: profile?.displayName ?? profile?.name ?? null,
+            pubkey: profile?.pubkey ?? null
           })
         })
         .catch(() => {

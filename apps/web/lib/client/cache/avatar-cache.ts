@@ -21,6 +21,9 @@ export interface CachedAvatar {
   /** null when the address resolved to no profile — a cached miss. */
   avatarUrl: string | null
   name: string | null
+  /** Hex Nostr pubkey behind the address, so a saved contact on another
+   * address of the same person can be recognized. */
+  pubkey?: string | null
   fetchedAt: number
   schemaVersion: typeof SCHEMA_VERSION
 }
@@ -51,7 +54,11 @@ export function readAvatar(address: string): CachedAvatar | null {
 
 export function writeAvatar(
   address: string,
-  value: { avatarUrl: string | null; name?: string | null }
+  value: {
+    avatarUrl: string | null
+    name?: string | null
+    pubkey?: string | null
+  }
 ): void {
   if (!address) return
   if (typeof window === 'undefined') return
@@ -59,6 +66,7 @@ export function writeAvatar(
     const entry: CachedAvatar = {
       avatarUrl: value.avatarUrl,
       name: value.name ?? null,
+      pubkey: value.pubkey ?? null,
       fetchedAt: Date.now(),
       schemaVersion: SCHEMA_VERSION
     }

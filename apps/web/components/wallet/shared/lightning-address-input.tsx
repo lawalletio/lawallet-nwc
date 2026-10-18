@@ -14,7 +14,12 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useApi } from '@/lib/client/hooks/use-api'
 import { useDebouncedValue } from '@/lib/client/hooks/use-debounced-value'
 import { useLightningAddressAvatar } from '@/lib/client/hooks/use-lightning-address-avatar'
-import { contactsActions, useContacts } from '@/lib/client/contacts-store'
+import { readAvatar } from '@/lib/client/cache/avatar-cache'
+import {
+  contactsActions,
+  useContacts,
+  type Contact
+} from '@/lib/client/contacts-store'
 import {
   buildLightningAddressSuggestions,
   getDomainAvatarUrl,
@@ -53,8 +58,6 @@ export interface LightningAddressInputProps {
   allowNonAddress?: boolean
   /** Hide the saved-contacts group, showing only generated suggestions. */
   hideContacts?: boolean
-  /** Hide generated `username@domain` suggestions. */
-  hideSuggestions?: boolean
   id?: string
   name?: string
   placeholder?: string
@@ -83,7 +86,6 @@ export function LightningAddressInput({
   variant = 'popover',
   allowNonAddress = false,
   hideContacts = false,
-  hideSuggestions = false,
   id,
   name,
   placeholder = 'satoshi@lawallet.ar',
@@ -102,6 +104,9 @@ export function LightningAddressInput({
   const [open, setOpen] = useState(variant === 'inline')
   const [focused, setFocused] = useState(false)
   const [highlightedOptionIndex, setHighlightedOptionIndex] = useState(-1)
+  // The value last picked from the list. While the field still holds it the
+  // choice is made, so the list gives way to the field alone.
+  const [committedValue, setCommittedValue] = useState<string | null>(null)
   const optionRefs = useRef<Array<HTMLButtonElement | null>>([])
   const localInputRef = useRef<HTMLInputElement | null>(null)
   // Unique per instance: the forwarding editor mounts several of these at once,
@@ -111,6 +116,7 @@ export function LightningAddressInput({
   const listboxId = `lightning-address-options-${reactId}`
 
   const query = value.trim().toLowerCase()
+  const committed = committedValue !== null && committedValue === query
   const currentDomain = resolveCurrentLightningDomain(me?.lightningAddress)
 
   const recentContacts = useMemo(() => {
@@ -123,41 +129,43 @@ export function LightningAddressInput({
     return matched.slice(0, MAX_RECENT_OPTIONS)
   }, [contacts, hideContacts, query])
   const suggestedAddresses = useMemo(
-    () =>
-      hideSuggestions
-        ? []
-        : buildLightningAddressSuggestions(value, currentDomain),
-    [currentDomain, hideSuggestions, value]
+    () => buildLightningAddressSuggestions(value, currentDomain),
+    [currentDomain, value]
   )
 
   // Once the typed value IS one of the options, offering the other domains is
-  // noise — the user already settled on one. Collapse to that single row.
-  const exactMatch =
-    contacts.find(contact => contact.lightningAddress === query) ??
+  // noise — the user already settled on one. Collapse to that single row, the
+  // saved contact when there is one (it carries the avatar and name).
+  const savedContact =
+    contacts.find(contact => contact.lightningAddress === query) ?? null
+  const exactContact = hideContacts ? null : savedContact
+  const exactSuggestion =
     suggestedAddresses.find(
       suggestion => suggestion.lightningAddress === query
-    ) ??
-    null
+    ) ?? null
+  const exactMatch = exactContact ?? exactSuggestion
 
-  const visibleContacts = exactMatch
-    ? recentContacts.filter(contact => contact.lightningAddress === query)
-    : recentContacts
-  const visibleSuggestions = exactMatch
-    ? suggestedAddresses.filter(
-        suggestion => suggestion.lightningAddress === query
-      )
-    : suggestedAddresses
+  const exactContacts = exactContact ? [exactContact] : []
+  const exactSuggestions =
+    !exactContact && exactSuggestion ? [exactSuggestion] : []
+  const visibleContacts = committed
+    ? []
+    : exactMatch
+      ? exactContacts
+      : recentContacts
+  const visibleSuggestions = committed
+    ? []
+    : exactMatch
+      ? exactSuggestions
+      : suggestedAddresses
 
   const hasOptions = visibleContacts.length > 0 || visibleSuggestions.length > 0
   const listVisible = hasOptions && (variant === 'inline' || open)
 
-  const optionValues = useMemo(
-    () => [
-      ...visibleContacts.map(contact => contact.lightningAddress),
-      ...visibleSuggestions.map(suggestion => suggestion.lightningAddress)
-    ],
-    [visibleContacts, visibleSuggestions]
-  )
+  const optionValues = [
+    ...visibleContacts.map(contact => contact.lightningAddress),
+    ...visibleSuggestions.map(suggestion => suggestion.lightningAddress)
+  ]
   const activeOptionIndex =
     highlightedOptionIndex >= 0 && highlightedOptionIndex < optionValues.length
       ? highlightedOptionIndex
@@ -201,6 +209,7 @@ export function LightningAddressInput({
 
   function commit(nextValue: string) {
     onChange(nextValue)
+    setCommittedValue(nextValue.trim().toLowerCase())
     setHighlightedOptionIndex(-1)
     if (variant === 'popover') setOpen(false)
     onSelect?.(nextValue)
@@ -302,7 +311,8 @@ export function LightningAddressInput({
                 typedAvatar.avatarUrl &&
                 suggestion.lightningAddress === debouncedValue
                   ? typedAvatar.avatarUrl
-                  : suggestion.avatarUrl
+                  : (knownAvatarFor(suggestion.lightningAddress, contacts) ??
+                    suggestion.avatarUrl)
               return (
                 <LightningAddressOptionButton
                   key={suggestion.lightningAddress}
@@ -325,12 +335,21 @@ export function LightningAddressInput({
     </section>
   ) : null
 
-  // A settled address: valid, and the user has moved on. Show who it is
-  // instead of leaving a bare string, and offer a way back to editing.
-  const settled = !focused && isLightningAddress(query)
+  // A settled address: valid, and the user has moved on (or picked it). Show
+  // who it is instead of leaving a bare string, and offer a way back to
+  // editing. A saved contact's cached profile beats a fresh lookup.
+  const settled = (!focused || committed) && isLightningAddress(query)
   const settledAvatarUrl = settled
-    ? (typedAvatar.avatarUrl ?? getAvatarFallbackForAddress(query))
+    ? (knownAvatarFor(query, contacts) ??
+      typedAvatar.avatarUrl ??
+      getAvatarFallbackForAddress(query))
     : null
+  const contactName = savedContact?.displayName ?? savedContact?.name
+  // The default name is just the local-part — repeating it adds nothing.
+  const settledName =
+    settled && contactName && contactName !== query.split('@')[0]
+      ? contactName
+      : null
 
   const field = (
     <Input
@@ -355,6 +374,8 @@ export function LightningAddressInput({
       }}
       onFocus={() => {
         setFocused(true)
+        // Coming back to the field means editing, not the picked choice.
+        setCommittedValue(null)
         if (variant === 'popover') setOpen(true)
       }}
       onBlur={() => {
@@ -381,6 +402,7 @@ export function LightningAddressInput({
       className={cn(
         invalid && 'border-destructive',
         settled && 'pl-11 pr-20',
+        settledName && 'text-transparent',
         className
       )}
       aria-label={rest['aria-label']}
@@ -407,6 +429,19 @@ export function LightningAddressInput({
         </Avatar>
       )}
       {field}
+      {settledName && (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-y-0 left-11 right-20 flex flex-col justify-center leading-tight"
+        >
+          <span className="truncate text-sm font-medium text-foreground">
+            {settledName}
+          </span>
+          <span className="truncate text-xs text-muted-foreground">
+            {query}
+          </span>
+        </div>
+      )}
       {settled && (
         <button
           type="button"
@@ -414,6 +449,7 @@ export function LightningAddressInput({
           // keyboard user has no hover to trigger it with.
           className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-hover:opacity-100"
           onClick={() => {
+            setCommittedValue(null)
             const node = localInputRef.current
             node?.focus()
             // Select rather than clear: replacing is the common case, and a
@@ -432,10 +468,7 @@ export function LightningAddressInput({
     return (
       <>
         {fieldWithAffordances}
-        {optionList ??
-          (hideContacts && hideSuggestions ? null : (
-            <div className="min-h-0 flex-1" />
-          ))}
+        {optionList ?? <div className="min-h-0 flex-1" />}
       </>
     )
   }
@@ -566,6 +599,26 @@ export function initialsFor(source: string): string {
   const first = parts[0]?.[0] ?? '?'
   const second = parts.length > 1 ? parts[1]?.[0] : parts[0]?.[1]
   return `${first}${second ?? ''}`.toUpperCase()
+}
+
+/**
+ * A real avatar already on this device for an address: a saved contact on the
+ * same address, or on another address with the same Nostr key (known once the
+ * address was resolved), else the address's own cached lookup. No network —
+ * the generated candidates are never looked up one by one.
+ */
+export function knownAvatarFor(
+  address: string,
+  contacts: Contact[]
+): string | null {
+  const cached = readAvatar(address)
+  const pubkey = cached?.pubkey
+  const contact = contacts.find(
+    c =>
+      c.avatarUrl &&
+      (c.lightningAddress === address || (pubkey && c.pubkey === pubkey))
+  )
+  return contact?.avatarUrl ?? cached?.avatarUrl ?? null
 }
 
 function getAvatarFallbackForAddress(address: string): string | null {
