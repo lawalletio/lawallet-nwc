@@ -308,6 +308,18 @@ describe('mintCourtesyLncurlWallet', () => {
     // The caller inserts the first address and stores the binding itself.
     expect(prismaMock.lightningAddress.update).not.toHaveBeenCalled()
   })
+
+  it('falls back to the default LNCurl server when none is configured', async () => {
+    vi.mocked(prismaMock.remoteWallet.findFirst).mockResolvedValue(null)
+    vi.mocked(getSettings).mockResolvedValue({
+      lncurl_enabled: 'true',
+      lncurl_auto_create: 'true'
+    })
+
+    await mintCourtesyLncurlWallet(USER_ID)
+
+    expect(createLncurlWallet).toHaveBeenCalledWith('https://lncurl.lol/')
+  })
 })
 
 describe('lncurlHealTarget', () => {

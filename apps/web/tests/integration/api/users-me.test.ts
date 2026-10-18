@@ -502,6 +502,35 @@ describe('GET /api/users/me', () => {
     expect(mintCourtesyLncurlWallet).not.toHaveBeenCalled()
   })
 
+  it('promotes the oldest address when the account has no primary', async () => {
+    mockAuth()
+    const user = createUserFixture({
+      pubkey: mockPubkey,
+      lightningAddresses: [],
+      remoteWallets: []
+    })
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
+    vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com' })
+    vi.mocked(prismaMock.lightningAddress.findFirst).mockResolvedValue({
+      username: 'stray',
+      isPrimary: false,
+      mode: 'IDLE',
+      redirect: null,
+      remoteWalletId: null,
+      remoteWallet: null
+    } as any)
+
+    const res = await GET(createNextRequest('/api/users/me'))
+    const body: any = await assertResponse(res, 200)
+
+    expect(prismaMock.lightningAddress.update).toHaveBeenCalledWith({
+      where: { username: 'stray' },
+      data: { isPrimary: true }
+    })
+    expect(body.primaryUsername).toBe('stray')
+    expect(body.lightningAddress).toBe('stray@test.com')
+  })
+
   it('no primary address: every primary* field is null', async () => {
     mockAuth()
     const user = createUserFixture({
