@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { NostrConnectForm } from '@/components/shared/nostr-connect-form'
 import { ScreenHeader } from '@/components/wallet/shared/screen-header'
+import { postAuthPath } from '@/lib/client/pending-activation'
 
 /**
  * The Nostr sign-in methods, split out of the login screen so `/wallet/login`
@@ -32,7 +33,7 @@ export function NostrLoginMethods() {
         <NostrConnectForm
           submitLabel="Login"
           loadingLabel="Signing in..."
-          onSuccess={() => router.replace('/wallet')}
+          onSuccess={() => router.replace(postAuthPath('/wallet'))}
         />
       </div>
     </div>

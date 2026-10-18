@@ -10,6 +10,10 @@ import { Card3D } from '@/components/activate/card-3d'
 import { InlineAuth } from '@/components/activate/inline-auth'
 import { ActivationSuccess } from '@/components/activate/activation-success'
 import { rememberGrantedActivationBonus } from '@/lib/client/activation-bonus-notice'
+import {
+  clearPendingActivation,
+  rememberPendingActivation
+} from '@/lib/client/pending-activation'
 
 interface ActivationPreview {
   tokenId: string
@@ -83,6 +87,7 @@ export function ActivateClient({ tokenId }: { tokenId: string }) {
           sats?: { granted?: boolean; amountSats?: number }
         }
       }
+      clearPendingActivation()
       setClaimedCard(res?.card ?? null)
       setBonusSats(rememberGrantedActivationBonus(res?.bonuses))
       if (res?.needsLightningAddress) {
@@ -107,6 +112,16 @@ export function ActivateClient({ tokenId }: { tokenId: string }) {
     if (preview.qrKind !== 'ONE_TIME') return 'unsupported' as const
     return 'ready' as const
   }, [preview, previewError])
+
+  // Remember a claimable card so leaving to log in / sign up comes back here;
+  // forget it once it can no longer be claimed.
+  useEffect(() => {
+    if (phase === 'ready' && claimState !== 'success') {
+      rememberPendingActivation(tokenId)
+    } else if (phase === 'unavailable' || phase === 'unsupported') {
+      clearPendingActivation()
+    }
+  }, [phase, claimState, tokenId])
 
   // After an inline login completes, auto-fire the claim so the user flows
   // straight from "register" into the activation animation.

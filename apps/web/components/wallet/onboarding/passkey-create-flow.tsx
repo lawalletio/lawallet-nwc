@@ -10,6 +10,7 @@ import { ScreenHeader } from '@/components/wallet/shared/screen-header'
 import { useAuth } from '@/components/admin/auth-context'
 import { useSettings } from '@/lib/client/hooks/use-settings'
 import { createNsecSigner } from '@/lib/client/nostr-signer'
+import { postAuthPath } from '@/lib/client/pending-activation'
 import {
   registerPasskeyAccount,
   translatePasskeyError
@@ -39,7 +40,7 @@ export function PasskeyCreateFlow() {
       await login(createNsecSigner(identity.secretHex), 'passkey', {
         secret: identity.secretHex
       })
-      router.replace('/wallet/welcome')
+      router.replace(postAuthPath('/wallet/welcome'))
     } catch (err) {
       const passkeyError = translatePasskeyError(err)
       setError(passkeyError.message)
@@ -50,7 +51,7 @@ export function PasskeyCreateFlow() {
 
   return (
     <div className="flex flex-1 flex-col">
-      <ScreenHeader />
+      <ScreenHeader onBack={() => router.push('/wallet/signup')} />
       <div className="flex flex-1 flex-col justify-between pb-6 pt-2">
         <div className="space-y-6 pt-4">
           <div className="space-y-3">

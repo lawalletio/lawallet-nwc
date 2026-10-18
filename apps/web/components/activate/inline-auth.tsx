@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import Link from 'next/link'
 import { ArrowLeft, KeyRound } from 'lucide-react'
 import { toast } from 'sonner'
 import { generateSecretKey } from 'nostr-tools/pure'
@@ -66,7 +67,7 @@ export function InlineAuth({ onAuthStart }: { onAuthStart: () => void }) {
           className="h-12 w-full"
           label="Passkey"
           surfaceCancel
-          duplicateMessage="This device already has a passkey."
+          duplicateMessage="This device already has a passkey — tap “I already have an account”."
           onSuccess={onAuthStart}
         />
         <Button
@@ -76,6 +77,10 @@ export function InlineAuth({ onAuthStart }: { onAuthStart: () => void }) {
         >
           <KeyRound className="size-4" />
           Nostr
+        </Button>
+        {/* The card is remembered (pending-activation), so login returns here. */}
+        <Button asChild variant="ghost" className="h-10 w-full">
+          <Link href="/wallet/login">I already have an account</Link>
         </Button>
       </div>
     )

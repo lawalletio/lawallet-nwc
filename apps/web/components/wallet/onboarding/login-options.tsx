@@ -7,6 +7,7 @@ import { BrandLogotype } from '@/components/ui/brand-logotype'
 import { PasskeyLoginButton } from '@/components/shared/passkey-login-button'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
+import { postAuthPath } from '@/lib/client/pending-activation'
 
 export function LoginOptions() {
   const router = useRouter()
@@ -31,7 +32,7 @@ export function LoginOptions() {
             variant="theme"
             className="h-12 w-full"
             showCrossDeviceHint
-            onSuccess={() => router.replace('/wallet')}
+            onSuccess={() => router.replace(postAuthPath('/wallet'))}
           />
 
           <div className="relative">

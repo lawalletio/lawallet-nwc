@@ -72,6 +72,7 @@ import {
   subscribeActivationBonus
 } from '@/lib/client/activation-bonus-notice'
 import { cn } from '@/lib/utils'
+import { Role } from '@/lib/auth/permissions'
 
 interface UserMeResponse {
   userId: string
@@ -83,7 +84,7 @@ interface UserMeResponse {
 }
 
 export function HomeScreen() {
-  const { logout, pubkey } = useAuth()
+  const { logout, pubkey, role } = useAuth()
   const { isotypo, logotype } = useBrandLogotypes()
   const { profile } = useNostrProfile(pubkey)
   const { rates } = useYadioRates()
@@ -219,17 +220,21 @@ export function HomeScreen() {
             </button>
           </DropdownMenuTrigger>
           {/* Tapping the avatar used to log the user straight out. Now it opens
-              a small menu — the primary action is jumping to the admin
-              dashboard; logout stays available but is no longer a one-tap
-              accident. */}
+              a small menu — operators get a jump to the admin dashboard
+              (plain members stay in the wallet); logout stays available but
+              is no longer a one-tap accident. */}
           <DropdownMenuContent align="start" className="w-52">
-            <DropdownMenuItem asChild>
-              <Link href="/admin">
-                <LayoutDashboard className="size-4" />
-                Admin dashboard
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
+            {role && role !== Role.USER && (
+              <>
+                <DropdownMenuItem asChild>
+                  <Link href="/admin">
+                    <LayoutDashboard className="size-4" />
+                    Admin dashboard
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+              </>
+            )}
             <DropdownMenuItem onClick={logout}>
               <LogOut className="size-4" />
               Log out
@@ -419,11 +424,12 @@ export function HomeScreen() {
           <div className="mx-4 mt-4 rounded-xl border border-border bg-card/60 p-4 text-sm text-muted-foreground">
             <p className="font-medium text-foreground">No wallet connected</p>
             <p className="mt-1 text-xs">
-              Connect a Nostr Wallet Connect URI from the admin settings page to
-              start sending and receiving.
+              Connect a Nostr Wallet Connect URI to start sending and receiving.
             </p>
             <Button asChild variant="secondary" size="sm" className="mt-3">
-              <Link href="/admin">Open admin</Link>
+              <Link href="/wallet/settings/remote-wallets">
+                Connect a wallet
+              </Link>
             </Button>
           </div>
         ))}

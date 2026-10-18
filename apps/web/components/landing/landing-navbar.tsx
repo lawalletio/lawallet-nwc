@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useAuth } from '@/components/admin/auth-context'
 import { useNostrProfile } from '@/lib/client/nostr-profile'
+import { Role } from '@/lib/auth/permissions'
 
 interface LandingNavbarProps {
   setupNeeded: boolean
@@ -18,7 +19,7 @@ export function LandingNavbar({
   onLoginClick
 }: LandingNavbarProps) {
   const router = useRouter()
-  const { status, pubkey } = useAuth()
+  const { status, pubkey, role } = useAuth()
   const { profile } = useNostrProfile(pubkey)
 
   const isAuthenticated = status === 'authenticated'
@@ -72,9 +73,13 @@ export function LandingNavbar({
               <Button
                 variant="theme"
                 size="sm"
-                onClick={() => router.push('/admin')}
+                onClick={() =>
+                  router.push(
+                    setupNeeded || role !== Role.USER ? '/admin' : '/wallet'
+                  )
+                }
               >
-                Dashboard
+                {setupNeeded || role !== Role.USER ? 'Dashboard' : 'Wallet'}
               </Button>
             </>
           ) : (

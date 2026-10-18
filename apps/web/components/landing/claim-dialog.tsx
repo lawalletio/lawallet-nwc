@@ -131,7 +131,7 @@ export function ClaimDialog({ open, onOpenChange, domain }: ClaimDialogProps) {
 
   function handleLoginSuccess() {
     router.push(
-      `/admin/addresses/register?username=${encodeURIComponent(username)}`
+      `/wallet/claim-username?username=${encodeURIComponent(username)}`
     )
   }
 

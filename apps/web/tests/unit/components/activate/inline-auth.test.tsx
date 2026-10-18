@@ -130,7 +130,7 @@ describe('InlineAuth', () => {
     )
     await user.click(screen.getByRole('button', { name: 'Passkey' }))
     expect(
-      await screen.findByText('This device already has a passkey.')
+      await screen.findByText(/This device already has a passkey/)
     ).toBeTruthy()
   })
 

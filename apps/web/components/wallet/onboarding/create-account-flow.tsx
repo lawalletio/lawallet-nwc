@@ -11,6 +11,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { useAuth } from '@/components/admin/auth-context'
 import { createNsecSigner } from '@/lib/client/nostr-signer'
 import { SecretKeyReveal } from '@/components/shared/secret-key-reveal'
+import { postAuthPath } from '@/lib/client/pending-activation'
 
 /**
  * Two-step create-account flow:
@@ -44,7 +45,7 @@ export function CreateAccountFlow() {
       const signer = createNsecSigner(hex)
       // Persist the nsec so reloads silently rebuild the signer.
       await login(signer, 'nsec', { secret: nsec })
-      router.replace('/wallet/welcome')
+      router.replace(postAuthPath('/wallet/welcome'))
     } catch (err) {
       const message =
         err instanceof Error ? err.message : 'Failed to create account'
