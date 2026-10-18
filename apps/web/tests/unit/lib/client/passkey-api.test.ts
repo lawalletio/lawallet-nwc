@@ -10,7 +10,8 @@ vi.mock('@simplewebauthn/browser', () => ({
   startRegistration: vi.fn()
 }))
 
-vi.mock('@/lib/client/passkey-prf', () => ({
+vi.mock('@/lib/client/passkey-prf', async importOriginal => ({
+  ...(await importOriginal<typeof import('@/lib/client/passkey-prf')>()),
   getPrfAssertion: vi.fn(),
   derivePrfNsecHex: vi.fn()
 }))
@@ -19,7 +20,11 @@ import {
   browserSupportsWebAuthn,
   startRegistration
 } from '@simplewebauthn/browser'
-import { derivePrfNsecHex, getPrfAssertion } from '@/lib/client/passkey-prf'
+import {
+  PRF_SALT_HEX,
+  derivePrfNsecHex,
+  getPrfAssertion
+} from '@/lib/client/passkey-prf'
 import {
   PasskeyError,
   authenticateWithPasskey,
@@ -164,9 +169,11 @@ describe('registerPasskeyAccount', () => {
     expect(result.credential.id).toBe('cred-id')
     // The PRF eval pins the just-created credential.
     expect(vi.mocked(getPrfAssertion)).toHaveBeenCalledWith('cred-id')
-    // The PRF extension is requested at creation.
+    // The PRF is evaluated at creation with the fixed salt.
     const regOptions = vi.mocked(startRegistration).mock.calls[0][0] as any
-    expect(regOptions.optionsJSON.extensions.prf).toEqual({})
+    expect(
+      new Uint8Array(regOptions.optionsJSON.extensions.prf.eval.first)
+    ).toEqual(new Uint8Array(Buffer.from(PRF_SALT_HEX, 'hex')))
     // The verify body proves the derived pubkey with a kind-22242 event
     // answering the WebAuthn challenge.
     expect(verifyBody.pubkey).toBe(PUBKEY)
@@ -176,17 +183,53 @@ describe('registerPasskeyAccount', () => {
     expect(typeof verifyBody.proof.sig).toBe('string')
   })
 
-  it('rejects with prf-unsupported when the authenticator lacks PRF', async () => {
+  it('rejects with prf-unsupported when the authenticator reports prf.enabled=false', async () => {
     seedServer()
     vi.mocked(startRegistration).mockResolvedValue({
       ...REGISTRATION_CREDENTIAL,
-      clientExtensionResults: {}
+      clientExtensionResults: { prf: { enabled: false } }
     } as any)
 
     await expect(registerPasskeyAccount()).rejects.toMatchObject({
       kind: 'prf-unsupported'
     })
     expect(vi.mocked(getPrfAssertion)).not.toHaveBeenCalled()
+  })
+
+  it('still tries the PRF assertion when the provider omits prf.enabled', async () => {
+    seedServer()
+    vi.mocked(startRegistration).mockResolvedValue({
+      ...REGISTRATION_CREDENTIAL,
+      clientExtensionResults: {}
+    } as any)
+
+    const result = await registerPasskeyAccount()
+    expect(result.pubkey).toBe(PUBKEY)
+    expect(vi.mocked(getPrfAssertion)).toHaveBeenCalledWith('cred-id')
+  })
+
+  it('uses a PRF result returned at creation — one prompt, never sent to the server', async () => {
+    let verifyBody: any
+    seedServer(body => {
+      verifyBody = body
+      return undefined
+    })
+    vi.mocked(startRegistration).mockResolvedValue({
+      ...REGISTRATION_CREDENTIAL,
+      clientExtensionResults: {
+        prf: { enabled: true, results: { first: new Uint8Array(PRF_OUTPUT) } }
+      }
+    } as any)
+
+    const result = await registerPasskeyAccount()
+    expect(result.pubkey).toBe(PUBKEY)
+    expect(vi.mocked(getPrfAssertion)).not.toHaveBeenCalled()
+    expect(vi.mocked(derivePrfNsecHex)).toHaveBeenCalledWith(
+      new Uint8Array(PRF_OUTPUT)
+    )
+    expect(verifyBody.credential.clientExtensionResults).toEqual({
+      prf: { enabled: true }
+    })
   })
 
   it('maps a 409 verify response to the duplicate kind', async () => {

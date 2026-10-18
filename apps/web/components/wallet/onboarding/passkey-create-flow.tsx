@@ -42,12 +42,8 @@ export function PasskeyCreateFlow() {
       router.replace('/wallet/welcome')
     } catch (err) {
       const passkeyError = translatePasskeyError(err)
-      if (passkeyError.kind === 'cancelled') {
-        setError('Passkey prompt was closed — try again')
-      } else {
-        setError(passkeyError.message)
-        toast.error(passkeyError.message)
-      }
+      setError(passkeyError.message)
+      if (passkeyError.kind !== 'cancelled') toast.error(passkeyError.message)
       setBusy(false)
     }
   }

@@ -5,7 +5,11 @@ import {
 import { finalizeEvent } from 'nostr-tools/pure'
 import type { PasskeyCredentialSummary } from '@/lib/validation/schemas'
 import { getPublicKeyFromPrivate, hexToNsec } from '@/lib/nostr'
-import { derivePrfNsecHex, getPrfAssertion } from '@/lib/client/passkey-prf'
+import {
+  derivePrfNsecHex,
+  getPrfAssertion,
+  prfSaltBytes
+} from '@/lib/client/passkey-prf'
 
 export type { PasskeyCredentialSummary }
 
@@ -49,6 +53,11 @@ export class PasskeyError extends Error {
   }
 }
 
+// Third-party Android providers (Samsung Pass, some password managers) can
+// store a passkey but not evaluate PRF, so name the fix, not the device.
+const PRF_UNSUPPORTED_MESSAGE =
+  "Your passkey provider can't create the key LaWallet needs. Use Google Password Manager or iCloud Keychain, or sign in another way."
+
 /** Maps WebAuthn DOMExceptions / fetch failures to user-facing copy. */
 export function translatePasskeyError(err: unknown): PasskeyError {
   if (err instanceof PasskeyError) return err
@@ -60,7 +69,7 @@ export function translatePasskeyError(err: unknown): PasskeyError {
         // Covers user cancel AND ceremony timeout — silent-reset material.
         return new PasskeyError(
           'cancelled',
-          'Passkey prompt was closed — try again',
+          'Passkey prompt was closed or timed out — try again',
           err
         )
       case 'InvalidStateError':
@@ -82,11 +91,7 @@ export function translatePasskeyError(err: unknown): PasskeyError {
           err
         )
       case 'PrfUnsupportedError':
-        return new PasskeyError(
-          'prf-unsupported',
-          'This passkey cannot derive a key on this device — use iOS 18+/macOS 15+, a recent Chrome/Android, or another login method',
-          err
-        )
+        return new PasskeyError('prf-unsupported', PRF_UNSUPPORTED_MESSAGE, err)
     }
   }
 
@@ -128,6 +133,52 @@ async function postJson<T>(
   return response.json()
 }
 
+/** Where a ceremony got to — tags the Sentry event so Android failures sort by step/provider. */
+interface CeremonyContext {
+  step?: 'options' | 'create' | 'prf-eval' | 'verify'
+  attachment?: string
+  prfEnabled?: boolean
+  prfAtCreate?: boolean
+}
+
+/**
+ * Runs a ceremony, translating any failure into a PasskeyError and reporting
+ * it to Sentry (DSN-gated, fire-and-forget). Cancels report at `info`: on
+ * Android `NotAllowedError` also covers provider failures and a missing
+ * screen lock, so they stay visible without paging anyone.
+ */
+async function reported<T>(
+  phase: 'register' | 'link' | 'authenticate',
+  run: (ctx: CeremonyContext) => Promise<T>
+): Promise<T> {
+  const ctx: CeremonyContext = {}
+  try {
+    return await run(ctx)
+  } catch (err) {
+    const error = translatePasskeyError(err)
+    if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
+      const cause = error.cause instanceof Error ? error.cause : error
+      import('@sentry/nextjs')
+        .then(Sentry =>
+          Sentry.captureException(cause, {
+            level: error.kind === 'cancelled' ? 'info' : 'error',
+            fingerprint: ['passkey', phase, error.kind, ctx.step ?? 'unknown'],
+            tags: {
+              area: 'passkey',
+              'passkey.phase': phase,
+              'passkey.kind': error.kind,
+              'passkey.step': ctx.step,
+              'passkey.error': cause.name
+            },
+            contexts: { passkey: { ...ctx } }
+          })
+        )
+        .catch(() => {})
+    }
+    throw error
+  }
+}
+
 function hexToBytes(hex: string): Uint8Array {
   const bytes = new Uint8Array(hex.length / 2)
   for (let i = 0; i < bytes.length; i++) {
@@ -145,23 +196,27 @@ function hexToBytes(hex: string): Uint8Array {
  * pubkey as a secondary identity (add).
  */
 async function runRegistrationCeremony(
+  ctx: CeremonyContext,
   label?: string,
   token?: string
 ): Promise<PasskeyIdentity & { credential: PasskeyCredentialSummary }> {
+  ctx.step = 'options'
   const { options } = await postJson<{
     options: { challenge: string } & Record<string, unknown>
   }>('/api/auth/passkey/registration/options', label ? { label } : {}, token)
 
-  // Ask for the PRF extension at creation so `prf.enabled` tells us up front
-  // whether this authenticator can derive keys at all.
+  // Ask for the PRF result at creation: providers that evaluate it here
+  // (Google Password Manager, iCloud Keychain) need only ONE prompt. The
+  // back-to-back second ceremony is what Android providers fumble most.
   const optionsWithPrf = {
     ...options,
     extensions: {
       ...(options.extensions as Record<string, unknown> | undefined),
-      prf: {}
+      prf: { eval: { first: prfSaltBytes().buffer } }
     }
   }
 
+  ctx.step = 'create'
   let registration
   try {
     registration = await startRegistration({
@@ -171,26 +226,38 @@ async function runRegistrationCeremony(
     throw translatePasskeyError(err)
   }
 
-  const prfEnabled = (
-    registration.clientExtensionResults as { prf?: { enabled?: boolean } }
-  ).prf?.enabled
-  if (!prfEnabled) {
-    throw new PasskeyError(
-      'prf-unsupported',
-      'This passkey cannot derive a key on this device — use iOS 18+/macOS 15+, a recent Chrome/Android, or another login method'
-    )
+  const { prf, ...otherExtensions } = registration.clientExtensionResults as {
+    prf?: {
+      enabled?: boolean
+      results?: { first?: ArrayBuffer | Uint8Array }
+    }
+  }
+  ctx.attachment = registration.authenticatorAttachment
+  ctx.prfEnabled = prf?.enabled
+  ctx.prfAtCreate = Boolean(prf?.results?.first)
+  // Only an explicit `false` is conclusive — some Android providers omit
+  // `enabled` yet still evaluate PRF on the follow-up assertion.
+  if (prf?.enabled === false && !prf.results?.first) {
+    throw new PasskeyError('prf-unsupported', PRF_UNSUPPORTED_MESSAGE)
   }
 
-  // Evaluate the PRF with a second (pinned) ceremony and derive the key.
   let identity: PasskeyIdentity
   try {
-    const assertion = await getPrfAssertion(registration.id)
-    const secretHex = await derivePrfNsecHex(assertion.prfOutput)
+    let prfOutput = prf?.results?.first
+    let credentialId = registration.id
+    if (!prfOutput) {
+      // No result at creation → evaluate with a second (pinned) ceremony.
+      ctx.step = 'prf-eval'
+      const assertion = await getPrfAssertion(registration.id)
+      prfOutput = assertion.prfOutput
+      credentialId = assertion.credentialId
+    }
+    const secretHex = await derivePrfNsecHex(prfOutput)
     identity = {
       secretHex,
       nsec: hexToNsec(secretHex),
       pubkey: getPublicKeyFromPrivate(secretHex),
-      credentialId: assertion.credentialId
+      credentialId
     }
   } catch (err) {
     throw translatePasskeyError(err)
@@ -207,6 +274,7 @@ async function runRegistrationCeremony(
     hexToBytes(identity.secretHex)
   )
 
+  ctx.step = 'verify'
   const { credential } = await postJson<{
     pubkey: string
     credential: PasskeyCredentialSummary
@@ -214,7 +282,17 @@ async function runRegistrationCeremony(
     '/api/auth/passkey/registration/verify',
     {
       challenge: options.challenge,
-      credential: registration,
+      // The PRF output IS the secret key material — it never leaves the
+      // client. Only `enabled` goes to the server.
+      credential: {
+        ...registration,
+        clientExtensionResults: {
+          ...otherExtensions,
+          ...(prf?.enabled !== undefined
+            ? { prf: { enabled: prf.enabled } }
+            : {})
+        }
+      },
       pubkey: identity.pubkey,
       proof,
       ...(label ? { label } : {})
@@ -233,7 +311,7 @@ async function runRegistrationCeremony(
 export function registerPasskeyAccount(
   label?: string
 ): Promise<PasskeyIdentity & { credential: PasskeyCredentialSummary }> {
-  return runRegistrationCeremony(label)
+  return reported('register', ctx => runRegistrationCeremony(ctx, label))
 }
 
 /**
@@ -242,8 +320,9 @@ export function registerPasskeyAccount(
  * caller logs in via NIP-98 with the derived key, which resolves to the
  * account that pubkey is linked to.
  */
-export async function authenticateWithPasskey(): Promise<PasskeyIdentity> {
-  try {
+export function authenticateWithPasskey(): Promise<PasskeyIdentity> {
+  return reported('authenticate', async ctx => {
+    ctx.step = 'prf-eval'
     const assertion = await getPrfAssertion()
     const secretHex = await derivePrfNsecHex(assertion.prfOutput)
     return {
@@ -252,9 +331,7 @@ export async function authenticateWithPasskey(): Promise<PasskeyIdentity> {
       pubkey: getPublicKeyFromPrivate(secretHex),
       credentialId: assertion.credentialId
     }
-  } catch (err) {
-    throw translatePasskeyError(err)
-  }
+  })
 }
 
 /**
@@ -267,6 +344,8 @@ export async function linkPasskey(
   token: string,
   label?: string
 ): Promise<PasskeyCredentialSummary> {
-  const result = await runRegistrationCeremony(label, token)
+  const result = await reported('link', ctx =>
+    runRegistrationCeremony(ctx, label, token)
+  )
   return result.credential
 }
