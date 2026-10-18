@@ -5,13 +5,15 @@ import { Hourglass, Skull } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const HOUR_MS = 3_600_000
+// LNCurl debits 1 sat every 4 hours (measured against the provider).
+const CHARGE_INTERVAL_MS = 4 * HOUR_MS
 
 /**
  * Realtime "time to destruction" countdown for a disposable LNCurl wallet.
  *
- * LNCurl charges 1 sat/hour, so a wallet holding `balanceSats` survives roughly
- * `balanceSats` hours. We fix the destruction target whenever the live balance
- * changes, then tick a 1-second clock down to it — so the seconds visibly move
+ * LNCurl charges 1 sat every 4 hours, so a wallet holding `balanceSats` survives
+ * roughly `balanceSats × 4` hours. We fix the destruction target whenever the
+ * live balance changes, then tick a 1-second clock down to it — so the seconds visibly move
  * even though the underlying balance only refreshes on a poll.
  */
 export function LncurlCountdown({
@@ -31,7 +33,7 @@ export function LncurlCountdown({
       setTarget(null)
       return
     }
-    setTarget(Date.now() + balanceSats * HOUR_MS)
+    setTarget(Date.now() + balanceSats * CHARGE_INTERVAL_MS)
   }, [balanceSats])
 
   useEffect(() => {
@@ -125,8 +127,8 @@ function CountdownShell({
         </div>
       )}
       <p className="text-[11px] text-muted-foreground">
-        Costs 1 sat/hour. Top up or move funds out before it hits 0 — it
-        can&apos;t be recovered once destroyed.
+        Costs 1 sat every 4 hours. Top up or move funds out before it hits 0 —
+        it can&apos;t be recovered once destroyed.
       </p>
     </div>
   )
