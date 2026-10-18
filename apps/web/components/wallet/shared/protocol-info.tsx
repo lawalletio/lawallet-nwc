@@ -18,17 +18,23 @@ import {
 } from '@/components/ui/tooltip'
 import {
   PROTOCOL_REFERENCE,
-  protocolStateLabel,
   type ProtocolKey,
   type ProtocolState
 } from '@/lib/protocols/reference'
+import { useT, type Dict } from '@/lib/client/i18n'
 import { cn } from '@/lib/utils'
+
+function protocolStateLabel(state: ProtocolState, t: Dict): string {
+  if (state === null || state === undefined) return t.shared.protocol.notChecked
+  return state ? t.shared.protocol.supported : t.shared.protocol.notSupported
+}
 
 function stateBadgeVariant(state: ProtocolState) {
   return state ? 'outline' : 'secondary'
 }
 
 function StateBadge({ state }: { state: ProtocolState }) {
+  const t = useT()
   const unknown = state === null || state === undefined
   return (
     <Badge
@@ -39,7 +45,7 @@ function StateBadge({ state }: { state: ProtocolState }) {
         unknown && 'border-dashed'
       )}
     >
-      {protocolStateLabel(state)}
+      {protocolStateLabel(state, t)}
     </Badge>
   )
 }
@@ -62,6 +68,7 @@ export function ProtocolInfoDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
+  const t = useT()
   const info = PROTOCOL_REFERENCE[protocolKey]
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -85,13 +92,15 @@ export function ProtocolInfoDialog({
 
         {detail && (
           <div className="rounded-lg border bg-muted/40 p-3">
-            <p className="text-xs font-medium">On this address</p>
+            <p className="text-xs font-medium">
+              {t.shared.protocol.onThisAddress}
+            </p>
             <p className="mt-1 text-xs text-muted-foreground">{detail}</p>
           </div>
         )}
 
         <div>
-          <p className="text-xs font-medium">What it makes possible</p>
+          <p className="text-xs font-medium">{t.shared.protocol.useCases}</p>
           <ul className="mt-1.5 space-y-1">
             {info.useCases.map(useCase => (
               <li
@@ -108,7 +117,9 @@ export function ProtocolInfoDialog({
         </div>
 
         <div>
-          <p className="text-xs font-medium">Specification</p>
+          <p className="text-xs font-medium">
+            {t.shared.protocol.specification}
+          </p>
           <ul className="mt-1.5 space-y-1">
             {info.specs.map(spec => (
               <li key={spec.href}>
@@ -150,6 +161,7 @@ export function ProtocolInfoTrigger({
   className?: string
   ariaLabel?: string
 }) {
+  const t = useT()
   const [open, setOpen] = useState(false)
   const info = PROTOCOL_REFERENCE[protocolKey]
 
@@ -163,7 +175,10 @@ export function ProtocolInfoTrigger({
               onClick={() => setOpen(true)}
               aria-label={
                 ariaLabel ??
-                `${info.label} — ${protocolStateLabel(state)}. Open details`
+                t.shared.protocol.openDetails(
+                  info.label,
+                  protocolStateLabel(state, t)
+                )
               }
               className={cn(
                 'rounded-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background hover:opacity-80',
@@ -185,7 +200,8 @@ export function ProtocolInfoTrigger({
               <p className="mt-1 text-xs text-muted-foreground">{detail}</p>
             )}
             <p className="mt-1 text-xs">
-              {protocolStateLabel(state)} · click for details
+              {protocolStateLabel(state, t)} ·{' '}
+              {t.shared.protocol.clickForDetails}
             </p>
           </TooltipContent>
         </Tooltip>

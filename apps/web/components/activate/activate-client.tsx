@@ -10,6 +10,7 @@ import { Card3D } from '@/components/activate/card-3d'
 import { InlineAuth } from '@/components/activate/inline-auth'
 import { ActivationSuccess } from '@/components/activate/activation-success'
 import { rememberGrantedActivationBonus } from '@/lib/client/activation-bonus-notice'
+import { useT } from '@/lib/client/i18n'
 
 interface ActivationPreview {
   tokenId: string
@@ -28,9 +29,12 @@ type ClaimState = 'idle' | 'claiming' | 'success' | 'error'
 export function ActivateClient({ tokenId }: { tokenId: string }) {
   const router = useRouter()
   const { status, apiClient } = useAuth()
+  const t = useT().activate
 
   const [preview, setPreview] = useState<ActivationPreview | null>(null)
-  const [previewError, setPreviewError] = useState<string | null>(null)
+  const [previewError, setPreviewError] = useState<
+    'invalidLink' | 'loadFailed' | null
+  >(null)
 
   const [claimState, setClaimState] = useState<ClaimState>('idle')
   const [claimError, setClaimError] = useState<string | null>(null)
@@ -48,17 +52,12 @@ export function ActivateClient({ tokenId }: { tokenId: string }) {
     try {
       const res = await fetch(`/api/activation-tokens/${tokenId}`)
       if (!res.ok) {
-        throw new Error(
-          res.status === 404
-            ? 'This activation link is invalid.'
-            : 'Could not load this card.'
-        )
+        setPreviewError(res.status === 404 ? 'invalidLink' : 'loadFailed')
+        return
       }
       setPreview(await res.json())
-    } catch (err) {
-      setPreviewError(
-        err instanceof Error ? err.message : 'Could not load this card.'
-      )
+    } catch {
+      setPreviewError('loadFailed')
     }
   }, [tokenId])
 
@@ -95,7 +94,7 @@ export function ActivateClient({ tokenId }: { tokenId: string }) {
       }
       setClaimState('success')
     } catch (err) {
-      setClaimError(err instanceof Error ? err.message : 'Activation failed.')
+      setClaimError(err instanceof Error ? err.message : null)
       setClaimState('error')
     }
   }, [apiClient, tokenId])
@@ -131,11 +130,11 @@ export function ActivateClient({ tokenId }: { tokenId: string }) {
       {phase === 'error' && (
         <StatusView
           icon={<AlertCircle className="size-7 text-destructive" />}
-          heading="Something went wrong"
-          body={previewError ?? ''}
+          heading={t.error.title}
+          body={previewError ? t.error[previewError] : ''}
           action={
             <Button variant="secondary" onClick={loadPreview}>
-              Try again
+              {t.error.tryAgain}
             </Button>
           }
         />
@@ -149,8 +148,8 @@ export function ActivateClient({ tokenId }: { tokenId: string }) {
       {phase === 'unsupported' && (
         <StatusView
           icon={<ShieldX className="size-7 text-muted-foreground" />}
-          heading="Not supported yet"
-          body="This card uses an activation type that isn't available yet."
+          heading={t.unsupported.title}
+          body={t.unsupported.body}
         />
       )}
 
@@ -167,7 +166,7 @@ export function ActivateClient({ tokenId }: { tokenId: string }) {
           <div className="flex flex-1 flex-col">
             <header className="pb-2 pt-6 text-center">
               <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
-                Activate your card
+                {t.eyebrow}
               </p>
               {title && (
                 <h1 className="mt-1 text-xl font-semibold text-foreground">
@@ -199,7 +198,7 @@ export function ActivateClient({ tokenId }: { tokenId: string }) {
                   <div className="flex flex-col items-center gap-2 py-4 text-center">
                     <Spinner size={24} />
                     <p className="text-sm text-muted-foreground">
-                      Activating your card…
+                      {t.activating}
                     </p>
                   </div>
                 ) : status === 'loading' ? (
@@ -214,7 +213,7 @@ export function ActivateClient({ tokenId }: { tokenId: string }) {
                       onClick={claim}
                     >
                       <Zap className="size-5" />
-                      Activate
+                      {t.activate}
                     </Button>
                     {claimState === 'error' && (
                       <ClaimError
@@ -306,21 +305,22 @@ function UnavailableView({
   status: ActivationPreview['status']
   onWallet: () => void
 }) {
+  const t = useT().activate
   const map = {
     CLAIMED: {
       icon: <CheckCircle2 className="size-7 text-primary" />,
-      heading: 'Already activated',
-      body: 'This card has already been linked to a wallet.'
+      heading: t.claimed.title,
+      body: t.claimed.body
     },
     EXPIRED: {
       icon: <Clock className="size-7 text-lw-gold" />,
-      heading: 'Activation expired',
-      body: 'This activation link is no longer valid. Ask the issuer for a fresh QR.'
+      heading: t.expired.title,
+      body: t.expired.body
     },
     REVOKED: {
       icon: <ShieldX className="size-7 text-destructive" />,
-      heading: 'Link revoked',
-      body: 'This activation link has been revoked. Ask the issuer for a fresh QR.'
+      heading: t.revoked.title,
+      body: t.revoked.body
     },
     PENDING: { icon: null, heading: '', body: '' }
   }[status]
@@ -333,7 +333,7 @@ function UnavailableView({
       action={
         status === 'CLAIMED' ? (
           <Button variant="secondary" onClick={onWallet}>
-            Open wallet
+            {t.openWallet}
           </Button>
         ) : undefined
       }
@@ -348,15 +348,14 @@ function ClaimError({
   message: string | null
   onWallet: () => void
 }) {
+  const t = useT().activate
   const alreadyClaimed = !!message && /claim/i.test(message)
   return (
     <div className="space-y-2 text-center">
-      <p className="text-sm text-destructive">
-        {message ?? 'Activation failed.'}
-      </p>
+      <p className="text-sm text-destructive">{message ?? t.failed}</p>
       {alreadyClaimed && (
         <Button variant="secondary" className="w-full" onClick={onWallet}>
-          Open wallet
+          {t.openWallet}
         </Button>
       )}
     </div>

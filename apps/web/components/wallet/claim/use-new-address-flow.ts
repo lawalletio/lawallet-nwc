@@ -7,6 +7,7 @@ import { useAddressMutations } from '@/lib/client/hooks/use-wallet-addresses'
 import { useAuth } from '@/components/admin/auth-context'
 import { pollVerifyUrl, checkVerifyOnce } from '@/lib/client/lnurl'
 import { ApiClientError } from '@/lib/client/api-client'
+import { useT } from '@/lib/client/i18n'
 
 export const USERNAME_RE = /^[a-z0-9]+$/
 
@@ -105,6 +106,8 @@ export function useNewAddressFlow({
   initialUsername = '',
   onCreated
 }: UseNewAddressFlowOptions): NewAddressFlowState {
+  const t = useT()
+  const tc = t.claim
   const { data: settings } = useSettings()
   const { apiClient } = useAuth()
   const { createAddress, creating } = useAddressMutations()
@@ -146,14 +149,14 @@ export function useNewAddressFlow({
     setHasWebLn(!!(window as WebLnWindow).webln)
   }, [active, step])
 
-  const domain = settings?.domain || 'your-domain'
+  const domain = settings?.domain || tc.yourDomain
   const formatError =
     username.length === 0
       ? null
       : username.length > 16
-        ? 'Max 16 characters.'
+        ? tc.errors.maxLength
         : !USERNAME_RE.test(username)
-          ? 'Lowercase letters and numbers only.'
+          ? tc.errors.charset
           : null
 
   // Debounced availability check. The endpoint is public and cheap; we keep
@@ -246,8 +249,7 @@ export function useNewAddressFlow({
           finishSuccess(claimResult.lightningAddress ?? `${username}@${domain}`)
         }
       } catch (err) {
-        const msg =
-          err instanceof Error ? err.message : 'Failed to claim address'
+        const msg = err instanceof Error ? err.message : tc.errors.claimFailed
         // The invoice was already claimed (e.g. a prior claim succeeded but its
         // response was lost to a dropped connection). The address exists and is
         // ours — treat as success rather than surfacing a scary error.
@@ -267,7 +269,7 @@ export function useNewAddressFlow({
         claimingRef.current = false
       }
     },
-    [apiClient, domain, onCreated, username]
+    [apiClient, domain, onCreated, username, tc]
   )
 
   const startLud21Polling = useCallback(
@@ -319,9 +321,7 @@ export function useNewAddressFlow({
         // Operator hasn't finished configuring paid mode — surface this
         // explicitly rather than silently looping on the free endpoint
         // which would also be unavailable.
-        setMintError(
-          'Paid registration is configured but incomplete on this instance. Contact the operator.'
-        )
+        setMintError(tc.errors.paidIncomplete)
         return
       }
       const invoiceData = result as InvoiceData
@@ -339,12 +339,10 @@ export function useNewAddressFlow({
       startLud21Polling(invoiceData)
     } catch (err) {
       setMintError(
-        err instanceof Error
-          ? err.message
-          : 'Could not reach the payment provider.'
+        err instanceof Error ? err.message : tc.errors.providerUnreachable
       )
     }
-  }, [apiClient, username, startLud21Polling])
+  }, [apiClient, username, startLud21Polling, tc])
 
   // Restore a pending invoice after a page refresh / reconnect. Runs once per
   // mount: if a non-expired invoice is stashed, drop straight back onto the
@@ -389,8 +387,7 @@ export function useNewAddressFlow({
           await mintInvoiceAndShowQr()
           return
         }
-        const msg =
-          err instanceof Error ? err.message : 'Failed to create address'
+        const msg = err instanceof Error ? err.message : tc.errors.createFailed
         toast.error(msg)
       } finally {
         setSubmitting(false)
@@ -403,7 +400,8 @@ export function useNewAddressFlow({
       formatError,
       mintInvoiceAndShowQr,
       onCreated,
-      username
+      username,
+      tc
     ]
   )
 
@@ -441,13 +439,14 @@ export function useNewAddressFlow({
         await claimWithPreimage(invoice.id, res.preimage)
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Wallet payment failed'
+      const msg =
+        err instanceof Error ? err.message : tc.errors.walletPaymentFailed
       // Most common case: user clicked "reject" in the extension.
       if (!/reject|cancel|denied/i.test(msg)) toast.error(msg)
     } finally {
       setPayingWithWallet(false)
     }
-  }, [claimWithPreimage, invoice])
+  }, [claimWithPreimage, invoice, tc])
 
   /**
    * Manual settlement check — for "I paid but the screen didn't move", a lost
@@ -457,7 +456,7 @@ export function useNewAddressFlow({
    */
   const handleManualCheck = useCallback(async () => {
     if (!invoice?.verify) {
-      toast.error('This invoice can’t be re-checked — generate a new one.')
+      toast.error(tc.errors.cantRecheck)
       return
     }
     setManualChecking(true)
@@ -466,18 +465,14 @@ export function useNewAddressFlow({
       if (result.settled && result.preimage) {
         await claimWithPreimage(invoice.id, result.preimage)
       } else {
-        toast(
-          'No payment detected yet. If you just paid, give it a few seconds.'
-        )
+        toast(tc.errors.noPaymentYet)
       }
     } catch {
-      toast.error(
-        'Couldn’t reach the payment verifier — check your connection and try again.'
-      )
+      toast.error(tc.errors.verifierUnreachable)
     } finally {
       setManualChecking(false)
     }
-  }, [claimWithPreimage, invoice])
+  }, [claimWithPreimage, invoice, tc])
 
   // Cancelling the payment attempt returns to the username picker rather than
   // tearing down the whole flow — the user is abandoning this invoice, not the

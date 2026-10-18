@@ -16,6 +16,7 @@ import {
   useMyCards,
   type CardData
 } from '@/lib/client/hooks/use-cards'
+import { useT } from '@/lib/client/i18n'
 import { cn } from '@/lib/utils'
 
 type CardStatus = 'Active' | 'Disabled' | 'Blocked'
@@ -28,6 +29,9 @@ const STATUS_BADGE_WIDTH: Record<CardStatus, string> = {
 
 export function CardsScreen() {
   const router = useRouter()
+  const t = useT()
+  const c = t.settings.cardsScreen
+  const cardName = (card: CardData) => nameOf(card, c.fallbackName)
   const { data: cards, loading, error, refetch } = useMyCards()
   const { linkCardToDefaultWallet, setCardEnabled } = useMyCardMutations()
   const [pending, setPending] = useState<Set<string>>(() => new Set())
@@ -44,7 +48,7 @@ export function CardsScreen() {
       [...(cards ?? [])].sort((a, b) => {
         if (a.blocked !== b.blocked) return a.blocked ? 1 : -1
         if (a.disabled !== b.disabled) return a.disabled ? 1 : -1
-        return cardName(a).localeCompare(cardName(b))
+        return nameOf(a, '').localeCompare(nameOf(b, ''))
       }),
     [cards]
   )
@@ -99,11 +103,13 @@ export function CardsScreen() {
 
     try {
       await setCardEnabled(card.id, enabled)
-      toast.success(`${cardName(card)} ${enabled ? 'enabled' : 'disabled'}`)
+      toast.success(
+        enabled ? c.enabledToast(cardName(card)) : c.disabledToast(cardName(card))
+      )
     } catch (err) {
       setEnabledOverrides(prev => ({ ...prev, [card.id]: undefined }))
       toast.error(
-        err instanceof Error ? err.message : 'Could not update this card'
+        err instanceof Error ? err.message : c.updateFailed
       )
     } finally {
       setPending(prev => {
@@ -122,11 +128,11 @@ export function CardsScreen() {
 
     try {
       await linkCardToDefaultWallet(card.id)
-      toast.success(`${cardName(card)} linked to this wallet`)
+      toast.success(c.linkedToast(cardName(card)))
     } catch (err) {
       setLinkedOverrides(prev => ({ ...prev, [card.id]: undefined }))
       toast.error(
-        err instanceof Error ? err.message : 'Could not link this card'
+        err instanceof Error ? err.message : c.linkFailed
       )
     } finally {
       setLinkPending(prev => {
@@ -146,10 +152,10 @@ export function CardsScreen() {
           className="flex h-9 w-fit items-center gap-1.5 rounded-full bg-card px-3 text-sm font-medium text-foreground transition-colors hover:bg-accent"
         >
           <ChevronLeft className="size-4" />
-          Back
+          {t.common.back}
         </button>
         <h1 className="text-center text-base font-semibold text-foreground">
-          My Cards
+          {t.settings.myCards}
         </h1>
         <span aria-hidden />
       </header>
@@ -162,7 +168,7 @@ export function CardsScreen() {
         ) : sortedCards.length === 0 ? (
           <EmptyState />
         ) : (
-          <section className="flex flex-col gap-3" aria-label="Available cards">
+          <section className="flex flex-col gap-3" aria-label={c.available}>
             {sortedCards.map(card => {
               const isPending = pending.has(card.id)
               const isLinkPending = linkPending.has(card.id)
@@ -216,6 +222,8 @@ function CardRow({
   onLinkWallet: () => void
   onToggle: (enabled: boolean) => void
 }) {
+  const c = useT().settings.cardsScreen
+  const name = nameOf(card, c.fallbackName)
   const blocked = card.blocked
   const dimmed = blocked || !enabled
   const status: CardStatus = blocked
@@ -250,7 +258,7 @@ function CardRow({
                 ) : (
                   <Link2 data-icon="inline-start" />
                 )}
-                Link to this wallet
+                {c.linkToWallet}
               </Button>
             )}
           </div>
@@ -259,7 +267,7 @@ function CardRow({
         <div className="flex min-w-0 items-end justify-between gap-3">
           <div className="min-w-0 rounded-xl bg-background/65 px-3 py-2 shadow-sm ring-1 ring-border/30 backdrop-blur-md">
             <h2 className="truncate text-lg font-semibold text-foreground">
-              {cardName(card)}
+              {name}
             </h2>
             <p className="truncate text-xs text-muted-foreground">
               {card.design?.description || shortCardId(card.id)}
@@ -268,12 +276,12 @@ function CardRow({
 
           <div className="flex shrink-0 items-center gap-2 rounded-full bg-background/70 px-2.5 py-2 shadow-sm ring-1 ring-border/40 backdrop-blur-md">
             <span className="hidden text-xs font-medium text-muted-foreground sm:inline">
-              Tap payments
+              {c.tapPayments}
             </span>
             <Switch
               checked={enabled}
               disabled={pending || blocked}
-              aria-label={`${enabled ? 'Disable' : 'Enable'} ${cardName(card)}`}
+              aria-label={enabled ? c.disable(name) : c.enable(name)}
               onCheckedChange={onToggle}
             />
           </div>
@@ -284,10 +292,11 @@ function CardRow({
 }
 
 function StatusBadge({ status }: { status: CardStatus }) {
+  const c = useT().settings.cardsScreen
   return (
     <Badge
       variant={status === 'Active' ? 'default' : 'secondary'}
-      aria-label={`Card status: ${status}`}
+      aria-label={c.statusLabel(c.status[status])}
       className="grid h-8 shrink-0 place-items-center overflow-hidden px-0 text-center shadow-sm backdrop-blur-md transition-all duration-300 ease-out will-change-[width,border-radius]"
       style={{ width: STATUS_BADGE_WIDTH[status] }}
     >
@@ -302,7 +311,7 @@ function StatusBadge({ status }: { status: CardStatus }) {
               : 'translate-y-1 scale-95 opacity-0'
           )}
         >
-          {label}
+          {c.status[label]}
         </span>
       ))}
     </Badge>
@@ -338,8 +347,9 @@ function CardArtwork({ card, dimmed }: { card: CardData; dimmed: boolean }) {
 }
 
 function CardsSkeleton() {
+  const c = useT().settings.cardsScreen
   return (
-    <section className="flex flex-col gap-3" aria-label="Loading cards">
+    <section className="flex flex-col gap-3" aria-label={c.loading}>
       {Array.from({ length: 3 }).map((_, index) => (
         <div key={index} className="flex gap-3 rounded-2xl bg-card p-3">
           <Skeleton className="aspect-[1.55] w-24 rounded-xl" />
@@ -360,6 +370,7 @@ function CardsSkeleton() {
 }
 
 function EmptyState() {
+  const c = useT().settings.cardsScreen
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border bg-card/40 px-6 py-12 text-center">
       <div className="flex size-12 items-center justify-center rounded-full bg-card ring-1 ring-border/50">
@@ -367,16 +378,16 @@ function EmptyState() {
       </div>
       <div className="flex flex-col gap-1">
         <h2 className="text-base font-semibold text-foreground">
-          No cards yet
+          {c.emptyTitle}
         </h2>
         <p className="max-w-64 text-sm leading-relaxed text-muted-foreground">
-          Cards paired to your wallet will appear here.
+          {c.emptyBody}
         </p>
       </div>
       <Button asChild variant="outline">
         <Link href="/admin/cards">
           <CreditCard data-icon="inline-start" />
-          Manage cards
+          {c.manage}
         </Link>
       </Button>
     </div>
@@ -384,25 +395,27 @@ function EmptyState() {
 }
 
 function ErrorState({ onRetry }: { onRetry: () => Promise<void> }) {
+  const t = useT()
+  const c = t.settings.cardsScreen
   return (
     <div className="flex flex-col items-center gap-4 rounded-2xl bg-card px-6 py-10 text-center">
       <div className="flex flex-col gap-1">
         <h2 className="text-base font-semibold text-foreground">
-          Cards unavailable
+          {c.errorTitle}
         </h2>
         <p className="text-sm leading-relaxed text-muted-foreground">
-          Try again in a moment.
+          {c.tryAgain}
         </p>
       </div>
       <div className="flex flex-col gap-2 sm:flex-row">
         <Button type="button" variant="outline" onClick={() => void onRetry()}>
           <RefreshCw data-icon="inline-start" />
-          Retry
+          {t.common.retry}
         </Button>
         <Button asChild variant="outline">
           <Link href="/admin/cards">
             <CreditCard data-icon="inline-start" />
-            Manage cards
+            {c.manage}
           </Link>
         </Button>
       </div>
@@ -410,8 +423,8 @@ function ErrorState({ onRetry }: { onRetry: () => Promise<void> }) {
   )
 }
 
-function cardName(card: CardData) {
-  return card.title?.trim() || card.design?.description?.trim() || 'Card'
+function nameOf(card: CardData, fallback: string) {
+  return card.title?.trim() || card.design?.description?.trim() || fallback
 }
 
 function shortCardId(id: string) {

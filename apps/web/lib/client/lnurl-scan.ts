@@ -42,8 +42,28 @@ export interface LnurlWithdrawResolved {
 
 export type LnurlResolved = LnurlPayResolved | LnurlWithdrawResolved
 
+/** Stable reason for our own messages; absent when `message` is the service's. */
+export type LnurlErrorCode =
+  | 'unreachable'
+  | 'httpStatus'
+  | 'invalidResponse'
+  | 'endpointError'
+  | 'unsupported'
+  | 'missingFields'
+  | 'noAmount'
+  | 'belowOneSat'
+  | 'invalidCallback'
+  | 'withdrawUnreachable'
+  | 'withdrawStatus'
+  | 'rejected'
+
 export class LnurlError extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    readonly code?: LnurlErrorCode,
+    /** HTTP status, for the `*Status` codes. */
+    readonly status?: number
+  ) {
     super(message)
     this.name = 'LnurlError'
   }
@@ -149,19 +169,30 @@ export async function resolveLnurl(
   try {
     res = await fetch(url, { headers: { accept: 'application/json' } })
   } catch {
-    throw new LnurlError('Could not reach the LNURL endpoint')
+    throw new LnurlError('Could not reach the LNURL endpoint', 'unreachable')
   }
-  if (!res.ok) throw new LnurlError(`LNURL endpoint returned ${res.status}`)
+  if (!res.ok) {
+    throw new LnurlError(
+      `LNURL endpoint returned ${res.status}`,
+      'httpStatus',
+      res.status
+    )
+  }
 
   let json: LnurlWithdrawResponse
   try {
     json = (await res.json()) as LnurlWithdrawResponse
   } catch {
-    throw new LnurlError('LNURL endpoint returned an invalid response')
+    throw new LnurlError(
+      'LNURL endpoint returned an invalid response',
+      'invalidResponse'
+    )
   }
 
   if (json.status === 'ERROR') {
-    throw new LnurlError(json.reason || 'LNURL endpoint returned an error')
+    throw json.reason
+      ? new LnurlError(json.reason)
+      : new LnurlError('LNURL endpoint returned an error', 'endpointError')
   }
 
   if (json.tag === 'withdrawRequest') {
@@ -172,7 +203,7 @@ export async function resolveLnurl(
     return { kind: 'pay', lnurlpUrl: url }
   }
 
-  throw new LnurlError('Unsupported LNURL type')
+  throw new LnurlError('Unsupported LNURL type', 'unsupported')
 }
 
 function parseWithdrawParams(
@@ -182,13 +213,19 @@ function parseWithdrawParams(
   const callback = typeof json.callback === 'string' ? json.callback : ''
   const k1 = typeof json.k1 === 'string' ? json.k1 : ''
   if (!callback || !k1) {
-    throw new LnurlError('Withdraw voucher is missing required fields')
+    throw new LnurlError(
+      'Withdraw voucher is missing required fields',
+      'missingFields'
+    )
   }
 
   const minMsat = Number(json.minWithdrawable ?? 0)
   const maxMsat = Number(json.maxWithdrawable ?? 0)
   if (!Number.isFinite(maxMsat) || maxMsat <= 0) {
-    throw new LnurlError('Withdraw voucher has no withdrawable amount')
+    throw new LnurlError(
+      'Withdraw voucher has no withdrawable amount',
+      'noAmount'
+    )
   }
 
   // Clamp to whole sats that stay INSIDE the msat bounds: round the floor up and
@@ -196,7 +233,7 @@ function parseWithdrawParams(
   const minWithdrawableSats = Math.ceil(Math.max(0, minMsat) / 1000)
   const maxWithdrawableSats = Math.floor(maxMsat / 1000)
   if (maxWithdrawableSats < 1) {
-    throw new LnurlError('Withdrawable amount is below 1 sat')
+    throw new LnurlError('Withdrawable amount is below 1 sat', 'belowOneSat')
   }
 
   let host = ''
@@ -234,7 +271,10 @@ export async function submitLnurlWithdraw(
   try {
     cbUrl = new URL(callback)
   } catch {
-    throw new LnurlError('Withdraw voucher has an invalid callback URL')
+    throw new LnurlError(
+      'Withdraw voucher has an invalid callback URL',
+      'invalidCallback'
+    )
   }
   cbUrl.searchParams.set('k1', k1)
   cbUrl.searchParams.set('pr', bolt11)
@@ -245,16 +285,26 @@ export async function submitLnurlWithdraw(
       headers: { accept: 'application/json' }
     })
   } catch {
-    throw new LnurlError('Could not reach the withdraw service')
+    throw new LnurlError(
+      'Could not reach the withdraw service',
+      'withdrawUnreachable'
+    )
   }
   const json = (await res.json().catch(() => null)) as LnurlCallbackBody | null
   if (!res.ok) {
-    throw new LnurlError(
-      callbackErrorMessage(json) ?? `Withdraw service returned ${res.status}`
-    )
+    const reason = callbackErrorMessage(json)
+    throw reason
+      ? new LnurlError(reason)
+      : new LnurlError(
+          `Withdraw service returned ${res.status}`,
+          'withdrawStatus',
+          res.status
+        )
   }
   if (json?.status === 'ERROR') {
-    throw new LnurlError(json.reason || 'The withdraw request was rejected')
+    throw json.reason
+      ? new LnurlError(json.reason)
+      : new LnurlError('The withdraw request was rejected', 'rejected')
   }
 }
 

@@ -7,6 +7,7 @@ import { useApi } from '@/lib/client/hooks/use-api'
 import { Button } from '@/components/ui/button'
 import { useWalletNwcTransactions } from '@/components/wallet/nwc-provider'
 import { QrDisplay } from '@/components/wallet/shared/qr-display'
+import { useT } from '@/lib/client/i18n'
 
 const QR_CREDIT_MS = 1_800
 
@@ -16,6 +17,7 @@ interface UserMeResponse {
 }
 
 export function ReceiveAddressStep() {
+  const t = useT()
   const { data: me, loading } = useApi<UserMeResponse>('/api/users/me')
   const [credit, setCredit] = useState<{
     id: string
@@ -36,7 +38,9 @@ export function ReceiveAddressStep() {
   if (loading) {
     return (
       <div className="flex flex-1 items-center justify-center">
-        <span className="text-sm text-muted-foreground">Loading…</span>
+        <span className="text-sm text-muted-foreground">
+          {t.common.loading}
+        </span>
       </div>
     )
   }
@@ -44,12 +48,9 @@ export function ReceiveAddressStep() {
   if (!me?.lightningAddress) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
-        <p className="text-sm text-muted-foreground">
-          You don&apos;t have a Lightning address yet. Claim one to receive
-          payments.
-        </p>
+        <p className="text-sm text-muted-foreground">{t.receive.noAddress}</p>
         <Button asChild variant="secondary">
-          <Link href="/wallet/claim-username">Claim a username</Link>
+          <Link href="/wallet/claim-username">{t.receive.claimUsername}</Link>
         </Button>
       </div>
     )
@@ -80,7 +81,7 @@ export function ReceiveAddressStep() {
       <Button asChild variant="secondary" className="mt-6 h-12 w-full">
         <Link href="/wallet/receive/amount">
           <Plus className="size-4" />
-          Request specific amount
+          {t.receive.requestAmount}
         </Link>
       </Button>
     </div>

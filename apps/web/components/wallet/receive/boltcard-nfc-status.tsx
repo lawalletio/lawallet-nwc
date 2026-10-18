@@ -5,6 +5,7 @@ import { AlertTriangle, Nfc } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import type { BoltcardNfcPhase } from '@/lib/client/hooks/use-boltcard-nfc'
+import { useT } from '@/lib/client/i18n'
 
 const CONFETTI_COLORS = [
   'hsl(var(--primary))',
@@ -22,6 +23,7 @@ const CONFIRM_SLOW_MS = 20_000
  * the receive summary.
  */
 export function BoltcardAccepted({ amountSats }: { amountSats: number }) {
+  const t = useT()
   const [slow, setSlow] = useState(false)
   useEffect(() => {
     const timer = setTimeout(() => setSlow(true), CONFIRM_SLOW_MS)
@@ -98,15 +100,13 @@ export function BoltcardAccepted({ amountSats }: { amountSats: number }) {
       </div>
 
       <p className="mt-4 text-base font-medium text-foreground">
-        Card accepted
+        {t.receive.nfc.cardAccepted}
       </p>
       <p className="mt-1 text-sm tabular-nums text-muted-foreground">
-        {amountSats.toLocaleString()} sats
+        {t.common.sats(amountSats.toLocaleString())}
       </p>
       <p className="mt-1 text-xs text-muted-foreground">
-        {slow
-          ? 'The card accepted this invoice. It can take a moment to arrive.'
-          : 'Confirming the payment…'}
+        {slow ? t.receive.nfc.slowConfirm : t.receive.nfc.confirming}
       </p>
     </div>
   )
@@ -123,6 +123,7 @@ export function BoltcardNfcStatus({
   onEnable: () => void
   onRetry: () => void
 }) {
+  const t = useT()
   if (phase === 'checking' || phase === 'accepted') return null
 
   if (phase === 'unsupported') {
@@ -132,7 +133,7 @@ export function BoltcardNfcStatus({
         role="status"
       >
         <Nfc className="size-3.5 shrink-0" aria-hidden />
-        NFC unavailable on this device. Pay by scanning the QR.
+        {t.receive.nfc.unsupported}
       </p>
     )
   }
@@ -141,11 +142,11 @@ export function BoltcardNfcStatus({
     return (
       <div className="flex flex-col items-center gap-3" role="status">
         <p className="text-center text-xs text-muted-foreground">
-          Allow NFC to charge this invoice from a BoltCard.
+          {t.receive.nfc.needsPermission}
         </p>
         <Button type="button" variant="outline" size="sm" onClick={onEnable}>
           <Nfc aria-hidden />
-          Allow NFC
+          {t.receive.nfc.allow}
         </Button>
       </div>
     )
@@ -164,7 +165,7 @@ export function BoltcardNfcStatus({
           <Nfc className="relative size-6 text-primary" aria-hidden />
         </div>
         <p className="text-center text-xs text-muted-foreground">
-          Hold a BoltCard to the back of the phone
+          {t.receive.nfc.scanning}
         </p>
       </div>
     )
@@ -179,7 +180,7 @@ export function BoltcardNfcStatus({
         aria-busy="true"
       >
         <Spinner size={16} />
-        Charging the card…
+        {t.receive.nfc.charging}
       </div>
     )
   }
@@ -190,14 +191,11 @@ export function BoltcardNfcStatus({
       <p className="flex items-start justify-center gap-2 text-center text-xs text-destructive">
         <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
         <span>
-          {detail ??
-            (blocked
-              ? 'NFC permission was blocked. Allow it in the browser, then try again.'
-              : 'Could not charge the card.')}
+          {detail ?? (blocked ? t.receive.nfc.blocked : t.receive.nfc.failed)}
         </span>
       </p>
       <Button type="button" variant="outline" size="sm" onClick={onRetry}>
-        Try again
+        {t.receive.nfc.tryAgain}
       </Button>
     </div>
   )

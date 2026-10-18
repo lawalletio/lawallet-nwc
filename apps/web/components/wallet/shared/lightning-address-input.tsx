@@ -23,6 +23,7 @@ import {
   type LightningAddressSuggestion
 } from '@/lib/client/lightning-address-suggestions'
 import { isLightningAddress } from '@/lib/ln-address'
+import { useT } from '@/lib/client/i18n'
 import { cn } from '@/lib/utils'
 
 const RECENT_PROFILE_TTL_MS = 7 * 24 * 60 * 60 * 1000
@@ -95,6 +96,7 @@ export function LightningAddressInput({
   onKeyDown,
   ...rest
 }: LightningAddressInputProps) {
+  const t = useT()
   const contacts = useContacts()
   const { data: me } = useApi<UserMeResponse>('/api/users/me')
   const [open, setOpen] = useState(variant === 'inline')
@@ -252,7 +254,7 @@ export function LightningAddressInput({
     <section
       id={listboxId}
       role="listbox"
-      aria-label="Lightning address options"
+      aria-label={t.shared.addressInput.options}
       className={
         variant === 'inline'
           ? 'min-h-0 flex-1 overflow-hidden'
@@ -267,7 +269,7 @@ export function LightningAddressInput({
         }
       >
         {visibleContacts.length > 0 && (
-          <LightningAddressOptionGroup title="Saved">
+          <LightningAddressOptionGroup title={t.shared.addressInput.saved}>
             {visibleContacts.map((contact, index) => (
               <LightningAddressOptionButton
                 key={contact.id}
@@ -290,7 +292,9 @@ export function LightningAddressInput({
         )}
 
         {visibleSuggestions.length > 0 && (
-          <LightningAddressOptionGroup title="Suggestions">
+          <LightningAddressOptionGroup
+            title={t.shared.addressInput.suggestions}
+          >
             {visibleSuggestions.map((suggestion, index) => {
               const optionIndex = visibleContacts.length + index
               // The exact typed address is the only one worth a real avatar.
@@ -418,7 +422,7 @@ export function LightningAddressInput({
           }}
           disabled={disabled}
         >
-          Change
+          {t.shared.addressInput.change}
         </button>
       )}
     </div>

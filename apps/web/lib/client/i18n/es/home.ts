@@ -1,0 +1,51 @@
+import type { home as En } from '../en/home'
+
+export const home: typeof En = {
+  account: 'Cuenta',
+  accountWithKey: (short: string) => `Cuenta · ${short}`,
+  adminDashboard: 'Panel de administración',
+  logOut: 'Cerrar sesión',
+  communityLogoAlt: 'Comunidad',
+  showBalance: 'Mostrar saldo',
+  hideBalance: 'Ocultar saldo',
+  yourBalance: 'Tu saldo',
+  bonusNote: (sats: string) => `Incluye ${sats} sats por activar tu tarjeta.`,
+  dismissBonus: 'Descartar nota del bono de tarjeta',
+  receive: 'Recibir',
+  send: 'Enviar',
+  address: 'Dirección',
+  claimAddress: 'Reclama tu dirección Lightning gratis',
+  autoCreateTitle: 'Tu billetera se crea cuando recibes',
+  autoCreateBody:
+    'No hace falta configurar nada: toca Recibir y crearemos una billetera automáticamente para tu primer pago.',
+  noWalletTitle: 'No hay billetera conectada',
+  noWalletBody:
+    'Conecta una URI de Nostr Wallet Connect desde los ajustes de administración para empezar a enviar y recibir.',
+  openAdmin: 'Abrir administración',
+  tabActivity: 'Actividad',
+  tabTransfers: 'Transferencias',
+  viewAll: 'Ver todo',
+  list: {
+    activity: {
+      connect: 'Conecta una billetera para ver tu actividad.',
+      loading: 'Cargando actividad…',
+      error: 'No se pudo cargar la actividad.',
+      empty: 'Todavía no hay actividad.'
+    },
+    transfers: {
+      connect: 'Conecta una billetera para ver tus transferencias.',
+      loading: 'Cargando transferencias…',
+      error: 'No se pudieron cargar las transferencias.',
+      empty: 'Todavía no hay transferencias.'
+    }
+  },
+  install: {
+    nativeTitle: 'Instala la billetera',
+    nativeBody: 'Agrégala a tu pantalla de inicio para acceder rápido.',
+    iosTitle: 'Agrégala a tu pantalla de inicio',
+    iosBody:
+      'Toca Compartir y luego Agregar a inicio. Puedes seguir usando la billetera de todos modos.',
+    install: 'Instalar',
+    dismiss: 'Cerrar aviso de instalación'
+  }
+}

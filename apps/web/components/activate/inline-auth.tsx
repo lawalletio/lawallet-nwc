@@ -13,6 +13,7 @@ import { PasskeyLoginButton } from '@/components/shared/passkey-login-button'
 import { SecretKeyReveal } from '@/components/shared/secret-key-reveal'
 import { isPasskeySupported } from '@/lib/client/passkey-api'
 import { createNsecSigner } from '@/lib/client/nostr-signer'
+import { useT } from '@/lib/client/i18n'
 
 type Mode = 'choose' | 'create'
 
@@ -25,6 +26,7 @@ type Mode = 'choose' | 'create'
  */
 export function InlineAuth({ onAuthStart }: { onAuthStart: () => void }) {
   const { login } = useAuth()
+  const t = useT().activate.inlineAuth
   const [mode, setMode] = useState<Mode>('choose')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -45,7 +47,7 @@ export function InlineAuth({ onAuthStart }: { onAuthStart: () => void }) {
       await make()
       // success → parent effect claims; keep the spinner up through the flip.
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Could not connect'
+      const message = err instanceof Error ? err.message : t.connectFailed
       setError(message)
       toast.error(message)
       setLoading(false)
@@ -56,17 +58,15 @@ export function InlineAuth({ onAuthStart }: { onAuthStart: () => void }) {
     return (
       <div className="w-full space-y-3">
         <p className="text-center text-sm text-muted-foreground">
-          {passkeySupported
-            ? 'Activate this card with a new passkey or a new Nostr key.'
-            : 'This browser cannot create a passkey. Open this page in Safari or Chrome, or continue with a Nostr key.'}
+          {passkeySupported ? t.intro : t.introNoPasskey}
         </p>
         <PasskeyLoginButton
           mode="register"
           variant="theme"
           className="h-12 w-full"
-          label="Passkey"
+          label={t.passkey}
           surfaceCancel
-          duplicateMessage="This device already has a passkey."
+          duplicateMessage={t.duplicate}
           onSuccess={onAuthStart}
         />
         <Button
@@ -75,7 +75,7 @@ export function InlineAuth({ onAuthStart }: { onAuthStart: () => void }) {
           onClick={() => setMode('create')}
         >
           <KeyRound className="size-4" />
-          Nostr
+          {t.nostr}
         </Button>
       </div>
     )
@@ -86,12 +86,9 @@ export function InlineAuth({ onAuthStart }: { onAuthStart: () => void }) {
       <BackButton onClick={() => setMode('choose')} disabled={loading} />
       <div className="space-y-1">
         <h2 className="text-base font-semibold text-foreground">
-          Your new Nostr key
+          {t.newKeyTitle}
         </h2>
-        <p className="text-xs text-muted-foreground">
-          Save it somewhere safe — it&apos;s the only way back into your wallet
-          and the card&apos;s funds.
-        </p>
+        <p className="text-xs text-muted-foreground">{t.newKeyBody}</p>
       </div>
 
       <SecretKeyReveal
@@ -99,7 +96,7 @@ export function InlineAuth({ onAuthStart }: { onAuthStart: () => void }) {
         disabled={loading}
         confirmed={confirmed}
         onConfirmedChange={setConfirmed}
-        confirmLabel="I've saved my private key and understand it can't be recovered."
+        confirmLabel={t.confirmLabel}
       />
 
       {error && <p className="text-xs text-destructive">{error}</p>}
@@ -112,7 +109,7 @@ export function InlineAuth({ onAuthStart }: { onAuthStart: () => void }) {
         }
       >
         {loading ? <Spinner size={16} /> : null}
-        {loading ? 'Activating…' : 'Create & activate'}
+        {loading ? t.activating : t.createAndActivate}
       </Button>
     </div>
   )
@@ -125,6 +122,7 @@ function BackButton({
   onClick: () => void
   disabled?: boolean
 }) {
+  const t = useT()
   return (
     <button
       type="button"
@@ -133,7 +131,7 @@ function BackButton({
       className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
     >
       <ArrowLeft className="size-3.5" />
-      Back
+      {t.common.back}
     </button>
   )
 }

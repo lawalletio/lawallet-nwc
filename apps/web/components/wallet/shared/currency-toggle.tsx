@@ -1,5 +1,6 @@
 'use client'
 
+import { useT } from '@/lib/client/i18n'
 import { cn } from '@/lib/utils'
 import type { Currency } from '@/lib/client/currencies-store'
 import { currencyUnitLabel } from '@/lib/client/format-sats'
@@ -18,12 +19,13 @@ export function CurrencyToggle({
   value: string
   onChange: (next: string) => void
 }) {
+  const t = useT()
   if (currencies.length <= 1) return null
 
   return (
     <div
       role="group"
-      aria-label="Display currency"
+      aria-label={t.shared.currencyToggle}
       className="flex max-w-full items-center gap-1 overflow-x-auto rounded-full bg-card p-1"
     >
       {currencies.map(currency => {

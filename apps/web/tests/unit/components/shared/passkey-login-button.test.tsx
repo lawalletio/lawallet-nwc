@@ -204,7 +204,7 @@ describe('PasskeyLoginButton', () => {
     )
 
     expect(
-      await screen.findByText(/cannot derive a key on this device/i)
+      await screen.findByText(/passkey provider can't create the key/i)
     ).toBeInTheDocument()
     expect(mocks.login).not.toHaveBeenCalled()
   })

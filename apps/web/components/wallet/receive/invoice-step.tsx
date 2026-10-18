@@ -17,6 +17,7 @@ import {
 } from '@/lib/client/hooks/use-boltcard-nfc'
 import { useReceiveFlow, receiveActions } from '@/lib/client/wallet-flow-store'
 import { lookupInvoice } from '@/lib/client/nwc/receive'
+import { useT } from '@/lib/client/i18n'
 
 /** How long an accepted tap keeps checking our own wallet for the payment. */
 const TAP_SETTLE_POLL_MS = 1000
@@ -33,6 +34,7 @@ const PREVIEW_INVOICE = {
 
 export function ReceiveInvoiceStep() {
   const router = useRouter()
+  const t = useT()
   const flow = useReceiveFlow()
   const celebratingRef = useRef(false)
   const acceptedAtRef = useRef(0)
@@ -152,7 +154,7 @@ export function ReceiveInvoiceStep() {
 
         {accepted || nfc.phase === 'charging' ? null : (
           <p className="text-center text-xs text-muted-foreground">
-            Waiting for payment…
+            {t.receive.waitingPayment}
           </p>
         )}
 

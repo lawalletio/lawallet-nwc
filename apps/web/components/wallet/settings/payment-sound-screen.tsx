@@ -3,8 +3,9 @@
 import { Check, ChevronLeft } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { NavTabbar } from '@/components/wallet/shared/nav-tabbar'
+import { useT } from '@/lib/client/i18n'
 import {
-  PAYMENT_SOUNDS,
+  PAYMENT_SOUND_IDS,
   playPaymentSuccessSound,
   setPaymentSound,
   usePaymentSound,
@@ -15,6 +16,8 @@ import { cn } from '@/lib/utils'
 export function PaymentSoundScreen() {
   const router = useRouter()
   const selected = usePaymentSound()
+  const t = useT()
+  const s = t.settings.paymentSoundScreen
 
   function choose(id: PaymentSoundId) {
     setPaymentSound(id)
@@ -30,35 +33,36 @@ export function PaymentSoundScreen() {
           className="flex h-9 w-fit items-center gap-1.5 rounded-full bg-card px-3 text-sm font-medium text-foreground transition-colors hover:bg-accent"
         >
           <ChevronLeft className="size-4" />
-          Back
+          {t.common.back}
         </button>
         <h1 className="text-center text-base font-semibold text-foreground">
-          Payment sound
+          {t.settings.paymentSound}
         </h1>
         <span aria-hidden />
       </header>
 
       <main className="flex flex-1 flex-col gap-2 px-4 pt-4">
         <h2 className="text-sm font-medium text-muted-foreground">
-          Successful payment
+          {s.successful}
         </h2>
         <div
           role="radiogroup"
-          aria-label="Successful payment sound"
+          aria-label={s.radioLabel}
           className="flex flex-col overflow-hidden rounded-2xl bg-card"
         >
-          {PAYMENT_SOUNDS.map((sound, index) => {
-            const checked = sound.id === selected
+          {PAYMENT_SOUND_IDS.map((id, index) => {
+            const checked = id === selected
+            const sound = s.sounds[id]
             return (
               <button
-                key={sound.id}
+                key={id}
                 type="button"
                 role="radio"
                 aria-checked={checked}
-                onClick={() => choose(sound.id)}
+                onClick={() => choose(id)}
                 className={cn(
                   'flex min-h-14 items-center justify-between gap-3 px-4 py-2 text-left transition-[background-color,transform] duration-200 ease-out hover:bg-accent/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 active:scale-[0.985] active:bg-accent/90 active:duration-75',
-                  index < PAYMENT_SOUNDS.length - 1 &&
+                  index < PAYMENT_SOUND_IDS.length - 1 &&
                     'border-b border-border/40'
                 )}
               >

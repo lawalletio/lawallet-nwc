@@ -22,6 +22,7 @@ import {
 } from '@/components/wallet/shared/payment-receipt'
 import { trackEvent } from '@/lib/analytics/gtag'
 import { AnalyticsEvent } from '@/lib/analytics/events'
+import { useT } from '@/lib/client/i18n'
 
 /**
  * Local-only receipt so `/wallet/send/summary?preview=1` can be opened without
@@ -41,6 +42,7 @@ const DEMO_SEND_RESULT: SendFlowResult = {
 
 export function SendSummaryStep() {
   const router = useRouter()
+  const t = useT()
   const flow = useSendFlow()
   const { activeCurrencies, rates, activeCode, setCurrencyCode } =
     useReceiptCurrency()
@@ -81,16 +83,20 @@ export function SendSummaryStep() {
 
   function share() {
     void shareReceiptText(
-      buildPaymentReceiptText({
-        amountLabel,
-        feeLabel,
-        recipient: result.recipient,
-        destination: result.destination,
-        comment: result.comment,
-        settledAt: result.settledAt,
-        paymentHash: result.paymentHash,
-        preimage: result.preimage
-      })
+      buildPaymentReceiptText(
+        {
+          amountLabel,
+          feeLabel,
+          recipient: result.recipient,
+          destination: result.destination,
+          comment: result.comment,
+          settledAt: result.settledAt,
+          paymentHash: result.paymentHash,
+          preimage: result.preimage
+        },
+        t
+      ),
+      t
     )
   }
 
@@ -99,7 +105,7 @@ export function SendSummaryStep() {
       footer={<PaymentReceiptActions onShare={share} onDone={done} />}
     >
       <PaymentReceiptCard
-        title="Payment sent"
+        title={t.send.summary.title}
         amountSats={result.amountSats}
         currencyCode={activeCode}
         currencies={activeCurrencies}
@@ -108,37 +114,42 @@ export function SendSummaryStep() {
       >
         <ReceiptDetailList
           items={[
-            { label: 'To', value: result.recipient || null },
+            { label: t.send.to, value: result.recipient || null },
             {
-              label: 'Network fee',
+              label: t.send.networkFee,
               value: feeLabel,
               valueClassName: 'tabular-nums'
             },
             {
-              label: 'Destination',
+              label: t.send.summary.destination,
               value: result.destination,
               include: Boolean(
                 result.destination && result.destination !== result.recipient
               )
             },
             {
-              label: 'Note',
+              label: t.send.note,
               value: result.comment,
               include: Boolean(result.comment)
             },
             {
-              label: 'Time',
-              value: result.settledAt
-                ? formatDateTime(result.settledAt)
-                : null
+              label: t.send.summary.time,
+              value: result.settledAt ? formatDateTime(result.settledAt) : null
             }
           ]}
         />
       </PaymentReceiptCard>
 
       <PaymentProofCard>
-        <ReceiptProofRow label="Payment hash" value={result.paymentHash} />
-        <ReceiptProofRow label="Preimage" value={result.preimage} secret />
+        <ReceiptProofRow
+          label={t.send.summary.paymentHash}
+          value={result.paymentHash}
+        />
+        <ReceiptProofRow
+          label={t.send.summary.preimage}
+          value={result.preimage}
+          secret
+        />
       </PaymentProofCard>
     </PaymentReceiptLayout>
   )

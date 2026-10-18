@@ -40,6 +40,8 @@ export type PasskeyErrorKind =
 
 export class PasskeyError extends Error {
   kind: PasskeyErrorKind
+  /** `message` is the server's own text — show it as-is, never localize. */
+  fromServer = false
 
   constructor(kind: PasskeyErrorKind, message: string, cause?: unknown) {
     super(message)
@@ -119,10 +121,12 @@ async function postJson<T>(
     const payload = await response.json().catch(() => null)
     const message =
       payload?.error?.message || `Request failed (${response.status})`
-    throw new PasskeyError(
+    const error = new PasskeyError(
       response.status === 409 ? 'duplicate' : 'unknown',
       message
     )
+    error.fromServer = true
+    throw error
   }
 
   return response.json()

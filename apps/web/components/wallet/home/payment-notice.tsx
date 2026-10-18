@@ -1,6 +1,7 @@
 'use client'
 
 import { ArrowDownLeft, ArrowUpRight } from 'lucide-react'
+import { useT } from '@/lib/client/i18n'
 import { cn } from '@/lib/utils'
 import type { WalletPaymentCue } from '@/lib/client/hooks/use-wallet-payment-notice'
 
@@ -15,9 +16,10 @@ export function PaymentNotice({
   unit: string
   hideAmount?: boolean
 }) {
+  const t = useT()
   const incoming = cue.type === 'incoming'
   const Icon = incoming ? ArrowDownLeft : ArrowUpRight
-  const title = incoming ? 'Received' : 'Sent'
+  const title = incoming ? t.shared.tx.received : t.shared.tx.sent
 
   return (
     <div

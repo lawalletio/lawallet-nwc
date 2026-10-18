@@ -18,6 +18,7 @@ import {
 } from '@/lib/client/hooks/use-wallet-addresses'
 import { formatRelativeTime } from '@/lib/client/format'
 import { cn } from '@/lib/utils'
+import { useT } from '@/lib/client/i18n'
 import { AddressInvoiceDetailsDialog } from './address-invoice-details-dialog'
 
 export interface AddressInvoicesCardProps {
@@ -39,6 +40,7 @@ export interface AddressInvoicesCardProps {
  * flips the row from PENDING → PAID without a manual refresh.
  */
 export function AddressInvoicesCard({ username }: AddressInvoicesCardProps) {
+  const t = useT().addresses.invoicesCard
   const { data, loading, error, refetch } = useAddressInvoices(username)
   const invoices = data?.invoices ?? []
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(
@@ -52,12 +54,12 @@ export function AddressInvoicesCard({ username }: AddressInvoicesCardProps) {
     <>
       <div className="rounded-xl border border-border bg-card">
         <div className="flex items-center justify-between border-b border-border/60 px-5 py-3">
-          <h3 className="text-sm font-medium">Recent invoices</h3>
+          <h3 className="text-sm font-medium">{t.title}</h3>
           <button
             type="button"
             onClick={refetch}
             disabled={loading}
-            aria-label="Refresh invoices"
+            aria-label={t.refresh}
             className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors disabled:opacity-50"
           >
             <RefreshCw className={cn('size-3.5', loading && 'animate-spin')} />
@@ -67,7 +69,7 @@ export function AddressInvoicesCard({ username }: AddressInvoicesCardProps) {
         {error && invoices.length === 0 ? (
           <div className="flex items-center gap-3 px-5 py-8 text-sm text-destructive">
             <WifiOff className="size-4 shrink-0" />
-            <span>Couldn&rsquo;t load invoices.</span>
+            <span>{t.loadFailed}</span>
           </div>
         ) : invoices.length === 0 && loading ? (
           <div className="flex items-center justify-center py-10">
@@ -76,7 +78,7 @@ export function AddressInvoicesCard({ username }: AddressInvoicesCardProps) {
         ) : invoices.length === 0 ? (
           <div className="flex items-center gap-3 px-5 py-8 text-sm text-muted-foreground">
             <Clock className="size-4 shrink-0" />
-            <span>No invoices yet.</span>
+            <span>{t.empty}</span>
           </div>
         ) : (
           <ul className="divide-y divide-border/60">
@@ -142,6 +144,7 @@ function InvoiceRow({
   invoice: AddressInvoice
   onSelect: () => void
 }) {
+  const t = useT().addresses.invoicesCard
   const meta = STATUS_META[invoice.status]
   const Icon = meta.icon
   // Paid timestamp is the interesting one; fall back to created for pending /
@@ -151,16 +154,14 @@ function InvoiceRow({
   // per-payment context we have that's more specific than the generic
   // "Payment to @alice" description the cb route generates.
   const primaryLine =
-    invoice.comment?.trim() ||
-    invoice.description?.trim() ||
-    'Lightning payment'
+    invoice.comment?.trim() || invoice.description?.trim() || t.fallbackLine
 
   return (
     <li>
       <button
         type="button"
         onClick={onSelect}
-        aria-label={`View details for ${primaryLine}`}
+        aria-label={t.viewDetails(primaryLine)}
         className="group flex w-full items-center gap-3 px-5 py-3 text-left transition-colors hover:bg-muted/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
       >
         <div
@@ -176,9 +177,7 @@ function InvoiceRow({
           <p className="text-xs text-muted-foreground">
             {formatRelativeTime(new Date(whenIso))}
             {invoice.status !== 'PAID' && (
-              <span className="ml-2 italic">
-                · {invoice.status.toLowerCase()}
-              </span>
+              <span className="ml-2 italic">· {t.status[invoice.status]}</span>
             )}
           </p>
         </div>

@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import Image from 'next/image'
 import { useBrandLogotypes } from '@/lib/client/hooks/use-brand'
+import { useT } from '@/lib/client/i18n'
 import packageJson from '../../package.json'
 
 // Resolved at build time from `apps/web/package.json` so a release bump flows
@@ -20,6 +21,7 @@ const RECOVERY_COOLDOWN_MS = 30_000
  * than a generic wait.
  */
 export function WalletLoadingScreen() {
+  const t = useT()
   const { isotypo } = useBrandLogotypes()
 
   useEffect(() => {
@@ -70,7 +72,7 @@ export function WalletLoadingScreen() {
 
       <div
         role="progressbar"
-        aria-label="Loading"
+        aria-label={t.common.loading}
         className="h-1 w-40 overflow-hidden rounded-full bg-card"
       >
         <div className="h-full w-1/3 rounded-full bg-[var(--theme-300)] animate-progress-indeterminate" />

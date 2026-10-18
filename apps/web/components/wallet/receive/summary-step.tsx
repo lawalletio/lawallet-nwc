@@ -18,6 +18,7 @@ import {
 } from '@/components/wallet/shared/payment-receipt'
 import { trackEvent } from '@/lib/analytics/gtag'
 import { AnalyticsEvent } from '@/lib/analytics/events'
+import { useT } from '@/lib/client/i18n'
 
 const DEMO_PAYMENT_HASH =
   'a591a6d40bf420404a011733cfb7b190d62c65bf0bcda32b57b277d9ad9f146e'
@@ -34,6 +35,7 @@ const DEMO_SETTLED_AT = Date.parse('2026-09-19T12:53:00-03:00')
 
 export function ReceiveSummaryStep() {
   const router = useRouter()
+  const t = useT()
   const flow = useReceiveFlow()
   const { activeCurrencies, rates, activeCode, setCurrencyCode } =
     useReceiptCurrency()
@@ -70,9 +72,9 @@ export function ReceiveSummaryStep() {
   const preimage =
     settledProof && settledProof !== invoice.paymentHash ? settledProof : null
   const details = [
-    { label: 'Note', value: note, include: Boolean(note) },
+    { label: t.receive.summary.note, value: note, include: Boolean(note) },
     {
-      label: 'Time',
+      label: t.receive.summary.time,
       value: settledAt ? formatDateTime(settledAt) : null,
       include: Boolean(settledAt)
     }
@@ -87,13 +89,17 @@ export function ReceiveSummaryStep() {
 
   function share() {
     void shareReceiptText(
-      buildPaymentReceiptText({
-        amountLabel,
-        comment: note,
-        settledAt,
-        paymentHash: invoice.paymentHash,
-        preimage
-      })
+      buildPaymentReceiptText(
+        {
+          amountLabel,
+          comment: note,
+          settledAt,
+          paymentHash: invoice.paymentHash,
+          preimage
+        },
+        t
+      ),
+      t
     )
   }
 
@@ -102,7 +108,7 @@ export function ReceiveSummaryStep() {
       footer={<PaymentReceiptActions onShare={share} onDone={done} />}
     >
       <PaymentReceiptCard
-        title="Payment received"
+        title={t.receive.summary.title}
         amountSats={invoice.amountSats}
         currencyCode={activeCode}
         currencies={activeCurrencies}
@@ -113,9 +119,16 @@ export function ReceiveSummaryStep() {
       </PaymentReceiptCard>
 
       <PaymentProofCard>
-        <ReceiptProofRow label="Payment hash" value={invoice.paymentHash} />
+        <ReceiptProofRow
+          label={t.receive.summary.paymentHash}
+          value={invoice.paymentHash}
+        />
         {preimage ? (
-          <ReceiptProofRow label="Preimage" value={preimage} secret />
+          <ReceiptProofRow
+            label={t.receive.summary.preimage}
+            value={preimage}
+            secret
+          />
         ) : null}
       </PaymentProofCard>
     </PaymentReceiptLayout>

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { Download, Share, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useT } from '@/lib/client/i18n'
 
 // Chrome fires `beforeinstallprompt` with this non-standard event shape.
 interface BeforeInstallPromptEvent extends Event {
@@ -90,6 +91,7 @@ export function isIosInstallTarget(nav: {
  * it quiet on this device.
  */
 export function PwaManager() {
+  const t = useT().home.install
   const pathname = usePathname()
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(
     null
@@ -209,23 +211,21 @@ export function PwaManager() {
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium leading-tight">
-            {native ? 'Install the wallet' : 'Add to your Home Screen'}
+            {native ? t.nativeTitle : t.iosTitle}
           </p>
           <p className="text-xs text-muted-foreground">
-            {native
-              ? 'Add it to your home screen for quick access.'
-              : 'Tap Share, then Add to Home Screen. You can keep using the wallet either way.'}
+            {native ? t.nativeBody : t.iosBody}
           </p>
         </div>
         {native && (
           <Button size="sm" onClick={install}>
-            Install
+            {t.install}
           </Button>
         )}
         <button
           type="button"
           onClick={dismiss}
-          aria-label="Dismiss install prompt"
+          aria-label={t.dismiss}
           className="text-muted-foreground transition-colors hover:text-foreground"
         >
           <X className="size-4" />

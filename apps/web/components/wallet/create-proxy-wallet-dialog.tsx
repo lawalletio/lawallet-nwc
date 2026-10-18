@@ -20,6 +20,7 @@ import { Label } from '@/components/ui/label'
 import { Spinner } from '@/components/ui/spinner'
 import { useRemoteWalletForwardingMutations } from '@/lib/client/hooks/use-remote-wallet-forwarding'
 import type { RemoteWalletData } from '@/lib/client/hooks/use-remote-wallets'
+import { useT } from '@/lib/client/i18n'
 
 export function CreateProxyWalletDialog({
   wallets,
@@ -28,6 +29,8 @@ export function CreateProxyWalletDialog({
   wallets: RemoteWalletData[]
   onChanged: () => Promise<void>
 }) {
+  const t = useT()
+  const tp = t.addresses.createProxy
   const [open, setOpen] = useState(false)
   const [walletId, setWalletId] = useState('')
   const [destination, setDestination] = useState('')
@@ -47,14 +50,12 @@ export function CreateProxyWalletDialog({
         enabled: true,
         destinations: [{ address: destination.trim(), allocationBps: 10_000 }]
       })
-      toast.success('Proxy wallet created')
+      toast.success(tp.created)
       setOpen(false)
       setDestination('')
       await onChanged()
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : 'Could not enable forwarding'
-      )
+      toast.error(error instanceof Error ? error.message : tp.enableFailed)
     }
   }
 
@@ -63,27 +64,24 @@ export function CreateProxyWalletDialog({
       <DialogTrigger asChild>
         <Button variant="outline">
           <GitBranch data-icon="inline-start" />
-          Create proxy wallet
+          {tp.title}
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Create proxy wallet</DialogTitle>
-          <DialogDescription>
-            Select an existing send-and-receive NWC wallet or connect a new one,
-            then choose its first forwarding destination.
-          </DialogDescription>
+          <DialogTitle>{tp.title}</DialogTitle>
+          <DialogDescription>{tp.description}</DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="proxy-wallet-source">Source wallet</Label>
+            <Label htmlFor="proxy-wallet-source">{tp.sourceWallet}</Label>
             <select
               id="proxy-wallet-source"
               value={walletId}
               onChange={event => setWalletId(event.target.value)}
               className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
             >
-              <option value="">Select a wallet</option>
+              <option value="">{tp.selectWallet}</option>
               {selectable.map(wallet => (
                 <option key={wallet.id} value={wallet.id}>
                   {wallet.name}
@@ -91,7 +89,7 @@ export function CreateProxyWalletDialog({
               ))}
             </select>
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              Need a new one?
+              {tp.needNew}
               <CreateRemoteWalletDialog
                 onCreated={async wallet => {
                   setWalletId(wallet.id)
@@ -101,7 +99,9 @@ export function CreateProxyWalletDialog({
             </div>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="proxy-wallet-destination">Destination</Label>
+            <Label htmlFor="proxy-wallet-destination">
+              {t.addresses.destination}
+            </Label>
             <LightningAddressInput
               id="proxy-wallet-destination"
               placeholder="name@example.com"
@@ -111,7 +111,7 @@ export function CreateProxyWalletDialog({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label htmlFor="proxy-wallet-percent">Entry fee (%)</Label>
+              <Label htmlFor="proxy-wallet-percent">{tp.entryFee}</Label>
               <Input
                 id="proxy-wallet-percent"
                 type="number"
@@ -123,7 +123,7 @@ export function CreateProxyWalletDialog({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="proxy-wallet-base">Base fee (sats)</Label>
+              <Label htmlFor="proxy-wallet-base">{tp.baseFee}</Label>
               <Input
                 id="proxy-wallet-base"
                 type="number"
@@ -137,7 +137,7 @@ export function CreateProxyWalletDialog({
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>
-            Cancel
+            {t.common.cancel}
           </Button>
           <Button
             onClick={() => void configure()}
@@ -146,7 +146,7 @@ export function CreateProxyWalletDialog({
             {mutations.loading && (
               <Spinner data-icon="inline-start" size={16} />
             )}
-            Enable proxy
+            {tp.enable}
           </Button>
         </DialogFooter>
       </DialogContent>

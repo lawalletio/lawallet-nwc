@@ -35,6 +35,7 @@ import type {
 import { useProxyForwardingMutations } from '@/lib/client/hooks/use-wallet-addresses'
 import { formatDateTime, formatMsats } from '@/lib/client/format'
 import { cn } from '@/lib/utils'
+import { useT } from '@/lib/client/i18n'
 
 interface AddressInvoiceDetailsDialogProps {
   username: string
@@ -51,6 +52,8 @@ export function AddressInvoiceDetailsDialog({
   onOpenChange,
   onUpdated
 }: AddressInvoiceDetailsDialogProps) {
+  const t = useT()
+  const td = t.addresses.invoiceDetails
   const [changingDestination, setChangingDestination] = useState(false)
   const [destination, setDestination] = useState('')
   const [pendingAction, setPendingAction] = useState<
@@ -77,16 +80,14 @@ export function AddressInvoiceDetailsDialog({
       const result = await retryForwarding()
       await onUpdated()
       if (result.payment?.status === 'BLOCKED') {
-        toast.error(result.payment.lastError ?? 'Forwarding is still blocked')
+        toast.error(result.payment.lastError ?? td.stillBlocked)
       } else if (result.payment?.status === 'COMPLETED') {
-        toast.success('Forwarding completed')
+        toast.success(td.completed)
       } else {
-        toast.success('Forwarding retry started')
+        toast.success(td.retryStarted)
       }
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : 'Could not retry forwarding'
-      )
+      toast.error(error instanceof Error ? error.message : td.retryFailed)
     } finally {
       setPendingAction(null)
     }
@@ -101,11 +102,9 @@ export function AddressInvoiceDetailsDialog({
       await changeDestination(destination.trim())
       await onUpdated()
       setChangingDestination(false)
-      toast.success('Destination updated — ready to retry')
+      toast.success(td.destinationUpdated)
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : 'Could not change destination'
-      )
+      toast.error(error instanceof Error ? error.message : td.changeFailed)
     } finally {
       setPendingAction(null)
     }
@@ -121,17 +120,13 @@ export function AddressInvoiceDetailsDialog({
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <DialogTitle>
-                  {proxy ? 'Proxy payment details' : 'Invoice details'}
-                </DialogTitle>
+                <DialogTitle>{proxy ? td.proxyTitle : td.title}</DialogTitle>
                 <ForwardingStatusBadge
                   status={proxy?.status ?? invoice.status}
                 />
               </div>
               <DialogDescription className="mt-1">
-                {proxy
-                  ? `Received for this address and routed to ${proxy.destination}.`
-                  : invoice.description}
+                {proxy ? td.routedTo(proxy.destination) : invoice.description}
               </DialogDescription>
             </div>
             <div className="shrink-0 text-right">
@@ -152,40 +147,40 @@ export function AddressInvoiceDetailsDialog({
                 <SectionTitle
                   id="payment-flow-title"
                   icon={Route}
-                  title="Payment path"
-                  subtitle={`${(proxy.feeBps / 100).toFixed(2)}% service fee`}
+                  title={td.paymentPath}
+                  subtitle={td.serviceFeePct((proxy.feeBps / 100).toFixed(2))}
                 />
                 <div className="mt-3 grid items-stretch gap-2 sm:grid-cols-[1fr_auto_1fr_auto_1fr]">
                   <FlowStep
-                    eyebrow="Received"
+                    eyebrow={td.received}
                     value={formatMsats(proxy.grossAmountMsats)}
-                    detail="Incoming invoice"
+                    detail={td.incomingInvoice}
                     tone="positive"
                   />
                   <FlowArrow />
                   <FlowStep
-                    eyebrow="Service fee"
+                    eyebrow={td.serviceFee}
                     value={`−${formatMsats(proxy.serviceFeeMsats)}`}
-                    detail={`${proxy.feeBps} bps retained`}
+                    detail={td.bpsRetained(proxy.feeBps)}
                     tone="fee"
                   />
                   <FlowArrow />
                   <FlowStep
-                    eyebrow="Destination"
+                    eyebrow={t.addresses.destination}
                     value={formatMsats(proxy.destinationAmountMsats)}
                     detail={
-                      proxy.forwardedAt ? 'Forwarded' : 'Reserved to forward'
+                      proxy.forwardedAt ? td.forwarded : td.reservedToForward
                     }
                   />
                 </div>
                 <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-dashed border-border/80 px-3 py-2 text-xs">
                   <span className="text-muted-foreground">
-                    Routing fee paid by proxy wallet
+                    {td.routingFeeByProxy}
                   </span>
                   <span className="font-medium tabular-nums">
                     {proxy.routingFeeMsats
                       ? formatMsats(proxy.routingFeeMsats)
-                      : 'Not charged yet'}
+                      : td.notChargedYet}
                   </span>
                 </div>
               </section>
@@ -196,7 +191,7 @@ export function AddressInvoiceDetailsDialog({
                     <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" />
                     <div className="min-w-0 flex-1">
                       <p className="font-medium text-destructive">
-                        Forwarding needs attention
+                        {td.needsAttention}
                       </p>
                       <p className="mt-0.5 break-words text-muted-foreground">
                         {proxy.lastError}
@@ -219,7 +214,7 @@ export function AddressInvoiceDetailsDialog({
                               pendingAction === 'retry' && 'animate-spin'
                             )}
                           />
-                          Retry forwarding
+                          {td.retryForwarding}
                         </Button>
                         <Button
                           type="button"
@@ -231,7 +226,7 @@ export function AddressInvoiceDetailsDialog({
                           disabled={recovering}
                         >
                           <PencilLine className="size-3.5" />
-                          Change address
+                          {td.changeAddress}
                         </Button>
                       </div>
 
@@ -246,7 +241,7 @@ export function AddressInvoiceDetailsDialog({
                             htmlFor={`proxy-destination-${invoice.id}`}
                             className="text-xs font-medium"
                           >
-                            New Lightning Address
+                            {td.newAddress}
                           </label>
                           <div className="mt-2 flex flex-col gap-2 sm:flex-row">
                             <LightningAddressInput
@@ -269,12 +264,11 @@ export function AddressInvoiceDetailsDialog({
                               {pendingAction === 'change_destination' && (
                                 <RefreshCw className="size-3.5 animate-spin" />
                               )}
-                              Save destination
+                              {td.saveDestination}
                             </Button>
                           </div>
                           <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
-                            Only this payment is rerouted. Future payments keep
-                            the address&rsquo;s current destination.
+                            {td.rerouteNote}
                           </p>
                           {recoveryError && (
                             <p className="mt-2 text-xs text-destructive">
@@ -297,12 +291,12 @@ export function AddressInvoiceDetailsDialog({
             <SectionTitle
               id="invoice-payloads-title"
               icon={ReceiptText}
-              title="Invoices"
-              subtitle={proxy ? 'Receive and destination legs' : 'Receive leg'}
+              title={td.invoices}
+              subtitle={proxy ? td.bothLegs : td.receiveLeg}
             />
             <div className="grid gap-3 md:grid-cols-2">
               <InvoicePayload
-                title="Incoming invoice"
+                title={td.incomingInvoice}
                 status={invoice.status}
                 amountMsats={invoice.amountMsats}
                 bolt11={invoice.bolt11}
@@ -325,47 +319,47 @@ export function AddressInvoiceDetailsDialog({
               <SectionTitle
                 id="settlement-title"
                 icon={Clock3}
-                title="Settlement"
-                subtitle={`${proxy.attemptCount} forwarding ${proxy.attemptCount === 1 ? 'attempt' : 'attempts'}`}
+                title={td.settlement}
+                subtitle={td.forwardingAttempts(proxy.attemptCount)}
               />
               <dl className="mt-3 grid overflow-hidden rounded-xl border border-border/70 text-sm sm:grid-cols-2">
                 <DetailItem
-                  label="Source settled"
-                  value={formatOptionalDate(proxy.sourcePaidAt)}
+                  label={td.sourceSettled}
+                  value={formatOptionalDate(proxy.sourcePaidAt, td.notYet)}
                 />
                 <DetailItem
-                  label="Forwarded"
-                  value={formatOptionalDate(proxy.forwardedAt)}
+                  label={td.forwarded}
+                  value={formatOptionalDate(proxy.forwardedAt, td.notYet)}
                 />
                 <DetailItem
-                  label="Forwarded amount"
+                  label={td.forwardedAmount}
                   value={
                     proxy.forwardedAmountMsats
                       ? formatMsats(proxy.forwardedAmountMsats)
-                      : 'Not forwarded'
+                      : td.notForwarded
                   }
                 />
                 <DetailItem
-                  label="Retries"
+                  label={td.retries}
                   value={proxy.retryCount.toLocaleString()}
                 />
                 <DetailItem
-                  label="Zap receipt"
+                  label={td.zapReceipt}
                   value={
                     proxy.receiptPublishedAt
-                      ? `Published ${formatDateTime(proxy.receiptPublishedAt)}`
-                      : 'Not published'
+                      ? td.published(formatDateTime(proxy.receiptPublishedAt))
+                      : td.notPublished
                   }
                 />
                 <DetailItem
-                  label="Updated"
+                  label={td.updated}
                   value={formatDateTime(proxy.updatedAt)}
                 />
               </dl>
               {proxy.receiptEventId && (
                 <div className="mt-3">
                   <CopyValue
-                    label="Zap receipt event"
+                    label={td.zapReceiptEvent}
                     value={proxy.receiptEventId}
                   />
                 </div>
@@ -378,8 +372,11 @@ export function AddressInvoiceDetailsDialog({
               <SectionTitle
                 id="attempt-history-title"
                 icon={Clock3}
-                title="Attempt history"
-                subtitle={`Latest ${proxy.attempts.length} of ${proxy.attemptCount}`}
+                title={td.attemptHistory}
+                subtitle={td.latestOf(
+                  proxy.attempts.length,
+                  proxy.attemptCount
+                )}
               />
               <div className="mt-3 divide-y divide-border/60 overflow-hidden rounded-xl border border-border/70">
                 {proxy.attempts.map(attempt => (
@@ -389,7 +386,7 @@ export function AddressInvoiceDetailsDialog({
                   >
                     <div>
                       <span className="font-medium">
-                        Attempt #{attempt.attemptNo}
+                        {t.addresses.attemptNo(attempt.attemptNo)}
                       </span>
                       <span className="ml-2 text-muted-foreground">
                         {formatDateTime(attempt.createdAt)}
@@ -458,19 +455,22 @@ function DestinationInvoice({
   expectedAmountMsats: string
   destination: string
 }) {
+  const t = useT()
+  const td = t.addresses.invoiceDetails
   if (!attempt) {
     return (
       <div className="flex min-h-48 flex-col rounded-xl border border-dashed border-border p-4">
         <div className="flex items-center justify-between gap-2">
-          <p className="text-sm font-medium">Destination invoice</p>
-          <Badge variant="outline">Not recorded</Badge>
+          <p className="text-sm font-medium">
+            {t.addresses.destinationInvoice}
+          </p>
+          <Badge variant="outline">{td.notRecorded}</Badge>
         </div>
         <div className="grid flex-1 place-items-center py-5 text-center">
           <div>
             <p className="font-mono text-sm">{destination}</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Expected amount {formatMsats(expectedAmountMsats)}. No valid
-              destination invoice reached the forwarding queue.
+              {td.expectedAmount(formatMsats(expectedAmountMsats))}
             </p>
           </div>
         </div>
@@ -480,7 +480,7 @@ function DestinationInvoice({
 
   return (
     <InvoicePayload
-      title={`Destination invoice · #${attempt.attemptNo}`}
+      title={td.destinationInvoiceNo(attempt.attemptNo)}
       status={attempt.status}
       amountMsats={attempt.amountMsats}
       bolt11={attempt.bolt11}
@@ -511,6 +511,8 @@ function InvoicePayload({
   resolvedAt: string | null
   error?: string | null
 }) {
+  const t = useT()
+  const td = t.addresses.invoiceDetails
   return (
     <div className="rounded-xl border border-border/70 bg-muted/[0.08] p-4">
       <div className="flex items-start justify-between gap-2">
@@ -524,16 +526,16 @@ function InvoicePayload({
       </div>
       <div className="mt-4 space-y-3">
         <CopyValue label="BOLT11" value={bolt11} multiline />
-        <CopyValue label="Payment hash" value={paymentHash} />
+        <CopyValue label={t.addresses.paymentHash} value={paymentHash} />
         <div className="grid grid-cols-2 gap-3 text-xs">
           <div>
-            <p className="text-muted-foreground">Created</p>
+            <p className="text-muted-foreground">{td.created}</p>
             <p className="mt-0.5">{formatDateTime(createdAt)}</p>
           </div>
           <div>
-            <p className="text-muted-foreground">Resolved</p>
+            <p className="text-muted-foreground">{td.resolved}</p>
             <p className="mt-0.5">
-              {resolvedAt ? formatDateTime(resolvedAt) : 'Not yet'}
+              {formatOptionalDate(resolvedAt, td.notYet)}
             </p>
           </div>
         </div>
@@ -606,6 +608,6 @@ function SectionTitle({
   )
 }
 
-function formatOptionalDate(value: string | null): string {
-  return value ? formatDateTime(value) : 'Not yet'
+function formatOptionalDate(value: string | null, notYet: string): string {
+  return value ? formatDateTime(value) : notYet
 }

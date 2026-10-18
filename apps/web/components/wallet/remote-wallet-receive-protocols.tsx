@@ -1,5 +1,6 @@
 import { ProtocolChip } from '@/components/wallet/shared/protocol-chip'
 import { toNpub } from '@/lib/client/format'
+import { useT } from '@/lib/client/i18n'
 
 /**
  * The wallet's receive capabilities as two glanceable chips. Everything that
@@ -21,9 +22,10 @@ export function RemoteWalletReceiveProtocols({
 }) {
   const zapEnabled = active && capabilities?.nip57 === true
   const signer = capabilities?.receiptPubkey
+  const p = useT().remoteWallets.protocols
   return (
     <section
-      aria-label="Receive protocols"
+      aria-label={p.label}
       // `p-2` matches `gap-2`: the space around the chips equals the space
       // between them.
       className="flex w-fit max-w-full flex-wrap items-center gap-2 rounded-2xl border border-border/70 bg-card/70 p-2"
@@ -31,7 +33,7 @@ export function RemoteWalletReceiveProtocols({
       <ProtocolChip
         protocolKey="lud21"
         state={active}
-        detail={active ? null : 'Available once this remote wallet is active.'}
+        detail={active ? null : p.lud21Inactive}
       />
       <ProtocolChip
         protocolKey="nip57"
@@ -39,10 +41,10 @@ export function RemoteWalletReceiveProtocols({
         detail={
           zapEnabled
             ? signer
-              ? `Receipts are signed by ${toNpub(signer)}, exposed as NIP-05 _ on this domain.`
+              ? p.receiptsSignedBy(toNpub(signer))
               : null
             : (capabilities?.reason ??
-              'Requires an active wallet, a listener, and a zap receipt signer.')
+              p.zapRequirements)
         }
       />
     </section>

@@ -1,10 +1,10 @@
-import { ScreenHeader } from '@/components/wallet/shared/screen-header'
+import { ReceiveHeader } from '@/components/wallet/receive/receive-header'
 import { ReceiveInvoiceStep } from '@/components/wallet/receive/invoice-step'
 
 export default function ReceiveInvoicePage() {
   return (
     <div className="flex flex-1 flex-col">
-      <ScreenHeader title="Invoice" />
+      <ReceiveHeader screen="invoiceTitle" />
       <ReceiveInvoiceStep />
     </div>
   )

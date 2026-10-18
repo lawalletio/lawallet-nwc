@@ -11,7 +11,10 @@ import {
 
 vi.mock('@/lib/client/lnurl-scan', () => {
   class LnurlError extends Error {
-    constructor(message: string) {
+    constructor(
+      message: string,
+      readonly code?: string
+    ) {
       super(message)
       this.name = 'LnurlError'
     }
@@ -116,7 +119,7 @@ describe('payDisplayedInvoiceFromCard', () => {
 
   it('maps an empty card to a readable error', async () => {
     vi.mocked(resolveLnurl).mockRejectedValue(
-      new LnurlError('Withdraw voucher has no withdrawable amount')
+      new LnurlError('Withdraw voucher has no withdrawable amount', 'noAmount')
     )
 
     await expect(

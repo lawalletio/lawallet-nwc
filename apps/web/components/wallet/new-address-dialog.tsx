@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Spinner } from '@/components/ui/spinner'
 import { useNewAddressFlow } from '@/components/wallet/claim/use-new-address-flow'
+import { useT } from '@/lib/client/i18n'
 
 interface NewAddressDialogProps {
   open: boolean
@@ -114,6 +115,8 @@ export function NewAddressDialog({
   onSuccessAutoAdvance
 }: NewAddressDialogProps) {
   const router = useRouter()
+  const t = useT()
+  const tc = t.claim
   const {
     step,
     username,
@@ -200,11 +203,11 @@ export function NewAddressDialog({
         {step === 'username' && (
           <form onSubmit={handleSubmit} className="space-y-4">
             <DialogHeader>
-              <DialogTitle>New address</DialogTitle>
+              <DialogTitle>{tc.dialog.title}</DialogTitle>
             </DialogHeader>
 
             <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
+              <Label htmlFor="username">{tc.username}</Label>
               <div className="flex items-center rounded-md border border-input bg-background focus-within:ring-2 focus-within:ring-ring">
                 <Input
                   id="username"
@@ -224,19 +227,17 @@ export function NewAddressDialog({
                   <span className="text-destructive">{formatError}</span>
                 ) : checking ? (
                   <span className="text-muted-foreground">
-                    Checking availability…
+                    {tc.checkingAvailability}
                   </span>
                 ) : available === false ? (
-                  <span className="text-destructive">
-                    That username is taken.
-                  </span>
+                  <span className="text-destructive">{tc.taken}</span>
                 ) : available === true ? (
                   <span className="text-green-600 dark:text-green-500">
-                    Available
+                    {tc.available}
                   </span>
                 ) : (
                   <span className="text-muted-foreground">
-                    Lowercase letters and numbers, max 16 characters.
+                    {tc.usernameHint}
                   </span>
                 )}
               </p>
@@ -249,11 +250,11 @@ export function NewAddressDialog({
                 onClick={() => onOpenChange(false)}
                 disabled={submitting}
               >
-                Cancel
+                {t.common.cancel}
               </Button>
               <Button type="submit" variant="theme" disabled={submitDisabled}>
                 {submitting && <Spinner size={16} className="mr-2" />}
-                {submitting ? 'Creating…' : 'Create'}
+                {submitting ? tc.dialog.creating : tc.dialog.create}
               </Button>
             </DialogFooter>
           </form>
@@ -263,12 +264,12 @@ export function NewAddressDialog({
           <div className="space-y-5">
             <DialogHeader className="space-y-1 text-center sm:text-center">
               <DialogTitle className="text-center">
-                {mintError ? 'Payment couldn’t be started' : 'Preparing payment'}
+                {mintError ? tc.paymentFailedTitle : tc.dialog.preparingPayment}
               </DialogTitle>
               <DialogDescription className="text-center">
                 {mintError
-                  ? `We couldn’t reach the payment provider for ${username}@${domain}.`
-                  : 'Generating your invoice…'}
+                  ? tc.paymentFailedBody(`${username}@${domain}`)
+                  : tc.generatingInvoice}
               </DialogDescription>
             </DialogHeader>
 
@@ -277,14 +278,14 @@ export function NewAddressDialog({
                 <p className="text-sm text-muted-foreground">{mintError}</p>
                 <div className="flex gap-2">
                   <Button variant="secondary" onClick={backFromPayment}>
-                    Back
+                    {t.common.back}
                   </Button>
                   <Button
                     variant="theme"
                     onClick={() => mintInvoiceAndShowQr()}
                   >
                     <RefreshCw className="mr-1.5 size-3.5" />
-                    Try again
+                    {tc.tryAgain}
                   </Button>
                 </div>
               </div>
@@ -300,10 +301,10 @@ export function NewAddressDialog({
           <div className="space-y-5">
             <DialogHeader className="space-y-1 text-center sm:text-center">
               <DialogTitle className="text-center">
-                Pay {invoice.amountSats} sats
+                {tc.payAmount(invoice.amountSats)}
               </DialogTitle>
               <DialogDescription className="text-center">
-                To claim{' '}
+                {tc.toClaim}{' '}
                 <span className="font-medium text-foreground">
                   {username}@{domain}
                 </span>
@@ -315,13 +316,11 @@ export function NewAddressDialog({
               // stale code can't be paid into a void, and offer a fresh one.
               <div className="flex flex-col items-center gap-3 py-2 text-center">
                 <p className="text-sm text-muted-foreground">
-                  This invoice expired before a payment was detected. If you
-                  were charged, contact the operator — otherwise generate a
-                  fresh invoice.
+                  {tc.invoiceExpired}
                 </p>
                 <Button variant="theme" onClick={() => mintInvoiceAndShowQr()}>
                   <RefreshCw className="mr-1.5 size-3.5" />
-                  Generate new invoice
+                  {tc.newInvoice}
                 </Button>
               </div>
             ) : (
@@ -355,9 +354,7 @@ export function NewAddressDialog({
                       ) : (
                         <Wallet className="mr-2 size-4" />
                       )}
-                      {payingWithWallet
-                        ? 'Confirm in wallet…'
-                        : 'Pay with Wallet'}
+                      {payingWithWallet ? tc.confirmInWallet : tc.payWithWallet}
                     </Button>
                   )}
                   <Button
@@ -367,7 +364,7 @@ export function NewAddressDialog({
                     onClick={handleCopy}
                   >
                     <Copy className="mr-2 size-4" />
-                    {copied ? 'Copied!' : 'Copy Invoice'}
+                    {copied ? tc.copied : tc.copyInvoice}
                   </Button>
                 </div>
 
@@ -376,7 +373,7 @@ export function NewAddressDialog({
                     <>
                       <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
                         <Spinner size={12} />
-                        Waiting for payment…
+                        {tc.waitingPayment}
                       </div>
                       <Button
                         type="button"
@@ -390,14 +387,14 @@ export function NewAddressDialog({
                         ) : (
                           <RefreshCw className="mr-1.5 size-3.5" />
                         )}
-                        {manualChecking ? 'Checking…' : 'I’ve paid — check now'}
+                        {manualChecking ? tc.checking : tc.checkNow}
                       </Button>
                     </>
                   )}
                   {paymentStatus === 'detected' && (
                     <div className="flex items-center justify-center gap-2 text-xs text-green-500">
                       <Check className="size-3.5" />
-                      Payment detected! Claiming address…
+                      {tc.detected}
                     </div>
                   )}
                 </div>
@@ -409,10 +406,8 @@ export function NewAddressDialog({
         {step === 'success' && claimedAddress && (
           <div className="space-y-4">
             <DialogHeader>
-              <DialogTitle>Address registered!</DialogTitle>
-              <DialogDescription>
-                Your new lightning address is now active.
-              </DialogDescription>
+              <DialogTitle>{tc.dialog.registeredTitle}</DialogTitle>
+              <DialogDescription>{tc.dialog.registeredBody}</DialogDescription>
             </DialogHeader>
 
             <SuccessHeroCard address={claimedAddress} />
@@ -420,7 +415,7 @@ export function NewAddressDialog({
             {successAutoAdvanceMs ? (
               <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
                 <Spinner size={12} />
-                Taking you to your dashboard…
+                {tc.dialog.redirecting}
               </div>
             ) : (
               <DialogFooter className="flex-row justify-end space-x-2">
@@ -430,7 +425,7 @@ export function NewAddressDialog({
                   variant="theme"
                   onClick={handleConfigureSuccess}
                 >
-                  Configure
+                  {tc.dialog.configure}
                 </Button>
               </DialogFooter>
             )}
