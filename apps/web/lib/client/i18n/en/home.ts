@@ -20,8 +20,8 @@ export const home = {
     'No setup needed — tap Receive and we’ll spin up a wallet automatically for your first payment.',
   noWalletTitle: 'No wallet connected',
   noWalletBody:
-    'Connect a Nostr Wallet Connect URI from the admin settings page to start sending and receiving.',
-  openAdmin: 'Open admin',
+    'Connect a Nostr Wallet Connect URI to start sending and receiving.',
+  connectWallet: 'Connect a wallet',
   tabActivity: 'Activity',
   tabTransfers: 'Transfers',
   viewAll: 'View all',

@@ -51,7 +51,8 @@ export const onboarding: typeof En = {
       'Funciona en todos tus dispositivos: las passkeys sincronizadas inician sesión en cualquier lugar, y cualquier navegador puede usar un teléfono mediante QR.',
     benefitKey:
       'Tu clave de Nostr se deriva de la propia passkey: la misma clave en cada dispositivo donde se sincroniza, nunca guardada en un servidor.',
-    cancelled: 'Se cerró la ventana de la passkey. Inténtalo de nuevo',
+    cancelled:
+      'Se cerró la ventana de la passkey o se agotó el tiempo. Inténtalo de nuevo',
     waiting: 'Esperando a tu dispositivo…',
     submit: 'Crear mi cuenta'
   },

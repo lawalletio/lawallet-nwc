@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import Link from 'next/link'
 import { ArrowLeft, KeyRound } from 'lucide-react'
 import { toast } from 'sonner'
 import { generateSecretKey } from 'nostr-tools/pure'
@@ -76,6 +77,10 @@ export function InlineAuth({ onAuthStart }: { onAuthStart: () => void }) {
         >
           <KeyRound className="size-4" />
           {t.nostr}
+        </Button>
+        {/* The card is remembered (pending-activation), so login returns here. */}
+        <Button asChild variant="ghost" className="h-10 w-full">
+          <Link href="/wallet/login">{t.haveAccount}</Link>
         </Button>
       </div>
     )

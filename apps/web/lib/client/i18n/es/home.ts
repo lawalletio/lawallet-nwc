@@ -20,8 +20,8 @@ export const home: typeof En = {
     'No hace falta configurar nada: toca Recibir y crearemos una billetera automáticamente para tu primer pago.',
   noWalletTitle: 'No hay billetera conectada',
   noWalletBody:
-    'Conecta una URI de Nostr Wallet Connect desde los ajustes de administración para empezar a enviar y recibir.',
-  openAdmin: 'Abrir administración',
+    'Conecta una URI de Nostr Wallet Connect para empezar a enviar y recibir.',
+  connectWallet: 'Conectar una billetera',
   tabActivity: 'Actividad',
   tabTransfers: 'Transferencias',
   viewAll: 'Ver todo',

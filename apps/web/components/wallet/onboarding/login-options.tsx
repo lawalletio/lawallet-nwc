@@ -7,6 +7,7 @@ import { BrandLogotype } from '@/components/ui/brand-logotype'
 import { PasskeyLoginButton } from '@/components/shared/passkey-login-button'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
+import { postAuthPath } from '@/lib/client/pending-activation'
 import { useT } from '@/lib/client/i18n'
 
 export function LoginOptions() {
@@ -32,7 +33,7 @@ export function LoginOptions() {
             className="h-12 w-full"
             label={t.passkey}
             showCrossDeviceHint
-            onSuccess={() => router.replace('/wallet')}
+            onSuccess={() => router.replace(postAuthPath('/wallet'))}
           />
 
           <div className="relative">

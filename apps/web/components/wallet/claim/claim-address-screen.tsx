@@ -29,10 +29,13 @@ import { useT } from '@/lib/client/i18n'
  */
 export function ClaimAddressScreen({
   fromActivate = false,
-  freeBonus = false
+  freeBonus = false,
+  initialUsername
 }: {
   fromActivate?: boolean
   freeBonus?: boolean
+  /** Prefill from the landing-page claim dialog (`?username=`). */
+  initialUsername?: string
 }) {
   const router = useRouter()
   const tc = useT().claim
@@ -52,7 +55,11 @@ export function ClaimAddressScreen({
     invalidateApiPath('/api/wallet/addresses')
   }, [])
 
-  const flow = useNewAddressFlow({ active: true, onCreated: handleCreated })
+  const flow = useNewAddressFlow({
+    active: true,
+    initialUsername: initialUsername?.toLowerCase(),
+    onCreated: handleCreated
+  })
 
   function goToWallet() {
     router.replace('/wallet')

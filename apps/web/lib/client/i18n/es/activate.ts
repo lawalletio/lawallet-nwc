@@ -44,7 +44,9 @@ export const activate: typeof En = {
     introNoPasskey:
       'Este navegador no puede crear una passkey. Abre esta página en Safari o Chrome, o continúa con una clave de Nostr.',
     passkey: 'Passkey',
-    duplicate: 'Este dispositivo ya tiene una passkey.',
+    duplicate:
+      'Este dispositivo ya tiene una passkey — toca “Ya tengo una cuenta”.',
+    haveAccount: 'Ya tengo una cuenta',
     nostr: 'Nostr',
     newKeyTitle: 'Tu nueva clave de Nostr',
     newKeyBody:

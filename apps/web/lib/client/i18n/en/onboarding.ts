@@ -50,7 +50,7 @@ export const onboarding = {
       'Works across your devices — synced passkeys sign in anywhere, and any browser can use a phone via QR.',
     benefitKey:
       'Your Nostr key is derived from the passkey itself — the same key on every device it syncs to, never stored on a server.',
-    cancelled: 'Passkey prompt was closed — try again',
+    cancelled: 'Passkey prompt was closed or timed out — try again',
     waiting: 'Waiting for your device…',
     submit: 'Create my account'
   },

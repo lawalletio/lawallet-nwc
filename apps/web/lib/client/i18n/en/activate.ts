@@ -41,7 +41,9 @@ export const activate = {
     introNoPasskey:
       'This browser cannot create a passkey. Open this page in Safari or Chrome, or continue with a Nostr key.',
     passkey: 'Passkey',
-    duplicate: 'This device already has a passkey.',
+    duplicate:
+      'This device already has a passkey — tap “I already have an account”.',
+    haveAccount: 'I already have an account',
     nostr: 'Nostr',
     newKeyTitle: 'Your new Nostr key',
     newKeyBody:

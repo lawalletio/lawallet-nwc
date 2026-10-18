@@ -4,10 +4,12 @@ import React from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/components/admin/auth-context'
 import { Spinner } from '@/components/ui/spinner'
+import { postAuthPath } from '@/lib/client/pending-activation'
 
 /**
  * Public layout for `/wallet/login`, `/wallet/create-account`, etc.
- * Users who are already authenticated get bounced to `/wallet` so they
+ * Users who are already authenticated get bounced to `/wallet` (or back to
+ * the card they were activating) so they
  * don't see the login screen after a signer restore. Post-signup
  * confirmations live under `(app)/welcome` instead of here so they don't
  * race this redirect.
@@ -26,7 +28,7 @@ export default function WalletAuthLayout({
     // the create-account flow) can run its own `router.replace` to a
     // post-signup destination first. If they do, this layout unmounts and
     // the cleanup below cancels the default bounce.
-    const t = setTimeout(() => router.replace('/wallet'), 100)
+    const t = setTimeout(() => router.replace(postAuthPath('/wallet')), 100)
     return () => clearTimeout(t)
   }, [status, router])
 

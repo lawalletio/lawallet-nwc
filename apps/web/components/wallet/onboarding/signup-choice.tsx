@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Fingerprint } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ScreenHeader } from '@/components/wallet/shared/screen-header'
@@ -13,14 +14,18 @@ import { useT } from '@/lib/client/i18n'
  * creation flows. Passkey-first for mainstream users (hidden when the
  * browser lacks WebAuthn); Nostr users can still generate a random key, or
  * bail out to `/wallet/login` if they already have one.
+ *
+ * Back goes to `/wallet/landing` explicitly — `router.back()` can leave the
+ * wallet (to `/` or `/admin`) depending on how the user got here.
  */
 export function SignupChoice() {
+  const router = useRouter()
   const [passkeySupported] = useState(() => isPasskeySupported())
   const t = useT().onboarding.signup
 
   return (
     <div className="flex flex-1 flex-col">
-      <ScreenHeader />
+      <ScreenHeader onBack={() => router.push('/wallet/landing')} />
       <div className="flex flex-1 flex-col justify-between pb-6 pt-2">
         <div className="space-y-3 pt-4">
           <h1 className="text-2xl font-semibold text-foreground">{t.title}</h1>

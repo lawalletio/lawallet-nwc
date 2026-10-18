@@ -73,6 +73,7 @@ import {
 } from '@/lib/client/activation-bonus-notice'
 import { useT, type Dict } from '@/lib/client/i18n'
 import { cn } from '@/lib/utils'
+import { Role } from '@/lib/auth/permissions'
 
 interface UserMeResponse {
   userId: string
@@ -85,7 +86,7 @@ interface UserMeResponse {
 
 export function HomeScreen() {
   const t = useT()
-  const { logout, pubkey } = useAuth()
+  const { logout, pubkey, role } = useAuth()
   const { isotypo, logotype } = useBrandLogotypes()
   const { profile } = useNostrProfile(pubkey)
   const { rates } = useYadioRates()
@@ -223,17 +224,21 @@ export function HomeScreen() {
             </button>
           </DropdownMenuTrigger>
           {/* Tapping the avatar used to log the user straight out. Now it opens
-              a small menu — the primary action is jumping to the admin
-              dashboard; logout stays available but is no longer a one-tap
-              accident. */}
+              a small menu — operators get a jump to the admin dashboard
+              (plain members stay in the wallet); logout stays available but
+              is no longer a one-tap accident. */}
           <DropdownMenuContent align="start" className="w-52">
-            <DropdownMenuItem asChild>
-              <Link href="/admin">
-                <LayoutDashboard className="size-4" />
-                {t.home.adminDashboard}
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
+            {role && role !== Role.USER && (
+              <>
+                <DropdownMenuItem asChild>
+                  <Link href="/admin">
+                    <LayoutDashboard className="size-4" />
+                    {t.home.adminDashboard}
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+              </>
+            )}
             <DropdownMenuItem onClick={logout}>
               <LogOut className="size-4" />
               {t.home.logOut}
@@ -424,7 +429,9 @@ export function HomeScreen() {
             </p>
             <p className="mt-1 text-xs">{t.home.noWalletBody}</p>
             <Button asChild variant="secondary" size="sm" className="mt-3">
-              <Link href="/admin">{t.home.openAdmin}</Link>
+              <Link href="/wallet/settings/remote-wallets">
+                {t.home.connectWallet}
+              </Link>
             </Button>
           </div>
         ))}
