@@ -464,8 +464,8 @@ export function CreateRemoteWalletDialog({
               <div className="flex items-start gap-2 rounded-md border border-yellow-500/40 bg-yellow-500/5 p-3 text-sm text-yellow-700 dark:text-yellow-400">
                 <AlertTriangle className="mt-0.5 size-4 shrink-0" />
                 <span>
-                  LNCurl wallets cost <strong>1 sat per hour</strong> to stay
-                  alive — your <strong>first hour is free</strong>. If the
+                  LNCurl wallets cost <strong>1 sat every 4 hours</strong> to
+                  stay alive — your <strong>first hour is free</strong>. If the
                   balance runs out and hits{' '}
                   <strong>0 sats, the wallet is permanently destroyed</strong>.
                   Don’t store large amounts.

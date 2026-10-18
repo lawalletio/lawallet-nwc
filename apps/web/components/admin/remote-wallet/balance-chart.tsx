@@ -19,7 +19,7 @@ interface Point {
  * NWC has no balance-history API, so we walk transactions newest→oldest,
  * undoing each one to recover the balance that preceded it. Incoming added
  * `amount`; outgoing removed `amount + fees`. The result is a step series the
- * chart renders left→right in time. (LNCurl's 1 sat/hour drain isn't a
+ * chart renders left→right in time. (LNCurl's 1-sat-per-4h drain isn't a
  * transaction, so it's not reflected here — the countdown covers that.)
  */
 function buildSeries(txs: NwcTransaction[], currentBalance: number): Point[] {

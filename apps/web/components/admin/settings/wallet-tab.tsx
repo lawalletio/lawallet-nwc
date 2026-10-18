@@ -486,9 +486,9 @@ export function WalletTab() {
               </div>
 
               <div className="rounded-md border border-yellow-500/40 bg-yellow-500/5 p-3 text-xs text-yellow-700 dark:text-yellow-400">
-                LNCurl wallets cost <strong>1 sat per hour</strong> to stay
-                alive — the <strong>first hour is free</strong>. If the balance
-                runs out and hits{' '}
+                LNCurl wallets cost <strong>1 sat every 4 hours</strong> to
+                stay alive — the <strong>first hour is free</strong>. If the
+                balance runs out and hits{' '}
                 <strong>0 sats the wallet is permanently destroyed</strong>.
                 They&apos;re for quick, low-value use — not for storing funds.
               </div>
