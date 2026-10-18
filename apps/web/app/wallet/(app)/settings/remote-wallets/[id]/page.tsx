@@ -9,6 +9,7 @@ import { RemoteWalletForwardingPanel } from '@/components/wallet/remote-wallet-f
 import { RemoteWalletReceiveProtocols } from '@/components/wallet/remote-wallet-receive-protocols'
 import { RemoteWalletNotificationsPanel } from '@/components/wallet/remote-wallet-notifications-panel'
 import { NavTabbar } from '@/components/wallet/shared/nav-tabbar'
+import { useT } from '@/lib/client/i18n'
 import { useNwcTransactions } from '@/lib/client/hooks/use-nwc-transactions'
 import {
   useRemoteWallet,
@@ -17,6 +18,7 @@ import {
 
 export default function WalletRemoteWalletDetailPage() {
   const router = useRouter()
+  const t = useT()
   const params = useParams<{ id: string }>()
   const wallet = useRemoteWallet(params?.id ?? null)
   const isActive = wallet.data?.status === 'ACTIVE'
@@ -40,10 +42,10 @@ export default function WalletRemoteWalletDetailPage() {
           className="flex h-9 w-fit items-center gap-1.5 rounded-full bg-card px-3 text-sm font-medium transition-colors hover:bg-accent"
         >
           <ChevronLeft className="size-4" />
-          Back
+          {t.common.back}
         </button>
         <h1 className="truncate text-center text-base font-semibold">
-          Remote wallet
+          {t.remoteWallets.detail.title}
         </h1>
         <span aria-hidden />
       </header>
@@ -54,7 +56,7 @@ export default function WalletRemoteWalletDetailPage() {
           </div>
         ) : wallet.error || !wallet.data ? (
           <div className="rounded-2xl border border-destructive/40 bg-destructive/5 p-5 text-sm text-destructive">
-            Wallet not found.
+            {t.remoteWallets.detail.notFound}
           </div>
         ) : (
           <>

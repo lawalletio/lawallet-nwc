@@ -71,6 +71,7 @@ import {
   serverActivationBonus,
   subscribeActivationBonus
 } from '@/lib/client/activation-bonus-notice'
+import { useT, type Dict } from '@/lib/client/i18n'
 import { cn } from '@/lib/utils'
 import { Role } from '@/lib/auth/permissions'
 
@@ -84,6 +85,7 @@ interface UserMeResponse {
 }
 
 export function HomeScreen() {
+  const t = useT()
   const { logout, pubkey, role } = useAuth()
   const { isotypo, logotype } = useBrandLogotypes()
   const { profile } = useNostrProfile(pubkey)
@@ -202,8 +204,10 @@ export function HomeScreen() {
               type="button"
               aria-label={
                 pubkey
-                  ? `Account · ${pubkey.slice(0, 8)}…${pubkey.slice(-4)}`
-                  : 'Account'
+                  ? t.home.accountWithKey(
+                      `${pubkey.slice(0, 8)}…${pubkey.slice(-4)}`
+                    )
+                  : t.home.account
               }
               className="relative flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-card transition-colors hover:opacity-90"
             >
@@ -229,7 +233,7 @@ export function HomeScreen() {
                 <DropdownMenuItem asChild>
                   <Link href="/admin">
                     <LayoutDashboard className="size-4" />
-                    Admin dashboard
+                    {t.home.adminDashboard}
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
@@ -237,7 +241,7 @@ export function HomeScreen() {
             )}
             <DropdownMenuItem onClick={logout}>
               <LogOut className="size-4" />
-              Log out
+              {t.home.logOut}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -245,7 +249,7 @@ export function HomeScreen() {
         <div className="relative flex h-11 flex-1 items-center justify-center rounded-2xl bg-card px-4">
           <Image
             src={logotype}
-            alt="Community"
+            alt={t.home.communityLogoAlt}
             width={88}
             height={20}
             className="h-5 w-auto object-contain"
@@ -256,7 +260,7 @@ export function HomeScreen() {
         <button
           type="button"
           onClick={() => setBalanceHidden(v => !v)}
-          aria-label={balanceHidden ? 'Show balance' : 'Hide balance'}
+          aria-label={balanceHidden ? t.home.showBalance : t.home.hideBalance}
           aria-pressed={balanceHidden}
           className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-card text-foreground transition-colors hover:bg-accent"
         >
@@ -271,7 +275,7 @@ export function HomeScreen() {
       <section className="relative flex flex-col items-center gap-3 px-4 pb-4 pt-8">
         <div className="flex items-center gap-2">
           <span className="text-xs uppercase tracking-wider text-muted-foreground">
-            Your balance
+            {t.home.yourBalance}
           </span>
           <RelayErrorBadge
             status={status}
@@ -297,7 +301,9 @@ export function HomeScreen() {
             {showSpinner ? (
               <Skeleton className="h-9 w-40" />
             ) : sats === null && error ? (
-              <span className="text-base text-destructive">Unavailable</span>
+              <span className="text-base text-destructive">
+                {t.shared.balance.unavailable}
+              </span>
             ) : (
               <>
                 <BalanceText
@@ -319,14 +325,11 @@ export function HomeScreen() {
 
         {bonusSats != null && (
           <p className="flex max-w-xs items-start gap-2 text-center text-xs text-muted-foreground">
-            <span>
-              Includes {bonusSats.toLocaleString('en-US')} sats from activating
-              your card.
-            </span>
+            <span>{t.home.bonusNote(bonusSats.toLocaleString('en-US'))}</span>
             <button
               type="button"
               onClick={dismissActivationBonus}
-              aria-label="Dismiss card bonus note"
+              aria-label={t.home.dismissBonus}
               className="mt-0.5 shrink-0 text-muted-foreground transition-colors hover:text-foreground"
             >
               <X className="size-3.5" />
@@ -351,12 +354,12 @@ export function HomeScreen() {
           {canReceive ? (
             <ActionNavLink
               href="/wallet/receive"
-              label="Receive"
+              label={t.home.receive}
               loading={pendingAction === 'receive'}
               onClick={event => handleActionClick('receive', event)}
             />
           ) : (
-            <span>Receive</span>
+            <span>{t.home.receive}</span>
           )}
         </Button>
         <Button
@@ -368,12 +371,12 @@ export function HomeScreen() {
           {hasNwc ? (
             <ActionNavLink
               href="/wallet/send"
-              label="Send"
+              label={t.home.send}
               loading={pendingAction === 'send'}
               onClick={event => handleActionClick('send', event)}
             />
           ) : (
-            <span>Send</span>
+            <span>{t.home.send}</span>
           )}
         </Button>
       </div>
@@ -384,7 +387,9 @@ export function HomeScreen() {
           className="mx-4 mt-4 flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 text-left transition-colors hover:bg-accent/40"
         >
           <div className="flex min-w-0 flex-1 flex-col">
-            <span className="text-xs text-muted-foreground">Address</span>
+            <span className="text-xs text-muted-foreground">
+              {t.home.address}
+            </span>
             <span className="truncate text-base font-semibold text-foreground">
               {me.lightningAddress}
             </span>
@@ -401,7 +406,7 @@ export function HomeScreen() {
           className="mx-4 mt-4 flex items-center gap-3 rounded-xl border border-dashed border-nwc-purple/40 bg-nwc-purple/5 px-4 py-3 text-sm text-foreground transition-colors hover:bg-nwc-purple/10"
         >
           <Sparkles className="size-4 text-nwc-purple" />
-          <span className="flex-1">Claim your free Lightning address</span>
+          <span className="flex-1">{t.home.claimAddress}</span>
           <span className="text-xs text-muted-foreground">→</span>
         </Link>
       )}
@@ -413,22 +418,19 @@ export function HomeScreen() {
           // invitation, not a dead end.
           <div className="mx-4 mt-4 rounded-xl border border-dashed border-nwc-purple/40 bg-nwc-purple/5 p-4 text-sm text-muted-foreground">
             <p className="font-medium text-foreground">
-              Your wallet is created when you receive
+              {t.home.autoCreateTitle}
             </p>
-            <p className="mt-1 text-xs">
-              No setup needed — tap Receive and we&apos;ll spin up a wallet
-              automatically for your first payment.
-            </p>
+            <p className="mt-1 text-xs">{t.home.autoCreateBody}</p>
           </div>
         ) : (
           <div className="mx-4 mt-4 rounded-xl border border-border bg-card/60 p-4 text-sm text-muted-foreground">
-            <p className="font-medium text-foreground">No wallet connected</p>
-            <p className="mt-1 text-xs">
-              Connect a Nostr Wallet Connect URI to start sending and receiving.
+            <p className="font-medium text-foreground">
+              {t.home.noWalletTitle}
             </p>
+            <p className="mt-1 text-xs">{t.home.noWalletBody}</p>
             <Button asChild variant="secondary" size="sm" className="mt-3">
               <Link href="/wallet/settings/remote-wallets">
-                Connect a wallet
+                {t.home.connectWallet}
               </Link>
             </Button>
           </div>
@@ -673,6 +675,7 @@ function ActivityPreview({
   refreshKey: number
   liveTx: NwcTransaction | null
 }) {
+  const t = useT()
   // Tab pair stays in state for future expansion, but the Transfers
   // button is currently disabled — no path can set tab to 'transfers'.
   const [tab, setTab] = useState<'activity' | 'transfers'>('activity')
@@ -747,7 +750,7 @@ function ActivityPreview({
                 : 'text-muted-foreground hover:text-foreground'
             )}
           >
-            Activity
+            {t.home.tabActivity}
           </button>
           <button
             type="button"
@@ -755,7 +758,7 @@ function ActivityPreview({
             aria-disabled
             className="cursor-not-allowed rounded-full px-3 py-1 text-xs font-medium text-muted-foreground/50"
           >
-            Transfers
+            {t.home.tabTransfers}
           </button>
         </div>
 
@@ -767,7 +770,7 @@ function ActivityPreview({
           }
           className="text-xs font-medium text-muted-foreground hover:text-foreground"
         >
-          View all
+          {t.home.viewAll}
         </Link>
       </div>
 
@@ -776,7 +779,7 @@ function ActivityPreview({
         loading={loadingTx}
         error={txError}
         transactions={rows}
-        emptyLabel={tab === 'activity' ? 'activity' : 'transfers'}
+        copy={t.home.list[tab]}
       />
     </section>
   )
@@ -833,18 +836,18 @@ function ActivityList({
   loading,
   error,
   transactions,
-  emptyLabel
+  copy
 }: {
   nwcString: string | null
   loading: boolean
   error: Error | null
   transactions: NwcTransaction[]
-  emptyLabel: string
+  copy: Dict['home']['list']['activity']
 }) {
   if (!nwcString && transactions.length === 0) {
     return (
       <div className="rounded-xl border border-border bg-card/40 px-4 py-8 text-center text-sm text-muted-foreground">
-        Connect a wallet to see your {emptyLabel}.
+        {copy.connect}
       </div>
     )
   }
@@ -852,21 +855,21 @@ function ActivityList({
     return (
       <div className="flex items-center justify-center rounded-xl border border-border bg-card/40 px-4 py-8 text-sm text-muted-foreground">
         <Spinner size={16} className="mr-2" />
-        Loading {emptyLabel}…
+        {copy.loading}
       </div>
     )
   }
   if (error && transactions.length === 0) {
     return (
       <div className="rounded-xl border border-border bg-card/40 px-4 py-8 text-center text-sm text-destructive">
-        Couldn’t load {emptyLabel}.
+        {copy.error}
       </div>
     )
   }
   if (transactions.length === 0) {
     return (
       <div className="rounded-xl border border-border bg-card/40 px-4 py-8 text-center text-sm text-muted-foreground">
-        No {emptyLabel} yet.
+        {copy.empty}
       </div>
     )
   }

@@ -1,3 +1,6 @@
+'use client'
+
+import { useT } from '@/lib/client/i18n'
 import { ProtocolChip } from '@/components/wallet/shared/protocol-chip'
 
 export interface AddressReceiveProtocolsProps {
@@ -24,15 +27,16 @@ export function AddressReceiveProtocols({
   reason,
   provider
 }: AddressReceiveProtocolsProps) {
+  const t = useT().addresses.protocols
   const viaProxy = source === 'proxy'
   // An alias serves the destination's payRequest verbatim, so the payer deals
   // with that provider directly and these capabilities are its, not ours.
   const viaAlias = source === 'alias'
-  const served = viaAlias && provider ? ` by ${provider}` : ''
+  const served = viaAlias && provider ? t.servedBy(provider) : ''
 
   return (
     <section
-      aria-label="Receive protocols"
+      aria-label={t.label}
       // `p-2` matches `gap-2`, so the ring of space around the chips is the
       // same as the space between them. Both margins need `!`: the parent
       // stack's `space-y-6` sets margin-top AND margin-bottom on its children
@@ -44,30 +48,26 @@ export function AddressReceiveProtocols({
         state={protocols.lud16 ?? null}
         detail={
           protocols.lud16
-            ? `Resolves a payRequest${served}.`
+            ? t.lud16Yes(served)
             : protocols.lud16 === null
-              ? 'Not checked yet.'
-              : 'This address does not resolve a payRequest.'
+              ? t.notChecked
+              : t.lud16No
         }
       />
       <ProtocolChip
         protocolKey="nip05"
         state={protocols.nip05 ?? null}
-        detail={
-          protocols.nip05
-            ? 'Published in this domain’s nostr.json.'
-            : 'The account has no usable Nostr public key.'
-        }
+        detail={protocols.nip05 ? t.nip05Yes : t.nip05No}
       />
       <ProtocolChip
         protocolKey="lud12"
         state={protocols.lud12 ?? null}
         detail={
           protocols.lud12
-            ? `Payers can attach a comment${served}.`
+            ? t.lud12Yes(served)
             : protocols.lud12 === null
-              ? 'Not checked yet.'
-              : 'Payer comments are not accepted.'
+              ? t.notChecked
+              : t.lud12No
         }
       />
       <ProtocolChip
@@ -76,11 +76,11 @@ export function AddressReceiveProtocols({
         detail={
           protocols.lud21
             ? viaProxy
-              ? 'Proxy invoices expose a settlement verification URL.'
-              : `Issued invoices expose a settlement verification URL${served}.`
+              ? t.lud21Proxy
+              : t.lud21Yes(served)
             : protocols.lud21 === null
-              ? 'Not checked yet.'
-              : 'Issued invoices expose no verification URL.'
+              ? t.notChecked
+              : t.lud21No
         }
       />
       <ProtocolChip
@@ -89,14 +89,13 @@ export function AddressReceiveProtocols({
         detail={
           protocols.nip57
             ? viaProxy
-              ? 'Proxy receipts are signed and published after settlement.'
+              ? t.nip57Proxy
               : viaAlias
-                ? `Advertised${served} · receipts are signed by that provider.`
-                : 'Settled zap invoices publish a signed receipt.'
+                ? t.nip57Alias(served)
+                : t.nip57Yes
             : protocols.nip57 === null
-              ? 'Not checked yet.'
-              : (reason ??
-                'Unavailable until settlement detection and a receipt signer are ready.')
+              ? t.notChecked
+              : (reason ?? t.nip57Unavailable)
         }
       />
     </section>

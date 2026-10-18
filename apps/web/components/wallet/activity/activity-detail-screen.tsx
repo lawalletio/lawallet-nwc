@@ -20,7 +20,6 @@ import {
 } from '@/lib/client/activity-detail-store'
 import {
   activityDetailBackHref,
-  activityDetailTitle,
   seedPreviewActivityTx
 } from '@/lib/client/activity-detail'
 import { formatDateTime } from '@/lib/client/format'
@@ -40,6 +39,7 @@ import {
 } from '@/components/wallet/shared/payment-receipt'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
+import { useT } from '@/lib/client/i18n'
 
 interface UserMeResponse {
   effectiveNwcString: string | null
@@ -53,6 +53,7 @@ export function ActivityDetailScreen({
   paymentHash: string
   from?: string
 }) {
+  const t = useT()
   const router = useRouter()
   const backHref = activityDetailBackHref(from)
   const hash = decodeURIComponent(paymentHash).trim()
@@ -152,7 +153,7 @@ export function ActivityDetailScreen({
         <ScreenHeader onBack={goBack} />
         <div className="flex flex-1 items-center justify-center gap-2 text-sm text-muted-foreground">
           <Spinner size={16} />
-          Loading transaction…
+          {t.activity.detail.loading}
         </div>
       </div>
     )
@@ -164,10 +165,10 @@ export function ActivityDetailScreen({
         <ScreenHeader onBack={goBack} />
         <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
           <p className="text-sm text-muted-foreground">
-            Transaction not found.
+            {t.activity.detail.notFound}
           </p>
           <Button type="button" variant="secondary" onClick={goBack}>
-            Back to activity
+            {t.activity.detail.backToActivity}
           </Button>
         </div>
       </div>
@@ -176,7 +177,15 @@ export function ActivityDetailScreen({
 
   const status = nwcTransactionState(tx)
   const incoming = tx.type === 'incoming'
-  const title = activityDetailTitle(tx.type, status)
+  const d = t.activity.detail
+  const title =
+    status === 'pending'
+      ? d.pending
+      : status === 'failed'
+        ? d.failed
+        : incoming
+          ? d.received
+          : d.sent
   const amountLabel = `${formatSatsAmount(tx.amountSats, activeCode, rates)} ${currencyUnitLabel(activeCode)}`
   const feeLabel = `${formatSatsAmount(tx.feesPaidSats, activeCode, rates)} ${currencyUnitLabel(activeCode)}`
   const counterpart = tx.description.trim() || null
@@ -188,22 +197,22 @@ export function ActivityDetailScreen({
 
   const details: ReceiptDetailItem[] = incoming
     ? [
-        { label: 'Note', value: counterpart, include: Boolean(counterpart) },
+        { label: d.note, value: counterpart, include: Boolean(counterpart) },
         {
-          label: 'Time',
+          label: d.time,
           value: timestamp ? formatDateTime(timestamp) : null,
           include: Boolean(timestamp)
         }
       ]
     : [
-        { label: 'To', value: counterpart },
+        { label: d.to, value: counterpart },
         {
-          label: 'Network fee',
+          label: d.networkFee,
           value: feeLabel,
           valueClassName: 'tabular-nums'
         },
         {
-          label: 'Time',
+          label: d.time,
           value: timestamp ? formatDateTime(timestamp) : null
         }
       ]
@@ -213,16 +222,20 @@ export function ActivityDetailScreen({
 
   function share() {
     void shareReceiptText(
-      buildPaymentReceiptText({
-        amountLabel,
-        feeLabel: incoming ? null : feeLabel,
-        recipient: incoming ? undefined : (counterpart ?? undefined),
-        comment: incoming ? counterpart : null,
-        settledAt: timestamp,
-        paymentHash: receipt.paymentHash,
-        preimage: showPreimage ? preimage : null,
-        status
-      })
+      buildPaymentReceiptText(
+        {
+          amountLabel,
+          feeLabel: incoming ? null : feeLabel,
+          recipient: incoming ? undefined : (counterpart ?? undefined),
+          comment: incoming ? counterpart : null,
+          settledAt: timestamp,
+          paymentHash: receipt.paymentHash,
+          preimage: showPreimage ? preimage : null,
+          status
+        },
+        t
+      ),
+      t
     )
   }
 
@@ -245,13 +258,13 @@ export function ActivityDetailScreen({
         </PaymentReceiptCard>
 
         <PaymentProofCard>
-          <ReceiptProofRow label="Payment hash" value={tx.paymentHash} />
+          <ReceiptProofRow label={d.paymentHash} value={tx.paymentHash} />
           {incoming ? (
             showPreimage ? (
-              <ReceiptProofRow label="Preimage" value={preimage} secret />
+              <ReceiptProofRow label={d.preimage} value={preimage} secret />
             ) : null
           ) : (
-            <ReceiptProofRow label="Preimage" value={preimage} secret />
+            <ReceiptProofRow label={d.preimage} value={preimage} secret />
           )}
         </PaymentProofCard>
       </PaymentReceiptLayout>

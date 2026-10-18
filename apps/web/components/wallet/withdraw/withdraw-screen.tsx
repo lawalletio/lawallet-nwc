@@ -18,7 +18,7 @@ import { AmountDisplay } from '@/components/wallet/shared/amount-display'
 import { invalidateApiPath, useApi } from '@/lib/client/hooks/use-api'
 import { resolveFreshUserNwc, resolveUserNwc } from '@/lib/client/wallet-nwc'
 import { useAuth } from '@/components/admin/auth-context'
-import { makeInvoice, lookupInvoice, describeNwcError } from '@/lib/client/nwc'
+import { makeInvoice, lookupInvoice } from '@/lib/client/nwc'
 import { submitLnurlWithdraw, LnurlError } from '@/lib/client/lnurl-scan'
 import {
   useWithdrawFlow,
@@ -26,6 +26,9 @@ import {
 } from '@/lib/client/wallet-flow-store'
 import { trackEvent } from '@/lib/analytics/gtag'
 import { AnalyticsEvent } from '@/lib/analytics/events'
+import { useT } from '@/lib/client/i18n'
+import { errorText, nwcErrorText } from '@/lib/client/i18n/errors'
+import { ScreenHeader } from '@/components/wallet/shared/screen-header'
 
 interface UserMeResponse {
   effectiveNwcString: string | null
@@ -44,8 +47,15 @@ type Phase = 'confirm' | 'claiming' | 'success'
 // not wipe a freshly scanned voucher before the confirm screen can read it.
 let pendingWithdrawReset: ReturnType<typeof setTimeout> | null = null
 
+/** Translated header for the server-rendered withdraw page. */
+export function WithdrawHeader() {
+  const t = useT()
+  return <ScreenHeader title={t.withdraw.title} closeStyle />
+}
+
 export function WithdrawScreen() {
   const router = useRouter()
+  const t = useT()
   const flow = useWithdrawFlow()
   const { apiClient } = useAuth()
   const { data: me } = useApi<UserMeResponse>('/api/users/me')
@@ -153,7 +163,7 @@ export function WithdrawScreen() {
       )
       invalidateApiPath('/api/users/me')
       if (!liveNwc) {
-        throw new Error('No wallet connected')
+        throw new Error(t.withdraw.noWallet)
       }
       const description = params.defaultDescription || 'LNURL withdraw'
       const invoice = await makeInvoice(liveNwc, amountSats, description)
@@ -168,8 +178,11 @@ export function WithdrawScreen() {
     } catch (err) {
       claimingRef.current = false
       if (cancelledRef.current) return
+      // LNURL-service reasons must not be read as NWC relay errors.
       const message =
-        err instanceof LnurlError ? err.message : describeNwcError(err)
+        err instanceof LnurlError
+          ? errorText(t, err, err.message)
+          : nwcErrorText(t, err)
       setError(message)
       toast.error(message)
       setPhase('confirm')
@@ -212,14 +225,16 @@ export function WithdrawScreen() {
                 value={String(params.maxWithdrawableSats)}
                 unit="sats"
                 className="py-6"
-                subline="Fixed voucher amount"
+                subline={t.withdraw.fixedAmount}
               />
             ) : (
               <>
                 <AmountDisplay value={value} unit="sats" className="py-2" />
                 <p className="text-xs text-muted-foreground">
-                  {params.minWithdrawableSats.toLocaleString()}–
-                  {params.maxWithdrawableSats.toLocaleString()} sats
+                  {t.withdraw.range(
+                    params.minWithdrawableSats.toLocaleString(),
+                    params.maxWithdrawableSats.toLocaleString()
+                  )}
                 </p>
               </>
             )}
@@ -250,8 +265,9 @@ export function WithdrawScreen() {
               className="h-12 w-full"
             >
               <ArrowDownToLine className="size-4" />
-              Withdraw
-              {amountSats ? ` ${amountSats.toLocaleString()} sats` : ''}
+              {amountSats
+                ? t.withdraw.ctaAmount(amountSats.toLocaleString())
+                : t.withdraw.cta}
             </Button>
           </div>
         </div>
@@ -303,6 +319,7 @@ function VoucherPreview({
   host: string
   description: string
 }) {
+  const t = useT()
   return (
     <section className="rounded-3xl border border-border/70 bg-card/80 p-3 shadow-sm">
       <div className="flex items-center gap-3">
@@ -311,10 +328,10 @@ function VoucherPreview({
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
-            Withdraw from
+            {t.withdraw.from}
           </p>
           <p className="truncate text-base font-semibold text-foreground">
-            {host || 'Lightning voucher'}
+            {host || t.withdraw.voucher}
           </p>
           {description && (
             <p className="truncate text-xs text-muted-foreground">
@@ -328,19 +345,22 @@ function VoucherPreview({
 }
 
 function NoWalletNotice() {
+  const t = useT()
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
       <span className="flex size-14 items-center justify-center rounded-full bg-card text-muted-foreground">
         <Wallet className="size-7" />
       </span>
       <h2 className="text-base font-semibold text-foreground">
-        No wallet connected
+        {t.withdraw.noWallet}
       </h2>
       <p className="max-w-xs text-sm text-muted-foreground">
-        Connect a wallet that can receive payments to claim this voucher.
+        {t.withdraw.noWalletBody}
       </p>
       <Button asChild variant="secondary" className="mt-1">
-        <Link href="/wallet/settings/remote-wallets">Manage wallets</Link>
+        <Link href="/wallet/settings/remote-wallets">
+          {t.withdraw.manageWallets}
+        </Link>
       </Button>
     </div>
   )

@@ -22,6 +22,7 @@ import {
   stopClaimSound,
   unlockClaimSound
 } from '@/lib/client/claim-sound'
+import { useT } from '@/lib/client/i18n'
 
 export interface ClaimBalanceInput {
   /** Balance captured when the user tapped Withdraw. Null if it was unknown. */
@@ -105,6 +106,8 @@ export function ClaimCelebration({
   onDone,
   onDismiss
 }: ClaimCelebrationProps) {
+  const t = useT()
+  const c = t.withdraw.celebration
   const reduced = usePrefersReducedMotion()
   const mounted = useSyncExternalStore(
     () => () => {},
@@ -256,7 +259,7 @@ export function ClaimCelebration({
           <button
             type="button"
             onClick={celebrate ? onDone : onDismiss}
-            aria-label={celebrate ? 'Close' : 'Back'}
+            aria-label={celebrate ? t.common.close : t.common.back}
             className="flex size-11 items-center justify-center rounded-2xl text-amber-100/80 transition-colors hover:bg-white/5"
           >
             <X className="size-5" />
@@ -265,7 +268,7 @@ export function ClaimCelebration({
             type="button"
             onClick={toggleMute}
             aria-pressed={muted || claimSoundMuted()}
-            aria-label={muted ? 'Unmute claim sound' : 'Mute claim sound'}
+            aria-label={muted ? c.unmute : c.mute}
             className="flex size-11 items-center justify-center rounded-2xl text-amber-100/80 transition-colors hover:bg-white/5"
           >
             {muted ? (
@@ -286,20 +289,16 @@ export function ClaimCelebration({
             )}
           >
             <p className="text-[10px] font-semibold uppercase tracking-[0.32em] text-amber-200/70">
-              {celebrate ? 'Treasure claimed' : 'Lightning claim'}
+              {celebrate ? c.eyebrowClaimed : c.eyebrowClaiming}
             </p>
             <h1 className="mt-2 text-3xl font-semibold tracking-tight text-amber-50">
-              {celebrate
-                ? settled
-                  ? 'You won!'
-                  : 'Prize on its way'
-                : 'Opening the treasure'}
+              {celebrate ? (settled ? c.won : c.onItsWay) : c.opening}
             </h1>
             {!(celebrate && settled) && (
               <p className="mt-1 max-w-xs text-sm text-amber-100/60">
                 {celebrate
-                  ? "The claim is in. They'll join your balance once the sender pays."
-                  : `Calling ${amountSats.toLocaleString()} sats down the lightning.`}
+                  ? c.pendingBody
+                  : c.calling(amountSats.toLocaleString())}
               </p>
             )}
           </div>
@@ -334,8 +333,8 @@ export function ClaimCelebration({
           </div>
           <p className="sr-only">
             {settled
-              ? `${amountSats.toLocaleString()} sats landed in your wallet.`
-              : `${amountSats.toLocaleString()} sats are on the way.`}
+              ? c.srLanded(amountSats.toLocaleString())
+              : c.srOnTheWay(amountSats.toLocaleString())}
           </p>
 
           <BalanceCard
@@ -361,7 +360,7 @@ export function ClaimCelebration({
                   onClick={onDone}
                   className="h-12 w-full bg-gradient-to-b from-amber-300 to-amber-500 text-base font-semibold text-amber-950 shadow-[0_8px_30px_-8px_rgba(251,191,36,0.7)] hover:from-amber-200 hover:to-amber-400"
                 >
-                  Collect
+                  {c.collect}
                 </Button>
                 {canReplay && (
                   <button
@@ -370,13 +369,13 @@ export function ClaimCelebration({
                     className="inline-flex items-center justify-center gap-1.5 py-1 text-sm text-amber-200/70 underline-offset-4 hover:underline"
                   >
                     <RotateCcw className="size-3.5" />
-                    Replay
+                    {c.replay}
                   </button>
                 )}
               </>
             ) : (
               <p className="claim-listening py-6 text-xs uppercase tracking-[0.22em] text-amber-200/50">
-                Listening for the payment
+                {c.listening}
               </p>
             )}
           </div>
@@ -514,6 +513,7 @@ function BalanceCard({
   landed: boolean
   amountSats: number
 }) {
+  const c = useT().withdraw.celebration
   const share = hasBase ? pour : 1
   const base = hasBase ? (1 - share) * 100 : 0
   return (
@@ -525,12 +525,12 @@ function BalanceCard({
     >
       <div className="flex items-baseline justify-between gap-3">
         <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-amber-200/60">
-          Balance
+          {c.balance}
         </p>
         {pending ? (
-          <p className="text-xs text-amber-200/70">Holding</p>
+          <p className="text-xs text-amber-200/70">{c.holding}</p>
         ) : !settled ? (
-          <p className="text-xs text-amber-200/70">Pending</p>
+          <p className="text-xs text-amber-200/70">{c.pending}</p>
         ) : landed ? (
           <p className="claim-chip rounded-full bg-amber-300/15 px-2 py-0.5 text-xs font-semibold text-amber-200">
             +{amountSats.toLocaleString()} sats
@@ -540,7 +540,7 @@ function BalanceCard({
       <div className="mt-1 flex items-baseline gap-2">
         {balance == null ? (
           <span className="text-2xl font-semibold text-amber-100/80">
-            Syncing
+            {c.syncing}
           </span>
         ) : (
           <span
@@ -561,7 +561,7 @@ function BalanceCard({
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={Math.round(base + (filled ? share * 100 : 0))}
-        aria-label="Balance filling with claimed sats"
+        aria-label={c.meter}
       >
         {base > 0 && (
           <div
@@ -589,11 +589,11 @@ function BalanceCard({
         <div className="mt-2 flex items-center justify-between text-[11px] tabular-nums text-amber-200/50">
           <span className="flex items-center gap-1.5">
             <span className="claim-track-base size-1.5 rounded-full" />
-            Before {before.toLocaleString()}
+            {c.before(before.toLocaleString())}
           </span>
           <span className="flex items-center gap-1.5 text-amber-200/80">
             <span className="size-1.5 rounded-full bg-amber-300" />
-            Claimed +{amountSats.toLocaleString()}
+            {c.claimed(amountSats.toLocaleString())}
           </span>
         </div>
       )}

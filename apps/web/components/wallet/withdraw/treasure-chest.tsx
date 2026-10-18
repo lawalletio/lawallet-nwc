@@ -10,6 +10,7 @@ import {
   DOTLOTTIE_WASM_SRC,
   preloadTreasureChest
 } from '@/lib/client/treasure-chest-cache'
+import { useT } from '@/lib/client/i18n'
 
 if (typeof window !== 'undefined') setWasmUrl(DOTLOTTIE_WASM_SRC)
 
@@ -46,6 +47,7 @@ export function TreasureChest({
    */
   onStart?: (timing: { visualSec: number; soundSec: number }) => void
 }) {
+  const t = useT()
   const [data, setData] = useState<ArrayBuffer | null>(null)
   const [player, setPlayer] = useState<DotLottie | null>(null)
   const onStartRef = useRef(onStart)
@@ -117,7 +119,7 @@ export function TreasureChest({
         loop={false}
         dotLottieRefCallback={setPlayer}
         className="h-full w-full"
-        aria-label="Treasure chest opening"
+        aria-label={t.withdraw.celebration.chest}
         role="img"
       />
     </div>

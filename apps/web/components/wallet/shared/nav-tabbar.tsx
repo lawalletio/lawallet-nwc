@@ -3,18 +3,19 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Home, Settings, ScanLine } from 'lucide-react'
+import { useT, type Dict } from '@/lib/client/i18n'
 import { cn } from '@/lib/utils'
 
 interface SideItem {
   href: string
-  label: string
+  label: keyof Dict['shared']['nav']
   icon: typeof Home
   exact?: boolean
 }
 
 const SIDE_ITEMS: readonly SideItem[] = [
-  { href: '/wallet', label: 'Home', icon: Home, exact: true },
-  { href: '/wallet/settings', label: 'Settings', icon: Settings }
+  { href: '/wallet', label: 'home', icon: Home, exact: true },
+  { href: '/wallet/settings', label: 'settings', icon: Settings }
 ]
 
 /**
@@ -24,6 +25,7 @@ const SIDE_ITEMS: readonly SideItem[] = [
  * pill's top edge.
  */
 export function NavTabbar() {
+  const t = useT()
   const pathname = usePathname() ?? ''
   const home = SIDE_ITEMS[0]
   const settings = SIDE_ITEMS[1]
@@ -32,14 +34,14 @@ export function NavTabbar() {
     <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 pb-[env(safe-area-inset-bottom)]">
       <div className="mx-auto flex w-full max-w-md justify-center px-6 pb-4 pt-12">
         <nav
-          aria-label="Wallet actions"
+          aria-label={t.shared.nav.label}
           className="pointer-events-auto relative flex h-16 w-full max-w-[286px] items-center justify-between rounded-full border border-border/60 bg-card/90 px-4 backdrop-blur-xl shadow-2xl"
         >
           <SideButton item={home} pathname={pathname} />
 
           <Link
             href="/wallet/scan"
-            aria-label="Scan QR"
+            aria-label={t.shared.nav.scan}
             className="absolute left-1/2 -top-3 flex size-[87px] -translate-x-1/2 items-center justify-center rounded-full border border-[var(--theme-300)] bg-gradient-to-b from-[var(--theme-200)] to-[var(--theme-400)] text-foreground shadow-[inset_0_2px_2px_var(--theme-400)] shadow-xl transition-transform active:scale-95"
           >
             <ScanLine className="size-[37px]" />
@@ -55,6 +57,7 @@ export function NavTabbar() {
 }
 
 function SideButton({ item, pathname }: { item: SideItem; pathname: string }) {
+  const t = useT()
   const Icon = item.icon
   const active = item.exact
     ? pathname === item.href
@@ -63,7 +66,7 @@ function SideButton({ item, pathname }: { item: SideItem; pathname: string }) {
   return (
     <Link
       href={item.href}
-      aria-label={item.label}
+      aria-label={t.shared.nav[item.label]}
       aria-current={active ? 'page' : undefined}
       className={cn(
         'flex size-[54px] items-center justify-center rounded-full transition-colors',

@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react'
 import { Activity, CircleDollarSign, Gauge } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { useT } from '@/lib/client/i18n'
 
 interface ProxyAddressWorkspaceProps {
   enabled: boolean
@@ -26,6 +27,7 @@ export function ProxyAddressWorkspace({
   activity,
   children
 }: ProxyAddressWorkspaceProps) {
+  const t = useT().addresses.workspace
   if (!enabled) {
     return (
       <>
@@ -44,7 +46,7 @@ export function ProxyAddressWorkspace({
 
       <Tabs defaultValue="overview" className="flex flex-col gap-4">
         <TabsList
-          aria-label="Proxy address sections"
+          aria-label={t.sections}
           className="h-auto w-full justify-start overflow-x-auto rounded-none border-b border-border bg-transparent p-0"
         >
           <TabsTrigger
@@ -52,23 +54,23 @@ export function ProxyAddressWorkspace({
             className="gap-2 rounded-none border-b-2 border-transparent px-4 py-3 data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none [&_svg]:size-4"
           >
             <Gauge data-icon="inline-start" />
-            Overview
+            {t.overview}
           </TabsTrigger>
           <TabsTrigger
             value="payments"
-            aria-label="Payments received"
+            aria-label={t.paymentsReceived}
             className="gap-2 rounded-none border-b-2 border-transparent px-4 py-3 data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none [&_svg]:size-4"
           >
             <CircleDollarSign data-icon="inline-start" />
-            <span className="hidden sm:inline">Payments received</span>
-            <span className="sm:hidden">Payments</span>
+            <span className="hidden sm:inline">{t.paymentsReceived}</span>
+            <span className="sm:hidden">{t.payments}</span>
           </TabsTrigger>
           <TabsTrigger
             value="activity"
             className="gap-2 rounded-none border-b-2 border-transparent px-4 py-3 data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none [&_svg]:size-4"
           >
             <Activity data-icon="inline-start" />
-            Activity
+            {t.activity}
           </TabsTrigger>
         </TabsList>
 

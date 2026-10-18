@@ -1,5 +1,7 @@
 import { formatDateTime } from '@/lib/client/format'
 import { parseDestination } from '@/lib/client/nwc/parse-destination'
+import en from '@/lib/client/i18n/en'
+import type { Dict } from '@/lib/client/i18n/en'
 
 export type PaymentReceiptStatus = 'settled' | 'pending' | 'failed'
 
@@ -19,48 +21,47 @@ export interface PaymentReceiptInput {
  * Plain-text Lightning receipt for share/copy. Includes proof fields the
  * user already has on-screen — they explicitly chose to export.
  */
-function receiptStatusLabel(status?: PaymentReceiptStatus): string {
-  if (status === 'pending') return 'Pending'
-  if (status === 'failed') return 'Failed'
-  return 'Settled'
-}
-
-export function buildPaymentReceiptText(input: PaymentReceiptInput): string {
+export function buildPaymentReceiptText(
+  input: PaymentReceiptInput,
+  t: Dict = en
+): string {
+  const r = t.shared.receipt
+  const l = r.text
   const lines = [
-    'LaWallet payment receipt',
+    l.title,
     '',
-    `Status: ${receiptStatusLabel(input.status)}`,
-    `Amount: ${input.amountLabel}`
+    `${l.status}: ${r[input.status ?? 'settled']}`,
+    `${l.amount}: ${input.amountLabel}`
   ]
 
   if (input.feeLabel?.trim()) {
-    lines.push(`Fee: ${input.feeLabel.trim()}`)
+    lines.push(`${l.fee}: ${input.feeLabel.trim()}`)
   }
 
   const recipient = input.recipient?.trim() || ''
   if (recipient) {
-    lines.push(`To: ${recipient}`)
+    lines.push(`${l.to}: ${recipient}`)
   }
 
   const destination = input.destination?.trim() || null
   if (destination && destination !== recipient) {
-    lines.push(`Destination: ${destination}`)
+    lines.push(`${l.destination}: ${destination}`)
   }
 
   if (input.comment?.trim()) {
-    lines.push(`Note: ${input.comment.trim()}`)
+    lines.push(`${l.note}: ${input.comment.trim()}`)
   }
 
   if (input.settledAt) {
-    lines.push(`Time: ${formatDateTime(input.settledAt)}`)
+    lines.push(`${l.time}: ${formatDateTime(input.settledAt)}`)
   }
 
   if (input.paymentHash?.trim()) {
-    lines.push('', 'Payment hash:', input.paymentHash.trim())
+    lines.push('', `${l.paymentHash}:`, input.paymentHash.trim())
   }
 
   if (input.preimage?.trim()) {
-    lines.push('', 'Preimage:', input.preimage.trim())
+    lines.push('', `${l.preimage}:`, input.preimage.trim())
   }
 
   return lines.join('\n')

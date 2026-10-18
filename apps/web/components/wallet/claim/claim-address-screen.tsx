@@ -17,6 +17,7 @@ import {
   serverActivationBonus,
   subscribeActivationBonus
 } from '@/lib/client/activation-bonus-notice'
+import { useT } from '@/lib/client/i18n'
 
 /**
  * Full-screen, mobile-first "claim a lightning address" flow for the wallet.
@@ -37,6 +38,7 @@ export function ClaimAddressScreen({
   initialUsername?: string
 }) {
   const router = useRouter()
+  const tc = useT().claim
   const storedBonus = useSyncExternalStore(
     subscribeActivationBonus,
     readActivationBonus,
@@ -82,7 +84,7 @@ export function ClaimAddressScreen({
     <div className="flex flex-1 flex-col">
       {showHeader && (
         <ScreenHeader
-          title={flow.step === 'payment' ? 'Payment' : 'Claim address'}
+          title={flow.step === 'payment' ? tc.paymentTitle : tc.headerTitle}
           closeStyle={flow.step === 'username'}
           onBack={handleBack}
         />
@@ -96,25 +98,24 @@ export function ClaimAddressScreen({
           <div className="space-y-6 pt-4">
             <div className="space-y-2">
               <h1 className="text-2xl font-semibold text-foreground">
-                Claim your Lightning address
+                {tc.heading}
               </h1>
               <p className="text-sm leading-relaxed text-muted-foreground">
                 {fromActivate
                   ? freeBonus
-                    ? 'Your card is ready. Pick a username — this first Lightning address is free.'
-                    : 'Your card is ready. Pick a username so you can receive Lightning payments.'
-                  : 'Pick a username — this is where you’ll receive Lightning payments. It’s free.'}
+                    ? tc.introActivateFree
+                    : tc.introActivate
+                  : tc.intro}
               </p>
               {cardBonus != null && (
                 <p className="text-sm text-muted-foreground">
-                  {cardBonus.toLocaleString('en-US')} sats from this card are
-                  already in your balance.
+                  {tc.cardBonus(cardBonus.toLocaleString('en-US'))}
                 </p>
               )}
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
+              <Label htmlFor="username">{tc.username}</Label>
               <div className="flex items-center rounded-md border border-input bg-background focus-within:ring-2 focus-within:ring-ring">
                 <Input
                   id="username"
@@ -134,19 +135,17 @@ export function ClaimAddressScreen({
                   <span className="text-destructive">{flow.formatError}</span>
                 ) : flow.checking ? (
                   <span className="text-muted-foreground">
-                    Checking availability…
+                    {tc.checkingAvailability}
                   </span>
                 ) : flow.available === false ? (
-                  <span className="text-destructive">
-                    That username is taken.
-                  </span>
+                  <span className="text-destructive">{tc.taken}</span>
                 ) : flow.available === true ? (
                   <span className="text-green-600 dark:text-green-500">
-                    Available
+                    {tc.available}
                   </span>
                 ) : (
                   <span className="text-muted-foreground">
-                    Lowercase letters and numbers, max 16 characters.
+                    {tc.usernameHint}
                   </span>
                 )}
               </p>
@@ -160,7 +159,7 @@ export function ClaimAddressScreen({
             disabled={flow.submitDisabled}
           >
             {flow.submitting && <Spinner size={16} className="mr-2" />}
-            {flow.submitting ? 'Claiming…' : 'Claim address'}
+            {flow.submitting ? tc.claiming : tc.claimAddress}
           </Button>
         </form>
       )}
@@ -171,11 +170,10 @@ export function ClaimAddressScreen({
             <>
               <div className="space-y-1">
                 <h1 className="text-xl font-semibold text-foreground">
-                  Payment couldn’t be started
+                  {tc.paymentFailedTitle}
                 </h1>
                 <p className="text-sm text-muted-foreground">
-                  We couldn’t reach the payment provider for {flow.username}@
-                  {flow.domain}.
+                  {tc.paymentFailedBody(`${flow.username}@${flow.domain}`)}
                 </p>
               </div>
               <p className="text-sm text-muted-foreground">{flow.mintError}</p>
@@ -185,13 +183,13 @@ export function ClaimAddressScreen({
                 onClick={() => flow.mintInvoiceAndShowQr()}
               >
                 <RefreshCw className="mr-1.5 size-3.5" />
-                Try again
+                {tc.tryAgain}
               </Button>
             </>
           ) : (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Spinner size={16} />
-              Generating your invoice…
+              {tc.generatingInvoice}
             </div>
           )}
         </div>
@@ -201,10 +199,10 @@ export function ClaimAddressScreen({
         <div className="flex flex-1 flex-col gap-5 px-6 pb-6 pt-2">
           <div className="space-y-1 text-center">
             <h1 className="text-xl font-semibold text-foreground">
-              Pay {flow.invoice.amountSats} sats
+              {tc.payAmount(flow.invoice.amountSats)}
             </h1>
             <p className="text-sm text-muted-foreground">
-              To claim{' '}
+              {tc.toClaim}{' '}
               <span className="font-medium text-foreground">
                 {flow.username}@{flow.domain}
               </span>
@@ -214,16 +212,14 @@ export function ClaimAddressScreen({
           {flow.paymentStatus === 'expired' ? (
             <div className="flex flex-col items-center gap-3 py-2 text-center">
               <p className="text-sm text-muted-foreground">
-                This invoice expired before a payment was detected. If you were
-                charged, contact the operator — otherwise generate a fresh
-                invoice.
+                {tc.invoiceExpired}
               </p>
               <Button
                 variant="theme"
                 onClick={() => flow.mintInvoiceAndShowQr()}
               >
                 <RefreshCw className="mr-1.5 size-3.5" />
-                Generate new invoice
+                {tc.newInvoice}
               </Button>
             </div>
           ) : (
@@ -256,8 +252,8 @@ export function ClaimAddressScreen({
                       <Wallet className="mr-2 size-4" />
                     )}
                     {flow.payingWithWallet
-                      ? 'Confirm in wallet…'
-                      : 'Pay with Wallet'}
+                      ? tc.confirmInWallet
+                      : tc.payWithWallet}
                   </Button>
                 )}
                 <Button
@@ -267,7 +263,7 @@ export function ClaimAddressScreen({
                   onClick={flow.handleCopy}
                 >
                   <Copy className="mr-2 size-4" />
-                  {flow.copied ? 'Copied!' : 'Copy Invoice'}
+                  {flow.copied ? tc.copied : tc.copyInvoice}
                 </Button>
               </div>
 
@@ -276,7 +272,7 @@ export function ClaimAddressScreen({
                   <>
                     <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
                       <Spinner size={12} />
-                      Waiting for payment…
+                      {tc.waitingPayment}
                     </div>
                     <Button
                       type="button"
@@ -290,16 +286,14 @@ export function ClaimAddressScreen({
                       ) : (
                         <RefreshCw className="mr-1.5 size-3.5" />
                       )}
-                      {flow.manualChecking
-                        ? 'Checking…'
-                        : 'I’ve paid — check now'}
+                      {flow.manualChecking ? tc.checking : tc.checkNow}
                     </Button>
                   </>
                 )}
                 {flow.paymentStatus === 'detected' && (
                   <div className="flex items-center justify-center gap-2 text-xs text-green-500">
                     <Check className="size-3.5" />
-                    Payment detected! Claiming address…
+                    {tc.detected}
                   </div>
                 )}
               </div>
@@ -313,17 +307,15 @@ export function ClaimAddressScreen({
           <div className="flex w-full flex-col items-center gap-6">
             <div className="space-y-2">
               <h1 className="text-2xl font-semibold text-foreground">
-                Address claimed!
+                {tc.claimedTitle}
               </h1>
-              <p className="text-sm text-muted-foreground">
-                Your new Lightning address is ready to receive payments.
-              </p>
+              <p className="text-sm text-muted-foreground">{tc.claimedBody}</p>
             </div>
             <SuccessHeroCard address={flow.claimedAddress} />
           </div>
 
           <Button onClick={goToWallet} variant="theme" className="h-12 w-full">
-            Go to wallet
+            {tc.goToWallet}
           </Button>
         </div>
       )}

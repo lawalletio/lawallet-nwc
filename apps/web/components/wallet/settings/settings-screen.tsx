@@ -10,6 +10,7 @@ import { NavTabbar } from '@/components/wallet/shared/nav-tabbar'
 import { useAuth } from '@/components/admin/auth-context'
 import { useSettings } from '@/lib/client/hooks/use-settings'
 import { useBrandLogotypes } from '@/lib/client/hooks/use-brand'
+import { useT, type Dict } from '@/lib/client/i18n'
 import { cn } from '@/lib/utils'
 import packageJson from '../../../package.json'
 
@@ -21,30 +22,28 @@ type Item = {
   label: string
   href: string
   external?: boolean
-  /** When true, render as a non-interactive row with a "Soon" badge. */
-  comingSoon?: boolean
 }
 
-const ACCOUNT_ITEMS: Item[] = [
-  { label: 'My Cards', href: '/wallet/settings/cards' },
-  { label: 'Security', href: '/wallet/settings/security' },
-  { label: 'Remote wallets', href: '/wallet/settings/remote-wallets' }
+const accountItems = (t: Dict): Item[] => [
+  { label: t.settings.myCards, href: '/wallet/settings/cards' },
+  { label: t.settings.security, href: '/wallet/settings/security' },
+  { label: t.settings.remoteWallets, href: '/wallet/settings/remote-wallets' }
 ]
 
-const PREFERENCES_ITEMS: Item[] = [
-  { label: 'Languages', href: '/wallet/settings/languages', comingSoon: true },
-  { label: 'Currencies', href: '/wallet/settings/currencies' },
-  { label: 'Payment sound', href: '/wallet/settings/payment-sound' }
+const preferencesItems = (t: Dict): Item[] => [
+  { label: t.settings.language, href: '/wallet/settings/language' },
+  { label: t.settings.currencies, href: '/wallet/settings/currencies' },
+  { label: t.settings.paymentSound, href: '/wallet/settings/payment-sound' }
 ]
 
-const SUPPORT_ITEMS: Item[] = [
+const supportItems = (t: Dict): Item[] => [
   {
-    label: 'Help Center',
+    label: t.settings.helpCenter,
     href: 'https://docs.lawallet.io',
     external: true
   },
   {
-    label: 'Report a bug',
+    label: t.settings.reportBug,
     href: 'https://github.com/lawalletio/lawallet-nwc/issues',
     external: true
   }
@@ -52,15 +51,14 @@ const SUPPORT_ITEMS: Item[] = [
 
 export function SettingsScreen() {
   const router = useRouter()
+  const t = useT()
   const { logout } = useAuth()
   const { data: settings } = useSettings()
   const { isotypo } = useBrandLogotypes()
   const communityName = settings?.community_name?.trim() || 'LaWallet'
 
   function handleRemoveWallet() {
-    const confirmed = window.confirm(
-      'Remove this wallet from the device? You can sign back in with your private key.'
-    )
+    const confirmed = window.confirm(t.settings.removeWalletConfirm)
     if (!confirmed) return
     logout()
     router.replace('/wallet/landing')
@@ -75,39 +73,39 @@ export function SettingsScreen() {
           className="flex h-9 w-fit items-center gap-1.5 rounded-full bg-card px-3 text-sm font-medium text-foreground transition-colors hover:bg-accent"
         >
           <ChevronLeft className="size-4" />
-          Back
+          {t.common.back}
         </button>
         <h1 className="text-center text-base font-semibold text-foreground">
-          Settings
+          {t.settings.title}
         </h1>
         <span aria-hidden />
       </header>
 
       <main className="flex flex-1 flex-col gap-6 px-4 pt-4">
-        <Section title="Account">
-          <ItemGroup items={ACCOUNT_ITEMS} />
+        <Section title={t.settings.account}>
+          <ItemGroup items={accountItems(t)} />
         </Section>
 
-        <Section title="Preferences">
-          <ItemGroup items={PREFERENCES_ITEMS} />
+        <Section title={t.settings.preferences}>
+          <ItemGroup items={preferencesItems(t)} />
         </Section>
 
-        <Section title="Support">
-          <ItemGroup items={SUPPORT_ITEMS} />
+        <Section title={t.settings.support}>
+          <ItemGroup items={supportItems(t)} />
         </Section>
 
         <CommunityFooter communityName={communityName} isotypo={isotypo} />
 
         {/* Danger Zone stays last and is pushed to the bottom of the screen so
             the destructive action never sits above everyday settings. */}
-        <Section title="Danger Zone" className="mt-auto">
+        <Section title={t.settings.dangerZone} className="mt-auto">
           <Button
             type="button"
             variant="destructive"
             onClick={handleRemoveWallet}
             className="h-12 w-full"
           >
-            Remove Wallet
+            {t.settings.removeWallet}
           </Button>
         </Section>
       </main>
@@ -156,20 +154,6 @@ function SettingsRow({ item, divider }: { item: Item; divider: boolean }) {
   const interactiveClass =
     'hover:bg-accent/70 active:scale-[0.985] active:bg-accent/90 active:duration-75'
 
-  if (item.comingSoon) {
-    return (
-      <div
-        aria-disabled
-        className={cn(baseClass, 'cursor-not-allowed opacity-60')}
-      >
-        <span className="text-base font-medium text-foreground">
-          {item.label}
-        </span>
-        <SoonBadge />
-      </div>
-    )
-  }
-
   if (item.external) {
     return (
       <a
@@ -196,14 +180,6 @@ function SettingsRow({ item, divider }: { item: Item; divider: boolean }) {
   )
 }
 
-function SoonBadge() {
-  return (
-    <span className="rounded-full bg-muted px-2.5 py-0.5 text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
-      Soon
-    </span>
-  )
-}
-
 function CommunityFooter({
   communityName,
   isotypo
@@ -211,6 +187,7 @@ function CommunityFooter({
   communityName: string
   isotypo: string
 }) {
+  const t = useT()
   return (
     <div className="flex flex-col items-center gap-1 py-2 text-center">
       <div className="flex items-center gap-2">
@@ -228,8 +205,10 @@ function CommunityFooter({
           {communityName}
         </span>
       </div>
-      <p className="text-xs text-muted-foreground">Community by LaWallet</p>
-      <p className="text-xs text-muted-foreground">Version {APP_VERSION}</p>
+      <p className="text-xs text-muted-foreground">{t.settings.communityBy}</p>
+      <p className="text-xs text-muted-foreground">
+        {t.settings.version(APP_VERSION)}
+      </p>
     </div>
   )
 }

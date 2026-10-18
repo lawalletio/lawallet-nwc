@@ -1,6 +1,7 @@
 'use client'
 
 import { cn } from '@/lib/utils'
+import { useT } from '@/lib/client/i18n'
 
 /**
  * A 3D BoltCard in perspective that gently sways so its design face always
@@ -23,6 +24,7 @@ export function Card3D({
   className?: string
   glow?: boolean
 }) {
+  const t = useT()
   return (
     <div className={cn('relative grid place-items-center', className)}>
       {glow && (
@@ -62,7 +64,7 @@ export function Card3D({
                 {imageUrl ? (
                   <img
                     src={imageUrl}
-                    alt={title || 'Card design'}
+                    alt={title || t.activate.cardAlt}
                     className="size-full object-cover"
                     draggable={false}
                   />

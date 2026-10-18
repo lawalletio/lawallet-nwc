@@ -18,6 +18,7 @@ import {
 } from '@/lib/client/hooks/use-wallet-addresses'
 import { formatMsats, formatRelativeTime } from '@/lib/client/format'
 import { cn } from '@/lib/utils'
+import { useT } from '@/lib/client/i18n'
 
 interface ProxyPendingBalanceCardProps {
   username: string
@@ -33,6 +34,7 @@ export function ProxyPendingBalanceCard({
   username,
   configuredDestination
 }: ProxyPendingBalanceCardProps) {
+  const t = useT().addresses.pendingBalance
   const { data, loading, error, refetch } = useProxyPendingBalance(username)
   const { forwardPending, forwardingPending } =
     useProxyPendingBalanceMutation(username)
@@ -51,25 +53,21 @@ export function ProxyPendingBalanceCard({
 
       if (result.reconciliation.completed > 0) {
         const count = result.reconciliation.completed
-        toast.success(
-          `${count} pending ${count === 1 ? 'payment' : 'payments'} forwarded`
-        )
+        toast.success(t.forwarded(count))
       } else if (result.reconciliation.failed > 0) {
-        toast.error('Forwarding still needs attention')
+        toast.error(t.stillNeedsAttention)
       } else {
-        toast.success('Pending forwarding started')
+        toast.success(t.started)
       }
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : 'Could not forward pending funds'
-      )
+      toast.error(err instanceof Error ? err.message : t.failed)
       await refetch()
     }
   }
 
   return (
     <section
-      aria-label="Pending proxy balance"
+      aria-label={t.label}
       className={cn(
         'relative overflow-hidden rounded-xl border px-5 py-4',
         hasPending
@@ -97,7 +95,7 @@ export function ProxyPendingBalanceCard({
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
-                Pending balance
+                {t.title}
               </p>
               {blockedCount > 0 && (
                 <Badge
@@ -105,7 +103,7 @@ export function ProxyPendingBalanceCard({
                   className="h-5 gap-1 px-1.5 text-[10px]"
                 >
                   <AlertTriangle className="size-3" />
-                  {blockedCount} blocked
+                  {t.blocked(blockedCount)}
                 </Badge>
               )}
               {inFlightCount > 0 && (
@@ -113,7 +111,7 @@ export function ProxyPendingBalanceCard({
                   variant="outline"
                   className="h-5 border-amber-500/30 bg-amber-500/10 px-1.5 text-[10px] text-amber-500"
                 >
-                  {inFlightCount} resolving
+                  {t.resolving(inFlightCount)}
                 </Badge>
               )}
             </div>
@@ -121,7 +119,7 @@ export function ProxyPendingBalanceCard({
             {error ? (
               <div className="mt-1 inline-flex items-center gap-1.5 text-sm text-destructive">
                 <WifiOff className="size-3.5" />
-                Pending balance unavailable
+                {t.unavailable}
               </div>
             ) : !data && loading ? (
               <div className="mt-2">
@@ -138,9 +136,7 @@ export function ProxyPendingBalanceCard({
                   {formatMsats(data?.pendingAmountMsats ?? '0')}
                 </p>
                 <p className="mt-1.5 text-xs text-muted-foreground">
-                  {hasPending
-                    ? `Net amount across ${pendingCount} ${pendingCount === 1 ? 'payment' : 'payments'}, after service fees.`
-                    : 'All confirmed proxy payments have been forwarded.'}
+                  {hasPending ? t.netAcross(pendingCount) : t.allForwarded}
                 </p>
               </>
             )}
@@ -150,12 +146,12 @@ export function ProxyPendingBalanceCard({
         <div className="flex items-center justify-between gap-3 border-t border-border/50 pt-3 sm:justify-end sm:border-l sm:border-t-0 sm:pl-4 sm:pt-0">
           <div className="min-w-0 text-left sm:text-right">
             <p className="truncate font-mono text-xs text-foreground">
-              {destination ?? 'No destination configured'}
+              {destination ?? t.noDestination}
             </p>
             <p className="mt-0.5 text-[11px] text-muted-foreground">
               {data?.oldestPendingAt && hasPending
-                ? `Oldest pending ${formatRelativeTime(data.oldestPendingAt)}`
-                : 'Configured destination'}
+                ? t.oldestPending(formatRelativeTime(data.oldestPendingAt))
+                : t.configuredDestination}
             </p>
           </div>
           {hasPending && (
@@ -167,14 +163,10 @@ export function ProxyPendingBalanceCard({
               disabled={loading || forwardingPending || forwardingActive}
               aria-label={
                 forwardingActive || forwardingPending
-                  ? 'Pending funds are forwarding'
-                  : 'Forward pending funds'
+                  ? t.forwardingAria
+                  : t.forwardAria
               }
-              title={
-                forwardingActive
-                  ? 'An outgoing payment is already in progress or awaiting confirmation'
-                  : 'Forward all pending proxy funds now'
-              }
+              title={forwardingActive ? t.inProgressHint : t.forwardHint}
               className="shrink-0 border-amber-500/30 bg-amber-500/10 text-amber-500 hover:bg-amber-500/15 hover:text-amber-400"
             >
               {forwardingActive || forwardingPending ? (
@@ -183,18 +175,18 @@ export function ProxyPendingBalanceCard({
                 <Forward />
               )}
               {forwardingActive
-                ? 'Forwarding'
+                ? t.forwarding
                 : forwardingPending
-                  ? 'Starting'
-                  : 'Forward pending'}
+                  ? t.starting
+                  : t.forwardPending}
             </Button>
           )}
           <button
             type="button"
             onClick={() => void refetch()}
             disabled={loading}
-            aria-label="Refresh pending balance"
-            title="Refresh pending balance"
+            aria-label={t.refresh}
+            title={t.refresh}
             className="grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground disabled:opacity-50"
           >
             {loading ? (

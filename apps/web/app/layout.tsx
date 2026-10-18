@@ -14,7 +14,8 @@ export const metadata: Metadata = {
   description: 'Lightning Addresses for Everyone',
   // Page translators (Chrome/Google Translate) rewrap React-owned text nodes
   // in <font>, so React's next commit throws NotFoundError on insertBefore /
-  // removeChild and the wallet crashes on navigation. The app is English-only.
+  // removeChild and the wallet crashes on navigation. The wallet ships its own
+  // translations instead (lib/client/i18n).
   other: { google: 'notranslate' }
 }
 

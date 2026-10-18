@@ -18,6 +18,8 @@ import {
   maskProofValue,
   type PaymentReceiptStatus
 } from '@/lib/client/payment-receipt'
+import { useT, type Dict } from '@/lib/client/i18n'
+import en from '@/lib/client/i18n/en'
 import { cn } from '@/lib/utils'
 
 /** Display-currency selection used by send and receive receipts. */
@@ -43,10 +45,11 @@ export function useReceiptCurrency() {
   return { activeCurrencies, rates, activeCode, setCurrencyCode }
 }
 
-export async function shareReceiptText(text: string) {
+/** Pass the caller's `useT()` dictionary; defaults to English. */
+export async function shareReceiptText(text: string, t: Dict = en) {
   if (typeof navigator !== 'undefined' && navigator.share) {
     try {
-      await navigator.share({ title: 'Payment receipt', text })
+      await navigator.share({ title: t.shared.receipt.shareTitle, text })
       return
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') return
@@ -55,9 +58,9 @@ export async function shareReceiptText(text: string) {
 
   try {
     await navigator.clipboard.writeText(text)
-    toast.success('Receipt copied')
+    toast.success(t.shared.receipt.copied)
   } catch {
-    toast.error('Could not share receipt')
+    toast.error(t.shared.receipt.shareFailed)
   }
 }
 
@@ -112,12 +115,8 @@ function ReceiptStatusMark({ status }: { status: PaymentReceiptStatus }) {
 }
 
 function ReceiptStatusBadge({ status }: { status: PaymentReceiptStatus }) {
-  const label =
-    status === 'pending'
-      ? 'Pending'
-      : status === 'failed'
-        ? 'Failed'
-        : 'Settled'
+  const t = useT()
+  const label = t.shared.receipt[status]
   return (
     <span
       className={cn(
@@ -237,6 +236,7 @@ export function ReceiptDetailRow({
   value: string | null
   valueClassName?: string
 }) {
+  const t = useT()
   return (
     <div className="flex items-start justify-between gap-3 text-sm">
       <span className="shrink-0 text-muted-foreground">{label}</span>
@@ -247,21 +247,22 @@ export function ReceiptDetailRow({
           valueClassName
         )}
       >
-        {value ?? 'Unavailable'}
+        {value ?? t.shared.receipt.unavailable}
       </span>
     </div>
   )
 }
 
 export function PaymentProofCard({ children }: { children: ReactNode }) {
+  const t = useT()
   return (
     <section className="mt-5 rounded-3xl border border-border/80 bg-card/85 p-4 shadow-sm">
       <div className="flex flex-col gap-1">
         <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
-          Payment proof
+          {t.shared.receipt.proofTitle}
         </p>
         <p className="text-sm text-muted-foreground">
-          Reveal or copy these only when you need a receipt.
+          {t.shared.receipt.proofHint}
         </p>
       </div>
       <div className="mt-4 flex flex-col gap-4">{children}</div>
@@ -278,6 +279,7 @@ export function ReceiptProofRow({
   value: string | null
   secret?: boolean
 }) {
+  const t = useT()
   const [revealed, setRevealed] = useState(false)
   const trimmed = value?.trim() || null
 
@@ -287,7 +289,9 @@ export function ReceiptProofRow({
         <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
           {label}
         </p>
-        <p className="text-sm text-muted-foreground">Not provided by wallet</p>
+        <p className="text-sm text-muted-foreground">
+          {t.shared.receipt.notProvided}
+        </p>
       </div>
     )
   }
@@ -309,8 +313,8 @@ export function ReceiptProofRow({
               className="size-7 shrink-0"
               aria-label={
                 revealed
-                  ? `Hide ${label.toLowerCase()}`
-                  : `Show ${label.toLowerCase()}`
+                  ? t.shared.receipt.hide(label)
+                  : t.shared.receipt.show(label)
               }
               aria-pressed={revealed}
               onClick={() => setRevealed(open => !open)}
@@ -346,6 +350,7 @@ export function PaymentReceiptActions({
   onShare: () => void
   onDone: () => void
 }) {
+  const t = useT()
   return (
     <div className="flex flex-col gap-2">
       <div className="flex gap-2">
@@ -356,14 +361,14 @@ export function PaymentReceiptActions({
           onClick={onShare}
         >
           <Share2 data-icon="inline-start" />
-          Share
+          {t.common.share}
         </Button>
         <Button asChild variant="secondary" className="h-12 flex-1">
-          <Link href="/wallet/activity">View activity</Link>
+          <Link href="/wallet/activity">{t.shared.receipt.viewActivity}</Link>
         </Button>
       </div>
       <Button onClick={onDone} className="h-12 w-full">
-        Done
+        {t.common.done}
       </Button>
     </div>
   )

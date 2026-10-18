@@ -18,11 +18,37 @@ import {
   useActiveCurrencies,
   type Currency
 } from '@/lib/client/currencies-store'
+import { useLocale, useT, type Dict } from '@/lib/client/i18n'
 import { cn } from '@/lib/utils'
+
+type Labels = Dict['settings']['currenciesScreen']
+
+/** Native currency name in the UI locale; the catalog name for SAT/BTC or unknown codes. */
+function useCurrencyName() {
+  const locale = useLocale()
+  return useMemo(() => {
+    let names: Intl.DisplayNames | null = null
+    try {
+      names = new Intl.DisplayNames([locale], { type: 'currency' })
+    } catch {
+      // older engines: fall back to the catalog names
+    }
+    return (c: Currency): Currency => {
+      if (c.code === 'SAT' || c.code === 'BTC') return c
+      const name = names?.of(c.code)
+      if (!name || name === c.code) return c
+      return { ...c, name: name.charAt(0).toLocaleUpperCase(locale) + name.slice(1) }
+    }
+  }, [locale])
+}
 
 export function CurrenciesScreen() {
   const router = useRouter()
-  const active = useActiveCurrencies()
+  const t = useT()
+  const l = t.settings.currenciesScreen
+  const localize = useCurrencyName()
+  const stored = useActiveCurrencies()
+  const active = useMemo(() => stored.map(localize), [stored, localize])
   const [query, setQuery] = useState('')
 
   // Pointer-based drag state for the Active Assets list. We mirror the
@@ -139,10 +165,12 @@ export function CurrenciesScreen() {
   const activeCodes = useMemo(() => new Set(active.map(c => c.code)), [active])
 
   const term = query.trim().toLowerCase()
-  const matchesQuery = (c: { code: string; name: string }) => {
+  const matchesQuery = (c: Currency) => {
     if (!term) return true
     return (
-      c.code.toLowerCase().includes(term) || c.name.toLowerCase().includes(term)
+      c.code.toLowerCase().includes(term) ||
+      c.name.toLowerCase().includes(term) ||
+      localize(c).name.toLowerCase().includes(term)
     )
   }
 
@@ -152,11 +180,11 @@ export function CurrenciesScreen() {
   // already chosen from view, which is confusing.
   const filteredAvailable = useMemo(
     () =>
-      CURRENCY_CATALOG.filter(c => !activeCodes.has(c.code)).filter(
-        matchesQuery
-      ),
+      CURRENCY_CATALOG.filter(c => !activeCodes.has(c.code))
+        .filter(matchesQuery)
+        .map(localize),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [activeCodes, term]
+    [activeCodes, term, localize]
   )
 
   return (
@@ -168,16 +196,16 @@ export function CurrenciesScreen() {
           className="flex h-9 w-fit items-center gap-1.5 rounded-full bg-card px-3 text-sm font-medium text-foreground transition-colors hover:bg-accent"
         >
           <ChevronLeft className="size-4" />
-          Back
+          {t.common.back}
         </button>
         <h1 className="text-center text-base font-semibold text-foreground">
-          Currency
+          {l.title}
         </h1>
         <span aria-hidden />
       </header>
 
       <main className="flex flex-1 flex-col gap-6 px-4 pt-4">
-        <Section title="Active Assets">
+        <Section title={l.activeAssets}>
           <div className="flex flex-col rounded-2xl bg-card">
             {active.map((currency, idx) => (
               <ActiveRow
@@ -185,6 +213,7 @@ export function CurrenciesScreen() {
                 currency={currency}
                 divider={idx < active.length - 1}
                 onRemove={() => currenciesActions.remove(currency.code)}
+                labels={l}
                 isDragging={draggedCode === currency.code}
                 translateY={rowOffset(currency.code)}
                 onGripPointerDown={e => startDrag(currency.code, e)}
@@ -194,8 +223,7 @@ export function CurrenciesScreen() {
             ))}
           </div>
           <p className="px-2 text-center text-xs leading-relaxed text-muted-foreground">
-            Satoshi are your core assets. Add a reference currency to visualize
-            the fiat value of your balance.
+            {l.hint}
           </p>
         </Section>
 
@@ -204,17 +232,17 @@ export function CurrenciesScreen() {
           <Input
             value={query}
             onChange={e => setQuery(e.target.value)}
-            placeholder="Search currency..."
+            placeholder={l.searchPlaceholder}
             className="h-11 rounded-xl bg-card pl-10"
             autoCorrect="off"
             spellCheck={false}
           />
         </div>
 
-        <Section title="Available References">
+        <Section title={l.available}>
           {filteredAvailable.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-border bg-card/40 px-4 py-8 text-center text-sm text-muted-foreground">
-              No matching currency.
+              {l.noMatch}
             </div>
           ) : (
             <div className="flex flex-col rounded-2xl bg-card">
@@ -223,6 +251,7 @@ export function CurrenciesScreen() {
                   key={currency.code}
                   currency={currency}
                   divider={idx < filteredAvailable.length - 1}
+                  labels={l}
                   onAdd={() => currenciesActions.add(currency.code)}
                 />
               ))}
@@ -236,6 +265,7 @@ export function CurrenciesScreen() {
       {draggedCode && overlayRect && (
         <DraggedPreview
           code={draggedCode}
+          localize={localize}
           rect={overlayRect}
           top={overlayTop}
         />
@@ -262,6 +292,7 @@ function Section({
 function ActiveRow({
   currency,
   divider,
+  labels,
   onRemove,
   isDragging,
   translateY,
@@ -271,6 +302,7 @@ function ActiveRow({
 }: {
   currency: Currency
   divider: boolean
+  labels: Labels
   onRemove: () => void
   isDragging: boolean
   translateY: number
@@ -296,7 +328,7 @@ function ActiveRow({
     >
       {currency.locked ? (
         <span
-          aria-label="Always active"
+          aria-label={labels.alwaysActive}
           className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground"
         >
           <Lock className="size-4" />
@@ -305,7 +337,7 @@ function ActiveRow({
         <button
           type="button"
           onClick={onRemove}
-          aria-label={`Remove ${currency.name}`}
+          aria-label={labels.remove(currency.name)}
           className="flex size-9 shrink-0 items-center justify-center rounded-md bg-destructive/90 text-destructive-foreground transition-colors hover:bg-destructive"
         >
           <Minus className="size-4" />
@@ -331,7 +363,7 @@ function ActiveRow({
       ) : (
         <span
           role="button"
-          aria-label={`Reorder ${currency.name}`}
+          aria-label={labels.reorder(currency.name)}
           onPointerDown={onGripPointerDown}
           onPointerMove={onGripPointerMove}
           onPointerUp={onGripPointerUp}
@@ -348,10 +380,12 @@ function ActiveRow({
 function AvailableRow({
   currency,
   divider,
+  labels,
   onAdd
 }: {
   currency: Currency
   divider: boolean
+  labels: Labels
   onAdd: () => void
 }) {
   return (
@@ -364,7 +398,7 @@ function AvailableRow({
       <button
         type="button"
         onClick={onAdd}
-        aria-label={`Add ${currency.name}`}
+        aria-label={labels.add(currency.name)}
         className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-foreground transition-colors hover:bg-accent"
       >
         <Plus className="size-4" />
@@ -391,15 +425,18 @@ function AvailableRow({
  */
 function DraggedPreview({
   code,
+  localize,
   rect,
   top
 }: {
   code: string
+  localize: (c: Currency) => Currency
   rect: DOMRect
   top: number
 }) {
-  const def = CURRENCY_CATALOG.find(c => c.code === code)
-  if (!def) return null
+  const found = CURRENCY_CATALOG.find(c => c.code === code)
+  if (!found) return null
+  const def = localize(found)
   return (
     <div
       aria-hidden

@@ -62,10 +62,7 @@ export async function payDisplayedInvoiceFromCard(input: {
 
 function mapResolveError(err: unknown): string {
   if (!(err instanceof LnurlError)) return 'Could not reach the card.'
-  if (/no withdrawable amount/i.test(err.message)) {
-    return 'This card cannot pay right now.'
-  }
-  if (/below 1 sat/i.test(err.message)) {
+  if (err.code === 'noAmount' || err.code === 'belowOneSat') {
     return 'This card cannot pay right now.'
   }
   return err.message

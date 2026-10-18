@@ -509,8 +509,12 @@ describe('PasskeysSection duplicate-passkey escalation', () => {
 
   it('keeps the plain error toast when no handler is provided', async () => {
     const user = userEvent.setup()
+    // A server 409 — its message is shown verbatim, never localized.
     mocks.addPasskey.mockRejectedValue(
-      new PasskeyError('duplicate', 'This passkey is already registered')
+      Object.assign(
+        new PasskeyError('duplicate', 'This passkey is already registered'),
+        { fromServer: true }
+      )
     )
 
     render(<PasskeysSection />)

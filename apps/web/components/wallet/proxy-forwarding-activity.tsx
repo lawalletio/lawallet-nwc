@@ -35,6 +35,7 @@ import {
   formatRelativeTime
 } from '@/lib/client/format'
 import { cn } from '@/lib/utils'
+import { useT } from '@/lib/client/i18n'
 
 interface ProxyForwardingActivityProps {
   username: string
@@ -50,6 +51,7 @@ type ProxyInvoice = AddressInvoice & { proxy: AddressProxyPayment }
 export function ProxyForwardingActivity({
   username
 }: ProxyForwardingActivityProps) {
+  const t = useT().addresses.forwardingActivity
   const { data, loading, error } = useAddressInvoices(username)
   const invoices = data?.invoices ?? []
   const proxyInvoices = invoices.filter(
@@ -79,11 +81,10 @@ export function ProxyForwardingActivity({
               aria-level={3}
               className="text-base text-foreground"
             >
-              Forwarding activity
+              {t.title}
             </CardTitle>
             <CardDescription className="mt-1 text-xs font-normal tracking-normal">
-              Receive settlement, destination attempts, retries, and listener
-              errors.
+              {t.description}
             </CardDescription>
           </div>
         </div>
@@ -92,10 +93,10 @@ export function ProxyForwardingActivity({
       <CardContent className="p-0">
         {proxyInvoices.length > 0 ? (
           <div className="grid grid-cols-3 border-b border-border/60 bg-muted/20">
-            <ActivityMetric label="Payments" value={proxyInvoices.length} />
-            <ActivityMetric label="Attempts" value={attemptCount} />
+            <ActivityMetric label={t.payments} value={proxyInvoices.length} />
+            <ActivityMetric label={t.attempts} value={attemptCount} />
             <ActivityMetric
-              label="Needs attention"
+              label={t.needsAttention}
               value={attentionCount}
               destructive={attentionCount > 0}
             />
@@ -106,10 +107,8 @@ export function ProxyForwardingActivity({
           <div className="p-5">
             <Alert variant="destructive">
               <WifiOff className="size-4" aria-hidden />
-              <AlertTitle>Activity unavailable</AlertTitle>
-              <AlertDescription>
-                The forwarding journal could not be loaded.
-              </AlertDescription>
+              <AlertTitle>{t.unavailableTitle}</AlertTitle>
+              <AlertDescription>{t.unavailableBody}</AlertDescription>
             </Alert>
           </div>
         ) : proxyInvoices.length === 0 && loading ? (
@@ -120,12 +119,8 @@ export function ProxyForwardingActivity({
           <div className="flex items-center gap-3 px-5 py-10 text-sm text-muted-foreground">
             <Clock3 className="size-5 shrink-0" aria-hidden />
             <div>
-              <p className="font-medium text-foreground">
-                No proxy activity yet
-              </p>
-              <p className="mt-0.5 text-xs">
-                Attempts will appear after the first payment is received.
-              </p>
+              <p className="font-medium text-foreground">{t.emptyTitle}</p>
+              <p className="mt-0.5 text-xs">{t.emptyBody}</p>
             </div>
           </div>
         ) : (
@@ -139,8 +134,7 @@ export function ProxyForwardingActivity({
         {retryCount > 0 ? (
           <div className="flex items-center gap-2 border-t border-border/60 bg-muted/20 px-5 py-3 text-xs text-muted-foreground">
             <RotateCcw className="size-3.5" aria-hidden />
-            {retryCount.toLocaleString()} recorded{' '}
-            {retryCount === 1 ? 'retry' : 'retries'} across these payments.
+            {t.recordedRetries(retryCount)}
           </div>
         ) : null}
       </CardContent>
@@ -175,6 +169,7 @@ function ActivityMetric({
 }
 
 function ProxyPaymentActivity({ invoice }: { invoice: ProxyInvoice }) {
+  const t = useT().addresses.forwardingActivity
   const { proxy } = invoice
   const sourceTime = proxy.sourcePaidAt ?? invoice.paidAt ?? invoice.createdAt
   const hasWorkerLease = proxy.leaseExpiresAt !== null
@@ -188,14 +183,14 @@ function ProxyPaymentActivity({ invoice }: { invoice: ProxyInvoice }) {
           </span>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <p className="text-sm font-medium">Payment received</p>
+              <p className="text-sm font-medium">{t.paymentReceived}</p>
               <ForwardingStatusBadge status={proxy.status} />
               {hasWorkerLease ? (
                 <Badge
                   variant="secondary"
-                  title={`Lease expires ${formatDateTime(proxy.leaseExpiresAt!)}`}
+                  title={t.leaseExpires(formatDateTime(proxy.leaseExpiresAt!))}
                 >
-                  Worker lease
+                  {t.workerLease}
                 </Badge>
               ) : null}
             </div>
@@ -212,7 +207,7 @@ function ProxyPaymentActivity({ invoice }: { invoice: ProxyInvoice }) {
             +{formatMsats(proxy.grossAmountMsats)}
           </p>
           <p className="mt-0.5 text-[11px] text-muted-foreground">
-            Net {formatMsats(proxy.destinationAmountMsats)}
+            {t.net(formatMsats(proxy.destinationAmountMsats))}
           </p>
         </div>
       </header>
@@ -222,21 +217,18 @@ function ProxyPaymentActivity({ invoice }: { invoice: ProxyInvoice }) {
           <div className="flex items-center gap-2">
             <Route className="size-4 text-muted-foreground" aria-hidden />
             <p className="text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">
-              Destination attempts
+              {t.destinationAttempts}
             </p>
           </div>
           <p className="text-[11px] text-muted-foreground">
-            {proxy.attemptCount}{' '}
-            {proxy.attemptCount === 1 ? 'attempt' : 'attempts'}
-            {' · '}
-            {proxy.retryCount} {proxy.retryCount === 1 ? 'retry' : 'retries'}
+            {t.counts(proxy.attemptCount, proxy.retryCount)}
           </p>
         </div>
 
         {proxy.lastError ? (
           <Alert variant="destructive" className="mt-3 bg-destructive/5">
             <AlertTriangle className="size-4" aria-hidden />
-            <AlertTitle>Latest forwarding error</AlertTitle>
+            <AlertTitle>{t.latestError}</AlertTitle>
             <AlertDescription className="break-words">
               {proxy.lastError}
             </AlertDescription>
@@ -245,7 +237,7 @@ function ProxyPaymentActivity({ invoice }: { invoice: ProxyInvoice }) {
 
         {proxy.attempts.length === 0 ? (
           <div className="mt-3 rounded-lg border border-dashed border-border px-3 py-4 text-xs text-muted-foreground">
-            No destination invoice attempt has been recorded. Next retry:{' '}
+            {t.noAttempt}{' '}
             <span className="text-foreground">
               {formatDateTime(proxy.nextRetryAt)}
             </span>
@@ -273,10 +265,12 @@ function AttemptActivity({
   attempt: AddressProxyAttempt
   destination: string
 }) {
+  const ta = useT().addresses
+  const t = ta.forwardingActivity
   const label =
     attempt.attemptNo === 1
-      ? 'Initial forward'
-      : `Retry #${attempt.attemptNo - 1}`
+      ? t.initialForward
+      : t.retryNo(attempt.attemptNo - 1)
   const when = attempt.resolvedAt ?? attempt.updatedAt
 
   return (
@@ -300,7 +294,8 @@ function AttemptActivity({
               <ForwardingStatusBadge status={attempt.status} />
             </div>
             <p className="mt-0.5 text-[11px] text-muted-foreground">
-              Attempt #{attempt.attemptNo} · {formatDateTime(attempt.createdAt)}
+              {ta.attemptNo(attempt.attemptNo)} ·{' '}
+              {formatDateTime(attempt.createdAt)}
             </p>
           </div>
           <div className="text-left sm:text-right">
@@ -309,32 +304,32 @@ function AttemptActivity({
             </p>
             <p className="mt-0.5 text-[11px] text-muted-foreground">
               {attempt.routingFeeMsats
-                ? `Routing fee ${formatMsats(attempt.routingFeeMsats)}`
-                : `Updated ${formatRelativeTime(when)}`}
+                ? t.routingFee(formatMsats(attempt.routingFeeMsats))
+                : t.updatedAgo(formatRelativeTime(when))}
             </p>
           </div>
         </div>
 
         <p className="break-all text-xs text-muted-foreground">
-          Destination{' '}
+          {ta.destination}{' '}
           <span className="font-mono text-foreground">{destination}</span>
         </p>
 
         {attempt.errorCode || attempt.errorMessage ? (
           <Alert variant="destructive" className="bg-destructive/5 py-3">
             <AlertTriangle className="size-4" aria-hidden />
-            <AlertTitle>{attempt.errorCode ?? 'Forwarding error'}</AlertTitle>
+            <AlertTitle>{attempt.errorCode ?? t.forwardingError}</AlertTitle>
             <AlertDescription className="break-words">
-              {attempt.errorMessage ?? 'The outgoing attempt was not accepted.'}
+              {attempt.errorMessage ?? t.notAccepted}
             </AlertDescription>
           </Alert>
         ) : null}
 
         <div className="grid gap-2 rounded-md bg-muted/40 p-2 sm:grid-cols-2">
-          <DebugIdentifier label="Request ID" value={attempt.requestId} />
-          <DebugIdentifier label="Payment hash" value={attempt.paymentHash} />
+          <DebugIdentifier label={t.requestId} value={attempt.requestId} />
+          <DebugIdentifier label={ta.paymentHash} value={attempt.paymentHash} />
           <DebugIdentifier
-            label="Destination invoice"
+            label={ta.destinationInvoice}
             value={attempt.bolt11}
             className="sm:col-span-2"
           />

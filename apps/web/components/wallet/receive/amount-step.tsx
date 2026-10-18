@@ -13,15 +13,14 @@ import { CurrencyToggle } from '@/components/wallet/shared/currency-toggle'
 import { useAmountCurrencyInput } from '@/components/wallet/shared/use-amount-currency-input'
 import { useApi, invalidateApiPath } from '@/lib/client/hooks/use-api'
 import { useSettings } from '@/lib/client/hooks/use-settings'
-import {
-  resolveFreshUserNwc,
-  resolveUserNwc
-} from '@/lib/client/wallet-nwc'
+import { resolveFreshUserNwc, resolveUserNwc } from '@/lib/client/wallet-nwc'
 import { useAuth } from '@/components/admin/auth-context'
-import { makeInvoice, describeNwcError } from '@/lib/client/nwc'
+import { makeInvoice } from '@/lib/client/nwc'
 import { receiveActions } from '@/lib/client/wallet-flow-store'
 import { trackEvent } from '@/lib/analytics/gtag'
 import { AnalyticsEvent } from '@/lib/analytics/events'
+import { useT } from '@/lib/client/i18n'
+import { nwcErrorText } from '@/lib/client/i18n/errors'
 
 interface UserMeResponse {
   effectiveNwcString: string | null
@@ -30,6 +29,7 @@ interface UserMeResponse {
 
 export function ReceiveAmountStep() {
   const router = useRouter()
+  const t = useT()
   const { apiClient } = useAuth()
   const { data: me } = useApi<UserMeResponse>('/api/users/me')
   const { data: settings } = useSettings()
@@ -82,7 +82,7 @@ export function ReceiveAmountStep() {
         invalidateApiPath('/api/remote-wallets')
       }
       if (!nwc) {
-        toast.error('No wallet connected')
+        toast.error(t.receive.noWallet)
         return
       }
       const invoice = await makeInvoice(nwc, canonicalAmount, description)
@@ -90,7 +90,7 @@ export function ReceiveAmountStep() {
       receiveActions.setInvoice(invoice)
       router.push('/wallet/receive/invoice')
     } catch (err) {
-      const message = describeNwcError(err)
+      const message = nwcErrorText(t, err)
       receiveActions.setError(message)
       toast.error(message)
     } finally {
@@ -131,7 +131,7 @@ export function ReceiveAmountStep() {
       <div className="flex flex-col gap-3 pt-1">
         <Input
           ref={noteRef}
-          placeholder="Add a note (optional)"
+          placeholder={t.receive.notePlaceholder}
           value={description}
           onChange={e => setDescription(e.target.value)}
           disabled={loading}
@@ -150,11 +150,11 @@ export function ReceiveAmountStep() {
           {loading ? (
             <>
               <Spinner size={16} />
-              Creating invoice…
+              {t.receive.creatingInvoice}
             </>
           ) : (
             <>
-              Continue
+              {t.common.continue}
               <ArrowRight className="size-4" />
             </>
           )}

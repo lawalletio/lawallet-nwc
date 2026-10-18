@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { useSettings } from '@/lib/client/hooks/use-settings'
 import { useBrandLogotypes } from '@/lib/client/hooks/use-brand'
+import { useT } from '@/lib/client/i18n'
 
 /**
  * Unauthenticated landing for `/wallet`. Mirrors the Figma frame
@@ -13,6 +14,7 @@ import { useBrandLogotypes } from '@/lib/client/hooks/use-brand'
  */
 export function LandingHero() {
   const { isotypo } = useBrandLogotypes()
+  const t = useT().onboarding.landing
   const { data: settings } = useSettings()
   const communityName = settings?.community_name?.trim() || 'LaWallet'
 
@@ -35,18 +37,17 @@ export function LandingHero() {
             {communityName}
           </h1>
           <p className="text-sm leading-relaxed text-muted-foreground">
-            Manage and store your sats, experiences, and lightning identity in
-            one place.
+            {t.tagline}
           </p>
         </div>
       </div>
 
       <div className="space-y-3">
         <Button asChild variant="theme" className="h-12 w-full">
-          <Link href="/wallet/signup">Create account</Link>
+          <Link href="/wallet/signup">{t.createAccount}</Link>
         </Button>
         <Button asChild variant="secondary" className="h-12 w-full">
-          <Link href="/wallet/login">Login</Link>
+          <Link href="/wallet/login">{t.login}</Link>
         </Button>
       </div>
     </div>

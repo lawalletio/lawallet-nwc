@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card3D } from '@/components/activate/card-3d'
+import { useT } from '@/lib/client/i18n'
 
 // The lead confetti colour follows the community's theme (--primary, set from
 // settings); the rest stay as festive accents.
@@ -36,6 +37,7 @@ export function ActivationSuccess({
   bonusSats?: number | null
 }) {
   const router = useRouter()
+  const t = useT().activate
 
   const confetti = useMemo(
     () =>
@@ -109,23 +111,22 @@ export function ActivationSuccess({
       </div>
 
       <h1 className="animate-fade-in text-2xl font-semibold text-foreground">
-        Card activated!
+        {t.success.title}
       </h1>
       {(!claimAddress || (bonusSats != null && bonusSats > 0)) && (
         <p className="animate-fade-in mt-2 max-w-xs text-sm text-muted-foreground">
           {!claimAddress &&
             (title ? (
               <>
-                <span className="font-medium text-foreground">{title}</span> is
-                now linked to your wallet and ready to tap-to-pay.
+                <span className="font-medium text-foreground">{title}</span>
+                {t.success.linkedNamed}
               </>
             ) : (
-              'Your card is now linked to your wallet and ready to tap-to-pay.'
+              t.success.linked
             ))}
           {bonusSats != null && bonusSats > 0 && (
             <span className="mt-2 block font-medium text-foreground">
-              {bonusSats.toLocaleString('en-US')} sats are already in your
-              balance.
+              {t.success.bonus(bonusSats.toLocaleString('en-US'))}
             </span>
           )}
         </p>
@@ -139,7 +140,7 @@ export function ActivationSuccess({
         className="h-12 w-full max-w-xs"
         onClick={() => router.push(nextPath)}
       >
-        {claimAddress ? 'Claim your address' : 'Open wallet'}
+        {claimAddress ? t.success.claimAddress : t.openWallet}
       </Button>
     </div>
   )
