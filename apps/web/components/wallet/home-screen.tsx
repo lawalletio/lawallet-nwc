@@ -73,7 +73,6 @@ import {
 } from '@/lib/client/activation-bonus-notice'
 import { useT, type Dict } from '@/lib/client/i18n'
 import { cn } from '@/lib/utils'
-import { Role } from '@/lib/auth/permissions'
 
 interface UserMeResponse {
   userId: string
@@ -224,11 +223,11 @@ export function HomeScreen() {
             </button>
           </DropdownMenuTrigger>
           {/* Tapping the avatar used to log the user straight out. Now it opens
-              a small menu — operators get a jump to the admin dashboard
-              (plain members stay in the wallet); logout stays available but
+              a small menu with a jump to the admin dashboard
+              (all signed-in roles); logout stays available but
               is no longer a one-tap accident. */}
           <DropdownMenuContent align="start" className="w-52">
-            {role && role !== Role.USER && (
+            {role && (
               <>
                 <DropdownMenuItem asChild>
                   <Link href="/admin">
