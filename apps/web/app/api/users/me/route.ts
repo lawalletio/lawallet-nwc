@@ -6,7 +6,10 @@ import { authenticate } from '@/lib/auth/unified-auth'
 import { resolveAccountByPubkey } from '@/lib/auth/account'
 import { resolveAddressDomain } from '@/lib/public-url'
 import { resolveWalletRoute } from '@/lib/wallet/resolve-payment-route'
-import { getPrimaryRemoteWalletForUser } from '@/lib/wallet/primary-wallet'
+import {
+  getAddresslessNwcWalletForUser,
+  getPrimaryRemoteWalletForUser
+} from '@/lib/wallet/primary-wallet'
 import { decryptRemoteWalletConfig } from '@/lib/wallet/remote-wallet-vault'
 import { reviveDeadCourtesyWallet } from '@/lib/wallet/lncurl-wallet'
 import { currencyPrefsSchema } from '@/lib/validation/schemas'
@@ -92,9 +95,14 @@ export const GET = withErrorHandling(async (request: Request) => {
 
   // The account primary wallet is derived from the primary address's
   // CUSTOM_NWC binding. The legacy/display isDefault flag is synchronized from
-  // that link, but is no longer the source of truth.
+  // that link, but is no longer the source of truth. An account with no
+  // address yet uses its ACTIVE NWC wallet (the courtesy LNCurl one), so it
+  // can receive before claiming a name and the wallet UI stops minting more.
   const primaryWallet =
-    revived ?? (await getPrimaryRemoteWalletForUser(user.id))
+    revived ??
+    (primaryAddress
+      ? await getPrimaryRemoteWalletForUser(user.id)
+      : await getAddresslessNwcWalletForUser(user.id))
   const primaryWalletConfig = primaryWallet
     ? decryptRemoteWalletConfig(
         primaryWallet.id,

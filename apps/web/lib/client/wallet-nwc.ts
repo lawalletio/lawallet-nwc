@@ -6,8 +6,9 @@
  *   - `effectiveNwcString` — the wallet the user's **primary address** routes
  *     to (CUSTOM_NWC binding / DEFAULT_NWC primary-address wallet), or `null` when the
  *     address isn't routable (IDLE / ALIAS / unconfigured / no address yet).
- *   - `nwcString` — the user's derived **primary RemoteWallet** connection,
- *     or `''` when none.
+ *   - `nwcString` — the user's derived **primary RemoteWallet** connection
+ *     (before an address is claimed, their ACTIVE NWC wallet), or `''` when
+ *     none.
  *
  * The wallet app shows the user's own wallet, so prefer the address-routed
  * wallet but fall back to the derived primary wallet string. Without the

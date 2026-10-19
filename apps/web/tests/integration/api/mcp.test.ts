@@ -42,7 +42,8 @@ vi.mock('@/lib/oauth/access-token', () => ({
 // GET /api/users/me decrypts the primary wallet's connection string — the
 // very secret the MCP layer must never hand to a model.
 vi.mock('@/lib/wallet/primary-wallet', () => ({
-  getPrimaryRemoteWalletForUser: vi.fn(async () => null)
+  getPrimaryRemoteWalletForUser: vi.fn(async () => null),
+  getAddresslessNwcWalletForUser: vi.fn(async () => null)
 }))
 vi.mock('@/lib/wallet/remote-wallet-vault', () => ({
   decryptRemoteWalletConfig: vi.fn()
@@ -51,7 +52,7 @@ vi.mock('@/lib/wallet/remote-wallet-vault', () => ({
 import { POST as mcpPost } from '@/app/api/mcp/route'
 import { POST as publicPost } from '@/app/api/mcp/public/route'
 import { verifyAccessToken } from '@/lib/oauth/access-token'
-import { getPrimaryRemoteWalletForUser } from '@/lib/wallet/primary-wallet'
+import { getAddresslessNwcWalletForUser } from '@/lib/wallet/primary-wallet'
 import { decryptRemoteWalletConfig } from '@/lib/wallet/remote-wallet-vault'
 import { createJwtToken } from '@/lib/jwt'
 
@@ -268,7 +269,8 @@ describe('POST /api/mcp', () => {
 
   it('redacts the NWC connection string GET /api/users/me returns', async () => {
     grant(['read'])
-    vi.mocked(getPrimaryRemoteWalletForUser).mockResolvedValue(
+    // The account has no address yet, so /me reads its ACTIVE NWC wallet.
+    vi.mocked(getAddresslessNwcWalletForUser).mockResolvedValue(
       createRemoteWalletFixture({ userId: user.id }) as never
     )
     vi.mocked(decryptRemoteWalletConfig).mockReturnValue({

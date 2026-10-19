@@ -120,13 +120,35 @@ export async function clearPrimaryWalletLinkToWallet(
   await syncPrimaryRemoteWalletFlag(userId, client)
 }
 
+const INITIAL_PRIMARY_ORDER = [
+  { isDefault: 'desc' },
+  { createdAt: 'asc' }
+] satisfies Prisma.RemoteWalletOrderByWithRelationInput[]
+
 export async function findInitialPrimaryWalletCandidate(
   userId: string,
   client: PrismaLike = prisma
 ): Promise<Pick<RemoteWallet, 'id'> | null> {
   return client.remoteWallet.findFirst({
     where: { userId, status: 'ACTIVE' },
-    orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+    orderBy: INITIAL_PRIMARY_ORDER,
     select: { id: true }
+  })
+}
+
+/**
+ * The NWC wallet an account uses before it has a primary Lightning Address:
+ * its ACTIVE NWC wallet, picked in the order the first address will bind to
+ * (see findInitialPrimaryWalletCandidate). Without it a new account's courtesy
+ * LNCurl wallet is invisible until an address is claimed, and on instances
+ * where addresses cost sats the account can never receive to pay for one.
+ */
+export async function getAddresslessNwcWalletForUser(
+  userId: string,
+  client: PrismaLike = prisma
+): Promise<RemoteWallet | null> {
+  return client.remoteWallet.findFirst({
+    where: { userId, status: 'ACTIVE', type: 'NWC' },
+    orderBy: INITIAL_PRIMARY_ORDER
   })
 }

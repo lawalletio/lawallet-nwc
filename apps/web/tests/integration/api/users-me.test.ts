@@ -209,50 +209,105 @@ describe('GET /api/users/me', () => {
     expect(res.status).toBe(401)
   })
 
-  it('does not derive nwcString from remoteWallets alone', async () => {
+  it('no address: returns the ACTIVE NWC wallet as nwcString', async () => {
     mockAuth()
+    const lncurlUri = 'nostr+walletconnect://courtesy-lncurl'
     const user = createUserFixture({
       pubkey: mockPubkey,
-      lightningAddresses: [],
-      // A RemoteWallet is not primary unless the primary address links to it.
-      remoteWallets: [
-        {
-          type: 'NWC',
-          config: {
-            connectionString: 'nostr+walletconnect://test',
-            mode: 'SEND_RECEIVE'
-          },
-          status: 'ACTIVE',
-          isDefault: true,
-          updatedAt: new Date()
-        }
-      ]
+      lightningAddresses: []
     })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
     vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com' })
+    // The courtesy wallet createNewUser minted: ACTIVE, bound to nothing.
+    vi.mocked(prismaMock.remoteWallet.findFirst).mockResolvedValue({
+      id: 'courtesy-wallet',
+      type: 'NWC',
+      status: 'ACTIVE',
+      isDefault: false,
+      updatedAt: new Date('2026-10-18T00:00:00.000Z'),
+      config: {
+        connectionString: lncurlUri,
+        mode: 'SEND_RECEIVE',
+        provider: 'lncurl'
+      }
+    } as any)
 
-    const req = createNextRequest('/api/users/me')
-    const res = await GET(req)
+    const res = await GET(createNextRequest('/api/users/me'))
     const body: any = await assertResponse(res, 200)
 
+    expect(prismaMock.remoteWallet.findFirst).toHaveBeenCalledWith({
+      where: { userId: user.id, status: 'ACTIVE', type: 'NWC' },
+      orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }]
+    })
     // Account resolution (lib/auth/account) issues its own user.findUnique
     // fallback first — assert on the call that carries the include.
     const query = vi
       .mocked(prismaMock.user.findUnique)
       .mock.calls.map(c => c[0])
       .find((arg: any) => arg?.include)
-    expect(query).toEqual(
-      expect.objectContaining({
-        include: expect.objectContaining({
-          lightningAddresses: expect.objectContaining({
-            where: { isPrimary: true }
-          })
-        })
-      })
-    )
     expect((query as any)?.include).not.toHaveProperty('remoteWallets')
     expect(body).not.toHaveProperty('albySubAccount')
+    expect(body.lightningAddress).toBeNull()
+    expect(body.nwcString).toBe(lncurlUri)
+    expect(body.nwcUpdatedAt).toBe('2026-10-18T00:00:00.000Z')
+    // effectiveNwcString stays address-based.
+    expect(body.effectiveNwcString).toBeNull()
+  })
+
+  it('no address and no ACTIVE wallet: nwcString is empty', async () => {
+    mockAuth()
+    const user = createUserFixture({
+      pubkey: mockPubkey,
+      lightningAddresses: []
+    })
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
+    vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com' })
+    vi.mocked(prismaMock.remoteWallet.findFirst).mockResolvedValue(null)
+
+    const res = await GET(createNextRequest('/api/users/me'))
+    const body: any = await assertResponse(res, 200)
+
     expect(body.nwcString).toBe('')
+    expect(body.nwcUpdatedAt).toBeNull()
+  })
+
+  it('with a primary address: an unbound ACTIVE wallet is not nwcString', async () => {
+    mockAuth()
+    const user = createUserFixture({
+      pubkey: mockPubkey,
+      lightningAddresses: [
+        {
+          username: 'alice',
+          isPrimary: true,
+          mode: 'IDLE',
+          redirect: null,
+          remoteWalletId: null,
+          remoteWallet: null
+        }
+      ]
+    })
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
+    vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com' })
+    vi.mocked(prismaMock.lightningAddress.findFirst).mockResolvedValue({
+      mode: 'IDLE',
+      remoteWalletId: null,
+      remoteWallet: null
+    } as any)
+    vi.mocked(prismaMock.remoteWallet.findFirst).mockResolvedValue({
+      id: 'unbound-wallet',
+      type: 'NWC',
+      status: 'ACTIVE',
+      updatedAt: new Date(),
+      config: { connectionString: 'nostr+walletconnect://unbound' }
+    } as any)
+
+    const res = await GET(createNextRequest('/api/users/me'))
+    const body: any = await assertResponse(res, 200)
+
+    expect(prismaMock.remoteWallet.findFirst).not.toHaveBeenCalled()
+    expect(body.lightningAddress).toBe('alice@test.com')
+    expect(body.nwcString).toBe('')
+    expect(body.effectiveNwcString).toBeNull()
   })
 
   // ── primary-address driven fields ───────────────────────────────────────

@@ -3,6 +3,8 @@ import { prismaMock, resetPrismaMock } from '@/tests/helpers/prisma-mock'
 import {
   derivePrimaryWallet,
   derivePrimaryWalletId,
+  findInitialPrimaryWalletCandidate,
+  getAddresslessNwcWalletForUser,
   syncPrimaryRemoteWalletFlag
 } from '@/lib/wallet/primary-wallet'
 
@@ -79,5 +81,37 @@ describe('primary-wallet helper', () => {
       where: { userId: USER_ID, isDefault: true },
       data: { isDefault: false }
     })
+  })
+
+  it('picks the address-less NWC wallet in first-address bind order', async () => {
+    const wallet = { id: 'courtesy-wallet', type: 'NWC', status: 'ACTIVE' }
+    vi.mocked(prismaMock.remoteWallet.findFirst).mockResolvedValue(
+      wallet as never
+    )
+
+    await expect(getAddresslessNwcWalletForUser(USER_ID)).resolves.toBe(wallet)
+    await findInitialPrimaryWalletCandidate(USER_ID)
+
+    const [addressless, bindCandidate] = vi
+      .mocked(prismaMock.remoteWallet.findFirst)
+      .mock.calls.map(c => c[0] as any)
+    expect(addressless.where).toEqual({
+      userId: USER_ID,
+      status: 'ACTIVE',
+      type: 'NWC'
+    })
+    // Same order the first address binds to, so claiming a name does not
+    // switch the wallet the account was already using.
+    expect(addressless.orderBy).toEqual(bindCandidate.orderBy)
+    expect(addressless.orderBy).toEqual([
+      { isDefault: 'desc' },
+      { createdAt: 'asc' }
+    ])
+  })
+
+  it('returns null when the account has no ACTIVE NWC wallet', async () => {
+    vi.mocked(prismaMock.remoteWallet.findFirst).mockResolvedValue(null)
+
+    await expect(getAddresslessNwcWalletForUser(USER_ID)).resolves.toBeNull()
   })
 })
