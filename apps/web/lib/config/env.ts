@@ -291,6 +291,24 @@ const envSchema = z.object({
       .describe(
         'Comma-separated SHA-256 signing-cert fingerprints (AA:BB:…) of the Android app. Empty disables Android App Links and native passkeys.'
       )
+  ),
+
+  // iOS app association (passkeys + universal links). Unset → AASA is a 404.
+  APPLE_APP_IDS: z.preprocess(
+    emptyEnvToUndefined,
+    z
+      .string()
+      .optional()
+      .transform(
+        val =>
+          val
+            ?.split(',')
+            .map(id => id.trim())
+            .filter(Boolean) ?? []
+      )
+      .describe(
+        'Comma-separated Apple app IDs (TEAMID.bundle.id) served in /.well-known/apple-app-site-association'
+      )
   )
 })
 
