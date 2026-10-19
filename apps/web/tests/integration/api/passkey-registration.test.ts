@@ -15,6 +15,12 @@ vi.mock('@/lib/config', () => ({
     maintenance: { enabled: false },
     rateLimit: { enabled: false },
     requestLimits: { maxJsonSize: 102400, maxBodySize: 1048576 },
+    android: {
+      packageName: 'io.lawallet.wallet',
+      certFingerprints: [
+        '14:6D:E9:83:C5:73:06:50:D8:EE:B9:95:2F:34:FC:64:16:A0:83:42:E6:1D:BE:A8:8A:04:96:B2:3F:CF:44:E5'
+      ]
+    },
     isDevelopment: false,
     isTest: true
   }))
@@ -318,6 +324,27 @@ describe('POST /api/auth/passkey/registration/verify — signup', () => {
         pubkey: PUBKEY
       })
     })
+  })
+
+  it('accepts the web origin plus the Android apk-key-hash origins', async () => {
+    vi.mocked(resolveAccountByPubkey).mockResolvedValue(null)
+
+    const response = await verifyRoute(
+      createNextRequest('/api/auth/passkey/registration/verify', {
+        method: 'POST',
+        body: verifyBody()
+      })
+    )
+    expect(response.status).toBe(200)
+    expect(verifyRegistrationResponse).toHaveBeenCalledWith(
+      expect.objectContaining({
+        expectedOrigin: [
+          'http://localhost:3000',
+          'android:apk-key-hash:FG3pg8VzBlDY7rmVLzT8ZBagg0LmHb6oigSWsj_PROU'
+        ],
+        expectedRPID: 'localhost'
+      })
+    )
   })
 
   it('attaches the credential when the derived pubkey already has an account', async () => {

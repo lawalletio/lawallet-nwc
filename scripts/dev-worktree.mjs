@@ -65,6 +65,9 @@ function renderEnv(env) {
     `LISTENER_AUTH_SECRET="${env.LISTENER_AUTH_SECRET}"`,
     `LISTENER_URL="http://localhost:${env.LISTENER_PORT}"`,
     `WEB_ORIGIN="http://localhost:${env.WEB_PORT}"`,
+    // Native Android wallet (assetlinks.json + passkey origins); empty = off.
+    `ANDROID_APP_PACKAGE="${env.ANDROID_APP_PACKAGE}"`,
+    `ANDROID_APP_CERT_SHA256="${env.ANDROID_APP_CERT_SHA256}"`,
     'MAINTENANCE_MODE="false"',
     'RATE_LIMIT_ENABLED="false"',
     'LOG_LEVEL="debug"',
@@ -161,7 +164,12 @@ async function loadOrCreateEnv() {
     LISTENER_AUTH_SECRET:
       existing.LISTENER_AUTH_SECRET ||
       state.LISTENER_AUTH_SECRET ||
-      randomBytes(32).toString('base64url')
+      randomBytes(32).toString('base64url'),
+    // Native Android wallet: empty by default, kept when set by hand.
+    ANDROID_APP_PACKAGE:
+      existing.ANDROID_APP_PACKAGE || state.ANDROID_APP_PACKAGE || '',
+    ANDROID_APP_CERT_SHA256:
+      existing.ANDROID_APP_CERT_SHA256 || state.ANDROID_APP_CERT_SHA256 || ''
   }
 
   mkdirSync(stateDir, { recursive: true })

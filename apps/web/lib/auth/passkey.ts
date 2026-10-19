@@ -3,6 +3,7 @@ import type { PasskeyCredential, WebAuthnFlow } from '@/lib/generated/prisma'
 import { prisma } from '@/lib/prisma'
 import { resolveApiUrl } from '@/lib/public-url'
 import { getSettings } from '@/lib/settings'
+import { getConfig } from '@/lib/config'
 import { AuthenticationError } from '@/types/server/errors'
 import { logger } from '@/lib/logger'
 
@@ -43,6 +44,19 @@ export async function resolveRpContext(request: {
     origin: url.origin,
     rpName: settings.community_name?.trim() || 'LaWallet'
   }
+}
+
+/**
+ * clientDataJSON origins Android Credential Manager stamps for the native
+ * wallet: `android:apk-key-hash:` + base64url (no padding) of the raw signing
+ * cert SHA-256. Accepted alongside the web origin only for the fingerprints
+ * the operator published in `/.well-known/assetlinks.json`.
+ */
+export function androidApkKeyHashOrigins(): string[] {
+  return getConfig().android.certFingerprints.map(
+    fp =>
+      `android:apk-key-hash:${Buffer.from(fp.replaceAll(':', ''), 'hex').toString('base64url')}`
+  )
 }
 
 /** The request's `Origin`, only when it names the host the request came in on. */

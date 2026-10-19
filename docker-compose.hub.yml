@@ -54,6 +54,10 @@ services:
       LISTENER_REQUEST_AUTH_SECRET: ${LISTENER_REQUEST_AUTH_SECRET:-${LISTENER_AUTH_SECRET:-}}
       # Optional Sentry error reporting. Leave unset to disable entirely.
       SENTRY_DSN: ${SENTRY_DSN:-}
+      # Optional native Android wallet (App Links + passkeys). The fingerprint
+      # must be a privately held signing key — never a public debug key.
+      ANDROID_APP_PACKAGE: ${ANDROID_APP_PACKAGE:-}
+      ANDROID_APP_CERT_SHA256: ${ANDROID_APP_CERT_SHA256:-}
     depends_on:
       postgres:
         condition: service_healthy

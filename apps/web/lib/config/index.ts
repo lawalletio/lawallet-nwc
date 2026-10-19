@@ -74,6 +74,14 @@ export interface AppConfig {
     dir: string | undefined
   }
 
+  // Native Android wallet — feeds /.well-known/assetlinks.json and the
+  // passkey `android:apk-key-hash:` origins.
+  android: {
+    packageName: string
+    /** Valid fingerprints only, normalized to uppercase colon-hex. */
+    certFingerprints: string[]
+  }
+
   // Sentry error monitoring (server-side DSN)
   sentry: {
     dsn: string | undefined
@@ -172,6 +180,11 @@ export function getConfig(strict: boolean = true): AppConfig {
       dir: env.NOSTR_PROFILE_CACHE_DIR
     },
 
+    android: {
+      packageName: env.ANDROID_APP_PACKAGE,
+      certFingerprints: parseCertFingerprints(env.ANDROID_APP_CERT_SHA256)
+    },
+
     sentry: {
       dsn: env.SENTRY_DSN,
       enabled: !!env.SENTRY_DSN
@@ -198,6 +211,16 @@ export function getConfig(strict: boolean = true): AppConfig {
   }
 
   return config
+}
+
+const CERT_SHA256_RE = /^[0-9A-F]{2}(:[0-9A-F]{2}){31}$/
+
+/** Splits `ANDROID_APP_CERT_SHA256`, dropping anything that is not a SHA-256 colon-hex fingerprint. */
+function parseCertFingerprints(raw: string | undefined): string[] {
+  return (raw ?? '')
+    .split(',')
+    .map(fp => fp.trim().toUpperCase())
+    .filter(fp => CERT_SHA256_RE.test(fp))
 }
 
 /**
