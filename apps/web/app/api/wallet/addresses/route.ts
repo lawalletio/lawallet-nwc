@@ -113,7 +113,7 @@ export const POST = withErrorHandling(async (request: Request) => {
   if (freeCardBonus) {
     await requireUserAddressRegistration(role)
   } else {
-    await requireAddressRegistration(role)
+    await requireAddressRegistration(role, user.id)
   }
 
   const dto = await createLightningAddressForUser({

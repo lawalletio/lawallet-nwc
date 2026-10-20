@@ -46,6 +46,8 @@ export interface SettingsData {
   registration_price?: string
   registration_ln_enabled?: string
   registration_admin_bypass?: string
+  /** With paid registration on, an account's first address is free. */
+  registration_first_free?: string
   /** LNCurl disposable-wallet integration. All persisted as 'true' / 'false' strings except the URL. */
   lncurl_enabled?: string
   /** LNCurl provider base URL (default `https://lncurl.lol/`). */
