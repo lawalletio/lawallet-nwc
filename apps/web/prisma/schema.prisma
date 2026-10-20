@@ -818,12 +818,16 @@ model CardActivationToken {
 /// makes a card's free Lightning Address and sats credit one-shot even after
 /// rescue / re-issue. FREE_ADDRESS is also queried by `userId` so an account
 /// can only redeem that bonus once.
+///
+/// `userId` is SetNull, not Cascade: deleting the holder's account must not
+/// erase the per-card record, or the card's one-shot bonus would re-arm for
+/// its next holder.
 model CardActivationBonus {
   id             String                    @id @default(cuid())
   cardId         String
   card           Card                      @relation(fields: [cardId], references: [id], onDelete: Cascade)
-  userId         String
-  user           User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId         String?
+  user           User?                     @relation(fields: [userId], references: [id], onDelete: SetNull)
   kind           CardActivationBonusKind
   status         CardActivationBonusStatus @default(RESERVED)
   amountSats     Int?

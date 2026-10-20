@@ -1520,6 +1520,18 @@
         ],
         "description": "The short-lived merge ticket returned by link/verify. Possession of the ticket IS the proof that the caller controls both accounts."
       },
+      "AccountDeleteRequest": {
+        "type": "object",
+        "properties": {
+          "confirm": {
+            "type": "string",
+            "enum": [
+              "DELETE"
+            ]
+          }
+        },
+        "description": "Optional confirmation body. `confirm` may only be the literal `\"DELETE\"`; the whole body may be omitted."
+      },
       "AccountMergeRequest": {
         "type": "object",
         "properties": {
@@ -2482,6 +2494,21 @@
           "blocked"
         ],
         "description": "Read-only merge dry run: both accounts’ resource summaries, the collisions the merge would reconcile, and `blocked` — true while the absorbed account custodies a never-exported key."
+      },
+      "AccountDeleteResponse": {
+        "type": "object",
+        "properties": {
+          "deleted": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          }
+        },
+        "required": [
+          "deleted"
+        ],
+        "description": "The account and everything it owned are gone."
       },
       "AccountMergeResponse": {
         "type": "object",
@@ -3638,6 +3665,105 @@
           },
           "404": {
             "description": "No account exists for the authenticated pubkey.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "x-required-role": "USER",
+        "tags": [
+          "Account"
+        ],
+        "summary": "Permanently delete the caller’s account.",
+        "description": "Deletes the caller’s account and everything it owns in one transaction: linked Nostr identities, passkeys, the custodied key, lightning addresses (the usernames become claimable again), remote wallets with their forwarding and notification config, vouchers, and OAuth grants. Paired cards are unpaired and returned to inventory, not deleted. Invoices, activity logs and card bonus records are kept with the user reference cleared. The body is optional; send `{ \"confirm\": \"DELETE\" }` to confirm explicitly. Refused for the instance root and for the last admin. Not reversible.",
+        "operationId": "account.delete",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountDeleteRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The account was deleted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountDeleteResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is the instance root or the last admin, so the account cannot be deleted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No account exists for the authenticated pubkey.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded; check the Retry-After header.",
             "content": {
               "application/json": {
                 "schema": {
