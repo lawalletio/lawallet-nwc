@@ -78,7 +78,7 @@ export const PUT = withErrorHandling(
     // Gate self-service address creation behind the instance policy. When user
     // registration is disabled only admins pass; when paid registration is on,
     // non-bypassing actors must go through /api/invoices + preimage claim.
-    await requireAddressRegistration(actorRole)
+    await requireAddressRegistration(actorRole, userId)
 
     // Check if username is already taken by another user
     const existingAddress = await prisma.lightningAddress.findUnique({

@@ -34,6 +34,7 @@ export function WalletTab() {
   const [registrationUserEnabled, setRegistrationUserEnabled] = useState(true)
   const [registrationEnabled, setRegistrationEnabled] = useState(false)
   const [registrationAdminBypass, setRegistrationAdminBypass] = useState(true)
+  const [registrationFirstFree, setRegistrationFirstFree] = useState(false)
   const [lncurlEnabled, setLncurlEnabled] = useState(false)
   const [lncurlServerUrl, setLncurlServerUrl] = useState(DEFAULT_LNCURL_SERVER)
   const [lncurlAutoCreate, setLncurlAutoCreate] = useState(false)
@@ -61,6 +62,7 @@ export function WalletTab() {
     setRegistrationAdminBypass(
       (settings.registration_admin_bypass ?? 'true') === 'true'
     )
+    setRegistrationFirstFree(settings.registration_first_free === 'true')
     setLncurlEnabled(settings.lncurl_enabled === 'true')
     setLncurlServerUrl(settings.lncurl_server_url ?? DEFAULT_LNCURL_SERVER)
     setLncurlAutoCreate(settings.lncurl_auto_create === 'true')
@@ -288,6 +290,24 @@ export function WalletTab() {
                   onValueChange={setRegistrationPrice}
                   save={price => persistPaid({ price })}
                   suffix="sats"
+                />
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium">First address free</p>
+                  <p className="text-sm text-muted-foreground">
+                    Each account registers its first Lightning Address for
+                    free. Additional addresses require payment.
+                  </p>
+                </div>
+                <SettingSwitch
+                  checked={registrationFirstFree}
+                  onCheckedChange={setRegistrationFirstFree}
+                  save={next =>
+                    saveSetting({
+                      registration_first_free: next ? 'true' : 'false'
+                    })
+                  }
                 />
               </div>
               <div className="flex items-center justify-between">
