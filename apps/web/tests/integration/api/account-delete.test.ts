@@ -188,6 +188,15 @@ describe('DELETE /api/account', () => {
     expect(prismaMock.user.delete).not.toHaveBeenCalled()
   })
 
+  it('404s when the account is deleted concurrently before the transaction', async () => {
+    authedAs()
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(null)
+    const response = await del()
+    expect(response.status).toBe(404)
+    expect(prismaMock.card.updateMany).not.toHaveBeenCalled()
+    expect(prismaMock.user.delete).not.toHaveBeenCalled()
+  })
+
   it('403s for the last admin', async () => {
     authedAs('ADMIN')
     vi.mocked(prismaMock.$queryRaw).mockResolvedValue([{ id: USER_ID }])
