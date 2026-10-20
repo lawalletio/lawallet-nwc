@@ -9,12 +9,9 @@ import { nwcCacheKey } from '@/lib/client/cache/key'
 import { readRecent, upsertMany } from '@/lib/client/cache/activity-cache'
 import { ScreenHeader } from '@/components/wallet/shared/screen-header'
 import { NavTabbar } from '@/components/wallet/shared/nav-tabbar'
-import { TransactionRow } from '@/components/wallet/shared/transaction-row'
+import { ActivityTransactionRow } from './activity-transaction-row'
 import { Spinner } from '@/components/ui/spinner'
-import {
-  activityDetailHref,
-  demoActivityTransactions
-} from '@/lib/client/activity-detail'
+import { demoActivityTransactions } from '@/lib/client/activity-detail'
 import { useLocale, useT, type Dict } from '@/lib/client/i18n'
 import { nwcErrorText } from '@/lib/client/i18n/errors'
 import { cn } from '@/lib/utils'
@@ -294,14 +291,7 @@ function Body({
                 key={tx.paymentHash || `${tx.createdAt}-${i}`}
                 className="border-b border-border/40 last:border-b-0"
               >
-                <TransactionRow
-                  tx={tx}
-                  href={
-                    tx.paymentHash
-                      ? activityDetailHref(tx.paymentHash)
-                      : undefined
-                  }
-                />
+                <ActivityTransactionRow tx={tx} />
               </div>
             ))}
           </div>

@@ -60,11 +60,8 @@ import { Spinner } from '@/components/ui/spinner'
 import { Skeleton } from '@/components/ui/skeleton'
 import { NavTabbar } from '@/components/wallet/shared/nav-tabbar'
 import { RelayErrorBadge } from '@/components/wallet/shared/relay-error-badge'
-import { TransactionRow } from '@/components/wallet/shared/transaction-row'
-import {
-  activityDetailHref,
-  demoActivityTransactions
-} from '@/lib/client/activity-detail'
+import { ActivityTransactionRow } from '@/components/wallet/activity/activity-transaction-row'
+import { demoActivityTransactions } from '@/lib/client/activity-detail'
 import {
   dismissActivationBonus,
   readActivationBonus,
@@ -658,7 +655,7 @@ function CurrencyChips({
  * Compact recent-activity preview at the bottom of the home screen.
  *
  * Pulls the most recent 5 transactions from NWC `list_transactions`,
- * rendered with the shared `TransactionRow`. The Activity tab shows
+ * rendered with the expandable `ActivityTransactionRow`. The Activity tab shows
  * everything; Transfers narrows to outgoing payments. The list refetches
  * when `refreshKey` bumps — the parent home screen drives that off the
  * existing NIP-47 notification subscription so we don't open a second
@@ -880,14 +877,7 @@ function ActivityList({
           key={tx.paymentHash || i}
           className={cn('border-b border-border/40 last:border-b-0')}
         >
-          <TransactionRow
-            tx={tx}
-            href={
-              tx.paymentHash
-                ? activityDetailHref(tx.paymentHash, 'home')
-                : undefined
-            }
-          />
+          <ActivityTransactionRow tx={tx} from="home" />
         </div>
       ))}
     </div>
