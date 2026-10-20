@@ -849,6 +849,7 @@ export const BACKUP_SCHEMA_VERSION = 1
 /** Every table that can appear in a backup archive. */
 export const backupTableName = z.enum([
   'users',
+  'transactionLabels',
   'cardDesigns',
   'ntag424s',
   'remoteWallets',
@@ -870,7 +871,7 @@ export type BackupTableName = z.infer<typeof backupTableName>
  * operational state; the rest are opt-in.
  */
 export const backupCategoryEnum = z.enum([
-  'core', // users, cardDesigns, ntag424s, remoteWallets, lightningAddresses, cards, cardActivationTokens
+  'core', // users, transactionLabels, cardDesigns, ntag424s, remoteWallets, lightningAddresses, cards, cardActivationTokens
   'settings',
   'plugins',
   'activityLogs',

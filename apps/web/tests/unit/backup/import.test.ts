@@ -508,6 +508,34 @@ describe('applyBackup — atomic transaction rollback counters', () => {
   })
 })
 
+describe('private transaction tags', () => {
+  const TAG_ROW: Row = {
+    userId: 'u1',
+    paymentHash: 'a'.repeat(64),
+    label: 'Coffee'
+  }
+
+  it('restores tags keyed by account and payment hash', async () => {
+    ;(prismaMock.user.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { id: 'u1' }
+    ])
+    ;(
+      prismaMock.transactionLabel.findMany as ReturnType<typeof vi.fn>
+    ).mockResolvedValue([])
+    ;(
+      prismaMock.transactionLabel.create as ReturnType<typeof vi.fn>
+    ).mockResolvedValue(TAG_ROW)
+
+    const parsed = makeParsed('transactionLabels', [TAG_ROW])
+    const result = await applyBackup(parsed, resolution([]))
+
+    expect(result.tables.transactionLabels?.imported).toBe(1)
+    expect(prismaMock.transactionLabel.create).toHaveBeenCalledWith({
+      data: TAG_ROW
+    })
+  })
+})
+
 describe('emitRestoreEvents — rollback-aware SSE gating', () => {
   function tableResult(over: Partial<TableResult> = {}): TableResult {
     return {
