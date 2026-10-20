@@ -60,10 +60,19 @@ export function formatInputFromSats(
   return code === 'BTC' ? trimFixed(converted, 8) : formatFiatInput(converted)
 }
 
+// More than all bitcoin that will ever exist (21M BTC) is not a real amount.
+const MAX_SATS = 2_100_000_000_000_000
+
 function ceilPositiveSats(rawSats: number): number | null {
-  if (!Number.isFinite(rawSats) || rawSats <= 0) return null
+  if (!Number.isFinite(rawSats) || rawSats <= 0 || rawSats > MAX_SATS) {
+    return null
+  }
+  // Float noise grows with magnitude (1.1 × 1e8 = 110000000.00000001), so the
+  // "already a whole sat" tolerance is relative. Mirrors the iOS PayAmount.sats.
   const rounded = Math.round(rawSats)
-  const sats = Math.abs(rawSats - rounded) < 1e-9 ? rounded : Math.ceil(rawSats)
+  const tolerance = Math.max(1e-9, rawSats * 1e-12)
+  const sats =
+    Math.abs(rawSats - rounded) < tolerance ? rounded : Math.ceil(rawSats)
   return Math.max(1, sats)
 }
 

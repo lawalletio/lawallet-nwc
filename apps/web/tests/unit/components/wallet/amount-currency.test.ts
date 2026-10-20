@@ -23,6 +23,24 @@ describe('parseAmountToSats', () => {
   it('ceils sub-sat conversions up to one sat', () => {
     expect(parseAmountToSats('0.000000001', 'BTC', null)).toBe(1)
     expect(parseAmountToSats('0.01', 'USD', { USD: 3_000_000 })).toBe(1)
+    expect(parseAmountToSats('0.0001', 'USD', RATES)).toBe(1)
+  })
+
+  it('ignores float noise on whole-sat amounts', () => {
+    // 1.1 * 1e8 === 110000000.00000001 in floating point
+    expect(parseAmountToSats('1.1', 'BTC', null)).toBe(110_000_000)
+    expect(parseAmountToSats('20999999.12345678', 'BTC', null)).toBe(
+      2_099_999_912_345_678
+    )
+  })
+
+  it('rejects amounts above the 21M BTC supply', () => {
+    expect(parseAmountToSats('21000000', 'BTC', null)).toBe(
+      2_100_000_000_000_000
+    )
+    expect(parseAmountToSats('21000000.00000001', 'BTC', null)).toBeNull()
+    expect(parseAmountToSats('1e300', 'BTC', null)).toBeNull()
+    expect(parseAmountToSats('1e300', 'SAT', null)).toBeNull()
   })
 })
 
