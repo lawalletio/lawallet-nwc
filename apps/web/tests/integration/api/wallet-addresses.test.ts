@@ -497,6 +497,43 @@ describe('POST /api/wallet/addresses', () => {
     expect(prismaMock.lightningAddress.create).not.toHaveBeenCalled()
   })
 
+  it('makes the first address free and charges for the next with registration_first_free', async () => {
+    vi.mocked(getSettings).mockResolvedValue({
+      registration_ln_enabled: 'true',
+      registration_ln_address: 'admin@provider.com',
+      registration_first_free: 'true'
+    })
+    mockAuth()
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
+      id: 'user-1'
+    } as any)
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(null)
+    vi.mocked(prismaMock.lightningAddress.count).mockResolvedValue(0)
+    vi.mocked(prismaMock.lightningAddress.create).mockResolvedValue(
+      makeAddress({ username: 'bob', isPrimary: true }) as any
+    )
+    vi.mocked(prismaMock.remoteWallet.findFirst).mockResolvedValue(null)
+
+    const first = await ListPost(
+      createNextRequest('/api/wallet/addresses', {
+        method: 'POST',
+        body: { username: 'bob' }
+      })
+    )
+    await assertResponse(first, 201)
+
+    vi.mocked(prismaMock.lightningAddress.count).mockResolvedValue(1)
+    vi.mocked(prismaMock.lightningAddress.create).mockClear()
+    const second = await ListPost(
+      createNextRequest('/api/wallet/addresses', {
+        method: 'POST',
+        body: { username: 'bob2' }
+      })
+    )
+    expect(second.status).toBe(402)
+    expect(prismaMock.lightningAddress.create).not.toHaveBeenCalled()
+  })
+
   it('skips paid registration when the caller has a reserved card-activation address', async () => {
     vi.mocked(getSettings).mockResolvedValue({
       registration_ln_enabled: 'true',

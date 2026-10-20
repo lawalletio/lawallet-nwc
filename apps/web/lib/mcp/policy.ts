@@ -68,6 +68,9 @@ export const OPERATION_POLICY: Record<string, OperationPolicy> = {
 
   // Account
   'account.get': READ,
+  'account.delete': exclude(
+    'irreversibly deletes the account, its addresses and wallets'
+  ),
   'account.link.begin': exclude(IDENTITY),
   'account.link.verify': exclude(IDENTITY),
   'account.merge.preview': exclude(IDENTITY),

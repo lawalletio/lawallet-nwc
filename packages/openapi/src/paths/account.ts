@@ -44,6 +44,43 @@ registry.registerPath({
   }
 })
 
+registry.registerPath({
+  ...withRole('USER'),
+  method: 'delete',
+  path: '/api/account',
+  tags: [TAG],
+  summary: 'Permanently delete the caller’s account.',
+  description:
+    'Deletes the caller’s account and everything it owns in one ' +
+    'transaction: linked Nostr identities, passkeys, the custodied key, ' +
+    'lightning addresses (the usernames become claimable again), remote ' +
+    'wallets with their forwarding and notification config, vouchers, and ' +
+    'OAuth grants. Paired cards are unpaired and returned to inventory, not ' +
+    'deleted. Invoices, activity logs and card bonus records are kept with ' +
+    'the user reference cleared. The body is optional; send ' +
+    '`{ "confirm": "DELETE" }` to confirm explicitly. Refused for the ' +
+    'instance root and for the last admin. Not reversible.',
+  operationId: 'account.delete',
+  security: protectedSecurity,
+  request: {
+    body: {
+      required: false,
+      content: {
+        'application/json': { schema: schemas.AccountDeleteRequest }
+      }
+    }
+  },
+  responses: {
+    200: jsonResponse('The account was deleted.', 'AccountDeleteResponse'),
+    ...commonErrorResponses,
+    403: errorResponse(
+      'The caller is the instance root or the last admin, so the account cannot be deleted.'
+    ),
+    404: errorResponse('No account exists for the authenticated pubkey.'),
+    429: responses.rateLimited
+  }
+})
+
 // ── Identity linking (proof of another key) ────────────────────────────────
 
 registry.registerPath({

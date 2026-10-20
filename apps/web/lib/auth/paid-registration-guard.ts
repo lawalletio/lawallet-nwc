@@ -1,4 +1,5 @@
 import { getSettings } from '@/lib/settings'
+import { prisma } from '@/lib/prisma'
 import { hasRole, Role } from '@/lib/auth/permissions'
 import { AuthorizationError, PaymentRequiredError } from '@/types/server/errors'
 
@@ -7,6 +8,7 @@ type RegistrationSettings = {
   registration_ln_enabled?: string
   registration_ln_address?: string
   registration_admin_bypass?: string
+  registration_first_free?: string
 }
 
 export const USER_REGISTRATION_DISABLED_MESSAGE =
@@ -55,17 +57,31 @@ export async function requireUserAddressRegistration(
 /**
  * Full Lightning Address creation policy. It first enforces the instance-wide
  * self-service toggle, then the optional paid-registration rule.
+ *
+ * With `registration_first_free` on, an account that owns no Lightning Address
+ * skips payment: one free address per account, every extra one is paid.
  */
 export async function requireAddressRegistration(
-  actorRole: Role
+  actorRole: Role,
+  userId?: string
 ): Promise<void> {
   const settings = await getSettings([
     'registration_user_enabled',
     'registration_ln_enabled',
     'registration_ln_address',
-    'registration_admin_bypass'
+    'registration_admin_bypass',
+    'registration_first_free'
   ])
 
   assertUserRegistrationAllowed(actorRole, settings)
+  // ponytail: "first" = owns none right now, so delete-then-recreate is a free
+  // rename (still one free address held). Track a redeemed flag if that matters.
+  if (
+    userId &&
+    settings.registration_first_free === 'true' &&
+    (await prisma.lightningAddress.count({ where: { userId } })) === 0
+  ) {
+    return
+  }
   assertPaidRegistrationSatisfied(actorRole, settings)
 }
