@@ -45,6 +45,8 @@ export const ActivityEvent = {
   ACCOUNT_PUBKEY_UNLINKED: 'user.account_pubkey_unlinked',
   ACCOUNT_PRIMARY_CHANGED: 'user.account_primary_changed',
   ACCOUNT_MERGED: 'user.account_merged',
+  // Self-service permanent deletion (DELETE /api/account). Always WARN.
+  ACCOUNT_DELETED: 'user.account_deleted',
   // OAuth grants handed to MCP clients (Claude, ChatGPT, …). A grant carrying
   // the `spend` scope logs at WARN.
   OAUTH_GRANT_CREATED: 'user.oauth_grant_created',

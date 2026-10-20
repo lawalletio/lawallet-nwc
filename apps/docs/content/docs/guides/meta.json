@@ -5,6 +5,7 @@
     "sdk",
     "mcp",
     "jwt-authentication",
+    "account-deletion",
     "testing",
     "debugging",
     "forking",

@@ -1,4 +1,6 @@
 import {
+  accountDeleteRequestSchema,
+  accountDeleteResponseSchema,
   accountLinkBeginRequestSchema,
   accountLinkBeginResponseSchema,
   accountLinkVerifyRequestSchema,
@@ -386,6 +388,14 @@ export const schemas = {
         'the ticket IS the proof that the caller controls both accounts.'
     })
   ),
+  AccountDeleteRequest: registry.register(
+    'AccountDeleteRequest',
+    accountDeleteRequestSchema.openapi({
+      description:
+        'Optional confirmation body. `confirm` may only be the literal ' +
+        '`"DELETE"`; the whole body may be omitted.'
+    })
+  ),
   AccountMergeRequest: registry.register(
     'AccountMergeRequest',
     accountMergeRequestSchema.openapi({
@@ -562,6 +572,13 @@ export const AccountMergePreviewResponse = registry.register(
       'Read-only merge dry run: both accounts’ resource summaries, the ' +
       'collisions the merge would reconcile, and `blocked` — true while the ' +
       'absorbed account custodies a never-exported key.'
+  })
+)
+
+export const AccountDeleteResponse = registry.register(
+  'AccountDeleteResponse',
+  accountDeleteResponseSchema.openapi({
+    description: 'The account and everything it owned are gone.'
   })
 )
 

@@ -1,0 +1,59 @@
+---
+title: 'Account Deletion'
+description: 'Let members permanently delete their LaWallet account from inside your app with DELETE /api/account, as App Store guideline 5.1.1(v) requires.'
+---
+
+App Store guideline 5.1.1(v) says an app that lets people create an account
+must also let them delete it from inside the app. LaWallet creates the account
+on the first authenticated `GET /api/users/me`, so every client that signs
+people in should offer `DELETE /api/account`.
+
+## The call
+
+```http
+DELETE /api/account
+Authorization: Bearer <jwt>
+Content-Type: application/json
+
+{ "confirm": "DELETE" }
+```
+
+- **Auth**: a session JWT or a NIP-98 header, the same as any authenticated
+  route. Any pubkey linked to the account works.
+- **Body**: optional. `confirm` may only be the literal `"DELETE"`; any other
+  value returns `400`.
+- **Success**: `200 { "deleted": true }`. Afterwards, wipe the local key and
+  sign the user out. The session JWT no longer resolves to an account.
+
+| Status | Meaning                                                           |
+| ------ | ----------------------------------------------------------------- |
+| `200`  | Deleted. Not reversible.                                          |
+| `400`  | The body parsed but `confirm` is not `"DELETE"`.                  |
+| `401`  | Missing or invalid authentication.                                |
+| `403`  | The caller is the instance root or the last admin.                |
+| `404`  | No account exists for this pubkey (for example, already deleted). |
+| `429`  | Rate limited.                                                     |
+
+Errors use the standard `{ success: false, error: { message, code } }`
+envelope. Older instances that predate this endpoint answer `404` or `405`.
+Treat that as "this instance doesn't support deletion yet".
+
+## What gets deleted
+
+Everything runs in one database transaction.
+
+- **Deleted**: linked Nostr identities, passkeys, the server-custodied key,
+  lightning addresses (the usernames become claimable again), remote wallets
+  with their forwarding, notification and receipt records, vouchers, OAuth
+  grants and their MCP payment ledger, and pending WebAuthn challenges.
+- **Unpaired, not deleted**: cards. A card is physical inventory. Its holder,
+  address, wallet binding and MASTER designation are cleared, and outstanding
+  activation QRs are revoked. An operator can re-issue it.
+- **Kept, with the user reference cleared**: invoices (the operator's payment
+  ledger), activity logs, card designs, NTAG424 keys and card activation bonus
+  records. Keeping the bonus record stops a card's one-time bonus from paying
+  out again to its next holder.
+
+A passkey-native account loses its server-custodied key along with the
+account. Prompt the user to export it first if they want to keep the Nostr
+identity.

@@ -1169,6 +1169,20 @@ export type AccountSummaryResponse = z.infer<
   typeof accountSummaryResponseSchema
 >
 
+/**
+ * Optional body of `DELETE /api/account`. Clients may send the literal
+ * `"DELETE"` as an explicit confirmation; anything else is a 400.
+ */
+export const accountDeleteRequestSchema = z.object({
+  confirm: z.literal('DELETE').optional()
+})
+export type AccountDeleteRequest = z.infer<typeof accountDeleteRequestSchema>
+
+export const accountDeleteResponseSchema = z.object({
+  deleted: z.literal(true)
+})
+export type AccountDeleteResponse = z.infer<typeof accountDeleteResponseSchema>
+
 export const accountLinkBeginRequestSchema = z.object({
   method: z.literal('nostr')
 })

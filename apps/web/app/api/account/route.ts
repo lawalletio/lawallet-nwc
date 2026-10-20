@@ -8,6 +8,12 @@ import { toCredentialSummary } from '@/lib/auth/passkey'
 import { decryptNsec, isVaultConfigured } from '@/lib/auth/key-vault'
 import { getPublicKeyFromPrivate } from '@/lib/nostr'
 import { logger } from '@/lib/logger'
+import { checkRequestLimits } from '@/lib/middleware/request-limits'
+import { rateLimit, RateLimitPresets } from '@/lib/middleware/rate-limit'
+import { JsonParseError, validateBody } from '@/lib/validation/middleware'
+import { accountDeleteRequestSchema } from '@/lib/validation/schemas'
+import { deleteAccount } from '@/lib/account/delete'
+import { eventBus } from '@/lib/events/event-bus'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -73,4 +79,43 @@ export const GET = withErrorHandling(async (request: Request) => {
     hasManagedKey: !!user.managedNostrKey,
     managedKeyExported: !!user.managedNostrKey?.exportedAt
   })
+})
+
+/**
+ * `DELETE /api/account`
+ *
+ * Permanently deletes the caller's account and everything it owns (see
+ * `deleteAccount`): lightning addresses are released, cards unpaired. The
+ * optional body `{ confirm: "DELETE" }` is an explicit confirmation; any
+ * other `confirm` value is a 400. 403 for the instance root or the last
+ * admin. Required for App Store guideline 5.1.1(v) — the native wallets
+ * call this from Settings, then wipe the local key.
+ */
+export const DELETE = withErrorHandling(async (request: Request) => {
+  await checkRequestLimits(request, 'json')
+  const auth = await authenticate(request)
+  await rateLimit(request, {
+    ...RateLimitPresets.sensitive,
+    identifier: 'account-delete:' + auth.pubkey
+  })
+
+  try {
+    await validateBody(request, accountDeleteRequestSchema)
+  } catch (error) {
+    // The body is optional: only a body that parses yet fails the schema 400s.
+    if (!(error instanceof JsonParseError)) throw error
+  }
+
+  const account = await resolveAccountByPubkey(auth.pubkey)
+  if (!account) throw new NotFoundError('Account not found')
+
+  await deleteAccount(account.id)
+
+  const now = Date.now()
+  eventBus.emit({ type: 'users:updated', timestamp: now })
+  eventBus.emit({ type: 'addresses:updated', timestamp: now })
+  eventBus.emit({ type: 'cards:updated', timestamp: now })
+  eventBus.emit({ type: 'listener:updated', timestamp: now })
+
+  return NextResponse.json({ deleted: true })
 })
