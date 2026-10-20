@@ -22,6 +22,8 @@ export const routeManifest: Record<string, () => Promise<RouteModule>> = {
     import('@/app/api/activation-tokens/[id]/route'),
   '/api/activation-tokens/{id}/claim': () =>
     import('@/app/api/activation-tokens/[id]/claim/route'),
+  '/api/activation-tokens/{id}/recovery-check': () =>
+    import('@/app/api/activation-tokens/[id]/recovery-check/route'),
   '/api/activity': () => import('@/app/api/activity/route'),
   '/api/admin/assign': () => import('@/app/api/admin/assign/route'),
   '/api/admin/backup/analyze': () =>
@@ -65,6 +67,9 @@ export const routeManifest: Record<string, () => Promise<RouteModule>> = {
   '/api/cards/{id}/lnurlp': () => import('@/app/api/cards/[id]/lnurlp/route'),
   '/api/cards/{id}/lnurlp/cb': () =>
     import('@/app/api/cards/[id]/lnurlp/cb/route'),
+  '/api/cards/{id}/owner': () => import('@/app/api/cards/[id]/owner/route'),
+  '/api/cards/{id}/recovery-tokens': () =>
+    import('@/app/api/cards/[id]/recovery-tokens/route'),
   '/api/cards/{id}/rescue': () => import('@/app/api/cards/[id]/rescue/route'),
   '/api/cards/{id}/scan': () => import('@/app/api/cards/[id]/scan/route'),
   '/api/cards/{id}/scan/cb': () => import('@/app/api/cards/[id]/scan/cb/route'),
@@ -152,6 +157,10 @@ export const routeManifest: Record<string, () => Promise<RouteModule>> = {
   '/api/setup/status': () => import('@/app/api/setup/status/route'),
   '/api/users': () => import('@/app/api/users/route'),
   '/api/users/me': () => import('@/app/api/users/me/route'),
+  '/api/users/me/account-transfer/dismiss': () =>
+    import('@/app/api/users/me/account-transfer/dismiss/route'),
+  '/api/users/me/card-recovery': () =>
+    import('@/app/api/users/me/card-recovery/route'),
   '/api/users/me/currency-prefs': () =>
     import('@/app/api/users/me/currency-prefs/route'),
   '/api/users/{userId}': () => import('@/app/api/users/[userId]/route'),

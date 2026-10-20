@@ -47,6 +47,12 @@ export const ActivityEvent = {
   ACCOUNT_MERGED: 'user.account_merged',
   // Self-service permanent deletion (DELETE /api/account). Always WARN.
   ACCOUNT_DELETED: 'user.account_deleted',
+  // Card-based account recovery: every resource of the card holder's account
+  // moved onto the claimer. RECOVERED is logged on the claimer, TRANSFERRED_OUT
+  // on the old account; both always WARN.
+  ACCOUNT_RECOVERED: 'user.account_recovered',
+  ACCOUNT_TRANSFERRED_OUT: 'user.account_transferred_out',
+  CARD_RECOVERY_SETTING_CHANGED: 'user.card_recovery_setting_changed',
   // OAuth grants handed to MCP clients (Claude, ChatGPT, …). A grant carrying
   // the `spend` scope logs at WARN.
   OAUTH_GRANT_CREATED: 'user.oauth_grant_created',
@@ -92,6 +98,7 @@ export const ActivityEvent = {
   CARD_WALLET_UNBOUND: 'card.wallet_unbound',
   CARD_DELETED: 'card.deleted',
   CARD_ACTIVATION_TOKEN_ISSUED: 'card.activation_token_issued',
+  CARD_RECOVERY_TOKEN_ISSUED: 'card.recovery_token_issued',
   CARD_CLAIMED: 'card.claimed',
   CARD_RESCUED: 'card.rescued',
   CARD_KEYS_EXPORTED: 'card.keys_exported',

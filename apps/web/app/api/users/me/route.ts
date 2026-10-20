@@ -13,6 +13,7 @@ import {
 import { decryptRemoteWalletConfig } from '@/lib/wallet/remote-wallet-vault'
 import { reviveDeadCourtesyWallet } from '@/lib/wallet/lncurl-wallet'
 import { currencyPrefsSchema } from '@/lib/validation/schemas'
+import { getAccountTransferNotice } from '@/lib/account/recover'
 
 export const dynamic = 'force-dynamic'
 
@@ -138,6 +139,18 @@ export const GET = withErrorHandling(async (request: Request) => {
       })()
     : null
 
+  // Set when a card recovery moved this account's resources to another
+  // account; the wallet shows a notice until the owner dismisses it.
+  const transferNotice = await getAccountTransferNotice(user.id)
+  const accountTransfer = transferNotice
+    ? {
+        ...transferNotice,
+        lightningAddresses: transferNotice.lightningAddresses.map(
+          u => `${u}@${addressDomain}`
+        )
+      }
+    : null
+
   return NextResponse.json({
     userId: user.id,
     lightningAddress,
@@ -150,6 +163,8 @@ export const GET = withErrorHandling(async (request: Request) => {
     // the address detail endpoint.
     primaryUsername: primaryAddress?.username ?? null,
     primaryRedirect: primaryAddress?.redirect ?? null,
-    currencyPrefs: publishedCurrencyPrefs(user.currencyPrefs)
+    currencyPrefs: publishedCurrencyPrefs(user.currencyPrefs),
+    cardRecoveryEnabled: user.cardRecoveryEnabled,
+    accountTransfer
   })
 })

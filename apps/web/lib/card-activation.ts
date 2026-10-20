@@ -12,14 +12,29 @@ export type ActivationQrKind = 'ONE_TIME' | 'FOREVER'
 
 /** A token's lifecycle status as stored on the row. */
 export type ActivationTokenStatus =
-  | 'PENDING'
-  | 'CLAIMED'
-  | 'REVOKED'
-  | 'EXPIRED'
+  'PENDING' | 'CLAIMED' | 'REVOKED' | 'EXPIRED'
+
+/**
+ * What claiming the token does: ACTIVATE transfers the card, RECOVER moves
+ * the holder's whole account onto the claimer.
+ */
+export type CardActivationPurpose = 'ACTIVATE' | 'RECOVER'
+
+/** How long a RECOVER QR stays claimable — it hands over a whole account. */
+export const RECOVERY_TOKEN_TTL_MS = 15 * 60 * 1000
 
 /** Builds the wallet-side activation URL a wallet scans for `tokenId`. */
 export function buildActivationUrl(baseUrl: string, tokenId: string): string {
   return `${baseUrl.replace(/\/+$/, '')}/wallet/activate/${tokenId}`
+}
+
+/**
+ * The activation URL tagged `recover`. The tag is a display hint only — the
+ * token row's `purpose` decides what a claim does, so tagging an ordinary
+ * activation link changes nothing.
+ */
+export function buildRecoveryUrl(baseUrl: string, tokenId: string): string {
+  return `${buildActivationUrl(baseUrl, tokenId)}?tag=recover`
 }
 
 /**
@@ -62,6 +77,10 @@ interface MintActivationTokenParams {
   /** DB id of the holder/operator minting the token (audit only). */
   issuedByUserId?: string | null
   expiresAt?: Date | null
+  /** Defaults to ACTIVATE. */
+  purpose?: CardActivationPurpose
+  /** RECOVER only: the card holder whose account the QR hands over. */
+  recoverFromUserId?: string | null
 }
 
 /**
@@ -80,9 +99,13 @@ export async function mintActivationToken(
     qrKind,
     baseUrl,
     issuedByUserId,
-    expiresAt
+    expiresAt,
+    purpose = 'ACTIVATE',
+    recoverFromUserId
   }: MintActivationTokenParams
 ) {
+  // Purpose doesn't widen the "one PENDING per (cardId, qrKind)" index: a
+  // RECOVER QR and an ACTIVATE QR for the same card supersede each other.
   await tx.cardActivationToken.updateMany({
     where: { cardId, qrKind, status: 'PENDING' },
     data: { status: 'REVOKED' }
@@ -95,9 +118,15 @@ export async function mintActivationToken(
       cardId,
       qrKind,
       status: 'PENDING',
-      qrPayload: buildActivationUrl(baseUrl, id),
+      qrPayload:
+        purpose === 'RECOVER'
+          ? buildRecoveryUrl(baseUrl, id)
+          : buildActivationUrl(baseUrl, id),
       issuedByUserId: issuedByUserId ?? null,
-      expiresAt: expiresAt ?? null
+      expiresAt: expiresAt ?? null,
+      purpose,
+      recoverFromUserId:
+        purpose === 'RECOVER' ? (recoverFromUserId ?? null) : null
     }
   })
 }

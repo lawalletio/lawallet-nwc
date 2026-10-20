@@ -29,6 +29,23 @@ describe('parseActivationUrl', () => {
     expect(result).toEqual({ tokenId: 'token1', host: 'localhost:3000' })
   })
 
+  it('accepts a recovery URL tagged ?tag=recover (buildRecoveryUrl shape)', () => {
+    const result = parseActivationUrl(
+      'https://app.example.com/wallet/activate/deadbeefcafe0123?tag=recover'
+    )
+    expect(result).toEqual({
+      tokenId: 'deadbeefcafe0123',
+      host: 'app.example.com'
+    })
+  })
+
+  it('accepts a recovery URL with a trailing slash before the tag', () => {
+    const result = parseActivationUrl(
+      'http://localhost:3000/wallet/activate/token1/?tag=recover'
+    )
+    expect(result).toEqual({ tokenId: 'token1', host: 'localhost:3000' })
+  })
+
   it('trims surrounding whitespace', () => {
     const result = parseActivationUrl(
       '  https://example.com/wallet/activate/tok  '

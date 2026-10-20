@@ -14,6 +14,11 @@ import {
   ValidationError
 } from '@/types/server/errors'
 import { createNewUser } from '@/lib/user'
+import { resolveAddressDomain } from '@/lib/public-url'
+import {
+  assertRecoveryClaimable,
+  recoverAccountViaCard
+} from '@/lib/account/recover'
 import { eventBus } from '@/lib/events/event-bus'
 import { ActivityEvent, logActivity } from '@/lib/activity-log'
 import {
@@ -23,6 +28,47 @@ import {
   resolveClaimWallet,
   type ClaimBonusesResponse
 } from '@/lib/wallet/card-activation-onboarding'
+
+/**
+ * RECOVER branch of the claim: moves the card holder's whole account onto the
+ * claimer (see `recoverAccountViaCard`). No activation bonuses and no wallet
+ * re-binding — the cards keep the wallets they already had.
+ */
+async function claimRecovery(
+  request: Request,
+  params: { tokenId: string; claimerId: string; confirmMerge?: boolean }
+) {
+  const result = await recoverAccountViaCard(params)
+  if (result.outcome === 'same-account') {
+    return NextResponse.json({
+      qrKind: 'ONE_TIME',
+      purpose: 'RECOVER',
+      outcome: 'same-account'
+    })
+  }
+
+  const [domain, addressCount] = await Promise.all([
+    resolveAddressDomain(request),
+    prisma.lightningAddress.count({ where: { userId: params.claimerId } })
+  ])
+  const { summary } = result
+  return NextResponse.json({
+    qrKind: 'ONE_TIME',
+    purpose: 'RECOVER',
+    outcome: 'recovered',
+    recovery: {
+      lightningAddresses: summary.lightningAddresses.map(u => `${u}@${domain}`),
+      primaryAddress: summary.primaryAddress
+        ? `${summary.primaryAddress}@${domain}`
+        : null,
+      cards: summary.cards,
+      remoteWallets: summary.remoteWallets,
+      vouchers: summary.vouchers,
+      mergedIntoExisting: result.mergedIntoExisting
+    },
+    needsLightningAddress: addressCount === 0
+  })
+}
 
 /**
  * `POST /api/activation-tokens/[id]/claim` — claim a card via its activation QR.
@@ -35,6 +81,11 @@ import {
  * Only `ONE_TIME` tokens exist this round: the claim **transfers** the card to
  * the claimer (`Card.userId`), binds a Remote Wallet to fund it, and **burns**
  * the token (`CLAIMED`). A second scan of a burned token returns 409.
+ *
+ * A `RECOVER`-purpose token instead hands over the holder's whole account —
+ * see {@link claimRecovery}. When the claimer already has data the claim
+ * needs `confirmMerge: true` (else 409 `RECOVERY_MERGE_REQUIRED`); the card's
+ * own owner gets `outcome: 'same-account'` and the QR is revoked.
  */
 export const POST = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ id: string }> }) => {
@@ -45,15 +96,10 @@ export const POST = withErrorHandling(
     if (!pubkey) throw new ValidationError('Public key is required')
 
     const { id } = validateParams(await params, idParam)
-    const { remoteWalletId } = await validateBody(
+    const { remoteWalletId, confirmMerge } = await validateBody(
       request,
       claimActivationTokenSchema
     )
-
-    // Resolve the claimer (any linked pubkey maps to the owning account),
-    // creating the account on first sight.
-    const existing = await resolveAccountByPubkey(pubkey)
-    const claimer = existing ?? (await createNewUser(pubkey))
 
     const token = await prisma.cardActivationToken.findUnique({
       where: { id },
@@ -61,12 +107,33 @@ export const POST = withErrorHandling(
         id: true,
         cardId: true,
         qrKind: true,
+        purpose: true,
         status: true,
         expiresAt: true,
         card: { select: { blockedAt: true } }
       }
     })
     if (!token) throw new NotFoundError('Activation token not found')
+
+    // Resolve the claimer (any linked pubkey maps to the owning account),
+    // creating the account on first sight.
+    const existing = await resolveAccountByPubkey(pubkey)
+
+    if (token.purpose === 'RECOVER') {
+      // The recovered account brings its own wallets, so a brand-new claimer
+      // gets no courtesy one — check first that the recovery can go through,
+      // or a failed claim would leave a wallet-less signup behind.
+      if (!existing) await assertRecoveryClaimable(token.id)
+      const claimer =
+        existing ?? (await createNewUser(pubkey, { skipCourtesyWallet: true }))
+      return claimRecovery(request, {
+        tokenId: token.id,
+        claimerId: claimer.id,
+        confirmMerge
+      })
+    }
+
+    const claimer = existing ?? (await createNewUser(pubkey))
 
     // Claimability checks (cheap, pre-transaction).
     if (token.card?.blockedAt) {

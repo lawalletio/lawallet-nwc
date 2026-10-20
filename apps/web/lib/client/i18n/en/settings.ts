@@ -132,6 +132,27 @@ export const settings = {
       'Your key is stored only on this device. Back it up to keep access if this device is lost.',
     device: 'Device',
     removeDevice: 'Remove wallet from device',
-    copyLabel: (label: string) => `Copy ${label}`
+    copyLabel: (label: string) => `Copy ${label}`,
+    cardRecovery: {
+      title: 'Card recovery',
+      toggle: 'Recover with my cards',
+      hint: 'Anyone holding one of your cards can move this whole account to a new key at a LaWallet point of sale. Turn it off so a lost card can’t be used to take your account.',
+      enabled: 'Card recovery turned on',
+      disabled: 'Card recovery turned off',
+      failed: 'Could not update card recovery'
+    }
+  },
+  /** Shown to the old owner after a card recovery moved their account away. */
+  accountTransfer: {
+    title: 'Your account was transferred',
+    body: (date: string, card: string) =>
+      `On ${date}, your card ${card} was used at a LaWallet point of sale to move this account to another key.`,
+    unnamedCard: '(untitled)',
+    moved: 'What moved',
+    cards: (n: number) => (n === 1 ? '1 card' : `${n} cards`),
+    wallets: (n: number) => (n === 1 ? '1 wallet' : `${n} wallets`),
+    notYou:
+      'If this wasn’t you, contact your community operator right away. You can turn off Card recovery in Security so a card can’t do this again.',
+    dismiss: 'Got it'
   }
 }

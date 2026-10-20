@@ -184,7 +184,14 @@ describe('mergeAccounts', () => {
       prismaMock.ntag424,
       prismaMock.cardDesign,
       prismaMock.invoice,
-      prismaMock.activityLog
+      prismaMock.activityLog,
+      prismaMock.voucher,
+      prismaMock.voucherTransfer,
+      prismaMock.remoteWalletForwardReceipt,
+      prismaMock.remoteWalletNotificationDelivery,
+      prismaMock.cardActivationBonus,
+      prismaMock.oAuthGrant,
+      prismaMock.mcpPayment
     ]) {
       expect(model.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({ where: { userId: B } })
@@ -205,6 +212,85 @@ describe('mergeAccounts', () => {
     expect(logActivity.fireAndForget).toHaveBeenCalledWith(
       expect.objectContaining({ event: 'user.account_merged', level: 'WARN' })
     )
+  })
+
+  it('moves connected apps, the MCP ledger, and the shared-helper tables before deleting the shell', async () => {
+    seedMergeUsers()
+    seedMergeDefaults()
+
+    await mergeAccounts({ survivorId: A, absorbedId: B, mainPubkey: PK_A })
+
+    // Every one of these cascades on User delete, so each must re-parent
+    // before the absorbed row goes.
+    const deleteOrder = vi.mocked(prismaMock.user.delete).mock
+      .invocationCallOrder[0]
+    for (const [name, model] of [
+      ['oAuthGrant', prismaMock.oAuthGrant],
+      ['mcpPayment', prismaMock.mcpPayment],
+      ['voucher', prismaMock.voucher],
+      ['voucherTransfer', prismaMock.voucherTransfer],
+      ['remoteWalletForwardReceipt', prismaMock.remoteWalletForwardReceipt],
+      [
+        'remoteWalletNotificationDelivery',
+        prismaMock.remoteWalletNotificationDelivery
+      ],
+      ['cardActivationBonus', prismaMock.cardActivationBonus]
+    ] as const) {
+      const updateMany = vi.mocked(model.updateMany)
+      expect(updateMany, name).toHaveBeenCalledWith({
+        where: { userId: B },
+        data: { userId: A }
+      })
+      expect(updateMany.mock.invocationCallOrder[0], name).toBeLessThan(
+        deleteOrder
+      )
+    }
+  })
+
+  it('returns the address and wallet counts reported by the re-parent', async () => {
+    seedMergeUsers()
+    seedMergeDefaults()
+    vi.mocked(prismaMock.lightningAddress.updateMany).mockResolvedValue({
+      count: 4
+    } as any)
+    vi.mocked(prismaMock.remoteWallet.updateMany).mockResolvedValue({
+      count: 2
+    } as any)
+
+    const result = await mergeAccounts({
+      survivorId: A,
+      absorbedId: B,
+      mainPubkey: PK_A
+    })
+
+    expect(result.movedAddresses).toBe(4)
+    expect(result.movedWallets).toBe(2)
+  })
+
+  it('hands the default to the absorbed side when only it has a primary address', async () => {
+    seedMergeUsers({
+      survivor: { lightningAddresses: [] },
+      absorbed: {
+        lightningAddresses: [{ username: 'bob', isPrimary: true }]
+      }
+    })
+    seedMergeDefaults()
+
+    await mergeAccounts({ survivorId: A, absorbedId: B, mainPubkey: PK_A })
+
+    // The primary wallet follows the primary address, which comes from B.
+    expect(prismaMock.remoteWallet.updateMany).toHaveBeenCalledWith({
+      where: { userId: A, isDefault: true },
+      data: { isDefault: false }
+    })
+    expect(prismaMock.remoteWallet.updateMany).not.toHaveBeenCalledWith({
+      where: { userId: B, isDefault: true },
+      data: { isDefault: false }
+    })
+    expect(prismaMock.lightningAddress.updateMany).not.toHaveBeenCalledWith({
+      where: { userId: B, isPrimary: true },
+      data: { isPrimary: false }
+    })
   })
 
   it('keeps the survivor primary flags: clears incoming isPrimary/isDefault when the survivor has them', async () => {
