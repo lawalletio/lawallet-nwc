@@ -13,6 +13,19 @@ export const userIdParam = z.object({
   userId: z.string().min(1, 'User ID is required')
 })
 
+export const TRANSACTION_LABEL_MAX_LENGTH = 100
+
+export const transactionLabelParam = z.object({
+  paymentHash: z
+    .string()
+    .regex(/^[0-9a-fA-F]{64}$/, 'Invalid payment hash')
+    .transform(value => value.toLowerCase())
+})
+
+export const updateTransactionLabelSchema = z.object({
+  label: z.string().trim().max(TRANSACTION_LABEL_MAX_LENGTH)
+})
+
 /** A Nostr public key in the canonical wire format (lowercase hex, no npub). */
 export const hexPubkeySchema = z
   .string()

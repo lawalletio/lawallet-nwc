@@ -135,6 +135,15 @@ export const OPERATION_POLICY: Record<string, OperationPolicy> = {
   'lud16.verify': READ,
 
   // Wallet
+  'wallet.transactions.tags.list': exclude(
+    'private user annotations are not exposed to delegated agents'
+  ),
+  'wallet.transactions.label.get': exclude(
+    'private user annotations are not exposed to delegated agents'
+  ),
+  'wallet.transactions.label.set': exclude(
+    'private user annotations are not exposed to delegated agents'
+  ),
   'wallet.addresses.list': READ,
   'wallet.addresses.create': WRITE,
   'wallet.addresses.proxyBalance.get': READ,
