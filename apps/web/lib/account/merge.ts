@@ -428,6 +428,21 @@ export async function mergeAccounts(params: {
       where: { userId: absorbedId },
       data: { userId: survivorId }
     })
+    // Tags share a composite PK with the account, so updateMany would collide
+    // when both accounts annotated the same payment. Insert with
+    // skipDuplicates (the survivor's tag wins) and drop the absorbed rows
+    // before the shell cascade deletes them.
+    const absorbedLabels = await tx.transactionLabel.findMany({
+      where: { userId: absorbedId },
+      select: { paymentHash: true, label: true }
+    })
+    if (absorbedLabels.length > 0) {
+      await tx.transactionLabel.createMany({
+        data: absorbedLabels.map(label => ({ ...label, userId: survivorId })),
+        skipDuplicates: true
+      })
+      await tx.transactionLabel.deleteMany({ where: { userId: absorbedId } })
+    }
 
     // ── Delete the empty shell BEFORE settling the primary: its
     // User.pubkey would collide with the survivor's mirror if the chosen
