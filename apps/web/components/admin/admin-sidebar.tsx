@@ -158,7 +158,6 @@ const settingsSubItems = [
   { title: 'Branding', tab: 'branding' },
   { title: 'Wallet', tab: 'wallet' },
   { title: 'NWC Services', tab: 'nwc-services' },
-  { title: 'Device Tokens', tab: 'device-tokens' },
   { title: 'Backup & Restore', tab: 'backup' }
 ]
 

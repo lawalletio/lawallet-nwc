@@ -291,9 +291,10 @@ expirations, and to cut a device off early let the token lapse and mint a fresh 
 
 ### Generating a token (admin UI)
 
-**Settings → Device Tokens** (also a sub-item under Settings in the admin sidebar):
+**Account → Device Tokens** (`/admin/account?tab=device-tokens`, available to OPERATOR and ADMIN):
 
-1. Pick the **user** the device will act as.
+1. Pick the **user** the device will act as. Admins can pick anyone; operators always mint for
+   themselves.
 2. Tick the **permissions** to grant — a subset of your own RBAC. The _Card provisioning_ preset
    selects the card / design / NTAG / address scopes the card apps need.
 3. Choose an **expiration** (`1h` · `8h` · `24h` · `7d` · custom).

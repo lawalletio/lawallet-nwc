@@ -539,7 +539,7 @@ A session JWT gets the `read` and `write` scopes — **never `spend`**. Payments
 always need an OAuth connection with a daily limit you approved, and
 `wallet_list_payments` has nothing to show for these tokens.
 
-**Device tokens** (minted under **Settings → Device Tokens**) are refused with
+**Device tokens** (minted under **Account → Device Tokens**) are refused with
 401 `invalid_token`: they are narrowed to a few permissions for one device,
 which the wallet tools would not honor.
 

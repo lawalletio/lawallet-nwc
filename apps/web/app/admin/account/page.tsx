@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import { AccountScreen } from '@/components/admin/account/account-screen'
 
 export const metadata = {
@@ -5,5 +6,11 @@ export const metadata = {
 }
 
 export default function AccountSettingsPage() {
-  return <AccountScreen />
+  // `AccountScreen` reads `?tab=` via `useSearchParams`, which needs a
+  // Suspense boundary.
+  return (
+    <Suspense>
+      <AccountScreen />
+    </Suspense>
+  )
 }

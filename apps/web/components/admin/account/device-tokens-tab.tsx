@@ -22,8 +22,10 @@ import {
   useGenerateDeviceToken,
   type GenerateDeviceTokenResult
 } from '@/lib/client/hooks/use-device-tokens'
-import { Permission } from '@/lib/auth/permissions'
+import { Permission, Role, getRolePermissions } from '@/lib/auth/permissions'
 import { truncateNpub } from '@/lib/client/format'
+import { useAuth } from '@/components/admin/auth-context'
+import { useApi } from '@/lib/client/hooks/use-api'
 
 /** Human labels for each grantable permission. */
 const PERMISSION_LABELS: Record<Permission, string> = {
@@ -106,8 +108,20 @@ const EXPIRY_PRESETS: { value: string; label: string }[] = [
 
 export function DeviceTokensTab() {
   const { generate, loading: generating } = useGenerateDeviceToken()
+  const { role } = useAuth()
+  const isAdmin = role === Role.ADMIN
+  // Non-admins (OPERATOR) can only mint for themselves — the server enforces it.
+  const { data: me } = useApi<{ userId?: string }>(
+    isAdmin ? null : '/api/users/me'
+  )
+  const grantable = role ? getRolePermissions(role) : []
+  const permissionGroups = PERMISSION_GROUPS.map(group => ({
+    ...group,
+    permissions: group.permissions.filter(p => grantable.includes(p))
+  })).filter(group => group.permissions.length > 0)
 
-  const [userId, setUserId] = useState('')
+  const [selectedUserId, setUserId] = useState('')
+  const userId = isAdmin ? selectedUserId : (me?.userId ?? '')
   const [permissions, setPermissions] = useState<Permission[]>(
     CARD_PROVISIONING_PRESET
   )
@@ -221,15 +235,19 @@ export function DeviceTokensTab() {
         </div>
         <div className="space-y-2">
           <Label htmlFor="device-token-user">User</Label>
-          <UserSelector
-            value={userId}
-            onValueChange={setUserId}
-            placeholder="Select a user"
-          />
+          {isAdmin ? (
+            <UserSelector
+              value={userId}
+              onValueChange={setUserId}
+              placeholder="Select a user"
+            />
+          ) : (
+            <p className="text-sm font-medium">You</p>
+          )}
           <p className="text-xs text-muted-foreground">
-            The device authenticates as this user. Role-gated actions still
-            respect the user&apos;s role; the scopes below narrow what the token
-            can do.
+            {isAdmin
+              ? "The device authenticates as this user. Role-gated actions still respect the user's role; the scopes below narrow what the token can do."
+              : 'The device authenticates as you. The scopes below narrow what the token can do.'}
           </p>
         </div>
       </div>
@@ -263,7 +281,7 @@ export function DeviceTokensTab() {
           </div>
         </div>
         <div className="space-y-5">
-          {PERMISSION_GROUPS.map(group => (
+          {permissionGroups.map(group => (
             <div key={group.label} className="space-y-2">
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 {group.label}
