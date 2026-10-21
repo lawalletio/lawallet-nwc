@@ -40,6 +40,10 @@ vi.mock('@/lib/jwt', () => ({
   createJwtToken: vi.fn(() => 'signed.device.jwt')
 }))
 
+vi.mock('@/lib/auth/account', () => ({
+  resolveAccountByPubkey: vi.fn()
+}))
+
 vi.mock('@/lib/public-url', () => ({
   resolveApiUrl: vi.fn(async () => 'https://app.example.com')
 }))
@@ -49,6 +53,7 @@ import { getConfig } from '@/lib/config'
 import { authenticateWithRole } from '@/lib/auth/unified-auth'
 import { prisma } from '@/lib/prisma'
 import { createJwtToken } from '@/lib/jwt'
+import { resolveAccountByPubkey } from '@/lib/auth/account'
 
 const ADMIN_PUBKEY = 'a'.repeat(64)
 const TARGET_PUBKEY = 'b'.repeat(64)
@@ -143,7 +148,7 @@ describe('POST /api/auth/qr-jwt/generate', () => {
     expect(body.scopes).toEqual(['cards:read', 'ntags:read'])
   })
 
-  it('rejects non-admins with 403', async () => {
+  it('rejects roles below OPERATOR with 403', async () => {
     vi.mocked(authenticateWithRole).mockRejectedValue(
       new AuthorizationError('Not authorized to access this resource')
     )
@@ -176,9 +181,66 @@ describe('POST /api/auth/qr-jwt/generate', () => {
     expect(res.status).toBe(400)
   })
 
+  it('lets an operator mint a card-provisioning token for themselves', async () => {
+    asAdmin(Role.OPERATOR)
+    configEnabled()
+    targetUser()
+    vi.mocked(resolveAccountByPubkey).mockResolvedValue({
+      id: 'user_123'
+    } as any)
+
+    const req = createNextRequest('/api/auth/qr-jwt/generate', {
+      method: 'POST',
+      headers: { authorization: 'Bearer op-jwt' },
+      body: {
+        userId: 'user_123',
+        permissions: ['cards:read', 'cards:write', 'ntags:write'],
+        expiresIn: '8h'
+      }
+    })
+    const res = await POST(req)
+    const body: any = await assertResponse(res, 200)
+    expect(body.scopes).toEqual(['cards:read', 'cards:write', 'ntags:write'])
+  })
+
+  it('rejects an operator minting for another user with 403', async () => {
+    asAdmin(Role.OPERATOR)
+    configEnabled()
+    targetUser()
+    vi.mocked(resolveAccountByPubkey).mockResolvedValue({
+      id: 'someone_else'
+    } as any)
+
+    const req = createNextRequest('/api/auth/qr-jwt/generate', {
+      method: 'POST',
+      headers: { authorization: 'Bearer op-jwt' },
+      body: { userId: 'user_123', permissions: ['cards:read'], expiresIn: '8h' }
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(403)
+    expect(createJwtToken).not.toHaveBeenCalled()
+  })
+
+  it('rejects a device token minting another device token with 403', async () => {
+    vi.mocked(authenticateWithRole).mockResolvedValue({
+      pubkey: ADMIN_PUBKEY,
+      role: Role.ADMIN,
+      method: 'jwt',
+      scopes: ['cards:read']
+    } as any)
+    configEnabled()
+
+    const req = createNextRequest('/api/auth/qr-jwt/generate', {
+      method: 'POST',
+      headers: { authorization: 'Bearer device-jwt' },
+      body: { userId: 'user_123', permissions: ['cards:read'], expiresIn: '8h' }
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(403)
+    expect(createJwtToken).not.toHaveBeenCalled()
+  })
+
   it('rejects a permission the caller does not hold with 403', async () => {
-    // Defensive guard: even though the real role gate forces ADMIN, a non-admin
-    // role here must not be able to grant a scope it lacks.
     asAdmin(Role.OPERATOR)
     configEnabled()
 
