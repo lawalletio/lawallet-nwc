@@ -286,6 +286,9 @@ export const claimActivationTokenSchema = z.object({
  */
 export const createRecoveryTokenSchema = scanCardQuerySchema
 
+/** Check a tap's SUN `p`/`c` without spending it (card-manager, before showing a card). */
+export const verifyCardTapSchema = scanCardQuerySchema
+
 /** Owner opt-out for card-based account recovery (Security screen). */
 export const cardRecoverySettingSchema = z.object({
   enabled: z.boolean()

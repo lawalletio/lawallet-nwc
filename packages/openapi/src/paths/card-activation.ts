@@ -314,6 +314,36 @@ registry.registerPath({
   }
 })
 
+// POST /api/cards/{id}/verify-tap — is a tap genuine and unspent? (card-manager)
+registry.registerPath({
+  ...withRole('OPERATOR'),
+  method: 'post',
+  path: '/api/cards/{id}/verify-tap',
+  tags: [TAG],
+  summary: 'Check a card tap is genuine and unspent.',
+  description:
+    'Verifies the SUN params of a tap the way a payment does: `p` decrypts to this card’s UID, `c` matches the CMAC, and the counter is ahead of the last spent one. Does not advance the counter. 400 for a forged or edited tap, 409 for a replayed one or an unpaired card.',
+  operationId: 'cards.verifyTap',
+  security: protectedSecurity,
+  request: {
+    params: schemas.IdParam,
+    body: {
+      content: {
+        'application/json': { schema: schemas.RecoveryTokenCreateRequest }
+      }
+    }
+  },
+  responses: {
+    200: inlineJsonResponse(
+      'The tap is valid.',
+      z.object({ valid: z.literal(true), ctr: z.number().int() })
+    ),
+    ...commonErrorResponses,
+    404: responses.notFound,
+    409: responses.conflict
+  }
+})
+
 // GET /api/cards/{id}/owner — holder summary for the card-manager POS.
 registry.registerPath({
   ...withRole('OPERATOR'),

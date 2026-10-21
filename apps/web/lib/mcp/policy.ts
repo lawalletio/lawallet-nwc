@@ -113,6 +113,7 @@ export const OPERATION_POLICY: Record<string, OperationPolicy> = {
   'cards.rescue': exclude(CARD_CLAIM_CREDENTIAL),
   'cards.recoveryTokens.create': exclude(CARD_CLAIM_CREDENTIAL),
   'cards.owner': READ,
+  'cards.verifyTap': exclude(CARD_PROTOCOL),
   'activationTokens.preview': READ,
   'activationTokens.recoveryCheck': READ,
   'activationTokens.claim': exclude(CARD_BINDING),

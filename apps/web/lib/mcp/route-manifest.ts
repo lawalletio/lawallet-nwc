@@ -75,6 +75,8 @@ export const routeManifest: Record<string, () => Promise<RouteModule>> = {
   '/api/cards/{id}/scan/cb': () => import('@/app/api/cards/[id]/scan/cb/route'),
   '/api/cards/{id}/transactions': () =>
     import('@/app/api/cards/[id]/transactions/route'),
+  '/api/cards/{id}/verify-tap': () =>
+    import('@/app/api/cards/[id]/verify-tap/route'),
   '/api/cards/{id}/wipe': () => import('@/app/api/cards/[id]/wipe/route'),
   '/api/cards/{id}/write': () => import('@/app/api/cards/[id]/write/route'),
   '/api/cards/{id}/write-token': () =>
