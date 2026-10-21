@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Copy,
   Link2,
@@ -59,6 +60,8 @@ import { AdminTopbar } from '@/components/admin/admin-topbar'
 import { MergeDialog } from '@/components/admin/account/merge-dialog'
 import { PasskeysSection } from '@/components/wallet/settings/passkeys-section'
 import { ConnectedApps } from '@/components/oauth/connected-apps'
+import { DeviceTokensTab } from '@/components/admin/account/device-tokens-tab'
+import { Role, hasRole } from '@/lib/auth/permissions'
 import { useAuth } from '@/components/admin/auth-context'
 import { useAccount } from '@/lib/client/hooks/use-account'
 import { useNostrProfile } from '@/lib/client/nostr-profile'
@@ -70,14 +73,32 @@ import {
 } from '@/lib/client/format'
 import type { NostrIdentitySummary } from '@/lib/validation/schemas'
 
+const ACCOUNT_TABS = [
+  { tab: 'login', label: 'Login methods' },
+  { tab: 'apps', label: 'Connected apps' },
+  { tab: 'device-tokens', label: 'Device Tokens' }
+]
+
 /**
  * `/admin/account` — the signed-in user's own login methods: linked Nostr
  * identities (primary/rename/unlink), passkeys, the server-custodied secret
  * key (when present), and the link-or-merge flow for absorbing another
- * account. Everything here is per-user; no admin permission is involved.
+ * account. Tabs (`?tab=`): login methods, connected apps, and — for OPERATOR
+ * and up — device tokens for the card apps.
  */
 export function AccountScreen() {
-  const { requestSigner, refreshSession } = useAuth()
+  const { requestSigner, refreshSession, role } = useAuth()
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  // Device tokens delegate the caller's own RBAC to a card app, so the tab only
+  // exists for roles that hold card permissions (OPERATOR and up).
+  const tabs = ACCOUNT_TABS.filter(
+    t => t.tab !== 'device-tokens' || (role && hasRole(role, Role.OPERATOR))
+  )
+  const requestedTab = searchParams.get('tab')
+  const activeTab = tabs.some(t => t.tab === requestedTab)
+    ? requestedTab
+    : tabs[0].tab
   const {
     identities,
     loading,
@@ -165,118 +186,131 @@ export function AccountScreen() {
       <AdminTopbar
         title="Account Settings"
         subtitle="The identities and login methods that open this account"
+        tabs={tabs.map(t => ({
+          label: t.label,
+          active: activeTab === t.tab,
+          onClick: () => router.push(`/admin/account?tab=${t.tab}`)
+        }))}
       />
 
-      <div className="flex w-full max-w-3xl flex-col gap-6 px-4 py-6 sm:px-6">
-        {error ? (
-          <Alert variant="destructive">
-            <AlertTitle>Couldn&apos;t load your account</AlertTitle>
-            <AlertDescription className="flex flex-col items-start gap-3">
-              <span>{error.message}</span>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => void refetch()}
-              >
-                <RefreshCw className="size-3.5" />
-                Retry
-              </Button>
-            </AlertDescription>
-          </Alert>
-        ) : (
-          <>
-            {/* ── Nostr identities ─────────────────────────────────────── */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Nostr identities</CardTitle>
-                <CardDescription>
-                  Public keys linked to this account. Any of them can sign you
-                  in; the primary one is how the platform presents you.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {loading ? (
-                  <div className="flex min-h-20 items-center justify-center">
-                    <Spinner size={24} />
-                  </div>
-                ) : (
-                  <div className="flex flex-col rounded-md border">
-                    {identities.map(identity => (
-                      <IdentityRow
-                        key={identity.pubkey}
-                        identity={identity}
-                        busy={updating || unlinking}
-                        onMakePrimary={() => void handleMakePrimary(identity)}
-                        onRename={() => {
-                          setRenameTarget(identity)
-                          setRenameValue(identity.label ?? '')
-                        }}
-                        onUnlink={() => setUnlinkTarget(identity)}
-                      />
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+      {activeTab === 'device-tokens' && <DeviceTokensTab />}
 
-            {/* ── Passkeys ─────────────────────────────────────────────── */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Passkeys</CardTitle>
-                <CardDescription>
-                  Sign in with Face ID, Touch ID, or your device screen lock —
-                  no keys to paste.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <PasskeysSection
-                  onDuplicatePasskey={() =>
-                    openMergeDialog(
-                      'passkey',
-                      'That passkey already belongs to another account. Prove it below to merge the two accounts into this one.'
-                    )
-                  }
-                />
-              </CardContent>
-            </Card>
+      {activeTab === 'apps' && (
+        <div className="flex w-full max-w-3xl flex-col gap-6 px-4 py-6 sm:px-6">
+          {/* ── Connected apps (MCP / OAuth grants) ──────────────────── */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Connected apps</CardTitle>
+              <CardDescription>
+                AI assistants and other apps you allowed to use this account.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ConnectedApps />
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
-            {/* ── Connected apps (MCP / OAuth grants) ──────────────────── */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Connected apps</CardTitle>
-                <CardDescription>
-                  AI assistants and other apps you allowed to use this account.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ConnectedApps />
-              </CardContent>
-            </Card>
-
-            {/* ── Link / merge another account ─────────────────────────── */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Link another account</CardTitle>
-                <CardDescription>
-                  Merge another Nostr account or key into this one — prove you
-                  control it by signing or with its passkey.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
+      {activeTab === 'login' && (
+        <div className="flex w-full max-w-3xl flex-col gap-6 px-4 py-6 sm:px-6">
+          {error ? (
+            <Alert variant="destructive">
+              <AlertTitle>Couldn&apos;t load your account</AlertTitle>
+              <AlertDescription className="flex flex-col items-start gap-3">
+                <span>{error.message}</span>
                 <Button
                   type="button"
-                  variant="secondary"
-                  onClick={() => openMergeDialog('nostr')}
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void refetch()}
                 >
-                  <Link2 className="size-4" />
-                  Link / merge account
+                  <RefreshCw className="size-3.5" />
+                  Retry
                 </Button>
-              </CardContent>
-            </Card>
-          </>
-        )}
-      </div>
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <>
+              {/* ── Nostr identities ─────────────────────────────────────── */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Nostr identities</CardTitle>
+                  <CardDescription>
+                    Public keys linked to this account. Any of them can sign you
+                    in; the primary one is how the platform presents you.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {loading ? (
+                    <div className="flex min-h-20 items-center justify-center">
+                      <Spinner size={24} />
+                    </div>
+                  ) : (
+                    <div className="flex flex-col rounded-md border">
+                      {identities.map(identity => (
+                        <IdentityRow
+                          key={identity.pubkey}
+                          identity={identity}
+                          busy={updating || unlinking}
+                          onMakePrimary={() => void handleMakePrimary(identity)}
+                          onRename={() => {
+                            setRenameTarget(identity)
+                            setRenameValue(identity.label ?? '')
+                          }}
+                          onUnlink={() => setUnlinkTarget(identity)}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* ── Passkeys ─────────────────────────────────────────────── */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Passkeys</CardTitle>
+                  <CardDescription>
+                    Sign in with Face ID, Touch ID, or your device screen lock —
+                    no keys to paste.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <PasskeysSection
+                    onDuplicatePasskey={() =>
+                      openMergeDialog(
+                        'passkey',
+                        'That passkey already belongs to another account. Prove it below to merge the two accounts into this one.'
+                      )
+                    }
+                  />
+                </CardContent>
+              </Card>
+
+              {/* ── Link / merge another account ─────────────────────────── */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Link another account</CardTitle>
+                  <CardDescription>
+                    Merge another Nostr account or key into this one — prove you
+                    control it by signing or with its passkey.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => openMergeDialog('nostr')}
+                  >
+                    <Link2 className="size-4" />
+                    Link / merge account
+                  </Button>
+                </CardContent>
+              </Card>
+            </>
+          )}
+        </div>
+      )}
 
       <MergeDialog
         open={mergeOpen}

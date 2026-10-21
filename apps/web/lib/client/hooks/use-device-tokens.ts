@@ -7,7 +7,7 @@ import type { Permission, Role } from '@/lib/auth/permissions'
 export interface GenerateDeviceTokenInput {
   /** DB id of the user the device token will act as. */
   userId: string
-  /** Permission scopes to grant — a subset of the admin's own RBAC. */
+  /** Permission scopes to grant — a subset of the caller's own RBAC. */
   permissions: Permission[]
   /** `ms`-style duration (`8h`, `7d`) or a number-of-seconds string. */
   expiresIn: string
@@ -28,8 +28,9 @@ export interface GenerateDeviceTokenResult {
 }
 
 /**
- * Mints a stateless device token (B.0) for the QR-login flow. Admin-only — the
- * endpoint rejects non-admins and any scope the caller doesn't hold.
+ * Mints a stateless device token (B.0) for the QR-login flow. ADMIN mints for
+ * anyone; OPERATOR only for themselves. The endpoint rejects any scope the
+ * caller doesn't hold.
  */
 export function useGenerateDeviceToken() {
   const { mutate, loading, error } = useMutation<

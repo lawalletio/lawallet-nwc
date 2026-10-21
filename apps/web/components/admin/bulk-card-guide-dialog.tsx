@@ -84,13 +84,13 @@ export function BulkCardGuideDialog({
             title="Create a device token"
           >
             <p className="text-sm text-muted-foreground">
-              In <strong>Settings → Device Tokens</strong>, pick a user and the
+              In <strong>Account → Device Tokens</strong>, pick a user and the
               card scopes, then <strong>Generate Token</strong> — it&apos;s
               shown as a QR code.
             </p>
             <Button asChild variant="outline" size="sm" className="mt-2">
               <Link
-                href="/admin/settings?tab=device-tokens"
+                href="/admin/account?tab=device-tokens"
                 onClick={() => onOpenChange(false)}
               >
                 Open Device Tokens

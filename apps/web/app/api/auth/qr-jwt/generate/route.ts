@@ -25,6 +25,7 @@ import {
   normalizeDeviceTokenExpiry
 } from '@/lib/auth/device-token'
 import { resolveApiUrl } from '@/lib/public-url'
+import { resolveAccountByPubkey } from '@/lib/auth/account'
 import { ActivityEvent, logActivity } from '@/lib/activity-log'
 
 export const dynamic = 'force-dynamic'
@@ -33,8 +34,9 @@ export const revalidate = 0
 /**
  * `POST /api/auth/qr-jwt/generate` — mint a stateless device token (B.0).
  *
- * Admin-only. The admin picks a target user, a permission subset, and an
- * expiration; we sign a JWT that the third-party card apps (`card-installer`,
+ * ADMIN picks any target user; OPERATOR may only mint for their own account
+ * (e.g. to provision cards from `card-installer`). The caller picks a permission
+ * subset and an expiration; we sign a JWT that the third-party card apps (`card-installer`,
  * `card-manager`) scan from an on-screen QR. There is no session record
  * and no revocation surface — validation is signature + `exp` only. There is no
  * maximum lifetime (only a 1-minute floor via `normalizeDeviceTokenExpiry`), so
@@ -52,7 +54,13 @@ export const POST = withErrorHandling(async (request: Request) => {
   await checkRequestLimits(request, 'json')
 
   // Accepts Nostr *or* Bearer — the dashboard calls this with its session JWT.
-  const admin = await authenticateWithRole(request, Role.ADMIN)
+  const admin = await authenticateWithRole(request, Role.OPERATOR)
+
+  // A device token must not mint device tokens: it would let a short-lived or
+  // narrowly-scoped token re-issue itself with a longer life or wider scopes.
+  if (admin.scopes) {
+    throw new AuthorizationError('Device tokens cannot mint device tokens')
+  }
 
   // Rate-limit per admin (not per IP) so one operator behind a shared proxy
   // can't exhaust another's bucket.
@@ -70,10 +78,9 @@ export const POST = withErrorHandling(async (request: Request) => {
     throw new InternalServerError('Server configuration error')
   }
 
-  // Validate every requested permission is real *and* one the admin holds.
-  // ADMIN holds all permissions today, so the subset check mainly guards
-  // against typos — and keeps the endpoint safe if a lower role is ever
-  // allowed to mint tokens.
+  // Validate every requested permission is real *and* one the caller holds.
+  // ADMIN holds all permissions; for OPERATOR this caps the token at the
+  // operator's own RBAC (cards, designs, ntags, addresses, …).
   const adminPermissions = new Set<string>(getRolePermissions(admin.role))
   const scopes: Permission[] = []
   for (const raw of body.permissions) {
@@ -95,6 +102,15 @@ export const POST = withErrorHandling(async (request: Request) => {
     select: { id: true, pubkey: true, role: true }
   })
   if (!user) throw new NotFoundError('User not found')
+
+  // Non-admins can only delegate to themselves. Resolve via the account seam so
+  // a secondary linked pubkey still matches its owning account.
+  if (admin.role !== Role.ADMIN) {
+    const account = await resolveAccountByPubkey(admin.pubkey)
+    if (!account || account.id !== user.id) {
+      throw new AuthorizationError('You can only mint device tokens for yourself')
+    }
+  }
 
   const expiresIn = normalizeDeviceTokenExpiry(body.expiresIn)
 
