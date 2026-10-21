@@ -184,9 +184,26 @@ function seedAccounts(...accounts: FakeAccount[]) {
     Promise.resolve(get(args.where.userId).vouchers)) as any)
   vi.mocked(prismaMock.remoteWallet.count).mockImplementation(((args: any) =>
     Promise.resolve(liveWallets(args.where).length)) as any)
+  // The post-move reads look rows up by id/username, wherever they live.
+  const allWallets = () => accounts.flatMap(a => a.wallets)
+  vi.mocked(prismaMock.lightningAddress.findFirst).mockImplementation(((
+    args: any
+  ) =>
+    Promise.resolve(
+      accounts
+        .flatMap(a => a.addresses)
+        .find(
+          x =>
+            args.where.username.in.includes(x.username) &&
+            x.isPrimary === args.where.isPrimary
+        ) ?? null
+    )) as any)
   vi.mocked(prismaMock.remoteWallet.findMany).mockImplementation(((args: any) =>
     Promise.resolve(
-      liveWallets(args.where).map(w =>
+      (args.where.id
+        ? allWallets().filter(w => args.where.id.in.includes(w.id))
+        : liveWallets(args.where)
+      ).map(w =>
         args.select?.config
           ? { config: w.config }
           : { id: w.id, name: w.name, isDefault: w.isDefault }
@@ -740,6 +757,38 @@ describe('recoverAccountViaCard', () => {
           ]
         }
       })
+    })
+
+    it('reports wallet and address flags as they ended up after the move', async () => {
+      seedToken()
+      seedCard()
+      const from = oldOwner()
+      seedAccounts(from, freshClaimer())
+      // A merge demotes the incoming primary/default and renames a clash.
+      reparentMock.mockImplementation(async () => {
+        from.addresses[0].isPrimary = false
+        from.wallets[0].isDefault = false
+        from.wallets[0].name = 'Main (2)'
+        return { movedAddresses: 2, movedWallets: 2 }
+      })
+
+      const result = await recoverAccountViaCard({
+        tokenId: TOKEN,
+        claimerId: CLAIMER
+      })
+
+      if (result.outcome !== 'recovered') throw new Error('not recovered')
+      expect(result.summary.primaryAddress).toBeNull()
+      expect(result.summary.remoteWallets).toEqual([
+        { id: 'w-main', name: 'Main (2)', isDefault: false }
+      ])
+      expect(prismaMock.accountRecovery.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            summary: expect.objectContaining({ primaryAddress: null })
+          })
+        })
+      )
     })
 
     it('snapshots the summary before anything moves', async () => {

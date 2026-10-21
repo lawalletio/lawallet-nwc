@@ -366,6 +366,26 @@ export async function recoverAccountViaCard(params: {
       }
     })
 
+    // The snapshot predates the move, but reparenting can demote the
+    // incoming primary address and default wallet and rename a clashing
+    // wallet — report those as they ended up.
+    const [primary, movedWallets] = await Promise.all([
+      tx.lightningAddress.findFirst({
+        where: {
+          username: { in: summary.lightningAddresses },
+          isPrimary: true
+        },
+        select: { username: true }
+      }),
+      tx.remoteWallet.findMany({
+        where: { id: { in: summary.remoteWallets.map(w => w.id) } },
+        select: { id: true, name: true, isDefault: true },
+        orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }]
+      })
+    ])
+    summary.primaryAddress = primary?.username ?? null
+    summary.remoteWallets = movedWallets
+
     // Settings: a fresh claimer takes the recovered account's as-is; merging
     // into an existing account unions the lists and keeps its own choices.
     const relays = mergedIntoExisting
