@@ -429,13 +429,14 @@ export async function recoverAccountViaCard(params: {
     })
 
     // Outstanding QRs on the moved cards were minted for the old holder.
-    const movedCardIds = summary.cards.map(c => c.id)
-    if (movedCardIds.length > 0) {
-      await tx.cardActivationToken.updateMany({
-        where: { cardId: { in: movedCardIds }, status: 'PENDING' },
-        data: { status: 'REVOKED' }
-      })
-    }
+    // Never empty: the tapped card itself is checked to be the old holder's.
+    await tx.cardActivationToken.updateMany({
+      where: {
+        cardId: { in: summary.cards.map(c => c.id) },
+        status: 'PENDING'
+      },
+      data: { status: 'REVOKED' }
+    })
     // Connected apps were authorized by the old key, which may be the very
     // thing that was lost.
     await tx.oAuthGrant.updateMany({

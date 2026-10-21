@@ -933,6 +933,21 @@ describe('recoverAccountViaCard', () => {
       expect(data.relaysUpdatedAt.getTime()).toBeGreaterThanOrEqual(before)
     })
 
+    it('reports no primary address when the old account never claimed one', async () => {
+      seedToken()
+      seedCard()
+      seedAccounts(oldOwner({ addresses: [] }), freshClaimer())
+
+      const result = await recoverAccountViaCard({
+        tokenId: TOKEN,
+        claimerId: CLAIMER
+      })
+
+      if (result.outcome !== 'recovered') throw new Error('not recovered')
+      expect(result.summary.lightningAddresses).toEqual([])
+      expect(result.summary.primaryAddress).toBeNull()
+    })
+
     it('carries a null card title into recoveredWith', async () => {
       seedToken()
       seedCard({ title: null })

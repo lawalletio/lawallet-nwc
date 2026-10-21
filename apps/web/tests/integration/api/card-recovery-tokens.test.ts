@@ -378,4 +378,18 @@ describe('POST /api/cards/[id]/recovery-tokens', () => {
     expect(res.status).toBe(409)
     expect(eventBus.emit).not.toHaveBeenCalled()
   })
+
+  it('surfaces any other mint failure as a 500', async () => {
+    mockOperator()
+    seedCard()
+    seedGoodTap()
+    vi.mocked(prismaMock.cardActivationToken.create).mockRejectedValue(
+      new Error('db down')
+    )
+
+    const res = await post()
+
+    expect(res.status).toBe(500)
+    expect(eventBus.emit).not.toHaveBeenCalled()
+  })
 })
