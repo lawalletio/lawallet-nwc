@@ -586,6 +586,69 @@ describe('GET /api/users/me', () => {
     expect(body.lightningAddress).toBe('stray@test.com')
   })
 
+  // ── card recovery ───────────────────────────────────────────────────────
+
+  it('returns the card recovery opt-out flag', async () => {
+    mockAuth()
+    const user = createUserFixture({
+      pubkey: mockPubkey,
+      lightningAddresses: [],
+      cardRecoveryEnabled: false
+    })
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
+    vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com' })
+
+    const res = await GET(createNextRequest('/api/users/me'))
+    const body: any = await assertResponse(res, 200)
+
+    expect(body.cardRecoveryEnabled).toBe(false)
+    expect(body.accountTransfer).toBeNull()
+  })
+
+  it('returns the open account-transfer notice with full addresses', async () => {
+    mockAuth()
+    const user = createUserFixture({
+      pubkey: mockPubkey,
+      lightningAddresses: [],
+      cardRecoveryEnabled: true
+    })
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
+    vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com' })
+    vi.mocked(prismaMock.accountRecovery.findFirst).mockResolvedValue({
+      id: 'recovery-1',
+      createdAt: new Date('2026-10-20T12:00:00.000Z'),
+      summary: {
+        lightningAddresses: ['alice', 'alice2'],
+        primaryAddress: 'alice',
+        cards: [{ id: 'card1', title: 'Blue card', designImageUrl: null }],
+        remoteWallets: [
+          { id: 'w1', name: 'Main', isDefault: true },
+          { id: 'w2', name: 'Spare', isDefault: false }
+        ],
+        vouchers: 0,
+        recoveredWith: { cardId: 'card1', title: 'Blue card' }
+      }
+    } as any)
+
+    const res = await GET(createNextRequest('/api/users/me'))
+    const body: any = await assertResponse(res, 200)
+
+    expect(prismaMock.accountRecovery.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { fromUserId: user.id, noticeDismissedAt: null }
+      })
+    )
+    expect(body.cardRecoveryEnabled).toBe(true)
+    expect(body.accountTransfer).toEqual({
+      id: 'recovery-1',
+      transferredAt: '2026-10-20T12:00:00.000Z',
+      cardTitle: 'Blue card',
+      lightningAddresses: ['alice@test.com', 'alice2@test.com'],
+      cards: 1,
+      remoteWallets: 2
+    })
+  })
+
   it('no primary address: every primary* field is null', async () => {
     mockAuth()
     const user = createUserFixture({

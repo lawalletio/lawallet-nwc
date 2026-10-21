@@ -346,8 +346,40 @@
               "null"
             ],
             "minLength": 1
+          },
+          "confirmMerge": {
+            "type": "boolean"
           }
         }
+      },
+      "RecoveryTokenCreateRequest": {
+        "type": "object",
+        "properties": {
+          "p": {
+            "type": "string",
+            "minLength": 1
+          },
+          "c": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "p",
+          "c"
+        ],
+        "description": "SUN params (`p`, `c`) from a fresh physical tap of the card; verified and burned server-side."
+      },
+      "CardRecoverySettingRequest": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ]
       },
       "CardDesignCreateRequest": {
         "type": "object",
@@ -5830,12 +5862,17 @@
                     },
                     "ctr": {
                       "type": "integer"
+                    },
+                    "url": {
+                      "type": "string",
+                      "description": "The exact `lnurlw://…/scan?p=…&c=…` URL a physical card emits for this tap."
                     }
                   },
                   "required": [
                     "p",
                     "c",
-                    "ctr"
+                    "ctr",
+                    "url"
                   ],
                   "description": "Public SUN params (no keys)."
                 }
@@ -7103,6 +7140,13 @@
                         "FOREVER"
                       ]
                     },
+                    "purpose": {
+                      "type": "string",
+                      "enum": [
+                        "ACTIVATE",
+                        "RECOVER"
+                      ]
+                    },
                     "status": {
                       "type": "string",
                       "enum": [
@@ -7158,6 +7202,7 @@
                   "required": [
                     "tokenId",
                     "qrKind",
+                    "purpose",
                     "status",
                     "card"
                   ],
@@ -7206,7 +7251,7 @@
           "Card Activation"
         ],
         "summary": "Claim a card via its activation token.",
-        "description": "Any authenticated wallet user (NIP-98 or JWT). A ONE_TIME claim transfers the card to the claimer, binds a Remote Wallet (creating an LNCurl wallet when the claimer has none), reserves first-activation bonuses, and burns the token. A second claim returns 409.",
+        "description": "Any authenticated wallet user (NIP-98 or JWT). A ONE_TIME claim transfers the card to the claimer, binds a Remote Wallet (creating an LNCurl wallet when the claimer has none), reserves first-activation bonuses, and burns the token. A second claim returns 409. A RECOVER-purpose token instead moves the card holder’s whole account onto the claimer; when the claimer already has data it needs `confirmMerge: true` (else 409 with `details.reason = RECOVERY_MERGE_REQUIRED`).",
         "operationId": "activationTokens.claim",
         "security": [
           {
@@ -7238,82 +7283,200 @@
         },
         "responses": {
           "200": {
-            "description": "Card claimed.",
+            "description": "Card claimed (or account recovered).",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "qrKind": {
-                      "type": "string",
-                      "enum": [
-                        "ONE_TIME"
-                      ]
-                    },
-                    "card": {
+                  "anyOf": [
+                    {
                       "type": "object",
                       "properties": {
-                        "id": {
-                          "type": "string"
-                        },
-                        "kind": {
+                        "qrKind": {
                           "type": "string",
                           "enum": [
-                            "SIMPLE",
-                            "MASTER"
+                            "ONE_TIME"
                           ]
                         },
-                        "remoteWalletId": {
-                          "type": [
-                            "string",
-                            "null"
-                          ]
-                        }
-                      },
-                      "required": [
-                        "id",
-                        "kind",
-                        "remoteWalletId"
-                      ],
-                      "additionalProperties": {}
-                    },
-                    "bonuses": {
-                      "type": "object",
-                      "properties": {
-                        "freeLightningAddress": {
-                          "type": "boolean"
-                        },
-                        "sats": {
+                        "card": {
                           "type": "object",
                           "properties": {
-                            "granted": {
-                              "type": "boolean"
+                            "id": {
+                              "type": "string"
                             },
-                            "amountSats": {
-                              "type": "integer"
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "SIMPLE",
+                                "MASTER"
+                              ]
+                            },
+                            "remoteWalletId": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
                             }
                           },
                           "required": [
-                            "granted"
+                            "id",
+                            "kind",
+                            "remoteWalletId"
+                          ],
+                          "additionalProperties": {}
+                        },
+                        "bonuses": {
+                          "type": "object",
+                          "properties": {
+                            "freeLightningAddress": {
+                              "type": "boolean"
+                            },
+                            "sats": {
+                              "type": "object",
+                              "properties": {
+                                "granted": {
+                                  "type": "boolean"
+                                },
+                                "amountSats": {
+                                  "type": "integer"
+                                }
+                              },
+                              "required": [
+                                "granted"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "freeLightningAddress",
+                            "sats"
                           ]
+                        },
+                        "needsLightningAddress": {
+                          "type": "boolean"
                         }
                       },
                       "required": [
-                        "freeLightningAddress",
-                        "sats"
-                      ]
+                        "qrKind",
+                        "card",
+                        "bonuses",
+                        "needsLightningAddress"
+                      ],
+                      "description": "Result of a ONE_TIME claim — ownership transferred, token burned, first-activation bonuses reserved."
                     },
-                    "needsLightningAddress": {
-                      "type": "boolean"
+                    {
+                      "type": "object",
+                      "properties": {
+                        "qrKind": {
+                          "type": "string",
+                          "enum": [
+                            "ONE_TIME"
+                          ]
+                        },
+                        "purpose": {
+                          "type": "string",
+                          "enum": [
+                            "RECOVER"
+                          ]
+                        },
+                        "outcome": {
+                          "type": "string",
+                          "enum": [
+                            "recovered",
+                            "same-account"
+                          ]
+                        },
+                        "recovery": {
+                          "type": "object",
+                          "properties": {
+                            "lightningAddresses": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "primaryAddress": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "cards": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "title": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ]
+                                  },
+                                  "designImageUrl": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "title",
+                                  "designImageUrl"
+                                ]
+                              }
+                            },
+                            "remoteWallets": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "isDefault": {
+                                    "type": "boolean"
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "name",
+                                  "isDefault"
+                                ]
+                              }
+                            },
+                            "vouchers": {
+                              "type": "integer"
+                            },
+                            "mergedIntoExisting": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "lightningAddresses",
+                            "primaryAddress",
+                            "cards",
+                            "remoteWallets",
+                            "vouchers",
+                            "mergedIntoExisting"
+                          ]
+                        },
+                        "needsLightningAddress": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "qrKind",
+                        "purpose",
+                        "outcome"
+                      ],
+                      "description": "Result of claiming a RECOVER token: the card holder’s whole account moved onto the claimer (`recovered`), or the claimer already owns the card and the QR was revoked (`same-account`)."
                     }
-                  },
-                  "required": [
-                    "qrKind",
-                    "card",
-                    "bonuses",
-                    "needsLightningAddress"
-                  ],
-                  "description": "Result of a ONE_TIME claim — ownership transferred, token burned, first-activation bonuses reserved."
+                  ]
                 }
               }
             }
@@ -7360,6 +7523,574 @@
           },
           "409": {
             "description": "Request conflicts with current resource state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/activation-tokens/{id}/recovery-check": {
+      "get": {
+        "x-required-role": "USER",
+        "tags": [
+          "Card Activation"
+        ],
+        "summary": "Check what claiming a RECOVER QR would do for the caller.",
+        "operationId": "activationTokens.recoveryCheck",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Recovery pre-flight.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sameAccount": {
+                      "type": "boolean"
+                    },
+                    "mergeRequired": {
+                      "type": "boolean"
+                    },
+                    "existing": {
+                      "type": "object",
+                      "properties": {
+                        "lightningAddresses": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "cards": {
+                          "type": "integer"
+                        },
+                        "remoteWallets": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "lightningAddresses",
+                        "cards",
+                        "remoteWallets"
+                      ]
+                    },
+                    "incoming": {
+                      "type": "object",
+                      "properties": {
+                        "lightningAddresses": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "cards": {
+                          "type": "integer"
+                        },
+                        "remoteWallets": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "lightningAddresses",
+                        "cards",
+                        "remoteWallets"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "sameAccount",
+                    "mergeRequired",
+                    "existing",
+                    "incoming"
+                  ],
+                  "description": "Pre-flight for a RECOVER QR: whether the caller owns the card already, and whether their account has data that the recovery would merge into."
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request conflicts with current resource state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cards/{id}/recovery-tokens": {
+      "post": {
+        "x-required-role": "OPERATOR",
+        "tags": [
+          "Card Activation"
+        ],
+        "summary": "Mint a RECOVER QR that hands the card holder’s account over.",
+        "description": "Requires the SUN params from a fresh physical tap, verified and burned server-side. Refused when the card has no owner, is blocked or paused (409), or the owner turned card recovery off (403). The QR (activation URL tagged `?tag=recover`) expires after 15 minutes and supersedes any outstanding activation QR for the card.",
+        "operationId": "cards.recoveryTokens.create",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecoveryTokenCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Recovery token minted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "tokenId": {
+                      "type": "string"
+                    },
+                    "qrPayload": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "qrKind": {
+                      "type": "string",
+                      "enum": [
+                        "ONE_TIME",
+                        "FOREVER"
+                      ]
+                    },
+                    "expiresAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "purpose": {
+                      "type": "string",
+                      "enum": [
+                        "RECOVER"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "tokenId",
+                    "qrPayload",
+                    "qrKind",
+                    "expiresAt",
+                    "purpose"
+                  ],
+                  "description": "A freshly minted activation token + its scannable QR payload."
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request conflicts with current resource state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cards/{id}/verify-tap": {
+      "post": {
+        "x-required-role": "OPERATOR",
+        "tags": [
+          "Card Activation"
+        ],
+        "summary": "Check a card tap is genuine and unspent.",
+        "description": "Verifies the SUN params of a tap the way a payment does: `p` decrypts to this card’s UID, `c` matches the CMAC, and the counter is ahead of the last spent one. Does not advance the counter. 400 for a forged or edited tap, 409 for a replayed one or an unpaired card.",
+        "operationId": "cards.verifyTap",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecoveryTokenCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The tap is valid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "valid": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "ctr": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "valid",
+                    "ctr"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request conflicts with current resource state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cards/{id}/owner": {
+      "get": {
+        "x-required-role": "OPERATOR",
+        "tags": [
+          "Card Activation"
+        ],
+        "summary": "Show who holds a card, with their balance.",
+        "operationId": "cards.owner",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Card holder summary.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "owned": {
+                      "type": "boolean"
+                    },
+                    "cardDisabled": {
+                      "type": "boolean"
+                    },
+                    "pubkey": {
+                      "type": "string"
+                    },
+                    "primaryAddress": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "lightningAddresses": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "cards": {
+                      "type": "integer"
+                    },
+                    "remoteWallets": {
+                      "type": "integer"
+                    },
+                    "cardRecoveryEnabled": {
+                      "type": "boolean"
+                    },
+                    "balanceSats": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "owned",
+                    "cardDisabled"
+                  ],
+                  "description": "Who holds a card, for the card-manager POS: lightning addresses on the LUD-16 domain, live balance (null when unreachable), and whether the holder allows card recovery."
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
             "content": {
               "application/json": {
                 "schema": {
@@ -10945,6 +11676,51 @@
                           ]
                         }
                       ]
+                    },
+                    "cardRecoveryEnabled": {
+                      "type": "boolean"
+                    },
+                    "accountTransfer": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "transferredAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "cardTitle": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "lightningAddresses": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "cards": {
+                          "type": "integer"
+                        },
+                        "remoteWallets": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "transferredAt",
+                        "cardTitle",
+                        "lightningAddresses",
+                        "cards",
+                        "remoteWallets"
+                      ],
+                      "description": "Set when a card recovery moved this account’s resources to another account and the owner has not dismissed the notice yet."
                     }
                   },
                   "required": [
@@ -10952,7 +11728,9 @@
                     "pubkey",
                     "role",
                     "createdAt",
-                    "currencyPrefs"
+                    "currencyPrefs",
+                    "cardRecoveryEnabled",
+                    "accountTransfer"
                   ],
                   "additionalProperties": {},
                   "description": "User record."
@@ -11042,6 +11820,172 @@
                   },
                   "required": [
                     "currencyPrefs"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/users/me/card-recovery": {
+      "put": {
+        "x-required-role": "USER",
+        "tags": [
+          "Users"
+        ],
+        "summary": "Allow or forbid recovering this account with one of its cards.",
+        "description": "Turning it off also revokes any outstanding RECOVER QR for the caller’s cards.",
+        "operationId": "users.me.cardRecovery.set",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CardRecoverySettingRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Card recovery setting saved.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "cardRecoveryEnabled": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "cardRecoveryEnabled"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/users/me/account-transfer/dismiss": {
+      "post": {
+        "x-required-role": "USER",
+        "tags": [
+          "Users"
+        ],
+        "summary": "Dismiss the “your account was transferred” notice.",
+        "operationId": "users.me.accountTransfer.dismiss",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Notice dismissed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "dismissed": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "dismissed"
                   ]
                 }
               }

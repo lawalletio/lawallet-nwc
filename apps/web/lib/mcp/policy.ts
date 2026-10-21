@@ -111,7 +111,11 @@ export const OPERATION_POLICY: Record<string, OperationPolicy> = {
   'cards.activationTokens.create': exclude(CARD_CLAIM_CREDENTIAL),
   'cards.activationTokens.list': exclude(CARD_CLAIM_CREDENTIAL),
   'cards.rescue': exclude(CARD_CLAIM_CREDENTIAL),
+  'cards.recoveryTokens.create': exclude(CARD_CLAIM_CREDENTIAL),
+  'cards.owner': READ,
+  'cards.verifyTap': exclude(CARD_PROTOCOL),
   'activationTokens.preview': READ,
+  'activationTokens.recoveryCheck': READ,
   'activationTokens.claim': exclude(CARD_BINDING),
 
   // Card designs
@@ -163,6 +167,10 @@ export const OPERATION_POLICY: Record<string, OperationPolicy> = {
   'users.list': READ,
   'users.me': READ,
   'users.me.currencyPrefs.set': WRITE,
+  'users.me.cardRecovery.set': exclude(
+    'account-security change: decides whether a lost card can take over this account'
+  ),
+  'users.me.accountTransfer.dismiss': WRITE,
   'users.get': READ,
   'users.cards.list': READ,
   'users.role.get': READ,

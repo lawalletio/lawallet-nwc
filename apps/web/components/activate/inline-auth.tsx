@@ -25,9 +25,26 @@ type Mode = 'choose' | 'create'
  * status flips to `authenticated` and the claim auto-fires. `onAuthStart` lets
  * the parent arm that auto-activation.
  */
-export function InlineAuth({ onAuthStart }: { onAuthStart: () => void }) {
+export function InlineAuth({
+  onAuthStart,
+  intent = 'activate'
+}: {
+  onAuthStart: () => void
+  /** `recover` swaps the copy for a RECOVER QR; the flow is the same. */
+  intent?: 'activate' | 'recover'
+}) {
   const { login } = useAuth()
-  const t = useT().activate.inlineAuth
+  const dict = useT().activate
+  const t =
+    intent === 'recover'
+      ? {
+          ...dict.inlineAuth,
+          intro: dict.recover.intro,
+          introNoPasskey: dict.recover.introNoPasskey,
+          activating: dict.recover.working,
+          createAndActivate: dict.recover.createAndRecover
+        }
+      : dict.inlineAuth
   const [mode, setMode] = useState<Mode>('choose')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)

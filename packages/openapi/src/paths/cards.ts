@@ -412,7 +412,11 @@ registry.registerPath({
         .object({
           p: z.string(),
           c: z.string(),
-          ctr: z.number().int()
+          ctr: z.number().int(),
+          url: z.string().openapi({
+            description:
+              'The exact `lnurlw://…/scan?p=…&c=…` URL a physical card emits for this tap.'
+          })
         })
         .openapi({ description: 'Public SUN params (no keys).' })
     ),

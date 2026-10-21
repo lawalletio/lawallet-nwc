@@ -28,6 +28,12 @@ export async function createNewUser(
      * the row here on verify.
      */
     userId?: string
+    /**
+     * Skip the LNCurl courtesy wallet. Card recovery passes it: the account
+     * is about to receive the recovered account's wallets, so a fresh empty
+     * one would only be clutter.
+     */
+    skipCourtesyWallet?: boolean
   }
 ) {
   const { lncurl_auto_create, lncurl_server_url } = await getSettings([
@@ -64,7 +70,7 @@ export async function createNewUser(
   // When LNCurl auto-provisioning is on, the account is not usable without
   // the courtesy wallet. A mint failure rolls the new user back and surfaces
   // as 503 so signup can be retried — it must not succeed with no wallet.
-  if (lncurl_auto_create === 'true') {
+  if (lncurl_auto_create === 'true' && !opts?.skipCourtesyWallet) {
     try {
       const lncurlWallet = await createLncurlRemoteWallet({
         userId: user.id,
@@ -84,9 +90,7 @@ export async function createNewUser(
           'Failed to roll back user after LNCurl signup mint failure'
         )
       }
-      throw new ServiceUnavailableError(
-        'Could not create a wallet. Try again.'
-      )
+      throw new ServiceUnavailableError('Could not create a wallet. Try again.')
     }
   }
 

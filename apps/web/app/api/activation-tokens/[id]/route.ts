@@ -13,6 +13,8 @@ import { effectiveTokenStatus } from '@/lib/card-activation'
  * before the claimer authenticates, but no secrets (no NTAG keys, no holder
  * identity). Expired/claimed/revoked state is surfaced via `status` so the
  * wallet can show "already claimed" / "expired" without attempting a claim.
+ * `purpose` tells an activation QR from a RECOVER one; what a RECOVER QR
+ * would move is only shown after sign-in (`…/recovery-check`).
  */
 export const GET = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ id: string }> }) => {
@@ -24,6 +26,7 @@ export const GET = withErrorHandling(
       select: {
         id: true,
         qrKind: true,
+        purpose: true,
         status: true,
         expiresAt: true,
         card: {
@@ -43,6 +46,7 @@ export const GET = withErrorHandling(
     return NextResponse.json({
       tokenId: token.id,
       qrKind: token.qrKind,
+      purpose: token.purpose,
       status: effectiveTokenStatus(token),
       card: {
         id: token.card.id,

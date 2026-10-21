@@ -134,6 +134,26 @@ export const settings: typeof En = {
       'Tu clave se guarda solo en este dispositivo. Respáldala para no perder el acceso si pierdes este dispositivo.',
     device: 'Dispositivo',
     removeDevice: 'Eliminar billetera del dispositivo',
-    copyLabel: (label: string) => `Copiar ${label}`
+    copyLabel: (label: string) => `Copiar ${label}`,
+    cardRecovery: {
+      title: 'Recuperación con tarjeta',
+      toggle: 'Recuperar con mis tarjetas',
+      hint: 'Quien tenga una de tus tarjetas puede pasar toda esta cuenta a una clave nueva en un punto de venta LaWallet. Desactívalo para que una tarjeta perdida no sirva para quedarse con tu cuenta.',
+      enabled: 'Recuperación con tarjeta activada',
+      disabled: 'Recuperación con tarjeta desactivada',
+      failed: 'No se pudo actualizar la recuperación con tarjeta'
+    }
+  },
+  accountTransfer: {
+    title: 'Tu cuenta fue transferida',
+    body: (date: string, card: string) =>
+      `El ${date}, tu tarjeta ${card} se usó en un punto de venta LaWallet para pasar esta cuenta a otra clave.`,
+    unnamedCard: '(sin nombre)',
+    moved: 'Qué se transfirió',
+    cards: n => (n === 1 ? '1 tarjeta' : `${n} tarjetas`),
+    wallets: n => (n === 1 ? '1 billetera' : `${n} billeteras`),
+    notYou:
+      'Si no fuiste tú, contacta a tu operador de inmediato. Puedes desactivar la Recuperación con tarjeta en Seguridad para que una tarjeta no pueda volver a hacerlo.',
+    dismiss: 'Entendido'
   }
 }
