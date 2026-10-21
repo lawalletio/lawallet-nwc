@@ -5862,12 +5862,17 @@
                     },
                     "ctr": {
                       "type": "integer"
+                    },
+                    "url": {
+                      "type": "string",
+                      "description": "The exact `lnurlw://…/scan?p=…&c=…` URL a physical card emits for this tap."
                     }
                   },
                   "required": [
                     "p",
                     "c",
-                    "ctr"
+                    "ctr",
+                    "url"
                   ],
                   "description": "Public SUN params (no keys)."
                 }
