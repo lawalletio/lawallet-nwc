@@ -158,8 +158,9 @@ async function refreshProfiles(
     const events = await relayFetcher(toFetch.map(n => n.pubkey))
     const latest = newestEventByPubkey(events)
 
-    // One transaction for every write instead of an upsert per pubkey
-    // (Sentry LAWALLET-WEB-Q, N+1 on POST /api/nostr/profiles).
+    // Batched writes instead of an upsert per pubkey (Sentry LAWALLET-WEB-Q,
+    // N+1 on POST /api/nostr/profiles), chunked so 200 upserts don't outrun
+    // the 5s transaction timeout (LAWALLET-WEB-Y).
     const writes: Prisma.PrismaPromise<unknown>[] = []
     const fetched: NostrProfile[] = []
     for (const key of toFetch) {
@@ -209,7 +210,7 @@ async function refreshProfiles(
       fetched.push(profile)
     }
 
-    await db.$transaction(writes)
+    await commitInChunks(db, writes)
 
     const precache = options.precacheImages ?? precacheProfileImages
     for (const profile of fetched) {
@@ -219,13 +220,28 @@ async function refreshProfiles(
       })
     }
   } catch (err) {
-    await db.$transaction(
+    // The backoff marker is best-effort: if the DB is what failed, recording
+    // the failure must not turn a profile lookup into a 500.
+    await commitInChunks(
+      db,
       toFetch.map(key =>
         fetchFailureWrite(db, key, attemptAt, errorMessage(err))
       )
-    )
+    ).catch(() => {})
   }
   return refreshed
+}
+
+const WRITE_CHUNK = 50
+
+// Cache rows need no cross-row atomicity, so each chunk commits on its own.
+async function commitInChunks(
+  db: typeof prisma,
+  writes: Prisma.PrismaPromise<unknown>[]
+): Promise<void> {
+  for (let i = 0; i < writes.length; i += WRITE_CHUNK) {
+    await db.$transaction(writes.slice(i, i + WRITE_CHUNK))
+  }
 }
 
 export function profileFromCacheRow(

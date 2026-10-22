@@ -414,6 +414,41 @@ describe('resolveProfiles', () => {
       })
     )
   })
+  it('commits a large batch in chunks so no transaction outruns its timeout', async () => {
+    const pubkeys = Array.from({ length: 120 }, (_, i) =>
+      i.toString(16).padStart(64, '0')
+    )
+    vi.mocked(prismaMock.user.findMany).mockResolvedValue(
+      pubkeys.map(pubkey => ({ pubkey })) as any
+    )
+    vi.mocked(prismaMock.nostrProfileCache.findMany).mockResolvedValue([])
+    const relayFetcher = vi.fn().mockResolvedValue([])
+
+    await resolveProfiles(pubkeys, { now: NOW, relayFetcher })
+
+    const sizes = vi
+      .mocked(prismaMock.$transaction)
+      .mock.calls.map(([writes]) => (writes as unknown as unknown[]).length)
+    expect(sizes).toEqual([50, 50, 20])
+  })
+
+  it('resolves instead of throwing when recording the failure also fails', async () => {
+    vi.mocked(prismaMock.user.findMany).mockResolvedValue([
+      { pubkey: PUBKEY_A }
+    ] as any)
+    vi.mocked(prismaMock.nostrProfileCache.findMany).mockResolvedValue([])
+    vi.mocked(prismaMock.$transaction).mockRejectedValue(
+      new Error('expired transaction')
+    )
+    const relayFetcher = vi
+      .fn()
+      .mockResolvedValue([kind0(PUBKEY_A, 100, { name: 'alice' })])
+
+    await expect(
+      resolveProfiles([PUBKEY_A], { now: NOW, relayFetcher })
+    ).resolves.toEqual([])
+  })
+
   it('stores null for missing fields and precaches with the default helper', async () => {
     vi.mocked(precacheProfileImages).mockResolvedValue(undefined)
     vi.mocked(prismaMock.user.findMany).mockResolvedValue([

@@ -3,10 +3,15 @@
 // next.config.mjs), one lazy chunk per file. Bundling instead of asking GitHub
 // keeps the notes working on offline self-hosted installs and pinned to the
 // version actually running, never one it hasn't installed yet.
-const files = import.meta.glob<string>('../../../../docs/changelogs/v*.md', {
-  query: '?raw',
-  import: 'default'
-})
+//
+// No `import: 'default'`: production Turbopack mangles the text module's
+// export name (`default` → `f`), so the picked export came back undefined and
+// crashed the admin dashboard (Sentry LAWALLET-WEB-W). Reading `.default` off
+// the whole module keeps the name observable, so it is not mangled.
+const files = import.meta.glob<{ default: unknown }>(
+  '../../../../docs/changelogs/v*.md',
+  { query: '?raw' }
+)
 
 export const RELEASES_URL = 'https://github.com/lawalletio/lawallet-nwc'
 
@@ -88,7 +93,12 @@ export async function loadReleases(
   const picked = available
     .filter(r => compareVersions(r.version, upTo) <= 0)
     .slice(0, limit)
-  return Promise.all(
-    picked.map(async r => parseRelease(r.version, await files[r.path]()))
+  const releases = await Promise.all(
+    picked.map(async r => {
+      const md = (await files[r.path]()).default
+      // One unreadable file drops its release, not the whole dialog.
+      return typeof md === 'string' ? parseRelease(r.version, md) : null
+    })
   )
+  return releases.filter(r => r !== null)
 }
