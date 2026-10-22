@@ -16,23 +16,33 @@ describe('currencies-store', () => {
     setCurrencyPrefsPersister(null)
   })
 
+  it('starts with sats, USD and ARS', () => {
+    const { result } = renderHook(() => useActiveCurrencies())
+    expect(result.current.map(currency => currency.code)).toEqual([
+      'SAT',
+      'USD',
+      'ARS'
+    ])
+  })
+
   it('persists added currencies across a cache reset', () => {
-    currenciesActions.add('USD')
-    currenciesActions.add('ARS')
+    currenciesActions.add('BTC')
+    currenciesActions.add('EUR')
 
     __resetCurrenciesCacheForTests()
 
     const stored = JSON.parse(
       window.localStorage.getItem('lawallet-active-currencies') ?? 'null'
     )
-    expect(stored.active).toEqual(['SAT', 'BTC', 'USD', 'ARS'])
+    expect(stored.active).toEqual(['SAT', 'USD', 'ARS', 'BTC', 'EUR'])
 
     const { result } = renderHook(() => useActiveCurrencies())
     expect(result.current.map(currency => currency.code)).toEqual([
       'SAT',
-      'BTC',
       'USD',
-      'ARS'
+      'ARS',
+      'BTC',
+      'EUR'
     ])
   })
 
@@ -123,7 +133,7 @@ describe('currencies-store', () => {
     const persist = vi.fn()
     setCurrencyPrefsPersister(persist)
 
-    currenciesActions.add('USD')
+    currenciesActions.add('BTC')
     hydrateCurrencyPrefs({
       active: ['SAT', 'BTC', 'EUR'],
       selected: 'EUR'
@@ -131,7 +141,7 @@ describe('currencies-store', () => {
 
     expect(persist).toHaveBeenCalledTimes(1)
     expect(persist).toHaveBeenCalledWith({
-      active: ['SAT', 'BTC', 'USD'],
+      active: ['SAT', 'USD', 'ARS', 'BTC'],
       selected: 'SAT'
     })
   })
