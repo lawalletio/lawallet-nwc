@@ -8,7 +8,9 @@
 /** Sentry `ignoreErrors`: matched against `<type>: <value>`. */
 export const IGNORE_ERRORS: RegExp[] = [
   // MetaMask extension (LAWALLET-WEB-8); we never talk to MetaMask.
-  /Failed to connect to MetaMask/
+  /Failed to connect to MetaMask/,
+  // The user dismissed or timed out the passkey prompt (LAWALLET-WEB-Z).
+  /^NotAllowedError: The operation either timed out or was not allowed/
 ]
 
 /** Sentry `denyUrls`: matched against the top frame's URL. */

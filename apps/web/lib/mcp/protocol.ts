@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import packageJson from '@/package.json'
 import { logger } from '@/lib/logger'
+import { reportError } from '@/lib/observability/report'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { rateLimit } from '@/lib/middleware/rate-limit'
 import { handleApiError } from '@/types/server/error-handler'
@@ -375,6 +376,7 @@ export async function handleMcpPost(
         replies.push(await execute(p, caller, endpoint))
       } catch (error) {
         logger.error({ err: error, method: p.method }, 'mcp.request_failed')
+        reportError(error, 'mcp')
         replies.push(internalError(p.id))
       }
     }

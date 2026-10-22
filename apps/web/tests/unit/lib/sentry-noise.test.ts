@@ -52,6 +52,14 @@ describe('IGNORE_ERRORS', () => {
     expect(ignored('i: Failed to connect to MetaMask')).toBe(true)
   })
 
+  it('drops LAWALLET-WEB-Z: a dismissed passkey prompt', () => {
+    expect(
+      ignored(
+        'NotAllowedError: The operation either timed out or was not allowed. See: https://www.w3.org/TR/webauthn-2/#sctn-privacy-considerations-client.'
+      )
+    ).toBe(true)
+  })
+
   it('keeps a normal app error', () => {
     expect(ignored('TypeError: Failed to fetch')).toBe(false)
   })

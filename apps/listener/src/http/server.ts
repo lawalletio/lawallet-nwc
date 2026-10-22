@@ -16,6 +16,7 @@ import { NwcPool, NwcPoolError } from '../nwc/pool'
 import { recentEventsSafe } from '../store'
 import { verifyBearer } from './auth'
 import packageJson from '../../package.json'
+import { reportError } from '../sentry'
 
 const MAX_BODY_BYTES = 64 * 1024
 const DEFAULT_HEALTH_DB_TIMEOUT_MS = 750
@@ -64,6 +65,7 @@ export function createHttpServer(deps: HttpServerDeps): http.Server {
   return http.createServer((req, res) => {
     void route(req, res).catch(err => {
       log.error({ err, url: req.url }, 'http.unhandled_error')
+      reportError(err, 'http.unhandled_error')
       if (!res.headersSent) {
         sendJson(res, 500, { error: 'internal_error' })
       } else {
@@ -331,6 +333,7 @@ export function createHttpServer(deps: HttpServerDeps): http.Server {
           sendProxyError(res, err.code, err.message, err.walletErrorCode)
         } else {
           log.error({ walletId, method, err }, 'nwc_request.unexpected_error')
+          reportError(err, 'nwc_request.unexpected_error')
           sendProxyError(res, 'relay_error', 'Unexpected NWC transport error')
         }
       }

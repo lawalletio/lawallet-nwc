@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
+import { reportError } from '@/lib/observability/report'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { rateLimit, RateLimitPresets } from '@/lib/middleware/rate-limit'
 import { validateBody } from '@/lib/validation/middleware'
@@ -202,6 +203,7 @@ export default async function voucher(
       { username, transferId: intent.id, err: String(err) },
       'Voucher transfer burned at the service but could not be stored'
     )
+    reportError(err, 'voucher')
     return refuse('Could not store the voucher')
   }
 

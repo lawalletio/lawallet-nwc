@@ -22,6 +22,12 @@ const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN
 if (dsn) {
   Sentry.init({
     dsn,
+    // Same name the server reports (`VERCEL_ENV`); the SDK default here was
+    // `vercel-production`, splitting one deployment across two environments.
+    environment:
+      process.env.NEXT_PUBLIC_VERCEL_ENV ??
+      process.env.NODE_ENV ??
+      'development',
     tracesSampleRate: 0.1,
     traceLifecycle: SENTRY_TRACE_LIFECYCLE,
     dataCollection: SENTRY_DATA_COLLECTION,

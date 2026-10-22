@@ -5,6 +5,7 @@ import { eventBus } from '@/lib/events/event-bus'
 import { errorMessage } from '@/lib/error-message'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
+import { reportError } from '@/lib/observability/report'
 import { getListenerConfig } from '@/lib/listener-config'
 import {
   getListenerNwcPayment,
@@ -77,6 +78,7 @@ export async function reconcileProxyPayments(
       } catch (err) {
         const message = errorMessage(err)
         logger.error({ err, proxyPaymentId: id }, 'proxy.reconcile_failed')
+        reportError(err, 'proxy-reconcile')
         await releaseWithError(id, workerId, message)
         emitProxyActivityUpdated()
         return 'failed'
