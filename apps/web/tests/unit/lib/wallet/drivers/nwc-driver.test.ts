@@ -37,7 +37,17 @@ const bridge = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/wallet/drivers/listener-transport', () => {
-  class ListenerUnavailableError extends Error {}
+  class ListenerUnavailableError extends Error {
+    constructor(
+      message: string,
+      readonly options?: { code?: string }
+    ) {
+      super(message)
+    }
+    get code() {
+      return this.options?.code
+    }
+  }
   return {
     ListenerUnavailableError,
     resolveListenerBridge: async () => ({ enabled: bridge.enabled }),
@@ -543,6 +553,33 @@ describe('nwcDriver', () => {
         invoice: 'lnbc1',
         amount: undefined
       })
+      expect(nwcCtor).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not retry getBalance over direct NWC when the wallet timed out on the listener', async () => {
+      bridge.enabled = true
+      const { ListenerUnavailableError } =
+        await import('@/lib/wallet/drivers/listener-transport')
+      bridge.request.mockRejectedValueOnce(
+        new ListenerUnavailableError('timeout', { code: 'timeout' })
+      )
+
+      await expect(nwcDriver.getBalance(CONFIG)).rejects.toBeInstanceOf(
+        DriverRemoteError
+      )
+      expect(nwcCtor).not.toHaveBeenCalled()
+    })
+
+    it('falls back to direct NWC for getBalance when the listener is unreachable', async () => {
+      bridge.enabled = true
+      const { ListenerUnavailableError } =
+        await import('@/lib/wallet/drivers/listener-transport')
+      bridge.request.mockRejectedValueOnce(
+        new ListenerUnavailableError('listener down')
+      )
+      getBalanceMock.mockResolvedValueOnce({ balance: 2_000 })
+
+      expect(await nwcDriver.getBalance(CONFIG)).toEqual({ balanceSats: 2 })
       expect(nwcCtor).toHaveBeenCalledTimes(1)
     })
 

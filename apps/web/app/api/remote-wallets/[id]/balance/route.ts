@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { authenticate } from '@/lib/auth/unified-auth'
 import { resolveAccountByPubkey } from '@/lib/auth/account'
 import { withErrorHandling } from '@/types/server/error-handler'
-import { NotFoundError, ServiceUnavailableError } from '@/types/server/errors'
+import { NotFoundError } from '@/types/server/errors'
 import { idParam } from '@/lib/validation/schemas'
 import { validateParams } from '@/lib/validation/middleware'
 import { DriverError, driverForWallet } from '@/lib/wallet/drivers'
@@ -23,7 +23,8 @@ export const revalidate = 0
  *
  * Ownership-scoped: 404 (not 403) when the wallet belongs to someone else,
  * so IDs can't be enumerated. A REVOKED wallet has no live balance — we
- * 404 it rather than dial a dead connection.
+ * 404 it rather than dial a dead connection. A DEAD (archived) or
+ * unreachable wallet reports `balanceSats: 0` — nothing is spendable.
  */
 export const GET = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ id: string }> }) => {
@@ -37,6 +38,8 @@ export const GET = withErrorHandling(
     if (!wallet || wallet.userId !== user.id || wallet.status === 'REVOKED') {
       throw new NotFoundError('Wallet not found')
     }
+    // Archived by the listener after 48h without a sign of life: nothing to dial.
+    if (wallet.status === 'DEAD') return NextResponse.json({ balanceSats: 0 })
 
     try {
       const { driver, config } = driverForWallet({
@@ -48,12 +51,10 @@ export const GET = withErrorHandling(
       return NextResponse.json({ balanceSats })
     } catch (err) {
       // The wallet exists but its backing connection is unreachable (relay
-      // down, revoked NWC grant, corrupt config). Surface as 503 so the UI
-      // can show "unavailable" without treating it as a hard error.
+      // down, wallet silent, revoked NWC grant, corrupt config): nothing is
+      // spendable through it right now, so report 0.
       if (err instanceof DriverError) {
-        throw new ServiceUnavailableError(
-          'Wallet balance is currently unavailable'
-        )
+        return NextResponse.json({ balanceSats: 0 })
       }
       throw err
     }

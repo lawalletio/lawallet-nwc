@@ -132,6 +132,13 @@ export const nwcDriver: RemoteWalletDriver<NwcDriverConfig> = {
           // Wallet rejections (DriverRemoteError) are final; only transport
           // failures fall back to the direct relay connection below.
           if (!(err instanceof ListenerUnavailableError)) throw err
+          // The listener reached the relay and the wallet stayed silent: a
+          // direct retry would just wait out a second timeout (~20s p95).
+          if (err.code === 'timeout') {
+            throw new DriverRemoteError('NWC get_balance timed out', {
+              cause: err
+            })
+          }
           logger.warn(
             { err },
             'nwc.listener_bridge_unavailable — falling back to direct NWC'

@@ -129,7 +129,9 @@ describe('listenerNwcRequest', () => {
     expect(JSON.parse(init.body as string)).toEqual({
       connectionString: INPUT.connectionString,
       method: 'pay_invoice',
-      params: { invoice: 'lnbc1' }
+      params: { invoice: 'lnbc1' },
+      // Ends before our 10s abort so a silent wallet reads as `timeout`.
+      timeoutMs: 9000
     })
   })
 
@@ -175,9 +177,10 @@ describe('listenerNwcRequest', () => {
             )
           )
       )
-      await expect(listenerNwcRequest(BRIDGE, INPUT)).rejects.toBeInstanceOf(
-        ListenerUnavailableError
-      )
+      await expect(listenerNwcRequest(BRIDGE, INPUT)).rejects.toMatchObject({
+        name: 'ListenerUnavailableError',
+        code
+      })
     }
   })
 
