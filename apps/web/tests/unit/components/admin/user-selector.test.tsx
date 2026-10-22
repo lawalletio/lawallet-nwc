@@ -11,10 +11,14 @@ vi.mock('@/lib/client/hooks/use-users', () => ({
 vi.mock('@/lib/client/nostr-profile', () => ({
   useNostrProfiles: vi.fn()
 }))
+vi.mock('@/components/admin/auth-context', () => ({
+  useAuth: vi.fn()
+}))
 
 import { UserSelector } from '@/components/admin/user-selector'
 import { useUsers } from '@/lib/client/hooks/use-users'
 import { useNostrProfiles } from '@/lib/client/nostr-profile'
+import { useAuth } from '@/components/admin/auth-context'
 
 const PK_A = 'a'.repeat(64)
 const PK_B = 'b'.repeat(64)
@@ -70,6 +74,7 @@ function Harness() {
 beforeEach(() => {
   vi.clearAllMocks()
   mockData()
+  vi.mocked(useAuth).mockReturnValue({ pubkey: null } as any)
 })
 
 describe('UserSelector', () => {
@@ -135,5 +140,19 @@ describe('UserSelector', () => {
       expect(screen.queryByText('OPERATOR')).not.toBeInTheDocument()
     )
     expect(screen.getByText('Alice')).toBeInTheDocument()
+  })
+
+  it('pins the signed-in user first and marks them as you', async () => {
+    // Bob (PK_B) is listed second by the API but is the signed-in user.
+    vi.mocked(useAuth).mockReturnValue({ pubkey: PK_B } as any)
+    const user = userEvent.setup()
+    render(<Harness />)
+    await user.click(screen.getByRole('combobox'))
+
+    const options = await screen.findAllByRole('option')
+    expect(options[0]).toHaveTextContent('OPERATOR')
+    expect(options[0]).toHaveTextContent('(you)')
+    expect(options[1]).toHaveTextContent('Alice')
+    expect(options[1]).not.toHaveTextContent('(you)')
   })
 })

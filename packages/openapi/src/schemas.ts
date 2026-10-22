@@ -12,9 +12,11 @@ import {
   accountSummaryResponseSchema,
   cardScanCallbackQuerySchema,
   cardListQuerySchema,
+  cardRecoverySettingSchema,
   claimActivationTokenSchema,
   claimInvoiceSchema,
   createActivationTokenSchema,
+  createRecoveryTokenSchema,
   createCardDesignSchema,
   createCardSchema,
   depositVoucherSchema,
@@ -133,6 +135,17 @@ export const schemas = {
   ActivationTokenClaimRequest: registry.register(
     'ActivationTokenClaimRequest',
     claimActivationTokenSchema
+  ),
+  RecoveryTokenCreateRequest: registry.register(
+    'RecoveryTokenCreateRequest',
+    createRecoveryTokenSchema.openapi({
+      description:
+        'SUN params (`p`, `c`) from a fresh physical tap of the card; verified and burned server-side.'
+    })
+  ),
+  CardRecoverySettingRequest: registry.register(
+    'CardRecoverySettingRequest',
+    cardRecoverySettingSchema
   ),
 
   // ── Card Designs ───────────────────────────────────────────────────────

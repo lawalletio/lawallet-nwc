@@ -56,5 +56,46 @@ export const activate: typeof En = {
     connectFailed: 'No se pudo conectar',
     activating: 'Activando…',
     createAndActivate: 'Crear y activar'
+  },
+  recover: {
+    eyebrow: 'Recupera tu cuenta',
+    action: 'Recuperar cuenta',
+    recovering: 'Recuperando tu cuenta…',
+    failed: 'No se pudo recuperar.',
+    intro:
+      'Recupera la cuenta de esta tarjeta con una passkey nueva o una clave de Nostr nueva.',
+    introNoPasskey:
+      'Este navegador no puede crear una passkey. Abre esta página en Safari o Chrome, o continúa con una clave de Nostr.',
+    working: 'Recuperando…',
+    createAndRecover: 'Crear y recuperar',
+    merge: {
+      title: '¿Unir con tu cuenta?',
+      body: 'Iniciaste sesión en una cuenta que ya tiene datos. Al recuperar, todo lo de la cuenta de la tarjeta pasa a esta.',
+      yours: 'Tu cuenta',
+      incoming: 'De la cuenta de la tarjeta',
+      noAddress: 'Sin dirección lightning',
+      cards: n => (n === 1 ? '1 tarjeta' : `${n} tarjetas`),
+      wallets: n => (n === 1 ? '1 billetera' : `${n} billeteras`),
+      keepsPrimary:
+        'Tu dirección principal actual sigue siendo la principal. Puedes cambiarla luego en Ajustes.',
+      confirm: 'Unir y recuperar',
+      cancel: 'Cancelar'
+    },
+    done: {
+      title: 'Cuenta recuperada',
+      body: 'Todo lo de la cuenta de la tarjeta ya está en esta billetera.',
+      merged: 'Todo lo de la cuenta de la tarjeta se unió a esta billetera.',
+      addresses: 'Direcciones lightning',
+      cards: 'Tarjetas',
+      wallets: 'Billeteras remotas',
+      totalBalance: 'Saldo total',
+      unavailable: 'No disponible',
+      none: 'Ninguna',
+      untitledCard: 'Tarjeta',
+      defaultWallet: 'Principal',
+      vouchers: n => (n === 1 ? '1 cupón' : `${n} cupones`),
+      openWallet: 'Abrir billetera',
+      claimAddress: 'Reclama tu dirección'
+    }
   }
 }

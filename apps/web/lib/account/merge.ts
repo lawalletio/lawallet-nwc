@@ -1,5 +1,4 @@
 import { prisma } from '@/lib/prisma'
-import type { Prisma } from '@/lib/generated/prisma'
 import {
   ConflictError,
   NotFoundError,
@@ -9,8 +8,7 @@ import { ActivityEvent, logActivity } from '@/lib/activity-log'
 import { forgetResolvedAccounts } from '@/lib/auth/account'
 import { parseStoredRelays } from '@/lib/nostr/relay-list'
 import { resolveProfiles } from '@/lib/nostr/profile-cache'
-
-type Tx = Prisma.TransactionClient
+import { reparentAccountResources } from '@/lib/account/reparent'
 
 /**
  * Per-account snapshot shown in the side-by-side merge preview, with enough
@@ -183,38 +181,6 @@ export async function previewMerge(
   return { survivor, absorbed, collisions, blocked }
 }
 
-/**
- * Renames the incoming wallets that would collide with the survivor's under
- * `@@unique([userId, name])`. `taken` is seeded with BOTH sides' names so a
- * generated suffix can't collide with another incoming wallet either.
- */
-async function reconcileWalletNames(
-  tx: Tx,
-  survivorId: string,
-  incoming: { id: string; name: string }[]
-): Promise<void> {
-  const survivorWallets = await tx.remoteWallet.findMany({
-    where: { userId: survivorId },
-    select: { name: true }
-  })
-  const survivorNames = new Set(survivorWallets.map(w => w.name))
-  const taken = new Set([...survivorNames, ...incoming.map(w => w.name)])
-
-  for (const wallet of incoming) {
-    if (!survivorNames.has(wallet.name)) continue
-    let candidate: string
-    for (let i = 2; ; i++) {
-      candidate = `${wallet.name} (${i})`
-      if (!taken.has(candidate)) break
-    }
-    taken.add(candidate)
-    await tx.remoteWallet.update({
-      where: { id: wallet.id },
-      data: { name: candidate }
-    })
-  }
-}
-
 export interface MergeResult {
   survivorId: string
   mainPubkey: string
@@ -284,7 +250,7 @@ export async function mergeAccounts(params: {
           relays: true,
           managedNostrKey: { select: { exportedAt: true } },
           nostrIdentities: { select: { pubkey: true } },
-          lightningAddresses: { select: { username: true } },
+          lightningAddresses: { select: { username: true, isPrimary: true } },
           remoteWallets: { select: { id: true, name: true } }
         }
       })
@@ -349,34 +315,25 @@ export async function mergeAccounts(params: {
       await tx.managedNostrKey.delete({ where: { userId: absorbedId } })
     }
 
-    // ── Partial-unique flags: survivor keeps primacy (default). The user's
-    // explicit choice, when given, is applied after the re-parent — here we
-    // only make sure two flag-holders never coexist under one userId, which
-    // the partial unique indexes reject mid-statement.
-    const survivorHasPrimaryAddress = survivor.lightningAddresses.some(
-      a => a.isPrimary
+    // ── Bulk re-parent (all FKs point at User.id). Survivor keeps primacy
+    // by default; the user's explicit choice, when given, is applied after
+    // the re-parent. Colliding incoming wallet names get a suffix.
+    const { movedAddresses, movedWallets } = await reparentAccountResources(
+      tx,
+      {
+        fromId: absorbedId,
+        toId: survivorId,
+        target: {
+          hasPrimaryAddress: survivor.lightningAddresses.some(a => a.isPrimary),
+          hasDefaultWallet: survivor.remoteWallets.some(w => w.isDefault)
+        },
+        incoming: {
+          hasPrimaryAddress: absorbed.lightningAddresses.some(a => a.isPrimary),
+          wallets: absorbed.remoteWallets
+        }
+      }
     )
-    if (survivorHasPrimaryAddress) {
-      await tx.lightningAddress.updateMany({
-        where: { userId: absorbedId, isPrimary: true },
-        data: { isPrimary: false }
-      })
-    }
-    const survivorHasDefaultWallet = survivor.remoteWallets.some(
-      w => w.isDefault
-    )
-    if (survivorHasDefaultWallet) {
-      await tx.remoteWallet.updateMany({
-        where: { userId: absorbedId, isDefault: true },
-        data: { isDefault: false }
-      })
-    }
-
-    // ── Wallet name collisions: suffix incoming ──────────────────────────
-    await reconcileWalletNames(tx, survivorId, absorbed.remoteWallets)
-
-    // ── Bulk re-parent (all FKs point at User.id) ────────────────────────
-    const [identities, passkeys, addresses, wallets] = await Promise.all([
+    const [identities, passkeys] = await Promise.all([
       tx.nostrIdentity.updateMany({
         // Incoming identities all become secondaries; primary is settled below.
         where: { userId: absorbedId },
@@ -385,64 +342,18 @@ export async function mergeAccounts(params: {
       tx.passkeyCredential.updateMany({
         where: { userId: absorbedId },
         data: { userId: survivorId }
-      }),
-      tx.lightningAddress.updateMany({
-        where: { userId: absorbedId },
-        data: { userId: survivorId }
-      }),
-      tx.remoteWallet.updateMany({
-        where: { userId: absorbedId },
-        data: { userId: survivorId }
       })
     ])
-    await tx.card.updateMany({
+    // Connected apps and their payment ledger cascade on User delete; the
+    // merged person keeps their grants.
+    await tx.oAuthGrant.updateMany({
       where: { userId: absorbedId },
       data: { userId: survivorId }
     })
-    await tx.ntag424.updateMany({
+    await tx.mcpPayment.updateMany({
       where: { userId: absorbedId },
       data: { userId: survivorId }
     })
-    await tx.cardDesign.updateMany({
-      where: { userId: absorbedId },
-      data: { userId: survivorId }
-    })
-    await tx.invoice.updateMany({
-      where: { userId: absorbedId },
-      data: { userId: survivorId }
-    })
-    // Audit history follows the surviving account instead of being nulled.
-    await tx.activityLog.updateMany({
-      where: { userId: absorbedId },
-      data: { userId: survivorId }
-    })
-    // Vouchers are bearer value and their transfer journal is the only
-    // recovery path for a half-finished swap. Both cascade on User delete, so
-    // missing them here would silently destroy live coupons the moment the
-    // shell is removed below.
-    await tx.voucher.updateMany({
-      where: { userId: absorbedId },
-      data: { userId: survivorId }
-    })
-    await tx.voucherTransfer.updateMany({
-      where: { userId: absorbedId },
-      data: { userId: survivorId }
-    })
-    // Tags share a composite PK with the account, so updateMany would collide
-    // when both accounts annotated the same payment. Insert with
-    // skipDuplicates (the survivor's tag wins) and drop the absorbed rows
-    // before the shell cascade deletes them.
-    const absorbedLabels = await tx.transactionLabel.findMany({
-      where: { userId: absorbedId },
-      select: { paymentHash: true, label: true }
-    })
-    if (absorbedLabels.length > 0) {
-      await tx.transactionLabel.createMany({
-        data: absorbedLabels.map(label => ({ ...label, userId: survivorId })),
-        skipDuplicates: true
-      })
-      await tx.transactionLabel.deleteMany({ where: { userId: absorbedId } })
-    }
 
     // ── Delete the empty shell BEFORE settling the primary: its
     // User.pubkey would collide with the survivor's mirror if the chosen
@@ -508,8 +419,8 @@ export async function mergeAccounts(params: {
       mainPubkey,
       movedIdentities: identities.count,
       movedPasskeys: passkeys.count,
-      movedAddresses: addresses.count,
-      movedWallets: wallets.count,
+      movedAddresses,
+      movedWallets,
       mergedRelays: mergedRelays.length,
       absorbedPubkey: absorbed.pubkey
     }

@@ -9,7 +9,6 @@ import { BrandingTab } from '@/components/admin/settings/branding-tab'
 import { WalletTab } from '@/components/admin/settings/wallet-tab'
 import { InfrastructureTab } from '@/components/admin/settings/infrastructure-tab'
 import { NwcServicesTab } from '@/components/admin/settings/nwc-services-tab'
-import { DeviceTokensTab } from '@/components/admin/settings/device-tokens-tab'
 import { BackupTab } from '@/components/admin/settings/backup-tab'
 import { useAuth } from '@/components/admin/auth-context'
 import { Role } from '@/lib/auth/permissions'
@@ -81,11 +80,6 @@ function SettingsContent() {
             onClick: () => navigate('/admin/settings?tab=nwc-services')
           },
           {
-            label: 'Device Tokens',
-            active: activeTab === 'device-tokens',
-            onClick: () => navigate('/admin/settings?tab=device-tokens')
-          },
-          {
             label: 'Backup & Restore',
             active: activeTab === 'backup',
             onClick: () => navigate('/admin/settings?tab=backup')
@@ -97,7 +91,6 @@ function SettingsContent() {
       {activeTab === 'branding' && <BrandingTab />}
       {activeTab === 'wallet' && <WalletTab />}
       {activeTab === 'nwc-services' && <NwcServicesTab />}
-      {activeTab === 'device-tokens' && <DeviceTokensTab />}
       {activeTab === 'backup' && <BackupTab />}
     </div>
   )

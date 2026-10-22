@@ -44,6 +44,7 @@ import {
 } from '@/lib/client/card-emulator-crypto'
 import { parseDestination } from '@/lib/client/nwc/parse-destination'
 import { requestLnurlInvoice } from '@/lib/client/lnurl-invoice'
+import { truncateNpub } from '@/lib/client/format'
 import { cn } from '@/lib/utils'
 
 interface ApiNtag {
@@ -95,6 +96,8 @@ export function CardEmulator() {
   const [inspecting, setInspecting] = useState(false)
   const [paying, setPaying] = useState(false)
   const [steps, setSteps] = useState<TapStep[]>([])
+  // The `lnurlw://` URL the last emulated tap would have written to NDEF.
+  const [tapUrl, setTapUrl] = useState<string | null>(null)
   const [verdict, setVerdict] = useState<Verdict | null>(null)
 
   const [activationUrl, setActivationUrl] = useState<string | null>(null)
@@ -127,6 +130,7 @@ export function CardEmulator() {
   // card's real server-side counter.
   useEffect(() => {
     setSteps([])
+    setTapUrl(null)
     setVerdict(null)
     setActivationUrl(null)
     setEmulatedCtr(selected?.ntag424?.ctr ?? 0)
@@ -199,14 +203,17 @@ export function CardEmulator() {
     setVerdict(null)
     const collected: TapStep[] = []
     try {
-      const tap = await apiClient.post<{ p: string; c: string; ctr: number }>(
-        `/api/cards/${selected.id}/emulate-tap`,
-        {}
-      )
+      const tap = await apiClient.post<{
+        p: string
+        c: string
+        ctr: number
+        url: string
+      }>(`/api/cards/${selected.id}/emulate-tap`, {})
       const scanUrl = buildScanUrl(origin, selected.id, {
         p: tap.p,
         c: tap.c
       })
+      setTapUrl(tap.url)
       const scanRes = await fetch(scanUrl)
       const scanBody = await scanRes.json().catch(() => null)
       collected.push({
@@ -292,15 +299,18 @@ export function CardEmulator() {
       const bolt11 = await resolveInvoice()
 
       // 2. Sign the tap.
-      const tap = await apiClient.post<{ p: string; c: string; ctr: number }>(
-        `/api/cards/${selected.id}/emulate-tap`,
-        {}
-      )
+      const tap = await apiClient.post<{
+        p: string
+        c: string
+        ctr: number
+        url: string
+      }>(`/api/cards/${selected.id}/emulate-tap`, {})
       setEmulatedCtr(tap.ctr)
       const pc: TapPC = { p: tap.p, c: tap.c }
 
       // 3. GET /scan — the LNURL-withdraw request.
       const scanUrl = buildScanUrl(origin, selected.id, pc)
+      setTapUrl(tap.url)
       const scanRes = await fetch(scanUrl)
       const scanBody = await scanRes.json().catch(() => null)
       collected.push({
@@ -455,7 +465,8 @@ export function CardEmulator() {
                       ' · ' +
                       (c.ntag424?.cid ?? '????') +
                       ' · ' +
-                      shortId(c.id)}
+                      shortId(c.id) +
+                      (c.username ? ` · @${c.username}` : '')}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -489,6 +500,14 @@ export function CardEmulator() {
             <Badge variant={selected.pubkey ? 'default' : 'secondary'}>
               {selected.pubkey ? 'Paired' : 'Unpaired'}
             </Badge>
+            {selected.pubkey && (
+              <span className="text-xs text-muted-foreground">
+                Owner{' '}
+                <span className="font-medium text-foreground">
+                  {ownerLabel(selected)}
+                </span>
+              </span>
+            )}
             <Badge variant={selected.lastUsedAt ? 'default' : 'outline'}>
               {selected.lastUsedAt ? 'Used' : 'Never tapped'}
             </Badge>
@@ -551,6 +570,19 @@ export function CardEmulator() {
                   )}
                   {inspecting ? 'Tapping…' : 'Simple tap'}
                 </Button>
+                {tapUrl && (
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      URL emitted by the card
+                    </p>
+                    <div className="flex items-start gap-2 rounded-lg border border-border bg-background p-3">
+                      <code className="flex-1 break-all text-2xs">
+                        {tapUrl}
+                      </code>
+                      <CopyBtn value={tapUrl} />
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-1 border-t border-border pt-4">
@@ -712,8 +744,9 @@ export function CardEmulator() {
                   />
                   <Field
                     label="Owner"
-                    value={selected.username || selected.pubkey || 'Not paired'}
-                    mono={!!selected.pubkey}
+                    value={
+                      selected.pubkey ? ownerLabel(selected) : 'Not paired'
+                    }
                   />
                   <Field
                     label="Wallet binding"
@@ -849,6 +882,12 @@ function CopyBtn({ value }: { value: string }) {
       {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
     </button>
   )
+}
+
+/** `@username · npub1abc…xyz`, or just the npub when the owner has no address. */
+function ownerLabel(card: ApiCard): string {
+  const npub = card.pubkey ? truncateNpub(card.pubkey) : ''
+  return card.username ? `@${card.username} · ${npub}` : npub
 }
 
 function shortId(id: string): string {

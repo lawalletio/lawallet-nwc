@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { signNtag424Tap } from '@/lib/ntag424'
+import { lnurlwBase, signNtag424Tap } from '@/lib/ntag424'
+import { resolveApiUrl } from '@/lib/public-url'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { authenticateWithPermission } from '@/lib/auth/unified-auth'
 import { Permission } from '@/lib/auth/permissions'
@@ -14,7 +15,9 @@ import { checkRequestLimits } from '@/lib/middleware/request-limits'
  * card emulator.
  *
  * Signs the card's *next* tap (counter + 1) and returns only the public `p`/`c`
- * URL params — the NTAG424 keys never leave the server. The emulator replays
+ * URL params — the NTAG424 keys never leave the server — plus `url`, the exact
+ * `lnurlw://` URL a physical card would emit for that tap (same host as the
+ * `lnurlw_base` written by `/write`). The emulator replays
  * the returned params through the normal `/scan` flow; that flow (not this
  * route) advances the stored counter when the SUN verifies.
  *
@@ -43,7 +46,9 @@ export const POST = withErrorHandling(
 
     const ctr = card.ntag424.ctr + 1
     const { p, c } = await signNtag424Tap(card.ntag424, ctr)
+    const host = new URL(await resolveApiUrl(request)).host
+    const url = `${lnurlwBase(id, host)}?p=${p}&c=${c}`
 
-    return NextResponse.json({ p, c, ctr })
+    return NextResponse.json({ p, c, ctr, url })
   }
 )

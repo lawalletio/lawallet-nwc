@@ -283,7 +283,28 @@ export const createActivationTokenSchema = z.object({
  * default wallet at claim time.
  */
 export const claimActivationTokenSchema = z.object({
-  remoteWalletId: z.string().min(1).nullish()
+  remoteWalletId: z.string().min(1).nullish(),
+  /**
+   * RECOVER tokens only: the claimer already has data and agreed to merge the
+   * recovered account into it. Without it such a claim is refused with 409
+   * `RECOVERY_MERGE_REQUIRED` so the wallet can ask first.
+   */
+  confirmMerge: z.boolean().optional()
+})
+
+/**
+ * Mint a RECOVER QR (card-manager). `p`/`c` are the SUN params from a fresh
+ * physical tap: the server verifies and burns that tap, so the QR can only be
+ * produced with the card in hand.
+ */
+export const createRecoveryTokenSchema = scanCardQuerySchema
+
+/** Check a tap's SUN `p`/`c` without spending it (card-manager, before showing a card). */
+export const verifyCardTapSchema = scanCardQuerySchema
+
+/** Owner opt-out for card-based account recovery (Security screen). */
+export const cardRecoverySettingSchema = z.object({
+  enabled: z.boolean()
 })
 
 // ── Lightning Addresses ─────────────────────────────────────────────────────

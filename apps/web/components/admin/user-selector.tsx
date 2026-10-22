@@ -23,6 +23,7 @@ import { useUsers, type AdminUser } from '@/lib/client/hooks/use-users'
 import { useNostrProfiles } from '@/lib/client/nostr-profile'
 import { truncateNpub, npubInitials, toNpub } from '@/lib/client/format'
 import { Role } from '@/lib/auth/permissions'
+import { useAuth } from '@/components/admin/auth-context'
 
 const ROLE_VARIANT: Record<Role, 'default' | 'secondary' | 'outline'> = {
   ADMIN: 'default',
@@ -44,6 +45,7 @@ interface UserOption {
   role: Role
   avatarUrl: string | null
   address: string | null
+  isSelf: boolean
 }
 
 export interface UserSelectorProps {
@@ -70,6 +72,7 @@ export function UserSelector({
   placeholder = 'Select a user',
   users: usersProp
 }: UserSelectorProps) {
+  const { pubkey: selfPubkey } = useAuth()
   const { data: fetchedUsers, loading: usersLoading } = useUsers()
   const users = useMemo(
     () => usersProp ?? fetchedUsers ?? [],
@@ -89,10 +92,13 @@ export function UserSelector({
           name: profile?.displayName || profile?.name || null,
           role: u.role,
           avatarUrl: profile?.picture ?? null,
-          address: u.primaryAddress
+          address: u.primaryAddress,
+          isSelf: u.pubkey === selfPubkey
         }
-      }),
-    [users, profiles]
+      })
+        // The signed-in user always leads the list (stable sort keeps the rest).
+        .sort((a, b) => Number(b.isSelf) - Number(a.isSelf)),
+    [users, profiles, selfPubkey]
   )
 
   const selected = options.find(o => o.id === value) ?? null
@@ -210,6 +216,11 @@ function UserRowContent({ option }: { option: UserOption }) {
       <div className="flex min-w-0 flex-col items-start">
         <span className="truncate text-sm font-medium leading-tight">
           {label}
+          {option.isSelf && (
+            <span className="ml-1 font-normal text-muted-foreground">
+              (you)
+            </span>
+          )}
         </span>
         <span className="truncate font-mono text-[10px] leading-tight text-muted-foreground">
           {option.address ? `${option.address} · ` : ''}

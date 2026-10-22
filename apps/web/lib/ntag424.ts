@@ -6,6 +6,14 @@ const debug = (message: string) => {
   console.info(message)
 }
 
+/** The `lnurlw://` base burned into a card; a tap appends `?p=…&c=…`. */
+export function lnurlwBase(
+  cardId: string,
+  domain: string
+): `lnurlw://${string}` {
+  return `lnurlw://${domain}/api/cards/${cardId}/scan`
+}
+
 /**
  * Builds the Boltcard "write" payload used to provision a blank NTAG424 with
  * this card's keys and the LNURLW base pointing at our scan endpoint.
@@ -32,7 +40,7 @@ export function cardToNtag424WriteData(
     k2: ntag424.k2,
     k3: ntag424.k3,
     k4: ntag424.k4,
-    lnurlw_base: `lnurlw://${domain}/api/cards/${cardId}/scan`,
+    lnurlw_base: lnurlwBase(cardId, domain),
     protocol_name: 'new_bolt_card_response',
     protocol_version: '1'
   }

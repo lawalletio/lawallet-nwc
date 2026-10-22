@@ -78,6 +78,16 @@ enum ActivationQrKind {
   FOREVER
 }
 
+/// What claiming an activation token does. ACTIVATE transfers the card only.
+/// RECOVER (minted by card-manager after a SUN-verified tap) moves the whole
+/// holder account — addresses, wallets, cards, history — onto the claimer.
+/// The purpose lives on the row, never in the URL: the `?tag=recover` on the
+/// QR is a display hint only.
+enum CardActivationPurpose {
+  ACTIVATE
+  RECOVER
+}
+
 /// Lifecycle of a CardActivationToken. ONE_TIME tokens reach CLAIMED on a
 /// successful claim; superseded/rescued tokens become REVOKED.
 enum ActivationTokenStatus {
@@ -303,6 +313,14 @@ model User {
   oauthGrants                        OAuthGrant[]
   mcpPayments                        McpPayment[]
   transactionLabels                  TransactionLabel[]
+  /// Whether a card this account holds may be used to recover the whole
+  /// account onto another key (card-manager RECOVER QR). On by default; the
+  /// owner turns it off in Security so a lost card can't take the account.
+  cardRecoveryEnabled                Boolean                            @default(true)
+  /// Recoveries that moved this account's resources out (old-owner notice).
+  recoveriesFrom                     AccountRecovery[]                  @relation("AccountRecoveryFrom")
+  /// Recoveries that moved another account's resources in.
+  recoveriesTo                       AccountRecovery[]                  @relation("AccountRecoveryTo")
 
   @@index([role])
   @@index([createdAt])
@@ -821,9 +839,36 @@ model CardActivationToken {
   /// DB id of the claimer (ONE_TIME only — single audit row).
   claimedByUserId String?
   createdAt       DateTime              @default(now())
+  purpose         CardActivationPurpose @default(ACTIVATE)
+  /// RECOVER only: the holder account at mint time. The claim refuses if the
+  /// card changed hands since, so a stale QR can't move a different account.
+  recoverFromUserId String?
 
   @@index([cardId])
   @@index([status])
+}
+
+/// One card-based account recovery: every resource of `fromUserId` moved onto
+/// `toUserId`. Drives the claimer's "recovered" dialog and the old owner's
+/// "your account was transferred" notice (until `noticeDismissedAt`). Both
+/// sides are SetNull so the audit row outlives either account.
+model AccountRecovery {
+  id                 String    @id @default(cuid())
+  fromUserId         String?
+  fromUser           User?     @relation("AccountRecoveryFrom", fields: [fromUserId], references: [id], onDelete: SetNull)
+  toUserId           String?
+  toUser             User?     @relation("AccountRecoveryTo", fields: [toUserId], references: [id], onDelete: SetNull)
+  cardId             String
+  tokenId            String
+  /// Snapshot of what moved: `{ lightningAddresses, cards, remoteWallets }`.
+  summary            Json
+  /// True when the claimer already had data and confirmed the merge.
+  mergedIntoExisting Boolean   @default(false)
+  createdAt          DateTime  @default(now())
+  noticeDismissedAt  DateTime?
+
+  @@index([fromUserId, noticeDismissedAt])
+  @@index([toUserId])
 }
 
 /// Audit + uniqueness for first-activation bonuses. `@@unique([cardId, kind])`

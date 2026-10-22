@@ -53,5 +53,46 @@ export const activate = {
     connectFailed: 'Could not connect',
     activating: 'Activating…',
     createAndActivate: 'Create & activate'
+  },
+  /** A RECOVER QR printed by card-manager: moves the card's whole account. */
+  recover: {
+    eyebrow: 'Recover your account',
+    action: 'Recover account',
+    recovering: 'Recovering your account…',
+    failed: 'Recovery failed.',
+    intro: "Recover this card's account onto a new passkey or a new Nostr key.",
+    introNoPasskey:
+      'This browser cannot create a passkey. Open this page in Safari or Chrome, or continue with a Nostr key.',
+    working: 'Recovering…',
+    createAndRecover: 'Create & recover',
+    merge: {
+      title: 'Merge into your account?',
+      body: "You're signed in to an account that already has data. Recovering moves everything from the card's account into it.",
+      yours: 'Your account',
+      incoming: "From the card's account",
+      noAddress: 'No lightning address',
+      cards: (n: number) => (n === 1 ? '1 card' : `${n} cards`),
+      wallets: (n: number) => (n === 1 ? '1 wallet' : `${n} wallets`),
+      keepsPrimary:
+        'Your current primary address stays primary. You can change it later in Settings.',
+      confirm: 'Merge & recover',
+      cancel: 'Cancel'
+    },
+    done: {
+      title: 'Account recovered',
+      body: "Everything from the card's account is now in this wallet.",
+      merged: "Everything from the card's account was merged into this wallet.",
+      addresses: 'Lightning addresses',
+      cards: 'Cards',
+      wallets: 'Remote wallets',
+      totalBalance: 'Total balance',
+      unavailable: 'Unavailable',
+      none: 'None',
+      untitledCard: 'Card',
+      defaultWallet: 'Default',
+      vouchers: (n: number) => (n === 1 ? '1 voucher' : `${n} vouchers`),
+      openWallet: 'Open wallet',
+      claimAddress: 'Claim your address'
+    }
   }
 }

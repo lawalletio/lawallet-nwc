@@ -36,13 +36,13 @@ registry.registerPath({
 })
 
 registry.registerPath({
-  ...withRole('ADMIN'),
+  ...withRole('OPERATOR'),
   method: 'post',
   path: '/api/auth/qr-jwt/generate',
   tags: [TAG],
   summary: 'Mint a scoped device token (QR login)',
   description:
-    "Admin-only. Mints a stateless JWT scoped to a target user + permission subset, shown as a QR for the card apps (card-installer, card-manager) to scan. The token carries an `apiUrl` claim binding it to this instance: the auth layer rejects it on any other platform URL, and the scanning app reads the API base from the claim. No session record, no revocation — validation is signature + exp + apiUrl only. Lifetimes have a 1-minute floor but no maximum, so prefer short expirations. Granted permissions must be a subset of the caller's RBAC.",
+    "ADMIN mints for any target user; OPERATOR only for their own account (`userId` must be theirs, else 403). Device tokens cannot call this. Mints a stateless JWT scoped to a target user + permission subset, shown as a QR for the card apps (card-installer, card-manager) to scan. The token carries an `apiUrl` claim binding it to this instance: the auth layer rejects it on any other platform URL, and the scanning app reads the API base from the claim. No session record, no revocation — validation is signature + exp + apiUrl only. Lifetimes have a 1-minute floor but no maximum, so prefer short expirations. Granted permissions must be a subset of the caller's RBAC.",
   operationId: 'auth.qrJwt.generate',
   security: protectedSecurity,
   request: {

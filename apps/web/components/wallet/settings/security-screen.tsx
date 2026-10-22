@@ -16,6 +16,7 @@ import { NavTabbar } from '@/components/wallet/shared/nav-tabbar'
 import { SecretKeyReveal } from '@/components/shared/secret-key-reveal'
 import { useAuth } from '@/components/admin/auth-context'
 import { PasskeysSection } from '@/components/wallet/settings/passkeys-section'
+import { CardRecoverySection } from '@/components/wallet/settings/card-recovery-section'
 import { ConnectedApps } from '@/components/oauth/connected-apps'
 import { hexToNsec } from '@/lib/nostr'
 import { toNpub, truncateNpub } from '@/lib/client/format'
@@ -161,6 +162,10 @@ export function SecurityScreen() {
 
         <Section title={s.connectedApps}>
           <ConnectedApps />
+        </Section>
+
+        <Section title={s.cardRecovery.title}>
+          <CardRecoverySection />
         </Section>
 
         {(loginMethod === 'nsec' || loginMethod === 'passkey') && (

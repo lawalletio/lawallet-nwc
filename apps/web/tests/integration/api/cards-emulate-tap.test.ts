@@ -20,6 +20,9 @@ vi.mock('@/lib/middleware/maintenance', () => ({ checkMaintenance: vi.fn() }))
 vi.mock('@/lib/middleware/request-limits', () => ({
   checkRequestLimits: vi.fn()
 }))
+vi.mock('@/lib/public-url', () => ({
+  resolveApiUrl: vi.fn(async () => 'https://api.example.com')
+}))
 vi.mock('@/lib/auth/unified-auth', () => ({
   authenticateWithPermission: vi.fn()
 }))
@@ -50,6 +53,10 @@ describe('POST /api/cards/[id]/emulate-tap', () => {
     expect(body.ctr).toBe(8) // server counter + 1
     expect(body.p).toMatch(/^[A-F0-9]{32}$/)
     expect(body.c).toMatch(/^[A-F0-9]{16}$/)
+    // The exact URL a physical card emits, on the instance's API host.
+    expect(body.url).toBe(
+      `lnurlw://api.example.com/api/cards/card-1/scan?p=${body.p}&c=${body.c}`
+    )
     // Keys never appear in the response.
     expect(body.k0).toBeUndefined()
     expect(body.k1).toBeUndefined()
