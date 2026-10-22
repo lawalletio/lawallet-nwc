@@ -14,6 +14,7 @@ export const activity = {
   today: 'Today',
   yesterday: 'Yesterday',
   detail: {
+    sendAgain: (address: string) => `Send again to ${address}`,
     loading: 'Loading transaction…',
     notFound: 'Transaction not found.',
     backToActivity: 'Back to activity',

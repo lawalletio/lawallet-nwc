@@ -6,6 +6,12 @@ import { useLocale, useT, type Dict } from '@/lib/client/i18n'
 import { cn } from '@/lib/utils'
 import type { NwcTransaction } from '@/lib/client/nwc/transactions'
 import { rememberActivityTx } from '@/lib/client/activity-detail-store'
+import {
+  splitPaymentDescription,
+  useAddressAvatar,
+  usePaymentDestination
+} from '@/lib/client/payment-destinations'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 
 interface TransactionRowProps {
   tx: NwcTransaction
@@ -19,8 +25,20 @@ export function TransactionRow({ tx, href, className }: TransactionRowProps) {
   const incoming = tx.type === 'incoming'
   const Icon = incoming ? ArrowDownLeft : ArrowUpRight
   const timestamp = tx.settledAt ?? tx.createdAt
+  // Outgoing Lightning Address sends are remembered locally at pay time;
+  // everything else only has the invoice description to go on.
+  const destination = usePaymentDestination(incoming ? null : tx.paymentHash)
+  const described = splitPaymentDescription(tx.description)
   const title =
-    tx.description || (incoming ? t.shared.tx.received : t.shared.tx.sent)
+    destination?.name ||
+    destination?.address ||
+    described.label ||
+    (incoming ? t.shared.tx.received : t.shared.tx.sent)
+  const comment = destination ? destination.comment : described.comment
+  const avatarUrl = useAddressAvatar(
+    destination?.address,
+    destination?.avatarUrl
+  )
 
   function remember() {
     rememberActivityTx(tx)
@@ -33,21 +51,42 @@ export function TransactionRow({ tx, href, className }: TransactionRowProps) {
 
   const body = (
     <>
-      <div
-        className={cn(
-          'flex size-10 shrink-0 items-center justify-center rounded-full',
-          incoming
-            ? 'bg-green-500/10 text-green-500'
-            : 'bg-orange-500/10 text-orange-500'
-        )}
-      >
-        <Icon className="size-4" />
-      </div>
+      {destination ? (
+        <div className="relative shrink-0">
+          <Avatar className="size-10 bg-card">
+            {avatarUrl && (
+              <AvatarImage src={avatarUrl} alt="" className="object-cover" />
+            )}
+            <AvatarFallback className="text-xs font-medium uppercase">
+              {destination.address.slice(0, 2)}
+            </AvatarFallback>
+          </Avatar>
+          <span className="absolute -bottom-0.5 -right-0.5 flex size-4 items-center justify-center rounded-full bg-orange-500 text-background ring-2 ring-background">
+            <Icon className="size-2.5" strokeWidth={3} />
+          </span>
+        </div>
+      ) : (
+        <div
+          className={cn(
+            'flex size-10 shrink-0 items-center justify-center rounded-full',
+            incoming
+              ? 'bg-green-500/10 text-green-500'
+              : 'bg-orange-500/10 text-orange-500'
+          )}
+        >
+          <Icon className="size-4" />
+        </div>
+      )}
 
       <div className="flex min-w-0 flex-1 flex-col">
         <span className="truncate text-sm font-medium text-foreground">
           {title}
         </span>
+        {comment && (
+          <span className="truncate text-xs text-foreground/80">
+            “{comment}”
+          </span>
+        )}
         <span className="text-xs text-muted-foreground">
           {formatRelative(timestamp, t, locale)}
         </span>

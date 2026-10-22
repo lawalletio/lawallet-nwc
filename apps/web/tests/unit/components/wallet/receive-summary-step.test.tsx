@@ -83,6 +83,12 @@ describe('ReceiveSummaryStep', () => {
     vi.clearAllMocks()
     window.localStorage.clear()
     __resetCurrenciesCacheForTests()
+    // These cases exercise the BTC switch, so start from sats + BTC rather
+    // than the sats/USD/ARS default.
+    window.localStorage.setItem(
+      'lawallet-active-currencies',
+      JSON.stringify({ active: ['SAT', 'BTC'], selected: 'SAT' })
+    )
     resetAllFlows()
     mockShare(shareMock)
   })
