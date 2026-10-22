@@ -1,4 +1,5 @@
 import { logger } from '@/lib/logger'
+import { reportError } from '@/lib/observability/report'
 import { checkMaintenance } from '@/lib/middleware/maintenance'
 import { hasRole, isValidRole } from '@/lib/auth/permissions'
 import { toApiError } from '@/types/server/error-handler'
@@ -399,6 +400,7 @@ function errorValue(error: unknown): unknown {
   const apiError = toApiError(error)
   if (apiError.statusCode >= 500) {
     logger.error({ err: error }, 'mcp.tool_failed')
+    reportError(error, 'mcp')
   }
   return {
     status: apiError.statusCode,

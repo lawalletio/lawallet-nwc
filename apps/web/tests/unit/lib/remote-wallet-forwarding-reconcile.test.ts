@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { prismaMock, resetPrismaMock } from '@/tests/helpers/prisma-mock'
 
 const {
+  reportError,
   getListenerConfig,
   getListenerNwcPayment,
   listenerNwcPayment,
@@ -10,6 +11,7 @@ const {
   fetchDestinationMetadata,
   requestDestinationInvoice
 } = vi.hoisted(() => ({
+  reportError: vi.fn(),
   getListenerConfig: vi.fn(),
   getListenerNwcPayment: vi.fn(),
   listenerNwcPayment: vi.fn(),
@@ -19,6 +21,7 @@ const {
 }))
 
 vi.mock('@/lib/listener-config', () => ({ getListenerConfig }))
+vi.mock('@/lib/observability/report', () => ({ reportError }))
 vi.mock('@/lib/wallet/drivers/listener-transport', async importActual => ({
   ...(await importActual<
     typeof import('@/lib/wallet/drivers/listener-transport')
@@ -249,8 +252,7 @@ describe('remote wallet forwarding reconciler', () => {
     vi.mocked(prismaMock.remoteWalletForwardLeg.findMany).mockImplementation(
       args => {
         const where = args?.where as
-          | { receiptId?: string; destination?: string }
-          | undefined
+          { receiptId?: string; destination?: string } | undefined
         if (where?.receiptId) return Promise.resolve([first]) as never
         if (where?.destination) return Promise.resolve([first, second]) as never
         return Promise.resolve([]) as never
@@ -918,7 +920,12 @@ describe('remote wallet forwarding safety', () => {
       prismaMock.remoteWalletForwardReceipt.findUnique
     ).mockResolvedValue(
       receipt({
-        legs: [leg({ status: 'PENDING', attempts: [attempt({ status: 'SUCCEEDED', preimage })] })]
+        legs: [
+          leg({
+            status: 'PENDING',
+            attempts: [attempt({ status: 'SUCCEEDED', preimage })]
+          })
+        ]
       }) as never
     )
     vi.mocked(prismaMock.remoteWalletForwardLeg.findMany).mockResolvedValue([
@@ -955,7 +962,11 @@ describe('remote wallet forwarding safety', () => {
     vi.mocked(
       prismaMock.remoteWalletForwardAttempt.findUnique
     ).mockResolvedValue(
-      attempt({ status: 'SUCCEEDED', preimage, routingFeeMsats: BigInt(25) }) as never
+      attempt({
+        status: 'SUCCEEDED',
+        preimage,
+        routingFeeMsats: BigInt(25)
+      }) as never
     )
     listenerNwcRequest.mockResolvedValue({
       state: 'settled',
@@ -969,6 +980,82 @@ describe('remote wallet forwarding safety', () => {
 
     expect(result.failed).toBe(0)
     expect(requestDestinationInvoice).not.toHaveBeenCalled()
+    expect(listenerNwcPayment).not.toHaveBeenCalled()
+  })
+
+  it('reports and blocks a receipt whose reconcile pass throws', async () => {
+    const error = new Error('db unavailable')
+    vi.mocked(
+      prismaMock.remoteWalletForwardReceipt.findUnique
+    ).mockRejectedValue(error)
+
+    const result = await reconcileRemoteWalletForwarding({
+      workerId: 'worker-1'
+    })
+
+    expect(result).toEqual({ claimed: 1, completed: 0, failed: 1 })
+    expect(reportError).toHaveBeenCalledWith(error, 'forwarding-reconcile')
+    expect(
+      prismaMock.remoteWalletForwardReceipt.updateMany
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: 'BLOCKED',
+          lastError: 'db unavailable'
+        })
+      })
+    )
+  })
+
+  it('reports a settled batch that has no members left', async () => {
+    vi.mocked(
+      prismaMock.remoteWalletForwardReceipt.findUnique
+    ).mockResolvedValue(
+      receipt({
+        legs: [
+          leg({
+            status: 'PENDING',
+            attempts: [attempt({ status: 'SUCCEEDED', preimage })]
+          })
+        ]
+      }) as never
+    )
+    vi.mocked(prismaMock.remoteWalletForwardLeg.findMany).mockResolvedValue(
+      [] as never
+    )
+
+    await reconcileRemoteWalletForwarding({ workerId: 'worker-1' })
+
+    expect(reportError).toHaveBeenCalledWith(
+      'remote_wallet_forwarding.completed_batch_without_members',
+      'forwarding-reconcile'
+    )
+    expect(listenerNwcPayment).not.toHaveBeenCalled()
+  })
+
+  it('reports and rejects a settled attempt with no provable preimage', async () => {
+    vi.mocked(
+      prismaMock.remoteWalletForwardReceipt.findUnique
+    ).mockResolvedValue(
+      receipt({
+        legs: [
+          leg({
+            status: 'PENDING',
+            attempts: [attempt({ status: 'SUCCEEDED', preimage: null })]
+          })
+        ]
+      }) as never
+    )
+    vi.mocked(prismaMock.remoteWalletForwardLeg.findMany).mockResolvedValue([
+      leg({ status: 'PENDING' })
+    ] as never)
+
+    await reconcileRemoteWalletForwarding({ workerId: 'worker-1' })
+
+    expect(reportError).toHaveBeenCalledWith(
+      'remote_wallet_forwarding.settled_attempt_preimage_invalid',
+      'forwarding-reconcile'
+    )
     expect(listenerNwcPayment).not.toHaveBeenCalled()
   })
 })

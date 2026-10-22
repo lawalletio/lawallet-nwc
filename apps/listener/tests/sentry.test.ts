@@ -11,6 +11,7 @@ import type { ListenerEnv } from '../src/env'
 import {
   captureException,
   initSentry,
+  reportError,
   transportFailureFingerprint
 } from '../src/sentry'
 
@@ -64,6 +65,23 @@ describe('captureException', () => {
     captureException(err, { tags: { kind: 'uncaught_exception' } })
     expect(Sentry.captureException).toHaveBeenCalledWith(err, {
       tags: { kind: 'uncaught_exception' }
+    })
+  })
+})
+
+describe('reportError', () => {
+  beforeEach(() => {
+    vi.mocked(Sentry.captureException).mockClear()
+    initSentry({ SENTRY_DSN: 'https://k@o.ingest.sentry.io/1' } as ListenerEnv)
+  })
+
+  it('captures a site once per window, tagged with the site', () => {
+    const err = new Error('db down')
+    reportError(err, 'reconcile.periodic_failed:test')
+    reportError(err, 'reconcile.periodic_failed:test')
+    expect(Sentry.captureException).toHaveBeenCalledTimes(1)
+    expect(Sentry.captureException).toHaveBeenCalledWith(err, {
+      tags: { site: 'reconcile.periodic_failed:test' }
     })
   })
 })

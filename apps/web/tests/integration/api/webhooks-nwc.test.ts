@@ -48,6 +48,8 @@ vi.mock('@/lib/logger', () => ({
 
 vi.mock('@/lib/middleware/maintenance', () => ({ checkMaintenance: vi.fn() }))
 
+vi.mock('@/lib/observability/report', () => ({ reportError: vi.fn() }))
+
 vi.mock('@/lib/events/event-bus', () => ({
   eventBus: { emit: vi.fn() }
 }))
@@ -91,6 +93,7 @@ vi.mock('@/lib/remote-wallet-notifications/reconcile', () => ({
 
 import { POST } from '@/app/api/webhooks/nwc/route'
 import { eventBus } from '@/lib/events/event-bus'
+import { reportError } from '@/lib/observability/report'
 
 const HASH = 'a'.repeat(64)
 const SENT_PREIMAGE = '11'.repeat(32)
@@ -101,6 +104,9 @@ const PROXY_PREIMAGE = '22'.repeat(32)
 const PROXY_HASH = createHash('sha256')
   .update(Buffer.from(PROXY_PREIMAGE, 'hex'))
   .digest('hex')
+
+// Valid hex, but does not hash to SENT_HASH / PROXY_HASH.
+const WRONG_PREIMAGE = '33'.repeat(32)
 
 const paymentReceived = {
   type: 'payment_received',
@@ -844,5 +850,148 @@ describe('POST /api/webhooks/nwc', () => {
     // The listener answering proves nothing about the WALLET, and stamping it
     // would make the archive rule's own contradiction check always fire.
     expect(prismaMock.proxyServiceConfig.updateMany).not.toHaveBeenCalled()
+  })
+
+  describe('preimage / amount mismatches are reported to Sentry', () => {
+    const sentWithWrongPreimage = {
+      ...paymentReceived,
+      type: 'payment_sent',
+      payment: {
+        ...paymentReceived.payment,
+        paymentHash: SENT_HASH,
+        preimage: WRONG_PREIMAGE
+      }
+    }
+
+    it('remote-wallet forward attempt: does not resolve the attempt', async () => {
+      vi.mocked(
+        prismaMock.remoteWalletForwardAttempt.findFirst
+      ).mockResolvedValue({
+        id: 'forward-attempt-1',
+        paymentHash: SENT_HASH,
+        leg: { receiptId: 'forward-receipt-1' }
+      } as never)
+
+      const res = await POST(signedRequest(sentWithWrongPreimage))
+      const body = (await assertResponse(res, 200)) as Record<string, unknown>
+
+      expect(body).not.toHaveProperty('forwardingReceiptIds')
+      expect(
+        prismaMock.remoteWalletForwardAttempt.updateMany
+      ).not.toHaveBeenCalled()
+      expect(reportError).toHaveBeenCalledWith(
+        'nwc.remote_wallet_forward_preimage_mismatch',
+        'nwc-webhook'
+      )
+    })
+
+    it('proxy forward attempt: does not mark it SUCCEEDED', async () => {
+      vi.mocked(prismaMock.proxyForwardAttempt.findFirst).mockResolvedValue({
+        id: 'proxy-attempt-1',
+        paymentHash: SENT_HASH,
+        proxyPayment: { id: 'proxy-payment-1' }
+      } as never)
+      vi.mocked(prismaMock.proxyServiceConfig.findUnique).mockResolvedValue({
+        walletId: 'wallet-1'
+      } as never)
+
+      const res = await POST(signedRequest(sentWithWrongPreimage))
+      const body = (await assertResponse(res, 200)) as Record<string, unknown>
+
+      expect(body).not.toHaveProperty('settlementIds')
+      expect(prismaMock.proxyForwardAttempt.updateMany).not.toHaveBeenCalled()
+      expect(reportError).toHaveBeenCalledWith(
+        'nwc.proxy_payment_sent_preimage_mismatch',
+        'nwc-webhook'
+      )
+    })
+
+    it('card payment attempt: leaves the row unresolved', async () => {
+      vi.mocked(prismaMock.cardPaymentAttempt.findUnique).mockResolvedValue({
+        id: 'attempt-1',
+        requestId: 'request-1',
+        walletId: 'wallet-1',
+        paymentHash: SENT_HASH,
+        transport: 'DIRECT',
+        status: 'UNKNOWN'
+      } as never)
+
+      const res = await POST(signedRequest(sentWithWrongPreimage))
+      await assertResponse(res, 200)
+
+      expect(prismaMock.cardPaymentAttempt.updateMany).not.toHaveBeenCalled()
+      expect(reportError).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'Payment preimage does not match the invoice payment hash'
+        }),
+        'nwc-webhook'
+      )
+      expect(eventBus.emit).not.toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'cards:updated' })
+      )
+    })
+
+    const proxyInvoice = {
+      ...pendingInvoice,
+      paymentHash: PROXY_HASH,
+      proxyPayment: {
+        id: 'proxy-payment-1',
+        grossAmountMsats: BigInt(21_000),
+        status: 'PENDING_INBOUND'
+      }
+    }
+    const proxyReceived = (payment: Record<string, unknown>) => ({
+      ...paymentReceived,
+      walletId: '__lawallet_proxy__',
+      payment: {
+        ...paymentReceived.payment,
+        paymentHash: PROXY_HASH,
+        ...payment
+      }
+    })
+
+    beforeEach(() => {
+      vi.mocked(prismaMock.proxyServiceConfig.findUnique).mockResolvedValue({
+        walletId: '__lawallet_proxy__'
+      } as never)
+    })
+
+    it('proxy payment_received with the wrong amount: does not settle', async () => {
+      vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue(
+        proxyInvoice as never
+      )
+
+      const res = await POST(
+        signedRequest(
+          proxyReceived({ preimage: PROXY_PREIMAGE, amountMsats: 20_000 })
+        )
+      )
+      const body = (await assertResponse(res, 200)) as Record<string, unknown>
+
+      expect(body).not.toHaveProperty('settlementIds')
+      expect(prismaMock.invoice.updateMany).not.toHaveBeenCalled()
+      expect(reportError).toHaveBeenCalledWith(
+        'nwc.proxy_payment_received_amount_mismatch',
+        'nwc-webhook'
+      )
+    })
+
+    it('proxy payment_received with a wrong preimage: does not settle', async () => {
+      vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue(
+        proxyInvoice as never
+      )
+
+      const res = await POST(
+        signedRequest(proxyReceived({ preimage: WRONG_PREIMAGE }))
+      )
+      const body = (await assertResponse(res, 200)) as Record<string, unknown>
+
+      expect(body).not.toHaveProperty('settlementIds')
+      expect(prismaMock.invoice.updateMany).not.toHaveBeenCalled()
+      expect(reportError).toHaveBeenCalledWith(
+        'nwc.proxy_payment_received_preimage_mismatch',
+        'nwc-webhook'
+      )
+    })
   })
 })

@@ -7,6 +7,7 @@ import {
 import type { ListenerEnv } from './env'
 import { decryptProxyNwcUri } from './proxy-vault'
 import { decryptRemoteWalletNwcUri } from './remote-wallet-vault'
+import { reportError } from './sentry'
 
 /** An ACTIVE NWC RemoteWallet row the pool should hold a connection for. */
 export interface DesiredWallet {
@@ -120,6 +121,7 @@ function toDesired(
         : null
   } catch (err) {
     log.error({ err, walletId: row.id }, 'wallet.decrypt_failed')
+    reportError(err, 'wallet.decrypt_failed')
     return null
   }
   if (!isValidConnectionString(connectionString)) {
@@ -238,6 +240,7 @@ async function loadProxyWallet(
     }
   } catch (err) {
     log.error({ err, walletId: row.walletId }, 'proxy_wallet.decrypt_failed')
+    reportError(err, 'proxy_wallet.decrypt_failed')
     return null
   }
 }

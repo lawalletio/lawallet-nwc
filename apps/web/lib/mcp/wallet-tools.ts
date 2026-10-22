@@ -9,6 +9,7 @@ import {
   parseExactPaymentInvoice
 } from '@/lib/invoice-utils'
 import { logger } from '@/lib/logger'
+import { reportError } from '@/lib/observability/report'
 import {
   McpToolError,
   type JsonSchema,
@@ -446,6 +447,7 @@ function outcomeOf(error: unknown): Outcome {
   // PaymentOutcomeUnknownError, an ambiguous rejection, or anything else once
   // the driver was invoked: the payment may be out there.
   logger.error({ err: error }, 'mcp.payment_outcome_unknown')
+  reportError(error, 'mcp-pay', 'warning')
   return { status: 'UNKNOWN', error: 'OUTCOME_UNKNOWN' }
 }
 
@@ -466,6 +468,7 @@ async function settle(
     !preimageMatchesPaymentHash(outcome.preimage, payment.paymentHash)
   ) {
     logger.error({ paymentId: payment.id }, 'mcp.payment_preimage_mismatch')
+    reportError('mcp.payment_preimage_mismatch', 'mcp-pay')
     outcome = { status: 'UNKNOWN', error: 'PREIMAGE_MISMATCH' }
   }
   const data =
@@ -503,6 +506,7 @@ async function settle(
     logOutcome(next, grant)
   } catch (err) {
     logger.error({ err, paymentId: payment.id }, 'mcp.payment_ledger_failed')
+    reportError(err, 'mcp-pay')
   }
   return next
 }
