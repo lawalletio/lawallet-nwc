@@ -21,5 +21,9 @@ export const server = setupServer(
 )
 
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
-afterEach(() => server.resetHandlers())
+afterEach(() => {
+  server.resetHandlers()
+  localStorage.clear()
+  sessionStorage.clear()
+})
 afterAll(() => server.close())
