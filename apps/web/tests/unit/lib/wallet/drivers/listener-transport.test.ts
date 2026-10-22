@@ -141,10 +141,15 @@ describe('listenerNwcRequest', () => {
       .mockResolvedValue(Response.json({ ok: true, result: {} }))
     vi.stubGlobal('fetch', fetchMock)
 
-    await listenerNwcRequest({ ...BRIDGE, requestTimeoutMs: 1500 }, INPUT)
+    await listenerNwcRequest(
+      { ...BRIDGE, requestTimeoutMs: 1500 },
+      { connectionString: INPUT.connectionString, method: 'get_balance' }
+    )
 
     const [, init] = fetchMock.mock.calls[0]
-    expect(JSON.parse(init.body as string).timeoutMs).toBe(1000)
+    const body = JSON.parse(init.body as string)
+    expect(body.timeoutMs).toBe(1000)
+    expect(body.params).toEqual({})
   })
 
   it('throws ListenerUnavailableError when the bridge is disabled', async () => {
