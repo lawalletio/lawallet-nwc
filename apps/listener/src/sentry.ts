@@ -42,7 +42,20 @@ export function initSentry(env: ListenerEnv): void {
     environment: env.SENTRY_ENVIRONMENT ?? process.env.NODE_ENV ?? 'production',
     release: env.SENTRY_RELEASE,
     tracesSampleRate: 0,
-    sendDefaultPii: false,
+    // Sentry v11 removed `sendDefaultPii`; an unset `dataCollection` now
+    // collects everything. Errors-only, so turn every category off.
+    dataCollection: {
+      userInfo: false,
+      cookies: false,
+      httpBodies: [],
+      httpHeaders: false,
+      urlQueryParams: false,
+      graphQL: { document: false, variables: false },
+      genAI: { inputs: false, outputs: false },
+      databaseQueryData: false,
+      queues: false,
+      stackFrameVariables: false
+    },
     beforeSend: scrubEvent
   })
   initialized = true

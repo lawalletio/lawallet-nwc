@@ -115,6 +115,21 @@ export function runWithRequestContext<T>(ctx: RequestContext, fn: () => T): T {
   return requestContext.run(ctx, fn)
 }
 
+// pino >=10.4 resolves a transport target from util.getCallSites(), which
+// returns source-mapped `[project]/…` paths inside Next's bundled server code
+// and fails with "unable to determine transport target". `caller` (accepted
+// by pino.transport but missing from its types, hence the non-literal) makes
+// it resolve from the app root instead.
+const prettyTransport = {
+  target: 'pino-pretty',
+  caller: `${process.cwd()}/`,
+  options: {
+    colorize: true,
+    translateTime: 'SYS:standard',
+    ignore: 'pid,hostname'
+  }
+}
+
 export const logger: Logger = pino({
   level: getDefaultLogLevel(),
   timestamp: pino.stdTimeFunctions.isoTime,
@@ -129,16 +144,7 @@ export const logger: Logger = pino({
     const reqId = getReqIdFromContext()
     return reqId ? { reqId } : {}
   },
-  transport: isPrettyEnabled()
-    ? {
-        target: 'pino-pretty',
-        options: {
-          colorize: true,
-          translateTime: 'SYS:standard',
-          ignore: 'pid,hostname'
-        }
-      }
-    : undefined
+  transport: isPrettyEnabled() ? prettyTransport : undefined
 })
 
 /**

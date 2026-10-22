@@ -52,7 +52,7 @@ before working on anything non-trivial.
 
 | Tool       | Version    | Notes                                                                 |
 | ---------- | ---------- | --------------------------------------------------------------------- |
-| Node.js    | `v24.21.0` | Pinned in [`.nvmrc`](./.nvmrc); `nvm use` to match                    |
+| Node.js    | `v24.22.1` | Pinned in [`.nvmrc`](./.nvmrc); `nvm use` to match                    |
 | pnpm       | `11.26.0`  | Pinned via `packageManager` field in [`package.json`](./package.json) |
 | PostgreSQL | 15+        | Use the bundled `docker-compose.yml` if you don't have one running    |
 | Git        | any recent | Hooks rely on a normal `pre-commit`-friendly setup                    |

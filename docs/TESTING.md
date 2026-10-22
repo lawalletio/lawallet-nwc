@@ -414,7 +414,7 @@ The numbers above are a floor, not a target. New API routes and lib utilities sh
 
 **Async route params.** Next.js App Router 15+ requires params to be a `Promise`. Use `createParamsPromise({ id: '...' })` — passing a plain object will compile but explode at runtime.
 
-**MSW `onUnhandledRequest: 'warn'`.** A test that hits an unmocked URL prints a warning but doesn't fail. If a third-party call lands silently in the test logs, add a handler to `mocks/handlers.ts` or `server.use()` it inline.
+**MSW `onUnhandledFrame: 'warn'`** (MSW 3 renamed `onUnhandledRequest`). A test that hits an unmocked URL prints a warning but doesn't fail. If a third-party call lands silently in the test logs, add a handler to `mocks/handlers.ts` or `server.use()` it inline.
 
 **`process.env` mutation.** Set in `beforeEach`, restore in `afterEach`. Tests that stomp `process.env` without restoring it leak state into every later test in the file.
 

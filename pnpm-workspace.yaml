@@ -74,11 +74,11 @@ allowBuilds:
 # re-run it after touching this block.
 overrides:
   lodash: 4.18.1
-  picomatch: 4.0.4
-  yaml: 2.8.3
-  effect: 3.21.0
-  defu: 6.1.6
-  bn.js: 4.12.3
+  picomatch: 4.0.7
+  yaml: 2.9.1
+  effect: 3.22.3
+  defu: 6.1.7
+  bn.js: 4.12.5
   minimatch@<4: 3.1.4
   minimatch@>=9.0.0 <9.0.7: 9.0.7
   # GHSA-3jxr-9vmj-r5cp (high, 2026-07-20): DoS via exponential-time expansion.
@@ -88,9 +88,15 @@ overrides:
   # GHSA-6j4f-fj2g-mc7p (<5.0.10) and GHSA-qhr7-859c-m2p7 (<5.0.11) disclosed
   # further recursion DoS on that same line. Loose specs like minimatch 10's
   # ^5.0.1 sit inside the window, so the override is what gets them onto 5.0.11.
-  brace-expansion@<1.1.16: 1.1.16
+  # 2026-10: the same four recursion DoS advisories were backported to the 1.x
+  # line (GHSA-mh99-v99m-4gvg, GHSA-rgw5, GHSA-6j4f, GHSA-qhr7, all <1.1.20)
+  # and GHSA-q2hr-2g5m-vwhr (moderate) hit both 1.x (<1.1.21) and 5.x
+  # (<5.0.12), so the 1.x and >=3 pins moved to 1.1.21 and 5.0.12.
+  brace-expansion@<1.1.21: 1.1.21
   brace-expansion@>=2.0.0 <2.1.2: 2.1.2
-  brace-expansion@>=3.0.0 <5.0.11: 5.0.11
+  brace-expansion@>=3.0.0 <5.0.12: 5.0.12
+  # GHSA-p498-v437-472g (moderate): @humanfs/node <0.16.8, reached via eslint.
+  '@humanfs/node@<0.16.8': 0.16.8
   ajv@<7: 6.14.0
   # GHSA-r28c-9q8g-f849 (high, 2026-07-25): path traversal via sourceMappingURL
   # auto-loading leaks arbitrary .map files. Patched in >=8.5.18. Range-scoped
@@ -117,8 +123,8 @@ overrides:
   # GHSA-587h-7wmj-h5pm (high, 2026-10): launch-editor (bundled in vite
   # >=8.3.0 <=8.3.2) existence check bypass on Windows. Patched in 8.3.3.
   # Reached via apps/docs > fumadocs-mdx and the vitest toolchain.
-  vite: 8.3.3
-  ws: 8.21.0
+  vite: 8.3.5
+  ws: 8.22.0
   # GHSA-5p4m-2wfm-xmqj (high): quadratic CPU in !!omap resolution on js-yaml
   # 3.x/4.x; the CVE-2026-59870 fix was only shipped as 4.3.1. Reached via
   # apps/docs > fumadocs-mdx.
@@ -144,10 +150,11 @@ overrides:
   # GHSA-5jgf-p345-68v8 / GHSA-f65p-4m7j-42xc / GHSA-fph4-wmhf-6fwf /
   # GHSA-jqff-g426-hqxp (high, patched in 3.1.6) plus GHSA-qw65-cvwx-89v3 /
   # GHSA-58mr-gqgx-xq4g (high, 2026-09-02): host confusion / authority
-  # injection still present on 3.1.6. Reached via apps/web > @sentry/nextjs >
+  # injection still present on 3.1.6. GHSA-hrr3-gc8f-f4qj (moderate) then
+  # moved the floor to 3.1.8. Reached via apps/web > @sentry/nextjs >
   # @sentry/webpack-plugin > webpack > schema-utils > ajv. Range-scoped so
   # it retires once parents request a patched range.
-  fast-uri@<3.1.7: 3.1.7
+  fast-uri@<3.1.9: 3.1.9
   # GHSA-c83g-rgw3-j3cx / GHSA-73wf-gq98-2v4g (high): unbounded query-cache
   # growth and a prototype-write crash in browserslist <=4.28.6. Reached via
   # apps/docs > next > styled-jsx > @babel/core.
@@ -167,9 +174,16 @@ overrides:
 # through @scalar/api-reference-react and tailwind's file watcher — this app
 # never compiles user-supplied brace patterns. Drop this ignore once braces
 # publishes a fix.
+#
+# GHSA-848j-6mx2-7j84 (low): elliptic <=6.6.1 can emit faulty ECDSA signatures
+# that leak the signing key; no patched release exists. Reached only via
+# apps/web > bolt11 > secp256k1, and production code only *decodes* invoices
+# (lib/invoice-utils.ts) — bolt11 signing happens solely in test fixtures with
+# throwaway keys. Drop this ignore once elliptic ships a fix.
 auditConfig:
   ignoreGhsas:
     - GHSA-vfj7-8cjw-p6xm
+    - GHSA-848j-6mx2-7j84
 
 minimumReleaseAgeExclude:
   - autoprefixer@10.5.6

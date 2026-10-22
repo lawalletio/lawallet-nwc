@@ -20,13 +20,16 @@ export async function register() {
     const { scrubEvent } = await import('@/lib/observability/pii')
     const { DEFAULT_TRACES_SAMPLE_RATE, sampleServerTrace } =
       await import('@/lib/observability/traces-sampler')
+    const { SENTRY_DATA_COLLECTION, SENTRY_TRACE_LIFECYCLE } =
+      await import('@/lib/observability/sentry-options')
     Sentry.init({
       dsn: process.env.SENTRY_DSN,
       environment:
         process.env.VERCEL_ENV ?? process.env.NODE_ENV ?? 'development',
       tracesSampleRate: DEFAULT_TRACES_SAMPLE_RATE,
       tracesSampler: sampleServerTrace,
-      sendDefaultPii: false,
+      traceLifecycle: SENTRY_TRACE_LIFECYCLE,
+      dataCollection: SENTRY_DATA_COLLECTION,
       beforeSend: event => scrubEvent(event),
       beforeSendTransaction: event => scrubEvent(event)
     })

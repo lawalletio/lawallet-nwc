@@ -10,7 +10,7 @@ LaWallet NWC is an open-source Lightning Address platform with Nostr Wallet Conn
 
 ## Monorepo Structure
 
-pnpm workspaces + Turborepo. Node v24.21.0 (see `.nvmrc`).
+pnpm workspaces + Turborepo. Node v24.22.1 (see `.nvmrc`).
 
 ```
 apps/

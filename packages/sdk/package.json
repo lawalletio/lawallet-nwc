@@ -28,10 +28,10 @@
     "nostr-tools": "^2.25.2"
   },
   "devDependencies": {
-    "msw": "^2.15.0",
-    "tsup": "^8.5.1",
-    "typescript": "^5.9.3",
-    "vitest": "^5.0.0"
+    "msw": "^3.0.3",
+    "tsup": "^9.0.0",
+    "typescript": "^6.0.3",
+    "vitest": "^5.0.5"
   },
   "keywords": [
     "lawallet",

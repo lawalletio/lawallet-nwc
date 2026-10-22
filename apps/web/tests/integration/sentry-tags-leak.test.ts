@@ -20,6 +20,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import * as Sentry from '@sentry/nextjs'
 
 import { scrubEvent } from '@/lib/observability/pii'
+import { SENTRY_DATA_COLLECTION } from '@/lib/observability/sentry-options'
 
 const OTC = 'a'.repeat(32) // 32-hex bearer credential (card activation code)
 const OTC_ROUTE_PATTERN = '/api/cards/otc/[otc]'
@@ -48,7 +49,7 @@ beforeAll(() => {
     // browser-only APIs do not interpose breadcrumbs / sessions / etc. that
     // would make assertions on the serialized event non-deterministic.
     integrations: [],
-    sendDefaultPii: false,
+    dataCollection: SENTRY_DATA_COLLECTION,
     beforeSend: (event: unknown) => scrubEvent(event as never) as never
   } as never)
 })
