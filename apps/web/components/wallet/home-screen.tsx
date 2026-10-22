@@ -658,8 +658,7 @@ function CurrencyChips({
  * Compact recent-activity preview at the bottom of the home screen.
  *
  * Pulls the most recent 5 transactions from NWC `list_transactions`,
- * rendered with the shared `TransactionRow`. The Activity tab shows
- * everything; Transfers narrows to outgoing payments. The list refetches
+ * rendered with the shared `TransactionRow`. The list refetches
  * when `refreshKey` bumps — the parent home screen drives that off the
  * existing NIP-47 notification subscription so we don't open a second
  * relay connection just for this widget. The full paginated feed lives
@@ -675,9 +674,6 @@ function ActivityPreview({
   liveTx: NwcTransaction | null
 }) {
   const t = useT()
-  // Tab pair stays in state for future expansion, but the Transfers
-  // button is currently disabled — no path can set tab to 'transfers'.
-  const [tab, setTab] = useState<'activity' | 'transfers'>('activity')
   const [transactions, setTransactions] = useState<NwcTransaction[] | null>(
     null
   )
@@ -730,36 +726,14 @@ function ActivityPreview({
     setPreviewTxs(demoActivityTransactions())
   }, [])
   const merged = mergeLivePreview(transactions, liveTx)
-  const filtered = merged.filter(tx =>
-    tab === 'transfers' ? tx.type === 'outgoing' : true
-  )
-  const rows = previewTxs.length > 0 ? previewTxs : filtered
+  const rows = previewTxs.length > 0 ? previewTxs : merged
 
   return (
     <section className="mx-4 mt-6 flex flex-col gap-3 pb-32">
       <div className="flex items-center justify-between">
-        <div className="flex gap-1 rounded-full bg-card p-1">
-          <button
-            type="button"
-            onClick={() => setTab('activity')}
-            className={cn(
-              'rounded-full px-3 py-1 text-xs font-medium transition-colors',
-              tab === 'activity'
-                ? 'bg-background text-foreground shadow-xs'
-                : 'text-muted-foreground hover:text-foreground'
-            )}
-          >
-            {t.home.tabActivity}
-          </button>
-          <button
-            type="button"
-            disabled
-            aria-disabled
-            className="cursor-not-allowed rounded-full px-3 py-1 text-xs font-medium text-muted-foreground/50"
-          >
-            {t.home.tabTransfers}
-          </button>
-        </div>
+        <h2 className="text-sm font-medium text-foreground">
+          {t.home.activityTitle}
+        </h2>
 
         <Link
           href={
@@ -778,7 +752,7 @@ function ActivityPreview({
         loading={loadingTx}
         error={txError}
         transactions={rows}
-        copy={t.home.list[tab]}
+        copy={t.home.list.activity}
       />
     </section>
   )

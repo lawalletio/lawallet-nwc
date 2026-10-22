@@ -86,30 +86,30 @@ export function PaymentReceiptLayout({
 function ReceiptStatusMark({ status }: { status: PaymentReceiptStatus }) {
   if (status === 'pending') {
     return (
-      <div className="relative flex size-20 items-center justify-center">
+      <div className="relative flex size-10 shrink-0 items-center justify-center">
         <span aria-hidden className="absolute inset-0 rounded-full bg-muted" />
-        <Clock className="relative size-10 text-muted-foreground" />
+        <Clock className="relative size-5 text-muted-foreground" />
       </div>
     )
   }
   if (status === 'failed') {
     return (
-      <div className="relative flex size-20 items-center justify-center">
+      <div className="relative flex size-10 shrink-0 items-center justify-center">
         <span
           aria-hidden
           className="absolute inset-0 rounded-full bg-destructive/15"
         />
-        <X className="relative size-10 text-destructive" />
+        <X className="relative size-5 text-destructive" />
       </div>
     )
   }
   return (
-    <div className="relative flex size-20 items-center justify-center">
+    <div className="relative flex size-10 shrink-0 items-center justify-center">
       <span
         aria-hidden
         className="absolute inset-0 rounded-full bg-(--theme-400)/15 animate-success-pop"
       />
-      <Check className="relative size-10 text-(--theme-400)" />
+      <Check className="relative size-5 text-(--theme-400)" />
     </div>
   )
 }
@@ -159,15 +159,14 @@ export function PaymentReceiptCard({
     <section className="relative overflow-hidden rounded-3xl border border-border bg-card shadow-[0_20px_60px_rgba(0,0,0,0.24)]">
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-(--theme-300) to-transparent" />
 
-      <div className="flex flex-col items-center gap-4 px-5 pb-6 pt-8 text-center">
-        <ReceiptStatusMark status={status} />
-
-        <div className="flex flex-col items-center gap-2">
-          <h1 className="text-2xl font-semibold text-foreground">{title}</h1>
+      <div className="flex flex-col items-center gap-3 px-5 pb-4 pt-5 text-center">
+        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2">
+          <ReceiptStatusMark status={status} />
+          <h1 className="text-xl font-semibold text-foreground">{title}</h1>
           <ReceiptStatusBadge status={status} />
         </div>
 
-        <div className="flex flex-col items-center gap-3 pt-1">
+        <div className="flex flex-col items-center gap-3">
           <div aria-live="polite" className="flex flex-col items-center gap-1">
             <div className="flex max-w-full items-baseline justify-center gap-2 tabular-nums">
               <span className="whitespace-nowrap text-[clamp(1.65rem,7.2vw,2.5rem)] font-semibold leading-none text-foreground">
@@ -204,6 +203,8 @@ export interface ReceiptDetailItem {
   label: string
   value: string | null
   valueClassName?: string
+  /** Replaces the plain value text, e.g. a tappable recipient. */
+  valueNode?: ReactNode
   /** When false, the row is omitted instead of showing Unavailable. */
   include?: boolean
 }
@@ -220,6 +221,7 @@ export function ReceiptDetailList({ items }: { items: ReceiptDetailItem[] }) {
             label={item.label}
             value={item.value}
             valueClassName={item.valueClassName}
+            valueNode={item.valueNode}
           />
         </Fragment>
       ))}
@@ -230,11 +232,13 @@ export function ReceiptDetailList({ items }: { items: ReceiptDetailItem[] }) {
 export function ReceiptDetailRow({
   label,
   value,
-  valueClassName
+  valueClassName,
+  valueNode
 }: {
   label: string
   value: string | null
   valueClassName?: string
+  valueNode?: ReactNode
 }) {
   const t = useT()
   return (
@@ -247,7 +251,7 @@ export function ReceiptDetailRow({
           valueClassName
         )}
       >
-        {value ?? t.shared.receipt.unavailable}
+        {valueNode ?? value ?? t.shared.receipt.unavailable}
       </span>
     </div>
   )
