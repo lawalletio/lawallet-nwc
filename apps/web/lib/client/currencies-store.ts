@@ -54,7 +54,7 @@ export const CURRENCY_CATALOG: Currency[] = CURRENCY_CODES.map(code => {
 })
 
 const STORAGE_KEY = 'lawallet-active-currencies'
-const DEFAULT_ACTIVE: readonly string[] = ['SAT', 'BTC']
+const DEFAULT_ACTIVE: readonly string[] = ['SAT', 'USD', 'ARS']
 const DEFAULT_SELECTED = 'SAT'
 const LOCKED_CODES = new Set(
   CURRENCY_CATALOG.filter(c => c.locked).map(c => c.code)

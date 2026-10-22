@@ -123,7 +123,7 @@ describe('useSyncCurrencyPrefs', () => {
   })
 
   it('uploads local prefs once when the server has none', async () => {
-    currenciesActions.add('ARS')
+    currenciesActions.add('BTC')
     me.data = { userId: 'user-1', currencyPrefs: null }
     const view = render(<Harness />)
 
@@ -134,7 +134,7 @@ describe('useSyncCurrencyPrefs', () => {
 
     expect(put).toHaveBeenCalledWith(CURRENCY_PREFS_PATH, {
       currencyPrefs: {
-        active: ['SAT', 'BTC', 'ARS'],
+        active: ['SAT', 'USD', 'ARS', 'BTC'],
         selected: 'SAT'
       }
     })
@@ -145,8 +145,8 @@ describe('useSyncCurrencyPrefs', () => {
     const view = render(<Harness />)
 
     act(() => {
-      currenciesActions.add('USD')
-      currenciesActions.select('USD')
+      currenciesActions.add('EUR')
+      currenciesActions.select('EUR')
     })
     me.data = {
       userId: 'user-1',
@@ -157,14 +157,14 @@ describe('useSyncCurrencyPrefs', () => {
     }
     view.rerender(<Harness />)
 
-    expect(view.getByTestId('selected').textContent).toBe('USD')
+    expect(view.getByTestId('selected').textContent).toBe('EUR')
     await act(async () => {
       await vi.advanceTimersByTimeAsync(CURRENCY_PREFS_SAVE_DEBOUNCE_MS)
     })
     expect(put).toHaveBeenCalledWith(CURRENCY_PREFS_PATH, {
       currencyPrefs: {
-        active: ['SAT', 'BTC', 'USD'],
-        selected: 'USD'
+        active: ['SAT', 'USD', 'ARS', 'EUR'],
+        selected: 'EUR'
       }
     })
   })

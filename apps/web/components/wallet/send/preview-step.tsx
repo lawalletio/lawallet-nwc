@@ -28,6 +28,7 @@ import {
   type PaymentQuote
 } from '@/lib/client/nwc'
 import { paymentHashFromBolt11 } from '@/lib/client/payment-receipt'
+import { rememberPaymentDestination } from '@/lib/client/payment-destinations'
 import {
   useActiveCurrencies,
   type Currency
@@ -227,12 +228,23 @@ export function SendPreviewStep() {
         return
       }
       const result = await payQuotedInvoice(nwc, currentQuote.quote)
+      const paymentHash = paymentHashFromBolt11(
+        currentQuote.quote.paymentRequest
+      )
+      if (lightningAddress) {
+        rememberPaymentDestination(paymentHash, {
+          address: lightningAddress,
+          name: recipientDetails?.displayName || null,
+          avatarUrl: recipientDetails?.avatarUrl ?? null,
+          comment: currentQuote.quote.comment
+        })
+      }
       sendActions.setResult({
         preimage: result.preimage,
         feesPaidSats: result.feesPaidSats,
         amountSats: flow.amountSats!,
         recipient: recipientLabel,
-        paymentHash: paymentHashFromBolt11(currentQuote.quote.paymentRequest),
+        paymentHash,
         destination: destinationForReceipt(flow.recipient),
         comment: currentQuote.quote.comment,
         settledAt: Date.now()
