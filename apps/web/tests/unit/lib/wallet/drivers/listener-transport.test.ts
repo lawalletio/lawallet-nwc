@@ -135,6 +135,18 @@ describe('listenerNwcRequest', () => {
     })
   })
 
+  it('never asks the listener for less than its 1s minimum wait', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(Response.json({ ok: true, result: {} }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await listenerNwcRequest({ ...BRIDGE, requestTimeoutMs: 1500 }, INPUT)
+
+    const [, init] = fetchMock.mock.calls[0]
+    expect(JSON.parse(init.body as string).timeoutMs).toBe(1000)
+  })
+
   it('throws ListenerUnavailableError when the bridge is disabled', async () => {
     await expect(
       listenerNwcRequest({ ...BRIDGE, enabled: false }, INPUT)
