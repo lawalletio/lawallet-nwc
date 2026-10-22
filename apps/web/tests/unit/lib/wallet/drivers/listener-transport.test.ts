@@ -129,8 +129,27 @@ describe('listenerNwcRequest', () => {
     expect(JSON.parse(init.body as string)).toEqual({
       connectionString: INPUT.connectionString,
       method: 'pay_invoice',
-      params: { invoice: 'lnbc1' }
+      params: { invoice: 'lnbc1' },
+      // Ends before our 10s abort so a silent wallet reads as `timeout`.
+      timeoutMs: 9000
     })
+  })
+
+  it('never asks the listener for less than its 1s minimum wait', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(Response.json({ ok: true, result: {} }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await listenerNwcRequest(
+      { ...BRIDGE, requestTimeoutMs: 1500 },
+      { connectionString: INPUT.connectionString, method: 'get_balance' }
+    )
+
+    const [, init] = fetchMock.mock.calls[0]
+    const body = JSON.parse(init.body as string)
+    expect(body.timeoutMs).toBe(1000)
+    expect(body.params).toEqual({})
   })
 
   it('throws ListenerUnavailableError when the bridge is disabled', async () => {
@@ -175,9 +194,10 @@ describe('listenerNwcRequest', () => {
             )
           )
       )
-      await expect(listenerNwcRequest(BRIDGE, INPUT)).rejects.toBeInstanceOf(
-        ListenerUnavailableError
-      )
+      await expect(listenerNwcRequest(BRIDGE, INPUT)).rejects.toMatchObject({
+        name: 'ListenerUnavailableError',
+        code
+      })
     }
   })
 
