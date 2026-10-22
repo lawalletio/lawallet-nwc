@@ -604,7 +604,7 @@ export function AdminSidebar({ disabled = false }: { disabled?: boolean }) {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="size-9 shrink-0 rounded-full text-muted-foreground transition-[background-color,color,box-shadow,transform,opacity] duration-150 ease-out hover:scale-105 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:opacity-100 hover:shadow-sm active:scale-95 data-[state=open]:scale-95 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground data-[state=open]:shadow-inner"
+                  className="size-9 shrink-0 rounded-full text-muted-foreground transition-[background-color,color,box-shadow,transform,opacity] duration-150 ease-out hover:scale-105 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:opacity-100 hover:shadow-xs active:scale-95 data-[state=open]:scale-95 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground data-[state=open]:shadow-inner"
                   disabled={disabled}
                   aria-label="Open account menu"
                 >
@@ -693,7 +693,7 @@ export function AdminSidebar({ disabled = false }: { disabled?: boolean }) {
 
           <button
             type="button"
-            className="mx-auto flex h-3 items-center justify-center rounded text-center text-[10px] font-medium leading-none text-sidebar-foreground/45 underline-offset-2 transition-colors hover:text-sidebar-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+            className="mx-auto flex h-3 items-center justify-center rounded text-center text-[10px] font-medium leading-none text-sidebar-foreground/45 underline-offset-2 transition-colors hover:text-sidebar-foreground hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-sidebar-ring"
             aria-label={`LaWallet version ${APP_VERSION}, view release notes`}
             onClick={() => {
               closeMobile()

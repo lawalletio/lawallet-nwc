@@ -6,12 +6,12 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '@/lib/utils'
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:opacity-85 active:scale-[0.97] disabled:cursor-not-allowed disabled:active:scale-100 motion-reduce:transition-none motion-reduce:active:scale-100',
+  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition duration-150 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:opacity-85 active:scale-[0.97] disabled:cursor-not-allowed disabled:active:scale-100 motion-reduce:transition-none motion-reduce:active:scale-100',
   {
     variants: {
       variant: {
         default:
-          'bg-gradient-to-b from-neutral-400 to-neutral-100 text-[#0a0a0a] border border-neutral-700 shadow-[inset_0_2px_2px_rgba(255,255,255,0.4)] disabled:opacity-40',
+          'bg-linear-to-b from-neutral-400 to-neutral-100 text-[#0a0a0a] border border-neutral-700 shadow-[inset_0_2px_2px_rgba(255,255,255,0.4)] disabled:opacity-40',
         destructive:
           'bg-destructive text-destructive-foreground hover:bg-destructive/90',
         outline:
@@ -21,7 +21,7 @@ const buttonVariants = cva(
         ghost: 'hover:bg-accent hover:text-accent-foreground',
         link: 'text-primary underline-offset-4 hover:underline',
         theme:
-          'bg-gradient-to-b from-[var(--theme-200)] to-[var(--theme-400)] text-foreground border border-[var(--theme-300)] shadow-[inset_0_2px_2px_var(--theme-400)]'
+          'bg-linear-to-b from-(--theme-200) to-(--theme-400) text-foreground border border-(--theme-300) shadow-[inset_0_2px_2px_var(--theme-400)]'
       },
       size: {
         default: 'h-10 px-4 py-2',

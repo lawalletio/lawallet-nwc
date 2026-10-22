@@ -41,7 +41,7 @@ export function AddressReceiveProtocols({
       // same as the space between them. Both margins need `!`: the parent
       // stack's `space-y-6` sets margin-top AND margin-bottom on its children
       // and wins on specificity, so a plain `mb-4` here resolves to 0.
-      className="!mb-4 !mt-2 mx-auto flex w-fit max-w-full flex-wrap items-center justify-center gap-2 rounded-xl border border-border bg-card p-2"
+      className="mb-4! mt-2! mx-auto flex w-fit max-w-full flex-wrap items-center justify-center gap-2 rounded-xl border border-border bg-card p-2"
     >
       <ProtocolChip
         protocolKey="lud16"

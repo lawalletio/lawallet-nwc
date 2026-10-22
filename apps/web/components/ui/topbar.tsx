@@ -98,7 +98,7 @@ const Topbar = React.forwardRef<HTMLDivElement, TopbarProps>(
               key={tab.label}
               onClick={tab.onClick}
               className={cn(
-                'inline-flex items-center gap-1.5 px-4 py-3 text-sm font-semibold rounded-md transition-colors shadow-sm',
+                'inline-flex items-center gap-1.5 px-4 py-3 text-sm font-semibold rounded-md transition-colors shadow-xs',
                 tab.active
                   ? 'bg-secondary text-secondary-foreground'
                   : 'text-muted-foreground hover:text-foreground'

@@ -52,7 +52,7 @@ export function SuccessHeroCard({ address }: { address: string }) {
     <div className="relative w-full overflow-hidden rounded-lg border border-border bg-card animate-in fade-in-0 zoom-in-95 duration-500 ease-out">
       {/* Maintain a consistent aspect so the composition renders
           predictably regardless of the dialog's content width. */}
-      <div className="relative aspect-[16/9] w-full">
+      <div className="relative aspect-video w-full">
         {/* Blurred radial glow — centered at the top. Pulses softly to
             give the card a live "on-air" feel, and fades in slightly
             delayed so the sequence reads as card → glow → bolt → pill. */}
@@ -328,7 +328,7 @@ export function NewAddressDialog({
                 {/* QR centered in a fixed-width frame so the layout stays
                     stable regardless of the dialog's content width. */}
                 <div className="flex justify-center">
-                  <div className="rounded-xl bg-white p-4 shadow-sm">
+                  <div className="rounded-xl bg-white p-4 shadow-xs">
                     <QRCodeSVG
                       value={invoice.bolt11}
                       size={224}

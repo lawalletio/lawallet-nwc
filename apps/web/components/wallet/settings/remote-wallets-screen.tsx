@@ -56,9 +56,7 @@ export function RemoteWalletsScreen() {
       toast.success(success)
       await refetch()
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : l.updateFailed
-      )
+      toast.error(err instanceof Error ? err.message : l.updateFailed)
     } finally {
       setPending(null)
     }
@@ -179,14 +177,12 @@ function WalletRow({
         </span>
         <Link
           href={`/wallet/settings/remote-wallets/${wallet.id}`}
-          className="min-w-0 flex-1 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="min-w-0 flex-1 rounded-lg focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
         >
           <h2 className="truncate text-base font-semibold text-foreground">
             {wallet.name}
           </h2>
-          <p className="truncate text-xs text-muted-foreground">
-            {updated}
-          </p>
+          <p className="truncate text-xs text-muted-foreground">{updated}</p>
           {wallet.provider && (
             <div className="mt-1 flex">
               <Badge variant="secondary">LNCurl</Badge>
@@ -237,19 +233,19 @@ function WalletRow({
           <div className="flex min-w-0 items-start justify-between gap-3">
             <Link
               href={`/wallet/settings/remote-wallets/${wallet.id}`}
-              className="min-w-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="min-w-0 rounded-lg focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
             >
               <h2 className="truncate text-base font-semibold text-foreground">
                 {wallet.name}
               </h2>
-              <p className="text-xs text-muted-foreground">
-                {updated}
-              </p>
+              <p className="text-xs text-muted-foreground">{updated}</p>
             </Link>
             <Switch
               checked={active}
               disabled={statusToggleDisabled}
-              aria-label={active ? l.disable(wallet.name) : l.enable(wallet.name)}
+              aria-label={
+                active ? l.disable(wallet.name) : l.enable(wallet.name)
+              }
               onCheckedChange={onToggleStatus}
             />
           </div>

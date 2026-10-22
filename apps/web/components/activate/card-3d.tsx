@@ -81,8 +81,8 @@ export function Card3D({
                     callers can show pure artwork (e.g. the admin card pages,
                     which label the design elsewhere). */}
                 {title && (
-                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-3">
-                    <span className="text-sm font-semibold tracking-wide text-white drop-shadow">
+                  <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/70 to-transparent p-3">
+                    <span className="text-sm font-semibold tracking-wide text-white drop-shadow-sm">
                       {title}
                     </span>
                   </div>

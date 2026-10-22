@@ -73,7 +73,7 @@ export function PaymentReceiptLayout({
 }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-4 pb-4 pt-8 [scrollbar-gutter:stable]">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-4 pb-4 pt-8 scrollbar-gutter-stable">
         {children}
       </div>
       <div className="relative z-10 shrink-0 border-t border-border/60 bg-background/90 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3 backdrop-blur-xl">
@@ -107,9 +107,9 @@ function ReceiptStatusMark({ status }: { status: PaymentReceiptStatus }) {
     <div className="relative flex size-10 shrink-0 items-center justify-center">
       <span
         aria-hidden
-        className="absolute inset-0 rounded-full bg-[var(--theme-400)]/15 animate-success-pop"
+        className="absolute inset-0 rounded-full bg-(--theme-400)/15 animate-success-pop"
       />
-      <Check className="relative size-5 text-[var(--theme-400)]" />
+      <Check className="relative size-5 text-(--theme-400)" />
     </div>
   )
 }
@@ -125,7 +125,7 @@ function ReceiptStatusBadge({ status }: { status: PaymentReceiptStatus }) {
           ? 'border-destructive/40 bg-destructive/15 text-destructive'
           : status === 'pending'
             ? 'border-border bg-muted text-muted-foreground'
-            : 'border-[var(--theme-300)] bg-[var(--theme-400)]/20 text-foreground'
+            : 'border-(--theme-300) bg-(--theme-400)/20 text-foreground'
       )}
     >
       {label}
@@ -157,7 +157,7 @@ export function PaymentReceiptCard({
 
   return (
     <section className="relative overflow-hidden rounded-3xl border border-border bg-card shadow-[0_20px_60px_rgba(0,0,0,0.24)]">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[var(--theme-300)] to-transparent" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-(--theme-300) to-transparent" />
 
       <div className="flex flex-col items-center gap-3 px-5 pb-4 pt-5 text-center">
         <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2">
@@ -260,7 +260,7 @@ export function ReceiptDetailRow({
 export function PaymentProofCard({ children }: { children: ReactNode }) {
   const t = useT()
   return (
-    <section className="mt-5 rounded-3xl border border-border/80 bg-card/85 p-4 shadow-sm">
+    <section className="mt-5 rounded-3xl border border-border/80 bg-card/85 p-4 shadow-xs">
       <div className="flex flex-col gap-1">
         <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
           {t.shared.receipt.proofTitle}

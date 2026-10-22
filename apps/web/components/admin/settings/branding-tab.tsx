@@ -388,7 +388,7 @@ export function BrandingTab() {
                   disabled={roundingSaving}
                   onClick={() => handleRoundingChange(opt)}
                   className={cn(
-                    'px-3 py-2.5 text-xs font-semibold rounded-md transition-colors shadow-sm disabled:opacity-50',
+                    'px-3 py-2.5 text-xs font-semibold rounded-md transition-colors shadow-xs disabled:opacity-50',
                     rounding === opt
                       ? 'bg-secondary text-secondary-foreground'
                       : 'text-foreground hover:bg-secondary/50'
@@ -417,7 +417,7 @@ export function BrandingTab() {
                     disabled={themeSaving}
                     onClick={() => handleThemeChange(preset)}
                     className={cn(
-                      'flex items-center justify-center p-2 rounded-md shadow-sm transition-colors disabled:opacity-50',
+                      'flex items-center justify-center p-2 rounded-md shadow-xs transition-colors disabled:opacity-50',
                       isActive ? 'bg-secondary' : 'hover:bg-secondary/50'
                     )}
                     title={preset.name}

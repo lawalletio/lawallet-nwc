@@ -149,7 +149,7 @@ export function ConnectedApps() {
                   <Bot className="size-5" />
                 </span>
                 <div className="min-w-0 space-y-1">
-                  <p className="break-words text-base font-medium text-foreground">
+                  <p className="wrap-break-word text-base font-medium text-foreground">
                     <bdi>{grant.clientName}</bdi>
                   </p>
                   <div className="flex flex-wrap gap-1">

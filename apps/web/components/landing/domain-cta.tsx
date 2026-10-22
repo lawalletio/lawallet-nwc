@@ -13,7 +13,7 @@ export function DomainCta() {
         href="https://lawallet.io"
         target="_blank"
         rel="noopener noreferrer"
-        className="group inline-flex max-w-full flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-full border border-white/10 bg-white/[0.03] px-5 py-2.5 text-sm text-muted-foreground backdrop-blur-sm transition-colors hover:border-white/20 hover:text-foreground"
+        className="group inline-flex max-w-full flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-full border border-white/10 bg-white/3 px-5 py-2.5 text-sm text-muted-foreground backdrop-blur-xs transition-colors hover:border-white/20 hover:text-foreground"
       >
         <Zap
           className="size-4 shrink-0"

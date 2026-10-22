@@ -40,7 +40,7 @@ export function CurrencyToggle({
             className={cn(
               'shrink-0 rounded-full px-3 py-1 text-xs font-semibold transition-colors',
               active
-                ? 'bg-background text-foreground shadow-sm'
+                ? 'bg-background text-foreground shadow-xs'
                 : 'text-muted-foreground hover:text-foreground'
             )}
           >

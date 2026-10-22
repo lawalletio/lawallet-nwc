@@ -134,7 +134,7 @@ export function HeroSection({
       {/* Content */}
       <div className="relative z-10 flex flex-col items-center gap-8 max-w-3xl mx-auto text-center">
         {/* Headline */}
-        <h1 className="text-6xl md:text-8xl lg:text-[96px] font-black tracking-[-0.025em] leading-none">
+        <h1 className="text-6xl md:text-8xl lg:text-[96px] font-black tracking-tight leading-none">
           <span
             style={{
               background: 'linear-gradient(180deg, #ffffff 0%, #a3a3a3 100%)',
@@ -157,7 +157,7 @@ export function HeroSection({
         </h1>
 
         {/* Address display */}
-        <div className="relative rounded-2xl border border-white/[0.08] bg-[rgba(10,10,15,0.6)] px-8 py-4 backdrop-blur-sm">
+        <div className="relative rounded-2xl border border-white/8 bg-[rgba(10,10,15,0.6)] px-8 py-4 backdrop-blur-xs">
           <div
             className="pointer-events-none absolute inset-0 rounded-2xl"
             style={{
@@ -185,7 +185,7 @@ export function HeroSection({
       </div>
 
       {/* Tech marquee */}
-      <div className="absolute bottom-0 left-0 right-0 w-full overflow-hidden border-y border-white/[0.06] py-3">
+      <div className="absolute bottom-0 left-0 right-0 w-full overflow-hidden border-y border-white/6 py-3">
         <div className="flex marquee-scroll whitespace-nowrap gap-8 text-xs font-mono text-muted-foreground/50">
           {[...techItems, ...techItems].map((item, i) => (
             <span key={i} className="flex items-center gap-2">

@@ -307,7 +307,7 @@ function PayerNoteField({
 function RecipientPreview({ details }: { details: RecipientDetails }) {
   const t = useT()
   return (
-    <section className="rounded-3xl border border-border/70 bg-card/80 p-3 shadow-sm">
+    <section className="rounded-3xl border border-border/70 bg-card/80 p-3 shadow-xs">
       <div className="flex items-center gap-3">
         <Avatar className="size-14 border border-border/70 bg-background">
           {details.avatarUrl && (

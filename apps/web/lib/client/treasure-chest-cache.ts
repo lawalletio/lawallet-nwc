@@ -5,7 +5,7 @@ export const TREASURE_CHEST_SRC = '/animations/treasure-chest.lottie'
  * version; `treasure-chest-wasm.test.ts` fails when the dependency moves
  * so the copy can't drift — re-copy `dist/dotlottie-player.wasm` then.
  */
-export const DOTLOTTIE_WASM_SRC = '/animations/dotlottie-player-0.80.0.wasm'
+export const DOTLOTTIE_WASM_SRC = '/animations/dotlottie-player-0.81.0.wasm'
 
 const CACHE_NAME = 'lawallet-lottie-v1'
 

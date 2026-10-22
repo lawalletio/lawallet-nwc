@@ -101,8 +101,7 @@ function defaultBodyFor(
   spec: Record<string, unknown>
 ): string | undefined {
   const requestBody = operation.requestBody as
-    | { content?: Record<string, { schema?: unknown }> }
-    | undefined
+    { content?: Record<string, { schema?: unknown }> } | undefined
   const schema = requestBody?.content?.['application/json']?.schema
   if (!schema) return undefined
   const sample = sampleFromSchema(schema, spec)
@@ -230,8 +229,7 @@ export function ApiDocsClient() {
             const role = op['x-required-role']
             if (!isRequiredRole(role)) continue
             const security = op.security as
-              | Array<Record<string, unknown>>
-              | undefined
+              Array<Record<string, unknown>> | undefined
             const acceptsNip98 = !!security?.some(entry => 'NIP98' in entry)
             const tag = (op.tags as string[] | undefined)?.[0] ?? 'default'
             const domId = `api-1/tag/${slugTag(tag)}/${method.toUpperCase()}${path}`
@@ -368,7 +366,7 @@ export function ApiDocsClient() {
           'font-weight: 600',
           'letter-spacing: 0.5px',
           'line-height: 1.2',
-          'flex-shrink: 0',
+          'shrink: 0',
           'align-self: start',
           'margin-top: 2px',
           'white-space: nowrap'

@@ -216,7 +216,7 @@ function ProxyPaymentActivity({ invoice }: { invoice: ProxyInvoice }) {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <Route className="size-4 text-muted-foreground" aria-hidden />
-            <p className="text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">
+            <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
               {t.destinationAttempts}
             </p>
           </div>
@@ -229,7 +229,7 @@ function ProxyPaymentActivity({ invoice }: { invoice: ProxyInvoice }) {
           <Alert variant="destructive" className="mt-3 bg-destructive/5">
             <AlertTriangle className="size-4" aria-hidden />
             <AlertTitle>{t.latestError}</AlertTitle>
-            <AlertDescription className="break-words">
+            <AlertDescription className="wrap-break-word">
               {proxy.lastError}
             </AlertDescription>
           </Alert>
@@ -319,7 +319,7 @@ function AttemptActivity({
           <Alert variant="destructive" className="bg-destructive/5 py-3">
             <AlertTriangle className="size-4" aria-hidden />
             <AlertTitle>{attempt.errorCode ?? t.forwardingError}</AlertTitle>
-            <AlertDescription className="break-words">
+            <AlertDescription className="wrap-break-word">
               {attempt.errorMessage ?? t.notAccepted}
             </AlertDescription>
           </Alert>
@@ -351,7 +351,7 @@ function DebugIdentifier({
   return (
     <div className={cn('flex min-w-0 items-center gap-1.5', className)}>
       <div className="min-w-0 flex-1">
-        <p className="text-[9px] font-medium uppercase tracking-[0.1em] text-muted-foreground">
+        <p className="text-[9px] font-medium uppercase tracking-widest text-muted-foreground">
           {label}
         </p>
         <p

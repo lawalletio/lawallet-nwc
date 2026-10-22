@@ -142,7 +142,7 @@ export function ClaimDialog({ open, onOpenChange, domain }: ClaimDialogProps) {
           // Reset the base panel: glassy near-black, no opaque bg, hairline border, generous round.
           'group/claim overflow-hidden border-0 bg-transparent p-0 shadow-none sm:max-w-md sm:rounded-[28px]',
           // Kill the default close button's offset clash — we keep it, just style its frame below.
-          '[&>button]:right-5 [&>button]:top-5 [&>button]:z-30 [&>button]:rounded-full [&>button]:p-1.5 [&>button]:opacity-50 [&>button]:transition [&>button]:hover:opacity-90 [&>button]:hover:bg-white/5 [&>button]:outline-none [&>button]:focus:ring-0 [&>button]:focus-visible:ring-2 [&>button]:focus-visible:ring-white/40 [&>button]:focus-visible:ring-offset-0'
+          '[&>button]:right-5 [&>button]:top-5 [&>button]:z-30 [&>button]:rounded-full [&>button]:p-1.5 [&>button]:opacity-50 [&>button]:transition hover:[&>button]:opacity-90 hover:[&>button]:bg-white/5 [&>button]:outline-hidden focus:[&>button]:ring-0 focus-visible:[&>button]:ring-2 focus-visible:[&>button]:ring-white/40 focus-visible:[&>button]:ring-offset-0'
         )}
       >
         {/* ── Liquid-glass shell ───────────────────────────────────────────── */}
@@ -160,7 +160,7 @@ export function ClaimDialog({ open, onOpenChange, domain }: ClaimDialogProps) {
           {/* Hairline top inner highlight. */}
           <div
             aria-hidden
-            className="pointer-events-none absolute inset-x-0 top-0 -z-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent"
+            className="pointer-events-none absolute inset-x-0 top-0 z-0 h-px bg-linear-to-r from-transparent via-white/25 to-transparent"
           />
 
           {/* Header medallion — glassy circle with a theme glow. */}
@@ -196,7 +196,7 @@ export function ClaimDialog({ open, onOpenChange, domain }: ClaimDialogProps) {
                 <DialogTitle className="text-balance text-2xl font-semibold tracking-tight text-white">
                   Claim your Lightning Address
                 </DialogTitle>
-                <DialogDescription className="mx-auto max-w-[19rem] text-balance text-sm leading-relaxed text-white/45">
+                <DialogDescription className="mx-auto max-w-76 text-balance text-sm leading-relaxed text-white/45">
                   Pick a name. It becomes your address for getting paid anywhere
                   over Lightning.
                 </DialogDescription>
@@ -207,7 +207,7 @@ export function ClaimDialog({ open, onOpenChange, domain }: ClaimDialogProps) {
                   className="claim-stagger space-y-2"
                   style={{ animationDelay: '180ms' }}
                 >
-                  <InputGroup className="h-14 rounded-2xl border-white/10 bg-white/[0.03] shadow-none backdrop-blur-sm transition-colors focus-within:border-white/20 focus-within:ring-0 focus-within:ring-offset-0">
+                  <InputGroup className="h-14 rounded-2xl border-white/10 bg-white/3 shadow-none backdrop-blur-xs transition-colors focus-within:border-white/20 focus-within:ring-0 focus-within:ring-offset-0">
                     <Input
                       placeholder="satoshi"
                       value={username}
@@ -298,7 +298,7 @@ export function ClaimDialog({ open, onOpenChange, domain }: ClaimDialogProps) {
                   <span className="text-white">{username}</span>
                   <span className="text-white/35">@{displayDomain}</span>
                 </DialogTitle>
-                <DialogDescription className="mx-auto max-w-[19rem] text-balance text-sm leading-relaxed text-white/45">
+                <DialogDescription className="mx-auto max-w-76 text-balance text-sm leading-relaxed text-white/45">
                   Connect your Nostr identity to lock in this address.
                 </DialogDescription>
               </DialogHeader>

@@ -122,7 +122,7 @@ function MobilePageTopbar({
             )}
           </div>
           {actions && (
-            <div className="-mx-4 sm:-mx-6 flex items-center gap-2 overflow-x-auto px-4 sm:px-6 [&>*]:shrink-0">
+            <div className="-mx-4 sm:-mx-6 flex items-center gap-2 overflow-x-auto px-4 sm:px-6 *:shrink-0">
               {actions}
             </div>
           )}

@@ -17,12 +17,12 @@
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "^9.1.0",
     "@lawallet-nwc/shared": "workspace:*",
-    "openapi3-ts": "^4.6.1",
-    "zod": "^4.6.1"
+    "openapi3-ts": "^4.6.2",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
-    "tsx": "^4.23.13",
-    "typescript": "^5.9.3",
-    "vitest": "^5.0.0"
+    "tsx": "^4.23.15",
+    "typescript": "^6.0.3",
+    "vitest": "^5.0.5"
   }
 }

@@ -148,7 +148,7 @@ function ItemGroup({ items }: { items: Item[] }) {
 
 function SettingsRow({ item, divider }: { item: Item; divider: boolean }) {
   const baseClass = cn(
-    'group flex h-14 items-center justify-between gap-3 px-4 transition-[background-color,box-shadow,transform] duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70',
+    'group flex h-14 items-center justify-between gap-3 px-4 transition-[background-color,box-shadow,transform] duration-200 ease-out focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring/70',
     divider && 'border-b border-border/40'
   )
   const interactiveClass =

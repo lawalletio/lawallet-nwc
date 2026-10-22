@@ -71,8 +71,8 @@ export function ProxyPendingBalanceCard({
       className={cn(
         'relative overflow-hidden rounded-xl border px-5 py-4',
         hasPending
-          ? 'border-amber-500/25 bg-gradient-to-br from-amber-500/[0.12] via-amber-500/[0.04] to-transparent'
-          : 'border-emerald-500/20 bg-gradient-to-br from-emerald-500/[0.08] via-transparent to-transparent'
+          ? 'border-amber-500/25 bg-linear-to-br from-amber-500/12 via-amber-500/4 to-transparent'
+          : 'border-emerald-500/20 bg-linear-to-br from-emerald-500/8 via-transparent to-transparent'
       )}
     >
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

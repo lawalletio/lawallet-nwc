@@ -85,7 +85,7 @@ function useDimmed(id: string): boolean {
 
 function shellClasses(dimmed: boolean): string {
   return cn(
-    'flex w-full items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm shadow-sm transition-opacity duration-150',
+    'flex w-full items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm shadow-xs transition-opacity duration-150',
     dimmed && 'opacity-30'
   )
 }
@@ -118,7 +118,7 @@ export function LightningAddressNode({ id, data }: NodeProps) {
         id="out"
         type="source"
         position={Position.Right}
-        className="!size-2 !bg-emerald-400"
+        className="size-2! bg-emerald-400!"
       />
     </div>
   )
@@ -154,7 +154,7 @@ export function CardNode({ id, data }: NodeProps) {
         id="in"
         type="target"
         position={Position.Left}
-        className="!size-2 !bg-sky-400"
+        className="size-2! bg-sky-400!"
       />
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">
         <span className="truncate text-xs font-medium">{d.label}</span>
@@ -165,7 +165,7 @@ export function CardNode({ id, data }: NodeProps) {
           <img
             src={d.designImage}
             alt={d.designName ?? 'Card design'}
-            className="aspect-[8/5] w-full rounded-sm border border-border object-cover"
+            className="aspect-8/5 w-full rounded-sm border border-border object-cover"
           />
         ) : (
           <span className="truncate text-[10px] uppercase tracking-wider text-muted-foreground">
@@ -203,7 +203,7 @@ export function RemoteWalletNode({ id, data }: NodeProps) {
         id="from-la"
         type="target"
         position={Position.Left}
-        className="!size-2 !bg-amber-400"
+        className="size-2! bg-amber-400!"
       />
       <Wallet className={cn('size-4 shrink-0', statusColor)} />
       <div className="flex min-w-0 flex-col flex-1">
@@ -243,7 +243,7 @@ export function RemoteWalletNode({ id, data }: NodeProps) {
         id="to-card"
         type="source"
         position={Position.Right}
-        className="!size-2 !bg-sky-400"
+        className="size-2! bg-sky-400!"
       />
     </div>
   )
@@ -259,7 +259,7 @@ export function ProxyDestinationNode({ id, data }: NodeProps) {
     <div
       className={cn(
         shellClasses(dimmed),
-        'border-orange-500/30 bg-orange-500/[0.04]',
+        'border-orange-500/30 bg-orange-500/4',
         hidden && 'pointer-events-none opacity-0'
       )}
       style={{ width: NODE_WIDTH }}
@@ -269,7 +269,7 @@ export function ProxyDestinationNode({ id, data }: NodeProps) {
         type="target"
         position={Position.Left}
         isConnectable={false}
-        className="!size-2 !bg-orange-400"
+        className="size-2! bg-orange-400!"
       />
       <MapPin className="size-4 shrink-0 text-orange-400" aria-hidden />
       <div className="flex min-w-0 flex-col">

@@ -193,7 +193,7 @@ export function AddressInvoiceDetailsDialog({
                       <p className="font-medium text-destructive">
                         {td.needsAttention}
                       </p>
-                      <p className="mt-0.5 break-words text-muted-foreground">
+                      <p className="mt-0.5 wrap-break-word text-muted-foreground">
                         {proxy.lastError}
                       </p>
                     </div>
@@ -424,8 +424,8 @@ function FlowStep({
     <div
       className={cn(
         'rounded-xl border p-3',
-        tone === 'positive' && 'border-emerald-500/25 bg-emerald-500/[0.06]',
-        tone === 'fee' && 'border-amber-500/25 bg-amber-500/[0.06]',
+        tone === 'positive' && 'border-emerald-500/25 bg-emerald-500/6',
+        tone === 'fee' && 'border-amber-500/25 bg-amber-500/6',
         tone === 'default' && 'border-border/70 bg-muted/20'
       )}
     >
@@ -514,7 +514,7 @@ function InvoicePayload({
   const t = useT()
   const td = t.addresses.invoiceDetails
   return (
-    <div className="rounded-xl border border-border/70 bg-muted/[0.08] p-4">
+    <div className="rounded-xl border border-border/70 bg-muted/8 p-4">
       <div className="flex items-start justify-between gap-2">
         <div>
           <p className="text-sm font-medium">{title}</p>
@@ -577,11 +577,11 @@ function CopyValue({
 
 function DetailItem({ label, value }: { label: string; value: string }) {
   return (
-    <div className="border-border/60 px-3 py-2.5 odd:border-r-0 sm:odd:border-r [&:nth-child(n+3)]:border-t">
+    <div className="border-border/60 px-3 py-2.5 odd:border-r-0 sm:odd:border-r nth-[n+3]:border-t">
       <dt className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
         {label}
       </dt>
-      <dd className="mt-1 break-words tabular-nums">{value}</dd>
+      <dd className="mt-1 wrap-break-word tabular-nums">{value}</dd>
     </div>
   )
 }
