@@ -15,7 +15,8 @@ const {
   listenerNwcRequest,
   fetchDestinationMetadata,
   requestDestinationInvoice,
-  emitEvent
+  emitEvent,
+  reportError
 } = vi.hoisted(() => ({
   getProxySettlementConfig: vi.fn(),
   getListenerConfig: vi.fn(),
@@ -24,10 +25,12 @@ const {
   listenerNwcRequest: vi.fn(),
   fetchDestinationMetadata: vi.fn(),
   requestDestinationInvoice: vi.fn(),
-  emitEvent: vi.fn()
+  emitEvent: vi.fn(),
+  reportError: vi.fn()
 }))
 
 vi.mock('@/lib/proxy/config', () => ({ getProxySettlementConfig }))
+vi.mock('@/lib/observability/report', () => ({ reportError }))
 vi.mock('@/lib/listener-config', () => ({ getListenerConfig }))
 vi.mock('@/lib/wallet/drivers/listener-transport', () => ({
   getListenerNwcPayment,
@@ -492,5 +495,24 @@ describe('proxy reconciler', () => {
     await reconcileProxyPayments({ workerId: 'worker-from-claim' })
 
     expect(requestDestinationInvoice).toHaveBeenCalledOnce()
+  })
+
+  it('reports and blocks a payment whose reconcile pass throws', async () => {
+    getProxySettlementConfig.mockResolvedValue(null)
+
+    const result = await reconcileProxyPayments({
+      workerId: 'worker-from-claim'
+    })
+
+    expect(result).toEqual({ claimed: 1, completed: 0, failed: 1 })
+    expect(reportError).toHaveBeenCalledWith(
+      new Error('LUD-16 proxy is disabled or unconfigured'),
+      'proxy-reconcile'
+    )
+    expect(prismaMock.proxyPayment.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'BLOCKED' })
+      })
+    )
   })
 })

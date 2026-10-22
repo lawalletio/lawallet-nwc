@@ -22,7 +22,12 @@ const mocks = vi.hoisted(() => ({
   findWallet: vi.fn(),
   canSend: vi.fn(),
   activity: vi.fn(),
-  emit: vi.fn()
+  emit: vi.fn(),
+  reportError: vi.fn()
+}))
+
+vi.mock('@/lib/observability/report', () => ({
+  reportError: mocks.reportError
 }))
 
 vi.mock('light-bolt11-decoder', () => ({ decode: mocks.decode }))
@@ -650,6 +655,64 @@ describe('card payment callback action', () => {
     expect(mocks.driverPay).toHaveBeenCalledTimes(1)
     expect(mocks.getInFlight).not.toHaveBeenCalled()
     expect(mocks.reconcileDirect).not.toHaveBeenCalled()
+    expect(mocks.reportError).toHaveBeenCalledWith(
+      expect.any(PaymentOutcomeUnknownError),
+      'card-pay',
+      'warning'
+    )
+  })
+
+  describe('when the paid result cannot be persisted', () => {
+    const persistError = new Error('ledger write failed')
+
+    beforeEach(() => {
+      mocks.claim.mockResolvedValue({ outcome: 'CREATED', attempt: attempt() })
+      mocks.driverPay.mockResolvedValue({
+        preimage: '01'.repeat(32),
+        feesPaidSats: 0,
+        feesPaidMsats: 0,
+        transport: 'DIRECT'
+      })
+      mocks.succeed.mockRejectedValue(persistError)
+    })
+
+    it('reports the failure and marks the attempt UNKNOWN', async () => {
+      const response = await pay(request(), card, 7)
+
+      expect(await responseBody(response)).toEqual({
+        status: 'ERROR',
+        reason: 'Payment outcome is still being resolved'
+      })
+      expect(mocks.markUnknown).toHaveBeenCalledWith(
+        'attempt-1',
+        'PAYMENT_PERSISTENCE_ERROR',
+        'DIRECT'
+      )
+      expect(mocks.reportError).toHaveBeenCalledTimes(1)
+      expect(mocks.reportError).toHaveBeenCalledWith(persistError, 'card-pay')
+    })
+
+    it('also reports when marking the attempt UNKNOWN fails', async () => {
+      const markError = new Error('db down')
+      mocks.markUnknown.mockRejectedValue(markError)
+
+      const response = await pay(request(), card, 7)
+
+      expect(await responseBody(response)).toEqual({
+        status: 'ERROR',
+        reason: 'Payment outcome is still being resolved'
+      })
+      expect(mocks.reportError).toHaveBeenNthCalledWith(
+        1,
+        persistError,
+        'card-pay'
+      )
+      expect(mocks.reportError).toHaveBeenNthCalledWith(
+        2,
+        markError,
+        'card-pay'
+      )
+    })
   })
 
   it.each([
