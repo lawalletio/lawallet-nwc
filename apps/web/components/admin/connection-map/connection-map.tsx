@@ -561,7 +561,7 @@ function ConnectionMapInner() {
             if (!isPanning && !isConnecting) setHovered(null)
           }}
         >
-          <Background gap={24} size={1} className="!bg-background" />
+          <Background gap={24} size={1} className="bg-background!" />
           <Controls position="bottom-right" showInteractive={false} />
           {nodes.length === 0 && !loading && (
             <Panel position="top-center">

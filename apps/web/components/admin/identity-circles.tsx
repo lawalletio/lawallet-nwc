@@ -18,7 +18,7 @@ const PRESS_CLASSES =
 /** Centered loading veil shown over a circle while its page is navigating in. */
 function NavigatingVeil() {
   return (
-    <span className="absolute inset-0 z-10 flex items-center justify-center rounded-full bg-background/60 backdrop-blur-sm animate-in fade-in-0 duration-150">
+    <span className="absolute inset-0 z-10 flex items-center justify-center rounded-full bg-background/60 backdrop-blur-xs animate-in fade-in-0 duration-150">
       <Spinner size={24} />
     </span>
   )
@@ -94,7 +94,7 @@ export function IdentityCircles({
         sizeClass,
         'ring-2 ring-border',
         pubkey &&
-          'transition-transform hover:scale-105 hover:ring-ring focus-visible:outline-none focus-visible:ring-ring'
+          'transition-transform hover:scale-105 hover:ring-ring focus-visible:outline-hidden focus-visible:ring-ring'
       )}
     >
       {profile?.picture && (
@@ -117,7 +117,7 @@ export function IdentityCircles({
           aria-label="View my profile"
           onClick={() => setNavigatingTo('profile')}
           className={cn(
-            'relative rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+            'relative rounded-full focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
             PRESS_CLASSES
           )}
         >
@@ -145,7 +145,7 @@ export function IdentityCircles({
         className={cn(
           sizeClass,
           'relative flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-card ring-2 ring-border',
-          'hover:scale-105 hover:ring-ring focus-visible:outline-none focus-visible:ring-ring',
+          'hover:scale-105 hover:ring-ring focus-visible:outline-hidden focus-visible:ring-ring',
           PRESS_CLASSES
         )}
       >

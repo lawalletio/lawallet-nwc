@@ -24,7 +24,7 @@ export function DestinationTab({
       {destinations.map(destination => (
         <div
           key={destination.address}
-          className="rounded-xl border border-orange-500/25 bg-orange-500/[0.04] p-4"
+          className="rounded-xl border border-orange-500/25 bg-orange-500/4 p-4"
         >
           <div className="flex items-center gap-2">
             <MapPin className="size-4 shrink-0 text-orange-400" aria-hidden />

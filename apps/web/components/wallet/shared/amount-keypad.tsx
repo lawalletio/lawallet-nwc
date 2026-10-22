@@ -223,7 +223,7 @@ export function AmountKeypad({
             className={cn(
               'flex h-14 items-center justify-center rounded-xl bg-card text-2xl font-semibold text-foreground',
               'transition-colors hover:bg-accent active:scale-[0.98] active:bg-accent',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring',
               buttonClassName
             )}
             aria-label={

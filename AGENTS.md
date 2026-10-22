@@ -109,7 +109,7 @@ PostgreSQL via Prisma. Schema at `apps/web/prisma/schema.prisma`. Models include
 
 ### Frontend
 
-- shadcn/ui + Radix UI + Tailwind CSS 3.4
+- shadcn/ui + Radix UI + Tailwind CSS 4
 - React Hook Form + Zod for forms
 - Provider hierarchy: ThemeProvider → AuthProvider → NostrProfileProvider → Toaster
 - Auth context at `components/admin/auth-context.tsx` — JWT management, Nostr signer integration

@@ -135,7 +135,7 @@ export function WalletDetailBody({ wallet, addresses, cards }: Props) {
 
       <div className="space-y-4">
         {/* HERO — balance card. */}
-        <div className="relative overflow-hidden rounded-lg border border-border bg-gradient-to-br from-card to-card/40 p-5">
+        <div className="relative overflow-hidden rounded-lg border border-border bg-linear-to-br from-card to-card/40 p-5">
           <div className="pointer-events-none absolute -right-16 -top-16 size-56 rounded-full bg-amber-400/10 blur-3xl" />
 
           {/*

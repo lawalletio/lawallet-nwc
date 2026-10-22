@@ -24,7 +24,7 @@ export function RegisterAddressBanner({
   if (dismissed || role !== 'ADMIN' || lightningAddress) return null
 
   return (
-    <div className="relative bg-card/60 dark:bg-card/40 dark:bg-gradient-to-br dark:from-yellow-500/10 dark:to-transparent backdrop-blur-xl rounded-2xl p-6 border border-yellow-500/20 shadow-xl shadow-black/5 dark:shadow-black/10 transition-all duration-300 ease-out animate-in slide-in-from-top-4">
+    <div className="relative bg-card/60 dark:bg-card/40 dark:bg-linear-to-br dark:from-yellow-500/10 dark:to-transparent backdrop-blur-xl rounded-2xl p-6 border border-yellow-500/20 shadow-xl shadow-black/5 dark:shadow-black/10 transition-all duration-300 ease-out animate-in slide-in-from-top-4">
       <div className="relative flex items-start gap-4">
         {/* Icon */}
         <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-yellow-500/10">

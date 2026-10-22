@@ -321,7 +321,7 @@ function VoucherPreview({
 }) {
   const t = useT()
   return (
-    <section className="rounded-3xl border border-border/70 bg-card/80 p-3 shadow-sm">
+    <section className="rounded-3xl border border-border/70 bg-card/80 p-3 shadow-xs">
       <div className="flex items-center gap-3">
         <span className="flex size-12 items-center justify-center rounded-full border border-border/70 bg-background text-muted-foreground">
           <ArrowDownToLine className="size-5" />

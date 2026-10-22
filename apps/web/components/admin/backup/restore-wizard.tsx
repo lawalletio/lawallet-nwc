@@ -370,7 +370,7 @@ export function RestoreWizard({ onClose }: { onClose: () => void }) {
             />
           )}
 
-          <div className="sticky bottom-0 -mx-4 flex flex-col gap-3 border-t bg-background/95 px-4 py-3 backdrop-blur sm:mx-0 sm:flex-row sm:items-center sm:justify-between sm:rounded-lg sm:border sm:px-4">
+          <div className="sticky bottom-0 -mx-4 flex flex-col gap-3 border-t bg-background/95 px-4 py-3 backdrop-blur-sm sm:mx-0 sm:flex-row sm:items-center sm:justify-between sm:rounded-lg sm:border sm:px-4">
             {mode === 'merge' ? (
               <p aria-live="polite" className="text-xs text-muted-foreground">
                 <span className="font-medium text-foreground">

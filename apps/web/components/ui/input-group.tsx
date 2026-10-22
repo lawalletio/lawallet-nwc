@@ -10,7 +10,7 @@ const InputGroup = React.forwardRef<
   <div
     ref={ref}
     className={cn(
-      'flex items-center border border-border bg-background rounded-lg shadow-xs overflow-hidden focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-background',
+      'flex items-center border border-border bg-background rounded-lg shadow-2xs overflow-hidden focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-background',
       className
     )}
     {...props}

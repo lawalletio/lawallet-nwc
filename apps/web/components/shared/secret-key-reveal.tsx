@@ -55,7 +55,7 @@ export function SecretKeyReveal({
           <span
             className={cn(
               'flex-1 break-all text-xs font-mono text-foreground',
-              !revealed && 'blur-sm select-none'
+              !revealed && 'blur-xs select-none'
             )}
           >
             {nsec}

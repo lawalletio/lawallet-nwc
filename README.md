@@ -119,7 +119,7 @@ Three independent containerized services with no shared infrastructure:
 | Language        | [TypeScript 5.9](https://www.typescriptlang.org/)                                                                                                                     |
 | Framework       | [Next.js 16](https://nextjs.org/) (App Router)                                                                                                                        |
 | Database        | [PostgreSQL](https://www.postgresql.org/) via [Prisma 7.10](https://www.prisma.io/)                                                                                   |
-| Styling         | [Tailwind CSS 3.4](https://tailwindcss.com/) + [shadcn/ui](https://ui.shadcn.com/) + [Radix UI](https://www.radix-ui.com/)                                            |
+| Styling         | [Tailwind CSS 4](https://tailwindcss.com/) + [shadcn/ui](https://ui.shadcn.com/) + [Radix UI](https://www.radix-ui.com/)                                              |
 | Lightning / NWC | [Alby SDK 8](https://github.com/getAlby/js-sdk), [nostr-tools](https://github.com/nbd-wtf/nostr-tools), [@nostrify/nostrify](https://gitlab.com/soapbox-pub/nostrify) |
 | Testing         | [Vitest 5](https://vitest.dev/) + [MSW](https://mswjs.io/) + [happy-dom](https://github.com/capricorn86/happy-dom)                                                    |
 | Tooling         | [pnpm 11](https://pnpm.io/) workspaces + [Turborepo 2](https://turbo.build/)                                                                                          |

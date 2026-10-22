@@ -149,11 +149,11 @@ export function FirstLoadProgressProvider({
     <ProgressContext.Provider value={ctx}>
       <div
         aria-hidden
-        className="pointer-events-none fixed inset-x-0 top-0 z-[100] h-[3px]"
+        className="pointer-events-none fixed inset-x-0 top-0 z-100 h-[3px]"
         style={{ opacity: showBar ? 1 : 0, transition: 'opacity 300ms ease' }}
       >
         <div
-          className="h-full bg-[var(--theme-300)] shadow-[0_0_8px_var(--theme-300)]"
+          className="h-full bg-(--theme-300) shadow-[0_0_8px_var(--theme-300)]"
           style={{
             width: `${width}%`,
             transition: 'width 300ms ease-out'

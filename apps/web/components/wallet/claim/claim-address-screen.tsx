@@ -225,7 +225,7 @@ export function ClaimAddressScreen({
           ) : (
             <>
               <div className="flex justify-center">
-                <div className="rounded-xl bg-white p-4 shadow-sm">
+                <div className="rounded-xl bg-white p-4 shadow-xs">
                   <QRCodeSVG
                     value={flow.invoice.bolt11}
                     size={224}

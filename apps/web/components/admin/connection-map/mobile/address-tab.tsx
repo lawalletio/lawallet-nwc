@@ -115,7 +115,7 @@ export function AddressTab({ addresses, wallets, onOpenDetail }: Props) {
                   type="button"
                   aria-label={`Open ${addr.username} details`}
                   onClick={() => onOpenDetail(addr.username)}
-                  className="flex min-w-0 flex-1 items-center gap-3 rounded-l-lg px-3 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  className="flex min-w-0 flex-1 items-center gap-3 rounded-l-lg px-3 py-3 text-left focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
                   <AtSign className="size-4 shrink-0 text-emerald-400" />
                   <div className="flex min-w-0 flex-1 flex-col">

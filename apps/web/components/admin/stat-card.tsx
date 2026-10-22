@@ -115,7 +115,7 @@ export function StatCard({
   // keeps the card filling the grid cell the way it did before.
   if (href) {
     return (
-      <Link href={href} className="block focus-visible:outline-none">
+      <Link href={href} className="block focus-visible:outline-hidden">
         {card}
       </Link>
     )

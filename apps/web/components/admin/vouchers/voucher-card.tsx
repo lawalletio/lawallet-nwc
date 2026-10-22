@@ -40,7 +40,7 @@ export function VoucherCard({
     >
       <Link
         href={`/admin/vouchers/${voucher.id}`}
-        className="relative block overflow-hidden border-b border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="relative block overflow-hidden border-b border-border focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
       >
         {/* The zoom lives on a wrapper, not on DesignImage's `img`, so it
             doesn't fight that element's own opacity transition — and so the
@@ -123,7 +123,7 @@ function MerchantOverlay({ pubkey }: { pubkey: string }) {
     // Recedes on hover rather than disappearing: the merchant is why you
     // recognise the card, so it stays legible enough to keep your place while
     // the artwork it was covering comes forward.
-    <div className="pointer-events-none absolute inset-x-0 top-0 flex items-center gap-2.5 bg-gradient-to-b from-black/70 via-black/35 to-transparent p-3 pb-8 transition-opacity duration-300 ease-out group-hover:opacity-30 motion-reduce:transition-none">
+    <div className="pointer-events-none absolute inset-x-0 top-0 flex items-center gap-2.5 bg-linear-to-b from-black/70 via-black/35 to-transparent p-3 pb-8 transition-opacity duration-300 ease-out group-hover:opacity-30 motion-reduce:transition-none">
       <Avatar className="size-9 shrink-0 ring-1 ring-white/25">
         {profile?.picture ? <AvatarImage src={profile.picture} alt="" /> : null}
         <AvatarFallback className="bg-black/50 text-[11px] font-medium text-white">
@@ -131,7 +131,7 @@ function MerchantOverlay({ pubkey }: { pubkey: string }) {
         </AvatarFallback>
       </Avatar>
       <Store className="size-3.5 shrink-0 text-white/70" aria-hidden />
-      <span className="truncate text-sm font-medium text-white drop-shadow-sm">
+      <span className="truncate text-sm font-medium text-white drop-shadow-xs">
         {name}
       </span>
     </div>

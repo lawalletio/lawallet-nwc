@@ -273,7 +273,7 @@ export function LightningAddressInput({
       <div
         className={
           variant === 'inline'
-            ? 'flex h-full flex-col gap-3 overflow-y-auto overscroll-y-contain pb-4 pr-1 [scrollbar-gutter:stable]'
+            ? 'flex h-full flex-col gap-3 overflow-y-auto overscroll-y-contain pb-4 pr-1 scrollbar-gutter-stable'
             : 'flex flex-col gap-2'
         }
       >
@@ -447,7 +447,7 @@ export function LightningAddressInput({
           type="button"
           // Hidden until hover, but still tabbable and revealed on focus — a
           // keyboard user has no hover to trigger it with.
-          className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-hover:opacity-100"
+          className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground focus-visible:opacity-100 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring group-hover:opacity-100"
           onClick={() => {
             setCommittedValue(null)
             const node = localInputRef.current
@@ -492,7 +492,7 @@ export function LightningAddressInput({
           onCloseAutoFocus={event => event.preventDefault()}
           // Typing must keep reaching the input behind the list.
           onPointerDownOutside={event => event.preventDefault()}
-          className="z-50 w-[var(--radix-popover-trigger-width)] outline-none"
+          className="z-50 w-(--radix-popover-trigger-width) outline-hidden"
         >
           {optionList}
         </PopoverPrimitive.Content>
@@ -552,9 +552,9 @@ export function LightningAddressOptionButton({
       disabled={disabled}
       className={cn(
         'flex w-full items-center gap-2.5 rounded-xl border px-2.5 py-1.5 text-left transition-colors',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-70',
+        'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-70',
         active
-          ? 'border-[var(--theme-300)] bg-accent/80'
+          ? 'border-(--theme-300) bg-accent/80'
           : 'border-border/70 bg-card/80 hover:border-border hover:bg-card'
       )}
     >

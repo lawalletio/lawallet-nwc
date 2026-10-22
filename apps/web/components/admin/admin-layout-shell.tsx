@@ -116,7 +116,7 @@ function DatabaseUnavailableBanner({
           <AlertTriangle className="size-4 text-destructive" />
           Database unavailable
         </p>
-        <p className="break-words text-xs text-muted-foreground">
+        <p className="wrap-break-word text-xs text-muted-foreground">
           {error.message}. Changes may not save until the connection is
           restored.
         </p>

@@ -125,7 +125,7 @@ export function LightningAddressHero({
         type="button"
         onClick={handleClick}
         aria-label="Copy your Lightning Address"
-        className="group inline-flex max-w-full items-center gap-2.5 rounded-full border border-border bg-card px-5 py-2.5 text-foreground shadow-sm transition-colors hover:border-ring hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        className="group inline-flex max-w-full items-center gap-2.5 rounded-full border border-border bg-card px-5 py-2.5 text-foreground shadow-xs transition-colors hover:border-ring hover:bg-accent focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
       >
         <Zap className="size-4 shrink-0 text-yellow-500" />
         <span className="truncate text-lg tracking-tight sm:text-xl">
@@ -133,7 +133,7 @@ export function LightningAddressHero({
           {domainPart && (
             <>
               <span className="font-semibold text-yellow-500">@</span>
-              <span className="font-medium text-[var(--theme-400)]">
+              <span className="font-medium text-(--theme-400)">
                 {domainPart}
               </span>
             </>

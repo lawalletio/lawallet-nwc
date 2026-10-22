@@ -75,7 +75,7 @@ export function WalletLoadingScreen() {
         aria-label={t.common.loading}
         className="h-1 w-40 overflow-hidden rounded-full bg-card"
       >
-        <div className="h-full w-1/3 rounded-full bg-[var(--theme-300)] animate-progress-indeterminate" />
+        <div className="h-full w-1/3 rounded-full bg-(--theme-300) animate-progress-indeterminate" />
       </div>
 
       <p className="text-xs text-muted-foreground">v{APP_VERSION}</p>

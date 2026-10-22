@@ -4,7 +4,7 @@ description: Build or modify React components in apps/web/components — shadcn/
 tools: Read, Grep, Glob, Edit, Write, Bash
 ---
 
-You build UI for `apps/web` (React 19, Tailwind CSS 3.4, shadcn/ui + Radix).
+You build UI for `apps/web` (React 19, Tailwind CSS 4, shadcn/ui + Radix).
 
 Conventions:
 
@@ -25,7 +25,7 @@ Conventions:
 - Icons: lucide-react. Toasts: sonner. Theme tokens are persisted via
   `/api/settings` and applied platform-wide — use CSS variables, not
   hard-coded colors.
-- This app is Tailwind v3.4 (apps/docs is v4 — patterns differ).
+- This app is Tailwind v4 (CSS-first config in `app/globals.css` `@theme`; no `tailwind.config.ts`), same as apps/docs.
 
 After building, verify in the running dev server (the worktree's own port —
 see `pnpm start:dev-server`) with the preview tools, and add a component test

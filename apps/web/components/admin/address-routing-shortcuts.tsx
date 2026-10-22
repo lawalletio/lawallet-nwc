@@ -55,7 +55,7 @@ export function AddressRoutingShortcuts({
         >
           <option.icon
             className={cn(
-              'absolute -bottom-[10%] -right-[7%] z-[-1] size-[88%] stroke-[1.05] opacity-55 transition-[opacity,transform] duration-300 ease-out group-hover:scale-110 group-hover:rotate-[-4deg] group-hover:opacity-75',
+              'absolute bottom-[-10%] right-[-7%] z-[-1] size-[88%] stroke-[1.05] opacity-55 transition-[opacity,transform] duration-300 ease-out group-hover:scale-110 group-hover:rotate-[-4deg] group-hover:opacity-75',
               option.tone === 'wallet' ? 'text-[#897FFF]' : 'text-primary'
             )}
             aria-hidden
@@ -67,7 +67,7 @@ export function AddressRoutingShortcuts({
             )}
             aria-hidden
           />
-          <span className="mt-auto inline-flex items-center rounded-full border border-white/10 bg-background/55 px-4 py-2 text-lg font-semibold leading-none text-foreground shadow-sm backdrop-blur transition-colors group-hover:bg-background/75 sm:text-xl">
+          <span className="mt-auto inline-flex items-center rounded-full border border-white/10 bg-background/55 px-4 py-2 text-lg font-semibold leading-none text-foreground shadow-xs backdrop-blur-sm transition-colors group-hover:bg-background/75 sm:text-xl">
             {option.label}
           </span>
         </Link>
@@ -111,7 +111,7 @@ export function AddressRedirectCard({
         </p>
       </div>
       <Forward
-        className="pointer-events-none absolute -bottom-[22%] -right-[4%] z-[-1] size-[55%] stroke-[1.05] text-primary opacity-15 transition-opacity duration-300 group-hover:opacity-25"
+        className="pointer-events-none absolute bottom-[-22%] right-[-4%] z-[-1] size-[55%] stroke-[1.05] text-primary opacity-15 transition-opacity duration-300 group-hover:opacity-25"
         aria-hidden
       />
     </Link>

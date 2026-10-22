@@ -68,7 +68,7 @@ export function WizardShell({
         <div
           ref={contentRef}
           tabIndex={-1}
-          className="mx-auto w-full max-w-2xl px-4 pb-28 pt-8 outline-none sm:px-6 sm:pb-32"
+          className="mx-auto w-full max-w-2xl px-4 pb-28 pt-8 outline-hidden sm:px-6 sm:pb-32"
         >
           {children}
         </div>

@@ -112,7 +112,7 @@ export function WalletTransactionDetail({
         </dl>
 
         {(zap || zapLoading) && (
-          <section className="overflow-hidden rounded-xl border border-amber-500/20 bg-gradient-to-br from-amber-500/10 via-background to-background">
+          <section className="overflow-hidden rounded-xl border border-amber-500/20 bg-linear-to-br from-amber-500/10 via-background to-background">
             <div className="flex items-start gap-3 border-b border-amber-500/15 px-4 py-3">
               <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-amber-500/15 text-amber-500">
                 <Zap className="size-4" />

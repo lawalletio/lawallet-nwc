@@ -1026,7 +1026,7 @@ function MergeSideCard({ title, side }: { title: string; side: MergeSide }) {
 
         <ul className="space-y-1 text-muted-foreground">
           {side.lightningAddresses.length > 0 && (
-            <li className="break-words">
+            <li className="wrap-break-word">
               Addresses: {side.lightningAddresses.join(', ')}
             </li>
           )}

@@ -632,7 +632,7 @@ export default function AdminAddressEditPage({ params }: PageProps) {
               (mirroring the /admin dashboard's centered display) instead of
               sitting in the navbar. */}
               {/* The hero's breathing room comes from the page padding above
-              and the protocol strip's `!mt-2` below — keep them equal. */}
+              and the protocol strip's `mt-2!` below — keep them equal. */}
               <div className="flex flex-col items-center gap-2 text-center">
                 <LightningAddressHero address={fullAddress} label="" />
                 {!isOwner && (
@@ -641,7 +641,7 @@ export default function AdminAddressEditPage({ params }: PageProps) {
                     {data.ownerPubkey ? (
                       <Link
                         href={`/admin/users/${encodeURIComponent(data.ownerPubkey)}`}
-                        className="font-mono text-foreground underline-offset-4 transition-colors hover:text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                        className="font-mono text-foreground underline-offset-4 transition-colors hover:text-primary hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                         title={`View ${truncateNpub(data.ownerPubkey)} user profile`}
                         aria-label={`View user profile for ${truncateNpub(data.ownerPubkey)}`}
                       >

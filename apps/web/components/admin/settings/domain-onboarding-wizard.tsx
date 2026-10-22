@@ -286,7 +286,7 @@ function WordPressPluginCallout({ endpoint }: { endpoint: string }) {
     <div className="space-y-4 rounded-md border border-[#21759B]/35 bg-[#21759B]/10 p-4">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 items-start gap-3">
-          <span className="grid size-11 shrink-0 place-items-center rounded-md bg-[#21759B] text-white shadow-sm">
+          <span className="grid size-11 shrink-0 place-items-center rounded-md bg-[#21759B] text-white shadow-xs">
             <WordPressIcon className="size-6" />
           </span>
           <div className="min-w-0 space-y-1">
@@ -472,7 +472,7 @@ function ConnectedMetric({
   icon: React.ComponentType<React.SVGProps<SVGSVGElement>>
 }) {
   return (
-    <div className="flex min-w-0 items-center gap-3 rounded-md border bg-background/80 p-3 shadow-sm">
+    <div className="flex min-w-0 items-center gap-3 rounded-md border bg-background/80 p-3 shadow-xs">
       <span className="grid size-9 shrink-0 place-items-center rounded-md bg-emerald-500/10 text-emerald-500">
         <Icon className="size-4" />
       </span>
@@ -512,9 +512,9 @@ function DomainConnectedScreen({
   probing: boolean
 }) {
   return (
-    <div className="relative isolate min-w-0 overflow-hidden rounded-md border border-emerald-500/25 bg-emerald-500/[0.03] p-4">
+    <div className="relative isolate min-w-0 overflow-hidden rounded-md border border-emerald-500/25 bg-emerald-500/3 p-4">
       <SuccessConfetti />
-      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-400/70 to-transparent" />
+      <div className="absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-emerald-400/70 to-transparent" />
       <div className="relative space-y-4">
         <SuccessCheckmark />
 
@@ -968,7 +968,7 @@ export function DomainOnboardingWizard({
         className="w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] min-w-0 max-h-[92vh] overflow-x-hidden overflow-y-auto sm:max-w-[560px]"
         onChange={event => event.stopPropagation()}
       >
-        <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary via-emerald-500 to-cyan-500" />
+        <div className="absolute inset-x-0 top-0 h-1 bg-linear-to-r from-primary via-emerald-500 to-cyan-500" />
         <DialogHeader className="min-w-0 pr-6">
           <DialogTitle className="flex items-center gap-2">
             <span className="grid size-8 place-items-center rounded-md bg-primary/10 text-primary">

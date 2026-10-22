@@ -72,10 +72,10 @@ export function CardDetailBody({
           <img
             src={card.design.image}
             alt={card.design.description ?? 'Card design'}
-            className="aspect-[8/5] w-full rounded-md border border-border object-cover"
+            className="aspect-8/5 w-full rounded-md border border-border object-cover"
           />
         ) : (
-          <div className="flex aspect-[8/5] w-full items-center justify-center rounded-md border border-border bg-muted text-muted-foreground">
+          <div className="flex aspect-8/5 w-full items-center justify-center rounded-md border border-border bg-muted text-muted-foreground">
             <CreditCard className="size-8" />
           </div>
         )}

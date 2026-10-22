@@ -83,19 +83,20 @@ export function UserSelector({
 
   const options = useMemo<UserOption[]>(
     () =>
-      users.map(u => {
-        const profile = profiles[u.pubkey]
-        return {
-          id: u.id,
-          pubkey: u.pubkey,
-          npub: toNpub(u.pubkey),
-          name: profile?.displayName || profile?.name || null,
-          role: u.role,
-          avatarUrl: profile?.picture ?? null,
-          address: u.primaryAddress,
-          isSelf: u.pubkey === selfPubkey
-        }
-      })
+      users
+        .map(u => {
+          const profile = profiles[u.pubkey]
+          return {
+            id: u.id,
+            pubkey: u.pubkey,
+            npub: toNpub(u.pubkey),
+            name: profile?.displayName || profile?.name || null,
+            role: u.role,
+            avatarUrl: profile?.picture ?? null,
+            address: u.primaryAddress,
+            isSelf: u.pubkey === selfPubkey
+          }
+        })
         // The signed-in user always leads the list (stable sort keeps the rest).
         .sort((a, b) => Number(b.isSelf) - Number(a.isSelf)),
     [users, profiles, selfPubkey]
@@ -129,7 +130,7 @@ export function UserSelector({
           </Button>
         </PopoverTrigger>
         <PopoverContent
-          className="w-[var(--radix-popover-trigger-width)] p-0"
+          className="w-(--radix-popover-trigger-width) p-0"
           align="start"
         >
           <Command
@@ -191,7 +192,7 @@ export function UserSelector({
               e.stopPropagation()
               onValueChange('')
             }}
-            className="pointer-events-auto rounded-sm p-0.5 text-muted-foreground opacity-70 transition-opacity hover:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            className="pointer-events-auto rounded-sm p-0.5 text-muted-foreground opacity-70 transition-opacity hover:opacity-100 focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
           >
             <X className="size-4" />
           </button>

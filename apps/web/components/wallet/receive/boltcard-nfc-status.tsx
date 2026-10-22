@@ -80,7 +80,7 @@ export function BoltcardAccepted({ amountSats }: { amountSats: number }) {
           style={{ animationDelay: '0.45s' }}
         />
         <span
-          className="grid size-20 place-items-center rounded-full border border-[var(--theme-300)] bg-gradient-to-b from-[var(--theme-200)] to-[var(--theme-400)] text-foreground"
+          className="grid size-20 place-items-center rounded-full border border-(--theme-300) bg-linear-to-b from-(--theme-200) to-(--theme-400) text-foreground"
           style={{ boxShadow: '0 0 36px hsl(var(--primary) / 0.55)' }}
         >
           <svg viewBox="0 0 52 52" className="size-10" fill="none" aria-hidden>

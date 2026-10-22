@@ -271,7 +271,7 @@ export function EditProfileDialog({
               type="button"
               onClick={() => openPicker('banner')}
               aria-label="Change cover image"
-              className="group relative block h-28 w-full bg-gradient-to-br from-primary/30 via-primary/10 to-muted sm:h-36"
+              className="group relative block h-28 w-full bg-linear-to-br from-primary/30 via-primary/10 to-muted sm:h-36"
               style={
                 banner
                   ? {

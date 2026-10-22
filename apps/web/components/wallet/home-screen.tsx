@@ -284,7 +284,7 @@ export function HomeScreen() {
           />
         </div>
 
-        <div className="relative flex min-h-[3.5rem] w-full flex-col items-center justify-center">
+        <div className="relative flex min-h-14 w-full flex-col items-center justify-center">
           <div className="relative flex items-baseline gap-2 tabular-nums">
             {cue ? (
               <span
@@ -642,7 +642,7 @@ function CurrencyChips({
             className={cn(
               'rounded-full px-3 py-1 text-xs font-medium transition-colors',
               value === currency.code
-                ? 'bg-background text-foreground shadow-sm'
+                ? 'bg-background text-foreground shadow-xs'
                 : 'text-muted-foreground hover:text-foreground'
             )}
           >
@@ -745,7 +745,7 @@ function ActivityPreview({
             className={cn(
               'rounded-full px-3 py-1 text-xs font-medium transition-colors',
               tab === 'activity'
-                ? 'bg-background text-foreground shadow-sm'
+                ? 'bg-background text-foreground shadow-xs'
                 : 'text-muted-foreground hover:text-foreground'
             )}
           >

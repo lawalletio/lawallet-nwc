@@ -240,7 +240,7 @@ function OptionRow({
   return (
     <Label
       htmlFor={`policy-${value}`}
-      className="flex cursor-pointer items-start gap-3 rounded-lg border border-border p-3 has-[:checked]:border-primary"
+      className="flex cursor-pointer items-start gap-3 rounded-lg border border-border p-3 has-checked:border-primary"
     >
       <RadioGroupItem value={value} id={`policy-${value}`} className="mt-0.5" />
       <span className="flex flex-col gap-0.5">

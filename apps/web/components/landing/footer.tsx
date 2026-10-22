@@ -4,7 +4,7 @@ import Image from 'next/image'
 
 export function Footer() {
   return (
-    <footer className="max-w-5xl mx-auto px-4 py-8 border-t border-white/[0.06]">
+    <footer className="max-w-5xl mx-auto px-4 py-8 border-t border-white/6">
       <div className="flex items-center justify-between">
         <Image
           src="/logos/lawallet.svg"

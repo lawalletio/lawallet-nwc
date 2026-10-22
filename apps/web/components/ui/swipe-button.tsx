@@ -186,7 +186,7 @@ const SwipeButton = React.forwardRef<HTMLDivElement, SwipeButtonProps>(
 
         {/* Progress fill */}
         <div
-          className="absolute inset-y-0 left-0 bg-gradient-to-r from-neutral-600 to-neutral-400 transition-none"
+          className="absolute inset-y-0 left-0 bg-linear-to-r from-neutral-600 to-neutral-400 transition-none"
           style={{
             width: `${position + thumbWidth}px`,
             opacity: state === 'swiping' ? 0.3 : 0
@@ -196,7 +196,7 @@ const SwipeButton = React.forwardRef<HTMLDivElement, SwipeButtonProps>(
         {/* Shimmer animation for idle state */}
         {state === 'idle' && (
           <div className="absolute inset-0 overflow-hidden">
-            <div className="absolute inset-0 -translate-x-full animate-[shimmer_2.5s_ease-in-out_infinite] bg-gradient-to-r from-transparent via-white/5 to-transparent" />
+            <div className="absolute inset-0 -translate-x-full animate-[shimmer_2.5s_ease-in-out_infinite] bg-linear-to-r from-transparent via-white/5 to-transparent" />
           </div>
         )}
 
@@ -226,9 +226,9 @@ const SwipeButton = React.forwardRef<HTMLDivElement, SwipeButtonProps>(
           <div
             className={cn(
               'absolute top-0.5 left-0.5 h-[calc(100%-4px)] w-[48px] flex items-center justify-center rounded-full cursor-grab active:cursor-grabbing',
-              'bg-gradient-to-b from-neutral-400 to-neutral-100 border border-neutral-700 shadow-md',
+              'bg-linear-to-b from-neutral-400 to-neutral-100 border border-neutral-700 shadow-md',
               state !== 'swiping' && 'transition-all duration-300',
-              state === 'done' && 'bg-gradient-to-b from-green-400 to-green-300'
+              state === 'done' && 'bg-linear-to-b from-green-400 to-green-300'
             )}
             style={{ transform: `translateX(${position}px)` }}
             onMouseDown={handleMouseDown}

@@ -218,7 +218,7 @@ export function ImageCropDialog({
             <canvas
               ref={previewCanvasRef}
               className={cn(
-                'border bg-background shadow-sm transition-all duration-300',
+                'border bg-background shadow-xs transition-all duration-300',
                 kind === 'avatar' ? 'rounded-full' : 'rounded-md',
                 previewReady ? 'scale-100 opacity-100' : 'scale-95 opacity-0'
               )}

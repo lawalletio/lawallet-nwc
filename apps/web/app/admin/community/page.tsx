@@ -250,7 +250,7 @@ export default function CommunityAboutPage() {
         <div className="overflow-hidden rounded-xl border bg-card">
           {/* Hero — cover image behind the logotype, falling back to the
               existing brand gradient until admins upload one. */}
-          <div className="relative flex h-40 w-full items-center justify-center overflow-hidden bg-gradient-to-br from-primary/20 via-primary/5 to-muted p-6 sm:h-48">
+          <div className="relative flex h-40 w-full items-center justify-center overflow-hidden bg-linear-to-br from-primary/20 via-primary/5 to-muted p-6 sm:h-48">
             {cover && (
               <>
                 <Image
@@ -289,7 +289,7 @@ export default function CommunityAboutPage() {
                   size="sm"
                   disabled={coverUpload.uploading}
                   onClick={() => coverInputRef.current?.click()}
-                  className="absolute right-3 top-3 border border-border/60 bg-background/80 text-xs shadow-sm backdrop-blur"
+                  className="absolute right-3 top-3 border border-border/60 bg-background/80 text-xs shadow-xs backdrop-blur-sm"
                 >
                   {coverUpload.uploading ? (
                     <Spinner size={16} />
