@@ -80,6 +80,12 @@ export const BEARER_TOKEN_PATH_PATTERNS: {
     match: /^\/api\/activation-tokens\/[^/]+(\/|$)/,
     replace: /^(\/api\/activation-tokens)\/[^/]+/,
     placeholder: '[id]'
+  },
+  // /wallet/activate/<id> — the browser page for the same activation token.
+  {
+    match: /^\/wallet\/activate\/[^/]+(\/|$)/,
+    replace: /^(\/wallet\/activate)\/[^/]+/,
+    placeholder: '[id]'
   }
 ]
 
@@ -104,6 +110,28 @@ export function redactPathBearerTokens(
   return pathname
 }
 
+/**
+ * `scrubPii` plus bearer-path redaction for a value that may be a full URL or
+ * a bare path (`url.full`, `http.target`, breadcrumb `to`, …). Bearer ids are
+ * 32-hex, which `scrubPii` alone does not match. Free text that merely
+ * contains a path (e.g. `GET /api/...`) is left to `scrubPii`.
+ */
+function scrubUrl(value: string): string {
+  try {
+    const parsed = new URL(value)
+    parsed.pathname = redactPathBearerTokens(parsed.pathname)
+    return scrubPii(parsed.toString())
+  } catch {
+    return scrubPii(redactPathBearerTokens(value))
+  }
+}
+
+function scrubRecord(record: Record<string, unknown> | undefined): void {
+  for (const [key, value] of Object.entries(record ?? {})) {
+    if (typeof value === 'string') record![key] = scrubUrl(value)
+  }
+}
+
 /** Structural subset of a Sentry event — keeps this module Sentry-free. */
 type SentryEventLike = {
   message?: string
@@ -111,7 +139,7 @@ type SentryEventLike = {
   exception?: { values?: { value?: string }[] }
   breadcrumbs?: { message?: string; data?: Record<string, unknown> }[]
   request?: { url?: string; query_string?: unknown }
-  spans?: { description?: string }[]
+  spans?: { description?: string; data?: Record<string, unknown> }[]
   // `tags` is a standard CaptureContext/Scope container the app populates via
   // `captureException(..., { tags })` and `setTag(...)`; left un-iterated it
   // would let any caller-side secret reach Sentry unredacted. `Record<string,
@@ -123,53 +151,38 @@ type SentryEventLike = {
   // span attributes into `contexts.trace.data`. Next.js writes `req.url`
   // (raw path + query) as `http.target` on the root request span — that
   // channel is what `beforeSendTransaction` must scrub, because `beforeSend`
-  // never runs for transactions.
-  contexts?: { trace?: { data?: Record<string, unknown> } }
+  // never runs for transactions. Other contexts carry raw paths too
+  // (`captureRequestError` adds `contexts.nextjs.request_path`), so every
+  // context's top-level strings are scrubbed as well.
+  contexts?: Record<string, Record<string, unknown> | undefined> & {
+    trace?: { data?: Record<string, unknown> }
+  }
 }
 
 /** Sentry `beforeSend` / `beforeSendTransaction`-compatible scrubber. Mutates and returns the event. */
 export function scrubEvent<T extends SentryEventLike>(event: T): T {
   if (event.message) event.message = scrubPii(event.message)
-  if (event.transaction) event.transaction = scrubPii(event.transaction)
+  // Browser pageload/navigation transactions can be named by raw URL path.
+  if (event.transaction) event.transaction = scrubUrl(event.transaction)
   for (const ex of event.exception?.values ?? []) {
     if (ex.value) ex.value = scrubPii(ex.value)
   }
   for (const crumb of event.breadcrumbs ?? []) {
     if (crumb.message) crumb.message = scrubPii(crumb.message)
-    for (const [key, value] of Object.entries(crumb.data ?? {})) {
-      if (typeof value === 'string') crumb.data![key] = scrubPii(value)
-    }
+    scrubRecord(crumb.data)
   }
-  if (event.request?.url) {
-    // First apply pattern-based scrubbing (Nostr/LN shapes), then apply
-    // bearer-token path redaction so OTC / EDK / activation-token ids are
-    // replaced with their [param] placeholder even though they don't match
-    // the 64-hex Nostr key shape. Extract the pathname from the URL so the
-    // route-prefix discriminator works correctly, then re-embed it.
-    try {
-      const parsed = new URL(event.request.url)
-      parsed.pathname = redactPathBearerTokens(parsed.pathname)
-      event.request.url = scrubPii(parsed.toString())
-    } catch {
-      event.request.url = scrubPii(event.request.url)
-    }
-  }
+  if (event.request?.url) event.request.url = scrubUrl(event.request.url)
   if (typeof event.request?.query_string === 'string') {
     event.request.query_string = scrubPii(event.request.query_string)
   }
   for (const span of event.spans ?? []) {
     if (span.description) span.description = scrubPii(span.description)
+    scrubRecord(span.data)
   }
-  if (event.tags) {
-    for (const [key, value] of Object.entries(event.tags)) {
-      if (typeof value === 'string') event.tags[key] = scrubPii(value)
-    }
+  scrubRecord(event.tags)
+  for (const context of Object.values(event.contexts ?? {})) {
+    scrubRecord(context)
   }
-  for (const [key, value] of Object.entries(
-    event.contexts?.trace?.data ?? {}
-  )) {
-    if (typeof value === 'string')
-      event.contexts!.trace!.data![key] = scrubPii(value)
-  }
+  scrubRecord(event.contexts?.trace?.data)
   return event
 }

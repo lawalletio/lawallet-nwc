@@ -199,6 +199,74 @@ describe('scrubEvent', () => {
     expect(out.request!.url).toBe(`https://example.com/api/cards/${cardId}`)
   })
 
+  it('redacts bearer-token path segments outside event.request.url', () => {
+    // The OTC / activation-token id is 32-hex, so scrubPii alone misses it:
+    // every URL-carrying channel needs bearer-path redaction, not just
+    // request.url.
+    const otc = 'a'.repeat(32)
+    const activationId = 'b'.repeat(32)
+    const out = scrubEvent({
+      transaction: `/wallet/activate/${activationId}`,
+      breadcrumbs: [
+        {
+          data: {
+            from: '/wallet',
+            to: `/wallet/activate/${activationId}`,
+            url: `https://example.com/api/activation-tokens/${activationId}/claim`
+          }
+        }
+      ],
+      spans: [
+        {
+          description: 'GET',
+          data: { 'url.full': `https://example.com/api/cards/otc/${otc}` }
+        }
+      ],
+      contexts: {
+        trace: {
+          data: {
+            'url.path': `/api/cards/otc/${otc}/activate`,
+            'url.full': `https://example.com/api/cards/otc/${otc}?x=1`,
+            'http.target': `/api/activation-tokens/${activationId}`
+          }
+        },
+        nextjs: {
+          request_path: `/api/cards/otc/${otc}`,
+          router_kind: 'App Router'
+        }
+      }
+    })
+
+    expect(out.transaction).toBe('/wallet/activate/[id]')
+    expect(out.breadcrumbs![0]!.data).toEqual({
+      from: '/wallet',
+      to: '/wallet/activate/[id]',
+      url: 'https://example.com/api/activation-tokens/[id]/claim'
+    })
+    expect(out.spans![0]!.data!['url.full']).toBe(
+      'https://example.com/api/cards/otc/[otc]'
+    )
+    expect(out.contexts!.trace!.data).toEqual({
+      'url.path': '/api/cards/otc/[otc]/activate',
+      'url.full': 'https://example.com/api/cards/otc/[otc]?x=1',
+      'http.target': '/api/activation-tokens/[id]'
+    })
+    expect(out.contexts!.nextjs).toEqual({
+      request_path: '/api/cards/otc/[otc]',
+      router_kind: 'App Router'
+    })
+    expect(JSON.stringify(out)).not.toContain(otc)
+    expect(JSON.stringify(out)).not.toContain(activationId)
+  })
+
+  it('redacts the activation-token id in browser /wallet/activate URLs', () => {
+    const id = 'd'.repeat(32)
+    const out = scrubEvent({
+      request: { url: `https://example.com/wallet/activate/${id}` }
+    })
+    expect(out.request!.url).toBe('https://example.com/wallet/activate/[id]')
+  })
+
   it('scrubs 64-hex pubkeys and LUD-16 addresses in transaction http.target', () => {
     // Mirrors the Sentry transaction payload Next.js emits for sampled
     // App-Router requests: `event.type === 'transaction'` and the raw
@@ -329,6 +397,13 @@ describe('redactPathBearerTokens', () => {
     const id = 'b'.repeat(32)
     expect(redactPathBearerTokens(`/api/activation-tokens/${id}/claim`)).toBe(
       '/api/activation-tokens/[id]/claim'
+    )
+  })
+
+  it('redacts activation-token id in /wallet/activate/<id>', () => {
+    const id = 'b'.repeat(32)
+    expect(redactPathBearerTokens(`/wallet/activate/${id}`)).toBe(
+      '/wallet/activate/[id]'
     )
   })
 
