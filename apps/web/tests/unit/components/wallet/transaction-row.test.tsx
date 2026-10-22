@@ -7,6 +7,10 @@ import {
   __resetActivityDetailStoreForTests
 } from '@/lib/client/activity-detail-store'
 import type { NwcTransaction } from '@/lib/client/nwc/transactions'
+import {
+  rememberPaymentDestination,
+  __resetPaymentDestinationsForTests
+} from '@/lib/client/payment-destinations'
 
 const HASH = 'a591a6d40bf420404a011733cfb7b190d62c65bf0bcda32b57b277d9ad9f146e'
 
@@ -24,6 +28,8 @@ const TX: NwcTransaction = {
 describe('TransactionRow', () => {
   beforeEach(() => {
     __resetActivityDetailStoreForTests()
+    window.localStorage.clear()
+    __resetPaymentDestinationsForTests()
   })
   it('renders a link to the transaction detail when href is set', () => {
     render(
@@ -41,5 +47,36 @@ describe('TransactionRow', () => {
     await user.click(screen.getByRole('link', { name: /Coffee/ }))
 
     expect(recallActivityTx(HASH)?.amountSats).toBe(21000)
+  })
+
+  it('shows the comment a payer left on an incoming LUD-16 payment', () => {
+    render(
+      <TransactionRow tx={{ ...TX, description: 'Payment to @bob: gracias!' }} />
+    )
+
+    expect(screen.getByText('Payment to @bob')).toBeInTheDocument()
+    expect(screen.getByText('“gracias!”')).toBeInTheDocument()
+  })
+
+  it('shows the remembered Lightning Address and comment for a send', () => {
+    rememberPaymentDestination(HASH, {
+      address: 'alice@example.com',
+      name: 'Alice',
+      avatarUrl: 'data:image/png;base64,AAAA',
+      comment: 'for lunch'
+    })
+    render(
+      <TransactionRow
+        tx={{ ...TX, type: 'outgoing', description: 'Invoice from alice' }}
+      />
+    )
+
+    expect(screen.getByText('Alice')).toBeInTheDocument()
+    expect(screen.getByText('“for lunch”')).toBeInTheDocument()
+    expect(
+      JSON.parse(
+        window.localStorage.getItem('lawallet-payment-destinations') ?? '{}'
+      )[HASH].avatarUrl
+    ).toBeNull()
   })
 })

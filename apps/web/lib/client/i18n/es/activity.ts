@@ -16,6 +16,7 @@ export const activity: typeof En = {
   today: 'Hoy',
   yesterday: 'Ayer',
   detail: {
+    sendAgain: (address: string) => `Enviar de nuevo a ${address}`,
     loading: 'Cargando transacción…',
     notFound: 'Transacción no encontrada.',
     backToActivity: 'Volver a la actividad',
