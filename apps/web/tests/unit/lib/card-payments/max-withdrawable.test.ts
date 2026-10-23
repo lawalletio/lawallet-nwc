@@ -10,7 +10,10 @@ vi.mock('@/lib/wallet/drivers', () => ({
   driverForWallet
 }))
 
-import { resolveCardMaxWithdrawableMsats } from '@/lib/card-payments/max-withdrawable'
+import {
+  probeCardBalanceMsats,
+  resolveCardMaxWithdrawableMsats
+} from '@/lib/card-payments/max-withdrawable'
 
 const route = {
   kind: 'wallet' as const,
@@ -84,7 +87,7 @@ describe('resolveCardMaxWithdrawableMsats', () => {
 
     try {
       const pending = resolveCardMaxWithdrawableMsats(route)
-      await vi.advanceTimersByTimeAsync(1_500)
+      await vi.advanceTimersByTimeAsync(600)
       await expect(pending).resolves.toBe(Number.MAX_SAFE_INTEGER)
     } finally {
       vi.useRealTimers()
@@ -112,13 +115,42 @@ describe('resolveCardMaxWithdrawableMsats', () => {
 
     try {
       const pending = resolveCardMaxWithdrawableMsats(route)
-      await vi.advanceTimersByTimeAsync(1_500)
+      await vi.advanceTimersByTimeAsync(600)
       await expect(pending).resolves.toBe(Number.MAX_SAFE_INTEGER)
       rejectProbe?.(new Error('late balance failure'))
       await vi.advanceTimersByTimeAsync(0)
       expect(unhandled).toEqual([])
     } finally {
       process.off('unhandledRejection', onUnhandled)
+      vi.useRealTimers()
+    }
+  })
+})
+
+describe('probeCardBalanceMsats', () => {
+  it('returns the balance, or null when the wallet errors', async () => {
+    balance(21)
+    await expect(probeCardBalanceMsats(route)).resolves.toBe(21_000)
+
+    driverForWallet.mockReturnValue({
+      driver: { getBalance: vi.fn().mockRejectedValue(new Error('down')) },
+      config: {}
+    })
+    await expect(probeCardBalanceMsats(route)).resolves.toBeNull()
+  })
+
+  it('gives up at the caller budget', async () => {
+    vi.useFakeTimers()
+    driverForWallet.mockReturnValue({
+      driver: { getBalance: () => new Promise(() => {}) },
+      config: {}
+    })
+
+    try {
+      const pending = probeCardBalanceMsats(route, 50)
+      await vi.advanceTimersByTimeAsync(50)
+      await expect(pending).resolves.toBeNull()
+    } finally {
       vi.useRealTimers()
     }
   })

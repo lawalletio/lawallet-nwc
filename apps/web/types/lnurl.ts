@@ -24,11 +24,19 @@ export interface LUD03Request extends LnurlRequest {
 
 export interface LUD03CallbackSuccess {
   status: 'OK'
+  /**
+   * Non-LNURL extension: the paying wallet's balance in msats, when the card
+   * owner shares it. Read alongside the payment, so it may or may not already
+   * reflect this invoice.
+   */
+  balance?: number
 }
 
 export interface LUD03CallbackError {
   status: 'ERROR'
   reason: string
+  /** Same extension as {@link LUD03CallbackSuccess.balance}. */
+  balance?: number
 }
 
 export interface LUD06Response {

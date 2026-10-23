@@ -10,6 +10,7 @@ const blockedAt = new Date('2026-01-02T03:04:05.678Z')
 const row = {
   id: 'card-1',
   userId: 'user-1',
+  cardBalanceShared: true,
   blockedAt,
   disabledAt: null,
   ntag424Cid: 'cid-1',
@@ -32,6 +33,7 @@ const row = {
 const empty = {
   ...row,
   userId: null,
+  cardBalanceShared: null,
   blockedAt: null,
   ntag424Cid: null,
   ntagCid: null,
@@ -69,6 +71,7 @@ describe('loadTapCard', () => {
         status: 'ACTIVE'
       },
       user: {
+        cardBalanceShared: true,
         lightningAddresses: [
           {
             mode: 'CUSTOM_NWC',
@@ -101,20 +104,27 @@ describe('loadTapCard', () => {
 
   it('gives an owner with no primary address an empty list', async () => {
     vi.mocked(prismaMock.$queryRaw).mockResolvedValue([
-      { ...empty, userId: 'user-1' }
+      { ...empty, userId: 'user-1', cardBalanceShared: false }
     ])
 
     expect((await loadTapCard('card-1'))?.user).toEqual({
+      cardBalanceShared: false,
       lightningAddresses: []
     })
   })
 
   it('keeps a primary address whose wallet was deleted', async () => {
     vi.mocked(prismaMock.$queryRaw).mockResolvedValue([
-      { ...empty, userId: 'user-1', addressMode: 'IDLE' }
+      {
+        ...empty,
+        userId: 'user-1',
+        cardBalanceShared: true,
+        addressMode: 'IDLE'
+      }
     ])
 
     expect((await loadTapCard('card-1'))?.user).toEqual({
+      cardBalanceShared: true,
       lightningAddresses: [
         { mode: 'IDLE', remoteWalletId: null, remoteWallet: null }
       ]

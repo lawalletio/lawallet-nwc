@@ -316,6 +316,10 @@ model User {
   /// account onto another key (card-manager RECOVER QR). On by default; the
   /// owner turns it off in Security so a lost card can't take the account.
   cardRecoveryEnabled                Boolean                            @default(true)
+  /// Whether a card tap's LNURL-withdraw callback reports this account's
+  /// wallet balance to the point of sale. On by default; the owner turns it
+  /// off in My cards. The early-OK decision uses the balance either way.
+  cardBalanceShared                  Boolean                            @default(true)
   /// Recoveries that moved this account's resources out (old-owner notice).
   recoveriesFrom                     AccountRecovery[]                  @relation("AccountRecoveryFrom")
   /// Recoveries that moved another account's resources in.

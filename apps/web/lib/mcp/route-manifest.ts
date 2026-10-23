@@ -161,6 +161,8 @@ export const routeManifest: Record<string, () => Promise<RouteModule>> = {
   '/api/users/me': () => import('@/app/api/users/me/route'),
   '/api/users/me/account-transfer/dismiss': () =>
     import('@/app/api/users/me/account-transfer/dismiss/route'),
+  '/api/users/me/card-balance-sharing': () =>
+    import('@/app/api/users/me/card-balance-sharing/route'),
   '/api/users/me/card-recovery': () =>
     import('@/app/api/users/me/card-recovery/route'),
   '/api/users/me/currency-prefs': () =>

@@ -381,6 +381,17 @@
           "enabled"
         ]
       },
+      "CardBalanceSharingSettingRequest": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ]
+      },
       "CardDesignCreateRequest": {
         "type": "object",
         "properties": {
@@ -6171,6 +6182,7 @@
           "Cards"
         ],
         "summary": "LNURL-withdraw callback for a scanned card.",
+        "description": "Publishes the payment, then reads the wallet balance alongside it. When the balance exceeds the invoice the response is `OK` right away and the payment settles in the background (LUD-03 async); otherwise it waits for the payment result. `balance` (msats) is a non-LNURL extension, included only when the card owner shares it.",
         "operationId": "cards.scan.callback",
         "security": [],
         "parameters": [
@@ -6227,6 +6239,9 @@
                           "enum": [
                             "OK"
                           ]
+                        },
+                        "balance": {
+                          "type": "integer"
                         }
                       },
                       "required": [
@@ -6244,6 +6259,9 @@
                         },
                         "reason": {
                           "type": "string"
+                        },
+                        "balance": {
+                          "type": "integer"
                         }
                       },
                       "required": [
@@ -11680,6 +11698,9 @@
                     "cardRecoveryEnabled": {
                       "type": "boolean"
                     },
+                    "cardBalanceShared": {
+                      "type": "boolean"
+                    },
                     "accountTransfer": {
                       "type": [
                         "object",
@@ -11730,6 +11751,7 @@
                     "createdAt",
                     "currencyPrefs",
                     "cardRecoveryEnabled",
+                    "cardBalanceShared",
                     "accountTransfer"
                   ],
                   "additionalProperties": {},
@@ -11908,6 +11930,94 @@
                   },
                   "required": [
                     "cardRecoveryEnabled"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/users/me/card-balance-sharing": {
+      "put": {
+        "x-required-role": "USER",
+        "tags": [
+          "Users"
+        ],
+        "summary": "Share or hide this account’s balance on card taps.",
+        "description": "When on, a card tap’s LNURL-withdraw callback includes the paying wallet’s balance (msats) so the point of sale can show it.",
+        "operationId": "users.me.cardBalanceSharing.set",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CardBalanceSharingSettingRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Card balance sharing setting saved.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "cardBalanceShared": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "cardBalanceShared"
                   ]
                 }
               }

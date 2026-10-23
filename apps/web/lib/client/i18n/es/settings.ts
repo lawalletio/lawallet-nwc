@@ -42,7 +42,14 @@ export const settings: typeof En = {
     manage: 'Administrar tarjetas',
     errorTitle: 'Tarjetas no disponibles',
     tryAgain: 'Intenta de nuevo en un momento.',
-    fallbackName: 'Tarjeta'
+    fallbackName: 'Tarjeta',
+    balanceSharing: {
+      toggle: 'Mostrar saldo al cobrar',
+      hint: 'Después de pagar con tu tarjeta, el punto de venta puede mostrar el saldo de tu wallet. Desactívalo para mantener tu saldo privado.',
+      enabled: 'Saldo visible al cobrar',
+      disabled: 'Saldo oculto al cobrar',
+      failed: 'No se pudo actualizar el saldo al cobrar'
+    }
   },
   currenciesScreen: {
     title: 'Moneda',

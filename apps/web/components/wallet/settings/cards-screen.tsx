@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { NavTabbar } from '@/components/wallet/shared/nav-tabbar'
+import { CardBalanceSharingSection } from '@/components/wallet/settings/card-balance-sharing-section'
 import {
   useMyCardMutations,
   useMyCards,
@@ -196,6 +197,7 @@ export function CardsScreen() {
             })}
           </section>
         )}
+        {sortedCards.length > 0 && <CardBalanceSharingSection />}
       </main>
 
       <NavTabbar />

@@ -2,8 +2,12 @@ import { logger } from '@/lib/logger'
 import { driverForWallet } from '@/lib/wallet/drivers'
 import type { CardWalletRoute } from '@/lib/wallet/resolve-payment-route'
 
-/** Keep the LNURL-withdraw response inside a BoltCard tap budget. */
-const BALANCE_PROBE_MS = 1_500
+/**
+ * Keep a balance read inside a BoltCard tap budget. With web next to the
+ * listener the read is one relay round-trip (p95 ~500 ms); past this, the
+ * scan advertises a high ceiling and the callback stops waiting on it.
+ */
+export const BALANCE_PROBE_MS = 600
 
 /**
  * Advertised only when the wallet balance cannot be read in time. This is not
@@ -26,6 +30,25 @@ type SpendableCardWallet = Extract<CardWalletRoute, { kind: 'wallet' }>
 export async function resolveCardMaxWithdrawableMsats(
   route: SpendableCardWallet
 ): Promise<number> {
+  const msats = await probeCardBalanceMsats(route)
+  if (msats === null) {
+    logger.warn(
+      { walletId: route.walletId },
+      'Card scan balance unavailable; advertising a high withdraw ceiling'
+    )
+  }
+  return msats ?? BALANCE_UNKNOWN_MSATS
+}
+
+/**
+ * The card wallet's spendable balance in msats, or `null` when it can't be
+ * read within `timeoutMs`. Never rejects; a probe that loses the race keeps
+ * running in the background and its late failure is swallowed.
+ */
+export async function probeCardBalanceMsats(
+  route: SpendableCardWallet,
+  timeoutMs = BALANCE_PROBE_MS
+): Promise<number | null> {
   const pending = readSpendableMsats(route)
   // A probe that loses the race must not surface later as an unhandled rejection.
   pending.catch(() => {})
@@ -37,16 +60,13 @@ export async function resolveCardMaxWithdrawableMsats(
       new Promise<number>((_, reject) => {
         timer = setTimeout(
           () => reject(new Error('Card balance probe timed out')),
-          BALANCE_PROBE_MS
+          timeoutMs
         )
       })
     ])
   } catch (err) {
-    logger.warn(
-      { err, walletId: route.walletId },
-      'Card scan balance unavailable; advertising a high withdraw ceiling'
-    )
-    return BALANCE_UNKNOWN_MSATS
+    logger.debug({ err, walletId: route.walletId }, 'Card balance probe failed')
+    return null
   } finally {
     clearTimeout(timer)
   }

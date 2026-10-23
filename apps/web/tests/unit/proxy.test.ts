@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { NextRequest } from 'next/server'
-import { proxy } from '@/proxy'
+import { unstable_doesMiddlewareMatch } from 'next/experimental/testing/server'
+import { config, proxy } from '@/proxy'
 
 const req = (path: string, method = 'GET') =>
   new NextRequest(`http://localhost:3000${path}`, { method })
@@ -75,6 +76,35 @@ describe('CORS proxy', () => {
         'Access-Control-Expose-Headers'
       )
     ).toBeNull()
+  })
+
+  it('matcher skips self-managed routes and keeps the rest of /api', () => {
+    const matches = (path: string) =>
+      unstable_doesMiddlewareMatch({
+        config,
+        url: `http://localhost:3000${path}`
+      })
+    for (const path of [
+      '/api/lud16/alice',
+      '/api/lud16/alice/cb',
+      '/api/cards/abc123/scan',
+      '/api/cards/abc123/scan/cb',
+      '/api/cards/abc123/write',
+      '/api/cards/abc123/wipe'
+    ]) {
+      expect(matches(path), path).toBe(false)
+    }
+    for (const path of [
+      '/api/settings',
+      '/api/cards',
+      '/api/cards/abc123',
+      '/api/cards/abc123/scanner',
+      '/api/lud16x',
+      '/api/jwt',
+      '/api/mcp'
+    ]) {
+      expect(matches(path), path).toBe(true)
+    }
   })
 
   it('still covers authenticated card admin routes', () => {

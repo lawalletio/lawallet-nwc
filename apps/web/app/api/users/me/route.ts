@@ -165,6 +165,7 @@ export const GET = withErrorHandling(async (request: Request) => {
     primaryRedirect: primaryAddress?.redirect ?? null,
     currencyPrefs: publishedCurrencyPrefs(user.currencyPrefs),
     cardRecoveryEnabled: user.cardRecoveryEnabled,
+    cardBalanceShared: user.cardBalanceShared,
     accountTransfer
   })
 })
