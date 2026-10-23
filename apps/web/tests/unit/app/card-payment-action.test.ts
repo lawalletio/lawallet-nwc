@@ -726,6 +726,23 @@ describe('card payment callback action', () => {
       expect(mocks.succeed).toHaveBeenCalledTimes(1)
     })
 
+    it('reports a background payment that fails after the early OK', async () => {
+      const settle = deferred<typeof paid>()
+      const dbDown = new Error('db down')
+      mocks.driverPay.mockReturnValue(settle.promise)
+      mocks.probeBalance.mockResolvedValue(5_000)
+      // Invalid preimage + failing UNKNOWN write is the one way handleSuccess rejects.
+      mocks.preimageMatches.mockReturnValue(false)
+      mocks.markUnknown.mockRejectedValue(dbDown)
+
+      const response = await pay(request(), sharing(true), 7)
+      expect((await responseBody(response)).status).toBe('OK')
+
+      settle.resolve(paid)
+      await mocks.after.mock.calls[0][0]
+      expect(mocks.reportError).toHaveBeenCalledWith(dbDown, 'card-pay')
+    })
+
     it('hides the balance when the owner does not share it', async () => {
       mocks.driverPay.mockReturnValue(new Promise(() => {}))
       mocks.probeBalance.mockResolvedValue(5_000)
