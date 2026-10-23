@@ -21,6 +21,7 @@ export interface TapCard {
   ntag424: { cid: string; k1: string; k2: string; ctr: number } | null
   remoteWallet: TapCardWallet | null
   user: {
+    cardBalanceShared: boolean
     lightningAddresses: Array<{
       mode: LightningAddressMode
       remoteWalletId: string | null
@@ -32,6 +33,7 @@ export interface TapCard {
 interface TapCardRow {
   id: string
   userId: string | null
+  cardBalanceShared: boolean | null
   blockedAt: Date | null
   disabledAt: Date | null
   ntag424Cid: string | null
@@ -63,6 +65,7 @@ export async function loadTapCard(cardId: string): Promise<TapCard | null> {
   const [row] = await prisma.$queryRaw<TapCardRow[]>`
     SELECT
       c."id", c."userId", c."blockedAt", c."disabledAt", c."ntag424Cid",
+      u."cardBalanceShared",
       n."cid" AS "ntagCid", n."k1", n."k2", n."ctr",
       cw."id" AS "cardWalletId", cw."type"::text AS "cardWalletType",
       cw."config" AS "cardWalletConfig", cw."status"::text AS "cardWalletStatus",
@@ -70,6 +73,7 @@ export async function loadTapCard(cardId: string): Promise<TapCard | null> {
       pw."id" AS "primaryWalletId", pw."type"::text AS "primaryWalletType",
       pw."config" AS "primaryWalletConfig", pw."status"::text AS "primaryWalletStatus"
     FROM "Card" AS c
+    LEFT JOIN "User" AS u ON u."id" = c."userId"
     LEFT JOIN "Ntag424" AS n ON n."cid" = c."ntag424Cid"
     LEFT JOIN "RemoteWallet" AS cw ON cw."id" = c."remoteWalletId"
     LEFT JOIN LATERAL (
@@ -102,6 +106,7 @@ export async function loadTapCard(cardId: string): Promise<TapCard | null> {
       row.userId === null
         ? null
         : {
+            cardBalanceShared: row.cardBalanceShared!,
             lightningAddresses:
               row.addressMode === null
                 ? []

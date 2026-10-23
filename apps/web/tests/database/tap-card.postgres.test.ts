@@ -20,6 +20,7 @@ const NESTED_SELECT = {
   remoteWallet: WALLET,
   user: {
     select: {
+      cardBalanceShared: true,
       lightningAddresses: {
         where: { isPrimary: true },
         take: 1,
@@ -78,7 +79,11 @@ describe.skipIf(!runDatabaseTests)(
       })
       const otherUserId = `tap-user2-${s}`
       await prisma.user.create({
-        data: { id: otherUserId, pubkey: `pk2-${s}` }
+        data: {
+          id: otherUserId,
+          pubkey: `pk2-${s}`,
+          cardBalanceShared: false
+        }
       })
       await prisma.lightningAddress.create({
         data: { username: `tap-u2-${s}`, userId: otherUserId }

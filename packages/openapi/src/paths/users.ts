@@ -38,6 +38,7 @@ registry.registerPath({
 const currentUserSchema = userSchema.extend({
   currencyPrefs: schemas.CurrencyPrefs.nullable(),
   cardRecoveryEnabled: z.boolean(),
+  cardBalanceShared: z.boolean(),
   accountTransfer: z
     .object({
       id: z.string(),
@@ -117,6 +118,32 @@ registry.registerPath({
     200: inlineJsonResponse(
       'Card recovery setting saved.',
       z.object({ cardRecoveryEnabled: z.boolean() })
+    ),
+    ...commonErrorResponses
+  }
+})
+
+registry.registerPath({
+  ...withRole('USER'),
+  method: 'put',
+  path: '/api/users/me/card-balance-sharing',
+  tags: [TAG],
+  summary: 'Share or hide this account’s balance on card taps.',
+  description:
+    'When on, a card tap’s LNURL-withdraw callback includes the paying wallet’s balance (msats) so the point of sale can show it.',
+  operationId: 'users.me.cardBalanceSharing.set',
+  security: protectedSecurity,
+  request: {
+    body: {
+      content: {
+        'application/json': { schema: schemas.CardBalanceSharingSettingRequest }
+      }
+    }
+  },
+  responses: {
+    200: inlineJsonResponse(
+      'Card balance sharing setting saved.',
+      z.object({ cardBalanceShared: z.boolean() })
     ),
     ...commonErrorResponses
   }

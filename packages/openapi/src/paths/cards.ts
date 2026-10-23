@@ -521,6 +521,9 @@ registry.registerPath({
   path: '/api/cards/{id}/scan/cb',
   tags: [TAG],
   summary: 'LNURL-withdraw callback for a scanned card.',
+  description:
+    'Publishes the payment, then reads the wallet balance alongside it. When the balance exceeds the invoice the response is `OK` right away and the payment settles in the background (LUD-03 async); otherwise it waits for the payment result. ' +
+    '`balance` (msats) is a non-LNURL extension, included only when the card owner shares it.',
   operationId: 'cards.scan.callback',
   security: publicSecurity,
   request: { params: schemas.IdParam, query: schemas.CardScanCallbackQuery },
@@ -528,8 +531,15 @@ registry.registerPath({
     200: inlineJsonResponse(
       'LUD-03 callback response.',
       z.union([
-        z.object({ status: z.literal('OK') }),
-        z.object({ status: z.literal('ERROR'), reason: z.string() })
+        z.object({
+          status: z.literal('OK'),
+          balance: z.number().int().optional()
+        }),
+        z.object({
+          status: z.literal('ERROR'),
+          reason: z.string(),
+          balance: z.number().int().optional()
+        })
       ])
     ),
     ...publicErrorResponses

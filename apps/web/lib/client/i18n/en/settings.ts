@@ -40,7 +40,14 @@ export const settings = {
     manage: 'Manage cards',
     errorTitle: 'Cards unavailable',
     tryAgain: 'Try again in a moment.',
-    fallbackName: 'Card'
+    fallbackName: 'Card',
+    balanceSharing: {
+      toggle: 'Show balance at checkout',
+      hint: 'After a card tap, the point of sale can show your wallet balance. Turn it off to keep your balance private.',
+      enabled: 'Balance shown at checkout',
+      disabled: 'Balance hidden at checkout',
+      failed: 'Could not update balance sharing'
+    }
   },
   currenciesScreen: {
     title: 'Currency',

@@ -66,5 +66,7 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: '/api/:path*'
+  // SELF_MANAGED_CORS routes are excluded up front so a card tap never pays
+  // for a proxy invocation it would only pass through.
+  matcher: '/api/((?!lud16(?:/|$)|cards/[^/]+/(?:scan|write|wipe)(?:/|$)).*)'
 }

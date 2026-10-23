@@ -170,6 +170,7 @@ export const OPERATION_POLICY: Record<string, OperationPolicy> = {
   'users.me.cardRecovery.set': exclude(
     'account-security change: decides whether a lost card can take over this account'
   ),
+  'users.me.cardBalanceSharing.set': WRITE,
   'users.me.accountTransfer.dismiss': WRITE,
   'users.get': READ,
   'users.cards.list': READ,

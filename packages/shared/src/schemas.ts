@@ -294,6 +294,11 @@ export const cardRecoverySettingSchema = z.object({
   enabled: z.boolean()
 })
 
+/** Whether a card tap reports the owner's wallet balance to the point of sale (My cards). */
+export const cardBalanceSharingSettingSchema = z.object({
+  enabled: z.boolean()
+})
+
 // ── Lightning Addresses ─────────────────────────────────────────────────────
 
 export const lud16UsernameParam = z.object({

@@ -13,6 +13,7 @@ import {
   cardScanCallbackQuerySchema,
   cardListQuerySchema,
   cardRecoverySettingSchema,
+  cardBalanceSharingSettingSchema,
   claimActivationTokenSchema,
   claimInvoiceSchema,
   createActivationTokenSchema,
@@ -136,6 +137,10 @@ export const schemas = {
   CardRecoverySettingRequest: registry.register(
     'CardRecoverySettingRequest',
     cardRecoverySettingSchema
+  ),
+  CardBalanceSharingSettingRequest: registry.register(
+    'CardBalanceSharingSettingRequest',
+    cardBalanceSharingSettingSchema
   ),
 
   // ── Card Designs ───────────────────────────────────────────────────────

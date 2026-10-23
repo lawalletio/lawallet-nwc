@@ -20,7 +20,7 @@ import { lookupInvoice } from '@/lib/client/nwc/receive'
 import { useT } from '@/lib/client/i18n'
 
 /** How long an accepted tap keeps checking our own wallet for the payment. */
-const TAP_SETTLE_POLL_MS = 1000
+const TAP_SETTLE_POLL_MS = 300
 const TAP_SETTLE_TIMEOUT_MS = 30_000
 
 const PREVIEW_INVOICE = {
