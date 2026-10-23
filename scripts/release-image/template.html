@@ -1,0 +1,252 @@
+<!doctype html>
+<!--
+  Release social card. Rendered at 1200×675 CSS px × 2 = 2400×1350 PNG by
+  scripts/release-image.mjs, which fills it from
+  docs/changelogs/assets/v<version>.json. Edit the look here; edit the words
+  in the JSON.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@700;800&display=block"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --yellow: #fdc800;
+        --red: #e95052;
+        --green: #55b68c;
+        --ink: #0a0a0a;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+      }
+      html,
+      body {
+        width: 1200px;
+        height: 675px;
+        overflow: hidden;
+        background: var(--ink);
+        color: #fff;
+        font-family: Inter, system-ui, sans-serif;
+      }
+      .card {
+        position: relative;
+        width: 1200px;
+        height: 675px;
+        padding: 56px 64px 0;
+        background:
+          radial-gradient(
+            ellipse 520px 420px at 100% 0%,
+            rgba(85, 182, 140, 0.32),
+            transparent 70%
+          ),
+          radial-gradient(
+            ellipse 420px 300px at 0% 100%,
+            rgba(253, 200, 0, 0.16),
+            transparent 70%
+          ),
+          radial-gradient(
+            ellipse 460px 260px at 45% 105%,
+            rgba(233, 80, 82, 0.16),
+            transparent 70%
+          ),
+          var(--ink);
+      }
+      .grid {
+        position: absolute;
+        inset: 0;
+        background-image:
+          linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+          linear-gradient(
+            90deg,
+            rgba(255, 255, 255, 0.025) 1px,
+            transparent 1px
+          );
+        background-size: 48px 48px;
+        mask-image: radial-gradient(
+          ellipse 700px 500px at 85% 15%,
+          #000,
+          transparent
+        );
+      }
+      header {
+        position: relative;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        height: 40px;
+      }
+      header img {
+        height: 40px;
+      }
+      .pill {
+        background: var(--yellow);
+        color: #111;
+        font:
+          800 15px/1 'JetBrains Mono',
+          monospace;
+        letter-spacing: 0.14em;
+        padding: 11px 15px 10px;
+        border-radius: 999px;
+      }
+      .hero {
+        position: relative;
+        display: flex;
+        align-items: center;
+        gap: 28px;
+        margin-top: 42px;
+        height: 118px;
+      }
+      .version {
+        font:
+          900 128px/1 Inter,
+          sans-serif;
+        letter-spacing: -0.045em;
+        background: linear-gradient(90deg, #fff 52%, var(--green) 100%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+        padding-right: 6px;
+      }
+      .headline {
+        font:
+          800 33px/1.15 Inter,
+          sans-serif;
+        letter-spacing: -0.02em;
+      }
+      .headline em {
+        font-style: normal;
+        color: var(--green);
+      }
+      .tagline {
+        margin-top: 10px;
+        font:
+          400 16.5px/1.3 Inter,
+          sans-serif;
+        color: rgba(255, 255, 255, 0.62);
+      }
+      .cards {
+        position: relative;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 14px;
+        margin-top: 44px;
+      }
+      .item {
+        height: 116px;
+        padding: 18px 18px 0;
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.035);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+      .item h3 {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font:
+          800 23px/1 'JetBrains Mono',
+          monospace;
+        letter-spacing: -0.01em;
+      }
+      .item h3::before {
+        content: '';
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--dot);
+        flex: none;
+      }
+      .item p {
+        margin-top: 14px;
+        font:
+          400 15.5px/1.35 Inter,
+          sans-serif;
+        color: rgba(255, 255, 255, 0.78);
+      }
+      footer {
+        position: absolute;
+        left: 64px;
+        right: 64px;
+        bottom: 54px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font:
+          400 15.5px/1 Inter,
+          sans-serif;
+        color: rgba(255, 255, 255, 0.5);
+      }
+      footer b {
+        font-weight: 600;
+        color: #fff;
+      }
+      .bars {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+      .bars span {
+        width: 28px;
+        height: 5px;
+        border-radius: 3px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="grid"></div>
+      <header>
+        <img src="../../apps/web/public/logos/lawallet.svg" alt="lawallet" />
+        <div class="pill">NEW RELEASE</div>
+      </header>
+      <section class="hero">
+        <div class="version" id="version"></div>
+        <div>
+          <h1 class="headline" id="headline"></h1>
+          <p class="tagline" id="tagline"></p>
+        </div>
+      </section>
+      <section class="cards" id="cards"></section>
+      <footer>
+        <div>
+          <b>Lightning Addresses + Nostr Wallet Connect</b> &nbsp;·&nbsp; open
+          source
+        </div>
+        <div class="bars">
+          github.com/lawalletio/lawallet-nwc
+          <span style="background: var(--red)"></span>
+          <span style="background: var(--yellow)"></span>
+          <span style="background: var(--green)"></span>
+        </div>
+      </footer>
+    </div>
+    <script>
+      // Called by scripts/release-image.mjs with the release's JSON.
+      window.render = ({ version, headline, tagline, cards }) => {
+        const el = id => document.getElementById(id)
+        el('version').textContent = `v${version}`
+        // The last headline word is the accent, as in "Faster. Steadier. Leaner."
+        el('headline').innerHTML = headline
+          .map((w, i, a) => (i === a.length - 1 ? `<em>${w}</em>` : `${w}`))
+          .join(' ')
+        el('tagline').textContent = tagline
+        const dot = {
+          green: 'var(--green)',
+          red: 'var(--red)',
+          yellow: 'var(--yellow)'
+        }
+        el('cards').innerHTML = cards
+          .map(
+            c =>
+              `<div class="item" style="--dot:${dot[c.dot]}"><h3>${c.title}</h3><p>${c.text}</p></div>`
+          )
+          .join('')
+      }
+    </script>
+  </body>
+</html>
