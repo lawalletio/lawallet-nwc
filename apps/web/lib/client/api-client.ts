@@ -1,3 +1,5 @@
+import { reportApiReachable } from '@/lib/client/api-reachability'
+
 export interface ApiError {
   message: string
   code: string
@@ -66,10 +68,18 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
       headers['Content-Type'] = 'application/json'
     }
 
-    const response = await fetch(path, {
-      ...init,
-      headers
-    })
+    let response: Response
+    try {
+      response = await fetch(path, {
+        ...init,
+        headers
+      })
+    } catch (err) {
+      // No HTTP answer at all: offline, DNS, or the server is down.
+      reportApiReachable(false)
+      throw err
+    }
+    reportApiReachable(true)
 
     if (!response.ok) {
       const errorBody = await response.json().catch(() => null)
