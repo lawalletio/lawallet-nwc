@@ -33,7 +33,7 @@ vi.mock('next/server', async importOriginal => ({
   after: mocks.after
 }))
 
-vi.mock('@/lib/card-payments/max-withdrawable', () => ({
+vi.mock('@/lib/card-payments/balance-probe', () => ({
   probeCardBalanceMsats: mocks.probeBalance
 }))
 

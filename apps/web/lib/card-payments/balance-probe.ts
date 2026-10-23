@@ -3,42 +3,13 @@ import { driverForWallet } from '@/lib/wallet/drivers'
 import type { CardWalletRoute } from '@/lib/wallet/resolve-payment-route'
 
 /**
- * Keep a balance read inside a BoltCard tap budget. With web next to the
- * listener the read is one relay round-trip (p95 ~500 ms); past this, the
- * scan advertises a high ceiling and the callback stops waiting on it.
+ * How long the card callback waits for the wallet balance before falling back
+ * to the payment result. With web next to the listener the read is one relay
+ * round-trip (p95 ~500 ms).
  */
 export const BALANCE_PROBE_MS = 600
 
-/**
- * Advertised only when the wallet balance cannot be read in time. This is not
- * a spend limit: the callback pays any exact invoice the wallet accepts.
- * `Number.MAX_SAFE_INTEGER` (~90,000 BTC in msats) stays inside JSON numbers,
- * so a point of sale that trusts the advertisement will not refuse a normal
- * invoice while the probe is down.
- */
-const BALANCE_UNKNOWN_MSATS = Number.MAX_SAFE_INTEGER
-
 type SpendableCardWallet = Extract<CardWalletRoute, { kind: 'wallet' }>
-
-/**
- * LUD-03 `maxWithdrawable` for a configured card, in millisatoshis.
- *
- * The advertised ceiling is the wallet's live spendable balance, so a point
- * of sale will not mint an invoice the card cannot pay. A failed or slow
- * probe falls back to {@link BALANCE_UNKNOWN_MSATS}.
- */
-export async function resolveCardMaxWithdrawableMsats(
-  route: SpendableCardWallet
-): Promise<number> {
-  const msats = await probeCardBalanceMsats(route)
-  if (msats === null) {
-    logger.warn(
-      { walletId: route.walletId },
-      'Card scan balance unavailable; advertising a high withdraw ceiling'
-    )
-  }
-  return msats ?? BALANCE_UNKNOWN_MSATS
-}
 
 /**
  * The card wallet's spendable balance in msats, or `null` when it can't be
@@ -81,6 +52,6 @@ async function readSpendableMsats(route: SpendableCardWallet): Promise<number> {
   const { balanceSats } = await driver.getBalance(config)
   if (!Number.isSafeInteger(balanceSats) || balanceSats <= 0) return 0
   const msats = balanceSats * 1000
-  if (!Number.isSafeInteger(msats)) return BALANCE_UNKNOWN_MSATS
+  if (!Number.isSafeInteger(msats)) throw new Error('Balance out of range')
   return msats
 }

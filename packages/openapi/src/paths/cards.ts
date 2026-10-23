@@ -479,10 +479,10 @@ registry.registerPath({
   summary:
     'Resolve a scanned card and return the LNURL-withdraw flow entry point.',
   description:
-    'The first LNURL request on tap (LUD-03). `maxWithdrawable` is the bound wallet’s spendable ' +
-    'balance in millisatoshis. When that balance cannot be read in time, the response ' +
-    'advertises a high ceiling so a point of sale will not refuse a normal invoice; ' +
-    'the callback does not impose a fixed sats cap. A receivable card also includes LUD-19 ' +
+    'The first LNURL request on tap (LUD-03). A spendable card advertises a fixed ' +
+    '`maxWithdrawable` of 10,000,000 sats (in millisatoshis) without reading the wallet; ' +
+    'the wallet refuses what it cannot pay at the callback. An unspendable card advertises 0–0. ' +
+    'A receivable card also includes LUD-19 ' +
     '`payLink`, a raw LUD-17 `lnurlp://` URL (not bech32) whose payRequest mints an invoice ' +
     'on the card’s RemoteWallet — BoltCard SPEC’s optional pay-link extension ' +
     '(https://github.com/boltcard/boltcard/blob/main/docs/SPEC.md, ' +

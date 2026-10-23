@@ -4,11 +4,11 @@ import { LUD03Request } from '@/types/lnurl'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { NotFoundError } from '@/types/server/errors'
 import {
+  CARD_MAX_WITHDRAWABLE_MSATS,
   CARD_MIN_WITHDRAWABLE_MSATS,
   idParam,
   scanCardQuerySchema
 } from '@/lib/validation/schemas'
-import { resolveCardMaxWithdrawableMsats } from '@/lib/card-payments/max-withdrawable'
 import { validateParams, validateQuery } from '@/lib/validation/middleware'
 import { rateLimit, RateLimitPresets } from '@/lib/middleware/rate-limit'
 import { resolveApiUrl } from '@/lib/public-url'
@@ -124,8 +124,8 @@ export const GET = withErrorHandling(
         })))
 
     // The callback follows within a second or two. Warm its one-time listener
-    // capability probe now, alongside the balance probe, so a fresh server
-    // instance doesn't spend a round-trip on it after the tap is committed.
+    // capability probe now so a fresh server instance doesn't spend a
+    // round-trip on it after the tap is committed.
     if (configured && route.kind === 'wallet' && route.type === 'NWC') {
       const walletId = route.walletId
       if (walletId) {
@@ -135,17 +135,11 @@ export const GET = withErrorHandling(
       }
     }
 
-    // The advertised ceiling is the live spendable balance, not a fixed sats
-    // cap. A 0–0 range (no spendable wallet, or an empty one) tells the
-    // point of sale nothing is payable before it mints an invoice.
-    const maxWithdrawable =
-      configured && route.kind === 'wallet'
-        ? await resolveCardMaxWithdrawableMsats(route)
-        : 0
-    const minWithdrawable =
-      maxWithdrawable >= CARD_MIN_WITHDRAWABLE_MSATS
-        ? CARD_MIN_WITHDRAWABLE_MSATS
-        : 0
+    // A fixed ceiling keeps the scan off the wallet: reading the balance here
+    // cost a relay round-trip on every tap. The callback reads it alongside
+    // the payment, and the wallet refuses what it can't pay.
+    const maxWithdrawable = configured ? CARD_MAX_WITHDRAWABLE_MSATS : 0
+    const minWithdrawable = configured ? CARD_MIN_WITHDRAWABLE_MSATS : 0
 
     // LUD-19: a raw LUD-17 pay link so a wallet can top up the same card
     // wallet this withdraw serves. Independent of spend capability — a

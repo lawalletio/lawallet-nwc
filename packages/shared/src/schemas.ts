@@ -247,6 +247,13 @@ export type CardScanAction = z.infer<typeof cardScanActionSchema>
 /** Smallest BoltCard spend the callback will accept, in millisatoshis. */
 export const CARD_MIN_WITHDRAWABLE_MSATS = 1
 
+/**
+ * Fixed `maxWithdrawable` a spendable card advertises: 10,000,000 sats, in
+ * millisatoshis. The scan does not read the wallet balance; the wallet refuses
+ * what it can't pay at the callback.
+ */
+export const CARD_MAX_WITHDRAWABLE_MSATS = 10_000_000_000
+
 export const otcParam = z.object({
   otc: z.string().min(1, 'OTC parameter is required')
 })
