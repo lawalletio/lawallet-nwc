@@ -168,6 +168,21 @@ export async function reparentAccountResources(
     where: { userId: fromId },
     data: { userId: toId }
   })
+  // Private transaction tags annotate the invoices that just moved, so they
+  // travel too. Their PK is composite with the account, so updateMany would
+  // collide when both accounts annotated the same payment: insert with
+  // skipDuplicates (the target's tag wins) and drop the source rows.
+  const movingLabels = await tx.transactionLabel.findMany({
+    where: { userId: fromId },
+    select: { paymentHash: true, label: true }
+  })
+  if (movingLabels.length > 0) {
+    await tx.transactionLabel.createMany({
+      data: movingLabels.map(label => ({ ...label, userId: toId })),
+      skipDuplicates: true
+    })
+    await tx.transactionLabel.deleteMany({ where: { userId: fromId } })
+  }
 
   return {
     movedAddresses: addresses.count,

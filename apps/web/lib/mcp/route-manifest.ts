@@ -191,6 +191,10 @@ export const routeManifest: Record<string, () => Promise<RouteModule>> = {
     import('@/app/api/wallet/addresses/[username]/proxy-balance/route'),
   '/api/wallet/cards': () => import('@/app/api/wallet/cards/route'),
   '/api/wallet/cards/{id}': () => import('@/app/api/wallet/cards/[id]/route'),
+  '/api/wallet/transaction-tags': () =>
+    import('@/app/api/wallet/transaction-tags/route'),
+  '/api/wallet/transactions/{paymentHash}/label': () =>
+    import('@/app/api/wallet/transactions/[paymentHash]/label/route'),
   '/api/wallet/vouchers': () => import('@/app/api/wallet/vouchers/route'),
   '/api/wallet/vouchers/settings': () =>
     import('@/app/api/wallet/vouchers/settings/route'),

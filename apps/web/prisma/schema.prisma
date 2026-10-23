@@ -312,6 +312,7 @@ model User {
   currencyPrefs                      Json?
   oauthGrants                        OAuthGrant[]
   mcpPayments                        McpPayment[]
+  transactionLabels                  TransactionLabel[]
   /// Whether a card this account holds may be used to recover the whole
   /// account onto another key (card-manager RECOVER QR). On by default; the
   /// owner turns it off in Security so a lost card can't take the account.
@@ -324,6 +325,17 @@ model User {
   @@index([role])
   @@index([createdAt])
 }
+
+/// Private account annotations, kept separate from provider/payment metadata.
+model TransactionLabel {
+  userId      String
+  paymentHash String @db.VarChar(64)
+  label       String @db.VarChar(100)
+  user        User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, paymentHash])
+}
+
 
 /// One Nostr pubkey belonging to an account. An account owns one or more
 /// identities; exactly one is primary (enforced by a raw partial unique

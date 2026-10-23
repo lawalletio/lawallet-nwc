@@ -49,6 +49,8 @@ interface MergeState {
   livePks: Partial<Record<BackupTableName, Set<string>>>
   /** Partial-unique scopes already claimed this import (`table:flag:scope`). */
   claimedScopes: Set<string>
+  /** Backup user id → live user id when the same pubkey already exists here. */
+  userRemap: Map<string, string>
 }
 
 type TableResult = NonNullable<BackupImportResult['tables'][BackupTableName]>
@@ -123,6 +125,21 @@ async function prefetchFkTargets(
       select: { [field]: true }
     })) as Row[]
     for (const f of found) set.add(String(f[field]))
+  }
+}
+
+/**
+ * Rewrites user FKs to the live account that already owns the same Nostr
+ * pubkey. Merge restore skips the duplicate user row, but its dependent rows
+ * (addresses, wallets, tags) still belong to that account.
+ */
+function applyUserRemap(desc: TableDescriptor, row: Row, state: MergeState) {
+  for (const fk of desc.fks) {
+    if (fk.target !== 'users') continue
+    const value = row[fk.field]
+    if (typeof value !== 'string') continue
+    const liveId = state.userRemap.get(value)
+    if (liveId) row[fk.field] = liveId
   }
 }
 
@@ -285,7 +302,8 @@ export async function applyBackup(
   const state: MergeState = {
     renames: [],
     livePks: {},
-    claimedScopes: new Set()
+    claimedScopes: new Set(),
+    userRemap: new Map()
   }
 
   const perConflict = new Map(
@@ -426,6 +444,7 @@ async function runMerge(
   const processTable = async (db: WriteClient, table: BackupTableName) => {
     const desc = TABLE_DESCRIPTORS[table]
     const rows = validByTable[table] ?? []
+    for (const row of rows) applyUserRemap(desc, row, state)
     await prefetchFkTargets(db as DbClient, desc, rows, state)
     const isParentAvailable = (target: BackupTableName, value: unknown) =>
       Boolean(state.livePks[target]?.has(String(value)))
@@ -477,6 +496,17 @@ async function runMerge(
         }
         // A skipped PK-conflict keeps the existing (live) row; mark it available.
         if (c.kind === 'pk') markLive(state, desc, row)
+        if (
+          c.kind === 'secondary-unique' &&
+          table === 'users' &&
+          c.existingId
+        ) {
+          // The pubkey already belongs to a live account under another id.
+          // Point this user's dependent rows at that account instead of
+          // dropping them as orphans.
+          state.userRemap.set(pkKey(desc, row), c.existingId)
+          ;(state.livePks.users ??= new Set<string>()).add(c.existingId)
+        }
         continue
       }
 

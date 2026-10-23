@@ -20,6 +20,7 @@ type Row = Record<string, unknown>
 /** Friendly singular noun per table for conflict messages. */
 const TABLE_NOUNS: Record<BackupTableName, string> = {
   users: 'user',
+  transactionLabels: 'transaction tag',
   cardDesigns: 'card design',
   ntag424s: 'card chip',
   remoteWallets: 'remote wallet',

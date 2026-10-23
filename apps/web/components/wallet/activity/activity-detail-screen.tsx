@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Send } from 'lucide-react'
+import { useAuth } from '@/components/admin/auth-context'
+import { TransactionLabel } from './transaction-label'
 import { useApi } from '@/lib/client/hooks/use-api'
 import { resolveUserNwc } from '@/lib/client/wallet-nwc'
 import {
@@ -21,6 +23,7 @@ import {
 } from '@/lib/client/activity-detail-store'
 import {
   activityDetailBackHref,
+  isActivityPreviewRequested,
   seedPreviewActivityTx
 } from '@/lib/client/activity-detail'
 import { formatDateTime } from '@/lib/client/format'
@@ -66,6 +69,7 @@ export function ActivityDetailScreen({
 }) {
   const t = useT()
   const router = useRouter()
+  const { pubkey } = useAuth()
   const backHref = activityDetailBackHref(from)
   const hash = decodeURIComponent(paymentHash).trim()
   const destination = usePaymentDestination(hash)
@@ -334,6 +338,12 @@ export function ActivityDetailScreen({
             <ReceiptProofRow label={d.preimage} value={preimage} secret />
           )}
         </PaymentProofCard>
+        {!isActivityPreviewRequested() && /^[0-9a-fA-F]{64}$/.test(hash) ? (
+          <TransactionLabel
+            key={`${pubkey}:${hash}`}
+            paymentHash={hash.toLowerCase()}
+          />
+        ) : null}
       </PaymentReceiptLayout>
     </div>
   )

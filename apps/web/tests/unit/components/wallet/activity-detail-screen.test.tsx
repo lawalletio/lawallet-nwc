@@ -13,6 +13,23 @@ const replaceMock = vi.hoisted(() => vi.fn())
 const lookupTransactionMock = vi.hoisted(() => vi.fn())
 const readByPaymentHashMock = vi.hoisted(() => vi.fn())
 const shareMock = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
+const saveLabelMock = vi.hoisted(() => vi.fn())
+const privateLabel = vi.hoisted(() => ({
+  label: 'Personal groceries' as string | null
+}))
+const refetchLabelMock = vi.hoisted(() => vi.fn(async () => undefined))
+const labelState = vi.hoisted(() => ({
+  pubkey: 'test-owner',
+  loading: false,
+  error: null as Error | null
+}))
+
+vi.mock('@/components/admin/auth-context', () => ({
+  useAuth: () => ({
+    pubkey: labelState.pubkey,
+    apiClient: { put: saveLabelMock }
+  })
+}))
 
 const HASH = 'a591a6d40bf420404a011733cfb7b190d62c65bf0bcda32b57b277d9ad9f146e'
 const PREIMAGE =
@@ -28,15 +45,24 @@ vi.mock('next/navigation', () => ({
 }))
 
 vi.mock('@/lib/client/hooks/use-api', () => ({
-  useApi: () => ({
-    data: {
-      effectiveNwcString: 'nostr+walletconnect://test',
-      nwcString: 'nostr+walletconnect://test'
-    },
-    loading: false,
-    error: null,
-    refetch: async () => undefined
-  })
+  invalidateApiPath: vi.fn(),
+  useApi: (path: string) =>
+    path?.endsWith('/label')
+      ? {
+          data: privateLabel,
+          loading: labelState.loading,
+          error: labelState.error,
+          refetch: refetchLabelMock
+        }
+      : {
+          data: {
+            effectiveNwcString: 'nostr+walletconnect://test',
+            nwcString: 'nostr+walletconnect://test'
+          },
+          loading: false,
+          error: null,
+          refetch: async () => undefined
+        }
 }))
 
 vi.mock('@/lib/client/nwc', async importOriginal => {
@@ -132,9 +158,105 @@ describe('ActivityDetailScreen', () => {
     __resetCurrenciesCacheForTests()
     __resetActivityDetailStoreForTests()
     lookupTransactionMock.mockResolvedValue(null)
+    privateLabel.label = 'Personal groceries'
+    labelState.pubkey = 'test-owner'
+    labelState.loading = false
+    labelState.error = null
+    saveLabelMock.mockResolvedValue({ label: 'Travel' })
     readByPaymentHashMock.mockResolvedValue(null)
     mockShare()
     window.history.replaceState({}, '', '/')
+  })
+
+  it('loads and edits the private transaction label', async () => {
+    const user = userEvent.setup()
+    rememberActivityTx(SETTLED_IN)
+    render(<ActivityDetailScreen paymentHash={HASH} from="home" />)
+
+    const input = await screen.findByRole('textbox', { name: 'Tag' })
+    expect(input).toHaveValue('Personal groceries')
+    await user.clear(input)
+    await user.type(input, 'Travel')
+    await user.click(screen.getByRole('button', { name: 'Save tag' }))
+    expect(saveLabelMock).toHaveBeenCalledWith(
+      `/api/wallet/transactions/${HASH}/label`,
+      { label: 'Travel' }
+    )
+    expect(await screen.findByText('Tag saved')).toBeInTheDocument()
+    expect(input).toHaveValue('Travel')
+  })
+
+  it('never shares the saved label or an unsaved private draft', async () => {
+    const user = userEvent.setup()
+    rememberActivityTx(SETTLED_IN)
+    render(<ActivityDetailScreen paymentHash={HASH} />)
+    const input = await screen.findByRole('textbox', { name: 'Tag' })
+    await user.clear(input)
+    await user.type(input, 'Secret budget')
+    await user.click(screen.getByRole('button', { name: 'Share' }))
+    const payload = shareMock.mock.calls[0]?.[0] as { text?: string }
+    expect(payload.text).toContain('Note: Coffee')
+    expect(payload.text).not.toContain('Personal groceries')
+    expect(payload.text).not.toContain('Secret budget')
+  })
+
+  it('removes a label without affecting the transaction note', async () => {
+    const user = userEvent.setup()
+    saveLabelMock.mockResolvedValue({ label: null })
+    rememberActivityTx(SETTLED_IN)
+    render(<ActivityDetailScreen paymentHash={HASH} />)
+    const input = await screen.findByRole('textbox', { name: 'Tag' })
+    await user.clear(input)
+    await user.click(screen.getByRole('button', { name: 'Save tag' }))
+    expect(saveLabelMock).toHaveBeenCalledWith(
+      `/api/wallet/transactions/${HASH}/label`,
+      { label: '' }
+    )
+    expect(await screen.findByText('Tag removed')).toBeInTheDocument()
+    expect(input).toHaveValue('')
+    expect(screen.getByText('Coffee')).toBeInTheDocument()
+  })
+
+  it('keeps the draft and allows retry when persistence fails', async () => {
+    const user = userEvent.setup()
+    saveLabelMock.mockRejectedValue(new Error('Database unavailable'))
+    rememberActivityTx(SETTLED_OUT)
+    render(<ActivityDetailScreen paymentHash={HASH} />)
+    const input = await screen.findByRole('textbox', { name: 'Tag' })
+    await user.clear(input)
+    await user.type(input, 'Travel')
+    await user.click(screen.getByRole('button', { name: 'Save tag' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Could not save tag'
+    )
+    expect(input).toHaveValue('Travel')
+    expect(screen.getByRole('button', { name: 'Save tag' })).toBeEnabled()
+    expect(screen.queryByText('Tag saved')).toBeNull()
+  })
+
+  it('blocks editing when the saved label could not be loaded', async () => {
+    labelState.error = new Error('Offline')
+    rememberActivityTx(SETTLED_IN)
+    render(<ActivityDetailScreen paymentHash={HASH} />)
+    expect(await screen.findByRole('textbox', { name: 'Tag' })).toBeDisabled()
+    await userEvent.click(screen.getByRole('button', { name: 'Retry tag' }))
+    expect(refetchLabelMock).toHaveBeenCalled()
+    expect(saveLabelMock).not.toHaveBeenCalled()
+  })
+
+  it('does not carry a private draft over to another signed-in account', async () => {
+    const user = userEvent.setup()
+    rememberActivityTx(SETTLED_IN)
+    const view = render(<ActivityDetailScreen paymentHash={HASH} />)
+    const input = await screen.findByRole('textbox', { name: 'Tag' })
+    await user.clear(input)
+    await user.type(input, 'Private first-account draft')
+    labelState.pubkey = 'second-owner'
+    privateLabel.label = 'Second account label'
+    view.rerender(<ActivityDetailScreen paymentHash={HASH} />)
+    expect(screen.getByRole('textbox', { name: 'Tag' })).toHaveValue(
+      'Second account label'
+    )
   })
 
   it('renders a receive-style receipt for an incoming transaction', async () => {
@@ -256,6 +378,8 @@ describe('ActivityDetailScreen', () => {
       `/wallet/activity/${HASH}?preview=1&from=home`
     )
     render(<ActivityDetailScreen paymentHash={HASH} from="home" />)
+
+    expect(screen.queryByRole('textbox', { name: 'Tag' })).toBeNull()
 
     expect(
       await screen.findByRole('heading', { name: 'Payment received' })

@@ -508,6 +508,72 @@ describe('applyBackup — atomic transaction rollback counters', () => {
   })
 })
 
+describe('private transaction tags', () => {
+  const TAG_ROW: Row = {
+    userId: 'u1',
+    paymentHash: 'a'.repeat(64),
+    label: 'Coffee'
+  }
+  const BACKUP_USER: Row = {
+    id: 'u-backup',
+    pubkey: 'b'.repeat(64),
+    createdAt: '2026-01-01T00:00:00.000Z',
+    role: 'USER',
+    relays: null,
+    relaysUpdatedAt: null
+  }
+  const LIVE_USER: Row = {
+    id: 'u-live',
+    pubkey: BACKUP_USER.pubkey
+  }
+
+  it('remaps tags to the live account when its pubkey already exists under another id', async () => {
+    ;(prismaMock.user.findMany as ReturnType<typeof vi.fn>).mockImplementation(
+      (args: { where?: Record<string, unknown> }) =>
+        Promise.resolve(args?.where && 'OR' in args.where ? [LIVE_USER] : [])
+    )
+    ;(
+      prismaMock.transactionLabel.findMany as ReturnType<typeof vi.fn>
+    ).mockResolvedValue([])
+    ;(
+      prismaMock.transactionLabel.create as ReturnType<typeof vi.fn>
+    ).mockResolvedValue(TAG_ROW)
+
+    const parsed = buildParsedBackup(['core'], {
+      users: [BACKUP_USER],
+      transactionLabels: [{ ...TAG_ROW, userId: BACKUP_USER.id }]
+    })
+    const result = await applyBackup(parsed, resolution([]))
+
+    expect(result.tables.users?.skipped).toBe(1)
+    expect(result.tables.transactionLabels?.imported).toBe(1)
+    expect(prismaMock.user.create).not.toHaveBeenCalled()
+    expect(prismaMock.transactionLabel.create).toHaveBeenCalledWith({
+      data: { ...TAG_ROW, userId: LIVE_USER.id }
+    })
+  })
+
+  it('restores tags keyed by account and payment hash', async () => {
+    ;(prismaMock.user.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { id: 'u1' }
+    ])
+    ;(
+      prismaMock.transactionLabel.findMany as ReturnType<typeof vi.fn>
+    ).mockResolvedValue([])
+    ;(
+      prismaMock.transactionLabel.create as ReturnType<typeof vi.fn>
+    ).mockResolvedValue(TAG_ROW)
+
+    const parsed = makeParsed('transactionLabels', [TAG_ROW])
+    const result = await applyBackup(parsed, resolution([]))
+
+    expect(result.tables.transactionLabels?.imported).toBe(1)
+    expect(prismaMock.transactionLabel.create).toHaveBeenCalledWith({
+      data: TAG_ROW
+    })
+  })
+})
+
 describe('emitRestoreEvents — rollback-aware SSE gating', () => {
   function tableResult(over: Partial<TableResult> = {}): TableResult {
     return {
