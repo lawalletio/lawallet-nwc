@@ -45,9 +45,10 @@ vi.mock('@/lib/card-payments/tap-card', () => ({
   loadTapCard: loadTapCardMock
 }))
 
-const resolveMaxWithdrawableMock = vi.hoisted(() => vi.fn())
-vi.mock('@/lib/card-payments/max-withdrawable', () => ({
-  resolveCardMaxWithdrawableMsats: resolveMaxWithdrawableMock
+// The scan advertises a fixed ceiling and must never read the wallet balance.
+const probeBalanceMock = vi.hoisted(() => vi.fn())
+vi.mock('@/lib/card-payments/balance-probe', () => ({
+  probeCardBalanceMsats: probeBalanceMock
 }))
 
 import {
@@ -65,7 +66,6 @@ beforeEach(() => {
   resetPrismaMock()
   vi.clearAllMocks()
   vi.mocked(getSettings).mockResolvedValue({})
-  resolveMaxWithdrawableMock.mockResolvedValue(25_000_000)
   payActionMock.mockResolvedValue(
     new Response(JSON.stringify({ status: 'OK' }), {
       headers: { 'Content-Type': 'application/json' }
@@ -117,50 +117,19 @@ describe('GET /api/cards/[id]/scan', () => {
     expect(body.callback).toContain(`/api/cards/${card.id}/scan/cb`)
     expect(body.callback).toContain('p=' + 'A'.repeat(32))
     expect(body.minWithdrawable).toBe(1)
-    expect(body.maxWithdrawable).toBe(25_000_000)
+    expect(body.maxWithdrawable).toBe(10_000_000_000)
     // LUD-19: raw LUD-17 URL, not bech32 and not the owner's LUD-16.
     expect(body.payLink).toBe(`lnurlp://app/api/cards/${card.id}/lnurlp`)
     expect(body.payLink.startsWith('lnurlp://')).toBe(true)
     expect(body.payLink).not.toMatch(/^lnurl1/)
     expect(body.payLink).not.toContain('lud16')
-    expect(resolveMaxWithdrawableMock).toHaveBeenCalledTimes(1)
+    expect(probeBalanceMock).not.toHaveBeenCalled()
     expect(res.headers.get('Access-Control-Allow-Origin')).toBe('*')
 
     // The payment path reads the card in one round-trip, never via the
     // nested Prisma select (4 sequential round-trips).
     expect(loadTapCardMock).toHaveBeenCalledWith(card.id)
     expect(prismaMock.card.findUnique).not.toHaveBeenCalled()
-  })
-
-  it('advertises a 0–0 range when the bound wallet has no spendable balance', async () => {
-    const card = {
-      ...createCardFixture(),
-      design: createCardDesignFixture(),
-      user: createUserFixture(),
-      remoteWallet: {
-        type: 'NWC',
-        config: { mode: 'SEND_RECEIVE' },
-        status: 'ACTIVE'
-      }
-    }
-    loadTapCardMock.mockResolvedValue(card as any)
-    vi.mocked(getSettings).mockResolvedValue({
-      domain: 'test.com',
-      endpoint: 'app'
-    })
-    resolveMaxWithdrawableMock.mockResolvedValue(0)
-
-    const req = createNextRequest(`/api/cards/${card.id}/scan`, {
-      searchParams: { p: 'A'.repeat(32), c: 'B'.repeat(16) }
-    })
-    const res = await ScanGet(req, createParamsPromise({ id: card.id }))
-    const body: any = await assertResponse(res, 200)
-
-    expect(body.minWithdrawable).toBe(0)
-    expect(body.maxWithdrawable).toBe(0)
-    // An empty balance can still be topped up.
-    expect(body.payLink).toBe(`lnurlp://app/api/cards/${card.id}/lnurlp`)
-    expect(resolveMaxWithdrawableMock).toHaveBeenCalledTimes(1)
   })
 
   it('advertises a 0–0 withdraw range for a receive-only wallet', async () => {
@@ -196,7 +165,7 @@ describe('GET /api/cards/[id]/scan', () => {
     expect(body.maxWithdrawable).toBe(0)
     // Receive-only cannot spend, but LUD-19 still exposes a top-up link.
     expect(body.payLink).toBe(`lnurlp://app/api/cards/${card.id}/lnurlp`)
-    expect(resolveMaxWithdrawableMock).not.toHaveBeenCalled()
+    expect(probeBalanceMock).not.toHaveBeenCalled()
   })
 
   it('returns public card status JSON when x-request-action: info', async () => {
@@ -261,7 +230,7 @@ describe('GET /api/cards/[id]/scan', () => {
     expect(body.minWithdrawable).toBe(0)
     expect(body.maxWithdrawable).toBe(0)
     expect(body.payLink).toBeUndefined()
-    expect(resolveMaxWithdrawableMock).not.toHaveBeenCalled()
+    expect(probeBalanceMock).not.toHaveBeenCalled()
   })
 
   it('omits payLink when a wallet is bound but the card is unpaired', async () => {
@@ -313,7 +282,7 @@ describe('GET /api/cards/[id]/scan', () => {
     expect(body.minWithdrawable).toBe(0)
     expect(body.maxWithdrawable).toBe(0)
     expect(body.payLink).toBeUndefined()
-    expect(resolveMaxWithdrawableMock).not.toHaveBeenCalled()
+    expect(probeBalanceMock).not.toHaveBeenCalled()
   })
 
   it('omits payLink when the card is blocked', async () => {

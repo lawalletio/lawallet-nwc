@@ -45,7 +45,7 @@ import {
   resolveListenerBridge
 } from '@/lib/wallet/drivers/listener-transport'
 import { nwcWalletCanSend } from '@/lib/wallet/nwc-send-capability'
-import { probeCardBalanceMsats } from '@/lib/card-payments/max-withdrawable'
+import { probeCardBalanceMsats } from '@/lib/card-payments/balance-probe'
 import { derivePrimaryWallet } from '@/lib/wallet/primary-wallet'
 import { ActivityEvent, logActivity } from '@/lib/activity-log'
 import { eventBus } from '@/lib/events/event-bus'
