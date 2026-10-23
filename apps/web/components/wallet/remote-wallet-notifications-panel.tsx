@@ -77,9 +77,7 @@ export function RemoteWalletNotificationsPanel({
   async function toggle(notification: RemoteWalletNotificationData) {
     try {
       await mutations.setEnabled(notification.id, !notification.enabled)
-      toast.success(
-        notification.enabled ? n.pausedToast : n.resumedToast
-      )
+      toast.success(notification.enabled ? n.pausedToast : n.resumedToast)
       await Promise.all([notifications.refetch(), deliveries.refetch()])
     } catch (error) {
       toast.error(errorMessage(error))
@@ -159,13 +157,10 @@ export function RemoteWalletNotificationsPanel({
         <div className="flex items-center justify-between px-5 py-4">
           <div>
             <h3 className="text-sm font-semibold">{n.journal}</h3>
-            <p className="text-xs text-muted-foreground">
-              {n.journalBody}
-            </p>
+            <p className="text-xs text-muted-foreground">{n.journalBody}</p>
           </div>
           <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Radio className="size-3.5 text-emerald-500" />{' '}
-            {rw.live}
+            <Radio className="size-3.5 text-emerald-500" /> {rw.live}
           </span>
         </div>
         <div className="divide-y border-t">
@@ -287,9 +282,7 @@ function NotificationCard({
           </Badge>
         )}
         <span className="ml-auto">
-          {latest
-            ? n.last(latest.status.toLowerCase())
-            : n.waitingFirst}
+          {latest ? n.last(latest.status.toLowerCase()) : n.waitingFirst}
         </span>
       </div>
     </article>
@@ -425,9 +418,7 @@ function CreateNotificationDialog({
         <form onSubmit={submit}>
           <DialogHeader>
             <DialogTitle>{n.addTitle}</DialogTitle>
-            <DialogDescription>
-              {n.addBody}
-            </DialogDescription>
+            <DialogDescription>{n.addBody}</DialogDescription>
           </DialogHeader>
           <div className="mt-5 space-y-5">
             <ToggleGroup
@@ -471,7 +462,7 @@ function CreateNotificationDialog({
               </Field>
             </div>
             {channel === 'WEBHOOK' ? (
-              <div className="space-y-3 rounded-2xl border bg-sky-500/[0.04] p-4">
+              <div className="space-y-3 rounded-2xl border bg-sky-500/4 p-4">
                 <Field label={n.endpoint}>
                   <Input
                     type="url"
@@ -487,7 +478,7 @@ function CreateNotificationDialog({
                 </p>
               </div>
             ) : (
-              <div className="space-y-4 rounded-2xl border bg-violet-500/[0.04] p-4">
+              <div className="space-y-4 rounded-2xl border bg-violet-500/4 p-4">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Field label={n.eventKind}>
                     <Input
@@ -525,9 +516,7 @@ function CreateNotificationDialog({
                 </p>
                 <div className="flex items-center justify-between gap-4 rounded-xl border bg-background/50 p-3">
                   <div>
-                    <Label htmlFor="notification-nip44">
-                      {n.encrypt}
-                    </Label>
+                    <Label htmlFor="notification-nip44">{n.encrypt}</Label>
                     <p className="mt-1 text-xs text-muted-foreground">
                       {n.encryptHint}
                     </p>
@@ -587,7 +576,10 @@ function DeliveryDetailDialog({
           <div className="space-y-5">
             <div className="grid gap-3 sm:grid-cols-3">
               <Metric label={n.action} value={delivery.action} />
-              <Metric label={n.attempts} value={String(delivery.attemptCount)} />
+              <Metric
+                label={n.attempts}
+                value={String(delivery.attemptCount)}
+              />
               <Metric
                 label={n.created}
                 value={new Date(delivery.createdAt).toLocaleString(locale)}

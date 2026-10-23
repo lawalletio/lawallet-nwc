@@ -8,6 +8,7 @@ import { preimageMatchesPaymentHash } from '@/lib/card-payments/lifecycle'
 import { getListenerConfig } from '@/lib/listener-config'
 import { errorMessage } from '@/lib/error-message'
 import { logger } from '@/lib/logger'
+import { reportError } from '@/lib/observability/report'
 import { prisma } from '@/lib/prisma'
 import {
   fetchDestinationMetadata,
@@ -107,6 +108,7 @@ export async function reconcileRemoteWalletForwarding(
         { err: error, remoteWalletForwardReceiptId: id },
         'remote_wallet_forwarding.reconcile_failed'
       )
+      reportError(error, 'forwarding-reconcile')
       await prisma.remoteWalletForwardReceipt.updateMany({
         where: { id, leaseOwner: workerId },
         data: {
@@ -1039,6 +1041,10 @@ async function completeBatch(
       { batchAnchorId: anchorId, paymentHash: attempt.paymentHash },
       'remote_wallet_forwarding.completed_batch_without_members'
     )
+    reportError(
+      'remote_wallet_forwarding.completed_batch_without_members',
+      'forwarding-reconcile'
+    )
     return
   }
   if (
@@ -1048,6 +1054,10 @@ async function completeBatch(
     logger.error(
       { batchAnchorId: anchorId, paymentHash: attempt.paymentHash },
       'remote_wallet_forwarding.settled_attempt_preimage_invalid'
+    )
+    reportError(
+      'remote_wallet_forwarding.settled_attempt_preimage_invalid',
+      'forwarding-reconcile'
     )
     await rejectPendingBatch(
       members.map(member => member.id),
@@ -1087,7 +1097,9 @@ async function completeBatch(
   )
   const forwardedShares = largestRemainderShares(
     attempt.amountMsats,
-    members.map((member, index) => member.requestedAmountMsats - reserveShares[index])
+    members.map(
+      (member, index) => member.requestedAmountMsats - reserveShares[index]
+    )
   )
   const feeShares = largestRemainderShares(routingFee, weights)
   const completedAt = new Date()
@@ -1419,8 +1431,10 @@ function isInsufficientBalance(
   > | null
 ): boolean {
   if (attempt?.status !== 'REJECTED') return false
-  if (attempt.errorCode?.toUpperCase().replaceAll(' ', '_') ===
-    'INSUFFICIENT_BALANCE') {
+  if (
+    attempt.errorCode?.toUpperCase().replaceAll(' ', '_') ===
+    'INSUFFICIENT_BALANCE'
+  ) {
     return true
   }
   const message = attempt.errorMessage?.toLowerCase() ?? ''

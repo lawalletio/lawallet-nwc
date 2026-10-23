@@ -180,7 +180,7 @@ function InvalidRequest({
         <AlertTriangle className="size-4" />
         <AlertTitle>This request is not valid</AlertTitle>
         <AlertDescription>
-          <p className="break-words">{description}</p>
+          <p className="wrap-break-word">{description}</p>
           {error && (
             <p className="mt-1 font-mono text-xs opacity-80">{error}</p>
           )}
@@ -233,7 +233,7 @@ function AppIdentity({ details }: { details: AuthorizeRequestDetails }) {
         <p className="break-all text-base font-semibold text-foreground">
           {host}
         </p>
-        <p className="break-words text-xs text-muted-foreground">
+        <p className="wrap-break-word text-xs text-muted-foreground">
           {LOOPBACK_HOST.test(host) && 'Runs on this computer. '}
           Calls itself{' '}
           {/* bdi: a client-chosen name must not reorder the text around it */}
@@ -396,7 +396,7 @@ function ConsentForm({
       <h1
         ref={headingRef}
         tabIndex={-1}
-        className={cn(HEADING, 'outline-none')}
+        className={cn(HEADING, 'outline-hidden')}
       >
         Allow access to your account?
       </h1>
@@ -488,7 +488,9 @@ function ConsentForm({
         <Alert variant="destructive">
           <AlertTriangle className="size-4" />
           <AlertTitle>Could not complete the request</AlertTitle>
-          <AlertDescription className="break-words">{error}</AlertDescription>
+          <AlertDescription className="wrap-break-word">
+            {error}
+          </AlertDescription>
         </Alert>
       )}
 

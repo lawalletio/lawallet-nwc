@@ -22,8 +22,7 @@ export const home = {
   noWalletBody:
     'Connect a Nostr Wallet Connect URI to start sending and receiving.',
   connectWallet: 'Connect a wallet',
-  tabActivity: 'Activity',
-  tabTransfers: 'Transfers',
+  activityTitle: 'Activity',
   viewAll: 'View all',
   list: {
     activity: {
@@ -31,12 +30,6 @@ export const home = {
       loading: 'Loading activity…',
       error: 'Couldn’t load activity.',
       empty: 'No activity yet.'
-    },
-    transfers: {
-      connect: 'Connect a wallet to see your transfers.',
-      loading: 'Loading transfers…',
-      error: 'Couldn’t load transfers.',
-      empty: 'No transfers yet.'
     }
   },
   install: {

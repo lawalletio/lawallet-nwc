@@ -162,7 +162,7 @@ function InvoiceRow({
         type="button"
         onClick={onSelect}
         aria-label={t.viewDetails(primaryLine)}
-        className="group flex w-full items-center gap-3 px-5 py-3 text-left transition-colors hover:bg-muted/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+        className="group flex w-full items-center gap-3 px-5 py-3 text-left transition-colors hover:bg-muted/35 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
       >
         <div
           className={cn(

@@ -7,6 +7,7 @@ import {
   nwcProxyResponseSchema,
   type NwcPaymentRequest,
   type NwcPaymentResponse,
+  type NwcProxyErrorCode,
   type NwcProxyMethod
 } from '@/lib/validation/schemas'
 import { getCurrentReqId } from '@/lib/logger'
@@ -22,9 +23,16 @@ export type { ResolvedListenerConfig }
  * through a second transport.
  */
 export class ListenerUnavailableError extends DriverError {
-  constructor(message: string, options?: { cause?: unknown }) {
+  /** The listener's `{ok:false}` code, when it answered at all. */
+  readonly code?: NwcProxyErrorCode
+
+  constructor(
+    message: string,
+    options?: { cause?: unknown; code?: NwcProxyErrorCode }
+  ) {
     super(message, options)
     this.name = 'ListenerUnavailableError'
+    this.code = options?.code
   }
 }
 
@@ -161,7 +169,11 @@ export async function listenerNwcRequest<T>(
       body: JSON.stringify({
         connectionString: input.connectionString,
         method: input.method,
-        params: input.params ?? {}
+        params: input.params ?? {},
+        // Listener's own wallet wait (default 30s) must end before our abort,
+        // or a silent wallet surfaces as a transport failure instead of
+        // `timeout` and callers wrongly retry it over direct NWC.
+        timeoutMs: Math.max(1000, bridge.requestTimeoutMs - 1000)
       }),
       signal: AbortSignal.timeout(bridge.requestTimeoutMs),
       cache: 'no-store'
@@ -199,7 +211,8 @@ export async function listenerNwcRequest<T>(
       )
     }
     throw new ListenerUnavailableError(
-      `Listener bridge unavailable (${code}): ${message}`
+      `Listener bridge unavailable (${code}): ${message}`,
+      { code }
     )
   }
 

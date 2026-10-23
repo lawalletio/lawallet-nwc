@@ -15,7 +15,7 @@ const allowedDevOrigins = [
 
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
-import { withSentryConfig } from '@sentry/nextjs'
+import { withSentryConfig } from '@sentry/nextjs/config'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -106,7 +106,7 @@ export default withSentryConfig(nextConfig, {
   org: 'la-crypta',
   project: 'lawallet-web',
   silent: !process.env.CI,
-  disableLogger: true,
+  bundleSizeOptimizations: { excludeDebugStatements: true },
   // Records each build as a deploy against its release (Sentry ▸ Releases ▸
   // Deploys), so a spike can be read against "what shipped when". Only runs
   // when SENTRY_AUTH_TOKEN is present — a no-op for forks and self-hosters.

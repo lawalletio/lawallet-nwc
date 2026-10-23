@@ -16,7 +16,7 @@ const NativeSelect = React.forwardRef<HTMLSelectElement, NativeSelectProps>(
         <select
           ref={ref}
           className={cn(
-            'appearance-none h-9 w-full bg-background border border-border rounded-md pl-3 pr-9 py-2 text-sm text-foreground shadow-xs focus:border-ring focus:ring-[3px] focus:ring-ring/50 disabled:opacity-50 disabled:cursor-not-allowed',
+            'appearance-none h-9 w-full bg-background border border-border rounded-md pl-3 pr-9 py-2 text-sm text-foreground shadow-2xs focus:border-ring focus:ring-[3px] focus:ring-ring/50 disabled:opacity-50 disabled:cursor-not-allowed',
             error && 'border-destructive focus:ring-destructive/20',
             className
           )}

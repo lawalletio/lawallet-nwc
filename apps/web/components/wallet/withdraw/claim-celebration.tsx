@@ -241,7 +241,7 @@ export function ClaimCelebration({
   if (!mounted) return null
 
   return createPortal(
-    <div className="fixed inset-0 z-[80] flex justify-center bg-[#070604] text-amber-50">
+    <div className="fixed inset-0 z-80 flex justify-center bg-[#070604] text-amber-50">
       <div className="relative flex h-full w-full max-w-md flex-col overflow-hidden">
         <VaultAtmosphere glow={celebrate && opened} />
         <div className="pointer-events-none absolute inset-0 z-0 flex -translate-y-24 items-center justify-center">
@@ -358,7 +358,7 @@ export function ClaimCelebration({
                 <Button
                   type="button"
                   onClick={onDone}
-                  className="h-12 w-full bg-gradient-to-b from-amber-300 to-amber-500 text-base font-semibold text-amber-950 shadow-[0_8px_30px_-8px_rgba(251,191,36,0.7)] hover:from-amber-200 hover:to-amber-400"
+                  className="h-12 w-full bg-linear-to-b from-amber-300 to-amber-500 text-base font-semibold text-amber-950 shadow-[0_8px_30px_-8px_rgba(251,191,36,0.7)] hover:from-amber-200 hover:to-amber-400"
                 >
                   {c.collect}
                 </Button>

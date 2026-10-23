@@ -554,8 +554,8 @@ export function InfrastructureTab() {
         )}
         <div className="flex flex-col gap-4">
           {showDomainSuccess && (
-            <div className="relative min-w-0 overflow-hidden rounded-md border border-emerald-500/30 bg-emerald-500/[0.06] p-4">
-              <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-400/80 to-transparent" />
+            <div className="relative min-w-0 overflow-hidden rounded-md border border-emerald-500/30 bg-emerald-500/6 p-4">
+              <div className="absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-emerald-400/80 to-transparent" />
               <div className="grid min-w-0 gap-4">
                 <div className="flex min-w-0 items-start justify-between gap-3">
                   <span

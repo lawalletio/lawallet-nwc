@@ -184,9 +184,7 @@ export function RemoteWalletForwardingPanel({
       toast.success(enabled ? f.resumedToast : f.pausedToast)
       await Promise.all([action.refetch(), refetchForwarding()])
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : f.updateFailed
-      )
+      toast.error(error instanceof Error ? error.message : f.updateFailed)
     }
   }
 
@@ -208,9 +206,7 @@ export function RemoteWalletForwardingPanel({
       await Promise.all([action.refetch(), refetchForwarding()])
     } catch (error) {
       setQueuedForwarding(null)
-      toast.error(
-        error instanceof Error ? error.message : f.startFailed
-      )
+      toast.error(error instanceof Error ? error.message : f.startFailed)
     }
   }
 
@@ -232,7 +228,7 @@ export function RemoteWalletForwardingPanel({
   const data = action.data
   return (
     <section className="overflow-hidden rounded-2xl border border-border/70 bg-card/60 shadow-[0_30px_80px_-60px_hsl(var(--primary))]">
-      <div className="flex flex-col gap-4 border-b border-border/60 bg-gradient-to-br from-amber-500/10 via-card to-card p-5 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 border-b border-border/60 bg-linear-to-br from-amber-500/10 via-card to-card p-5 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-start gap-3">
           <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-500 ring-1 ring-amber-500/25">
             <GitBranch className="size-5" />
@@ -242,9 +238,7 @@ export function RemoteWalletForwardingPanel({
               <h2 className="font-semibold">{f.title}</h2>
               <StateBadge action={data} />
             </div>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {f.subtitle}
-            </p>
+            <p className="mt-1 text-sm text-muted-foreground">{f.subtitle}</p>
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -392,9 +386,7 @@ export function RemoteWalletForwardingPanel({
             toast.success(f.retryQueued)
             await refetchForwarding()
           } catch (error) {
-            toast.error(
-              error instanceof Error ? error.message : f.retryFailed
-            )
+            toast.error(error instanceof Error ? error.message : f.retryFailed)
           }
         }}
       />
@@ -442,9 +434,7 @@ function Overview({ action }: { action: RemoteWalletReceiveActionData }) {
       <div className="flex flex-col items-center gap-2 py-10 text-center">
         <GitBranch className="size-8 text-muted-foreground" />
         <p className="font-medium">{f.noPlan}</p>
-        <p className="max-w-sm text-sm text-muted-foreground">
-          {f.noPlanBody}
-        </p>
+        <p className="max-w-sm text-sm text-muted-foreground">{f.noPlanBody}</p>
       </div>
     )
   }
@@ -515,7 +505,6 @@ function Metric({
     </div>
   )
 }
-
 
 function ReceivedPaymentsList({
   rows,
@@ -668,9 +657,7 @@ function ForwardingActivity({
       </div>
     )
   if (activity.length === 0 && !queuedForwarding)
-    return (
-      <EmptyActivity text={f.activityEmpty} />
-    )
+    return <EmptyActivity text={f.activityEmpty} />
   return (
     <div className="divide-y">
       {queuedForwarding && (
@@ -695,15 +682,15 @@ function ForwardingActivity({
             <div className="mt-1 truncate font-mono text-xs text-muted-foreground">
               {queuedForwarding.destinations.length === 0
                 ? f.preparingPayment
-                : f.preparingDestinations(
-                    queuedForwarding.destinations.length
-                  )}
+                : f.preparingDestinations(queuedForwarding.destinations.length)}
             </div>
           </div>
           <div className="text-right text-xs text-muted-foreground">
             {formatDateTime(new Date(queuedForwarding.startedAt).toISOString())}
             <div className="mt-1 tabular-nums">
-              {f.amountPending(formatMsats(String(queuedForwarding.amountMsats)))}
+              {f.amountPending(
+                formatMsats(String(queuedForwarding.amountMsats))
+              )}
             </div>
           </div>
         </div>
@@ -715,9 +702,7 @@ function ForwardingActivity({
           <div key={entry.id} className="flex gap-3 px-5 py-4">
             <span
               role={inProgress ? 'status' : undefined}
-              aria-label={
-                inProgress ? f.attemptInProgress : undefined
-              }
+              aria-label={inProgress ? f.attemptInProgress : undefined}
               className={cn(
                 'mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full',
                 entry.status === 'SUCCEEDED'
@@ -742,7 +727,9 @@ function ForwardingActivity({
             </span>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="font-medium">{rw.attempt(entry.attemptNo)}</span>
+                <span className="font-medium">
+                  {rw.attempt(entry.attemptNo)}
+                </span>
                 <Badge variant="outline">{entry.status}</Badge>
               </div>
               <div className="mt-1 truncate font-mono text-xs text-muted-foreground">
@@ -836,9 +823,7 @@ function ForwardingConfigDialog({
       toast.success(f.planSaved)
       onOpenChange(false)
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : f.saveFailed
-      )
+      toast.error(error instanceof Error ? error.message : f.saveFailed)
     }
   }
   return (
@@ -846,9 +831,7 @@ function ForwardingConfigDialog({
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>{f.configTitle}</DialogTitle>
-          <DialogDescription>
-            {f.configBody}
-          </DialogDescription>
+          <DialogDescription>{f.configBody}</DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
@@ -1082,7 +1065,7 @@ function ForwardReceiptDialog({
                 <p className="text-xs font-medium text-muted-foreground">
                   {f.payerComment}
                 </p>
-                <p className="mt-1 whitespace-pre-wrap break-words text-sm italic">
+                <p className="mt-1 whitespace-pre-wrap wrap-break-word text-sm italic">
                   “{receipt.comment}”
                 </p>
               </div>
@@ -1179,8 +1162,7 @@ function ForwardReceiptLegs({ receipt }: { receipt: ForwardReceiptData }) {
                 {leg.batchAnchorId
                   ? f.batchAttempt(attempt.attemptNo)
                   : rw.attempt(attempt.attemptNo)}{' '}
-                · {attempt.status} ·{' '}
-                {formatMsats(String(attempt.amountMsats))}
+                · {attempt.status} · {formatMsats(String(attempt.amountMsats))}
               </summary>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 <AuditValue label={f.requestId} value={attempt.requestId} />

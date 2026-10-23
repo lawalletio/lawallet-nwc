@@ -44,7 +44,7 @@ export function ProgressScreen({
       ) : (
         <>
           <div className="relative h-1 w-64 overflow-hidden rounded-full bg-muted motion-reduce:hidden">
-            <div className="absolute inset-y-0 w-1/3 rounded-full bg-gradient-to-r from-transparent via-primary to-transparent animate-progress-indeterminate" />
+            <div className="absolute inset-y-0 w-1/3 rounded-full bg-linear-to-r from-transparent via-primary to-transparent animate-progress-indeterminate" />
           </div>
           <div className="hidden motion-reduce:block">
             <Spinner size={16} />

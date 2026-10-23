@@ -165,43 +165,43 @@ export default function RemoteWalletDetailPage() {
 
             {/* Balance + chart — owner only; both need the wallet's secret */}
             {isOwner && (
-            <div className="grid gap-6 lg:grid-cols-2">
-              <div className="flex flex-col gap-4">
-                <BalanceHero
-                  wallet={wallet}
-                  animatedSats={animatedSats}
-                  hasBalance={isActive && balance.data != null}
-                  state={
-                    !isActive
-                      ? 'disabled'
-                      : balance.error
-                        ? 'error'
-                        : balance.data != null
-                          ? 'connected'
-                          : 'searching'
-                  }
-                  onPaid={() => {
-                    // Payment just landed — refresh balance + activity right
-                    // away rather than waiting for the next poll.
-                    balance.refetch()
-                    txs.refetch()
-                  }}
-                  receiving={receiving}
-                  onReceivingChange={setReceiving}
-                />
-                {isLncurl && isActive && (
-                  <LncurlCountdown balanceSats={balanceSats} />
-                )}
-              </div>
+              <div className="grid gap-6 lg:grid-cols-2">
+                <div className="flex flex-col gap-4">
+                  <BalanceHero
+                    wallet={wallet}
+                    animatedSats={animatedSats}
+                    hasBalance={isActive && balance.data != null}
+                    state={
+                      !isActive
+                        ? 'disabled'
+                        : balance.error
+                          ? 'error'
+                          : balance.data != null
+                            ? 'connected'
+                            : 'searching'
+                    }
+                    onPaid={() => {
+                      // Payment just landed — refresh balance + activity right
+                      // away rather than waiting for the next poll.
+                      balance.refetch()
+                      txs.refetch()
+                    }}
+                    receiving={receiving}
+                    onReceivingChange={setReceiving}
+                  />
+                  {isLncurl && isActive && (
+                    <LncurlCountdown balanceSats={balanceSats} />
+                  )}
+                </div>
 
-              <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4">
-                <h2 className="text-sm font-semibold">Balance over time</h2>
-                <WalletBalanceChart
-                  transactions={txs.data ?? []}
-                  currentBalanceSats={balanceSats}
-                />
+                <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4">
+                  <h2 className="text-sm font-semibold">Balance over time</h2>
+                  <WalletBalanceChart
+                    transactions={txs.data ?? []}
+                    currentBalanceSats={balanceSats}
+                  />
+                </div>
               </div>
-            </div>
             )}
 
             <RemoteWalletForwardingPanel
@@ -248,7 +248,7 @@ function BalanceHero({
   }[state]
 
   return (
-    <div className="relative overflow-hidden rounded-lg border border-border bg-gradient-to-br from-card to-card/40 p-5">
+    <div className="relative overflow-hidden rounded-lg border border-border bg-linear-to-br from-card to-card/40 p-5">
       <div className="pointer-events-none absolute -right-16 -top-16 size-56 rounded-full bg-amber-400/10 blur-3xl" />
 
       <div

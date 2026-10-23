@@ -2,6 +2,7 @@
 // export is a no-op. Errors-only: no tracing, no PII.
 import * as Sentry from '@sentry/node'
 import type { ListenerEnv } from './env'
+import { createLogThrottle } from './process-errors'
 
 let initialized = false
 
@@ -42,7 +43,20 @@ export function initSentry(env: ListenerEnv): void {
     environment: env.SENTRY_ENVIRONMENT ?? process.env.NODE_ENV ?? 'production',
     release: env.SENTRY_RELEASE,
     tracesSampleRate: 0,
-    sendDefaultPii: false,
+    // Sentry v11 removed `sendDefaultPii`; an unset `dataCollection` now
+    // collects everything. Errors-only, so turn every category off.
+    dataCollection: {
+      userInfo: false,
+      cookies: false,
+      httpBodies: [],
+      httpHeaders: false,
+      urlQueryParams: false,
+      graphQL: { document: false, variables: false },
+      genAI: { inputs: false, outputs: false },
+      databaseQueryData: false,
+      queues: false,
+      stackFrameVariables: false
+    },
     beforeSend: scrubEvent
   })
   initialized = true
@@ -107,6 +121,18 @@ export function captureException(
   } catch {
     // reporting must never take the daemon down
   }
+}
+
+const admit = createLogThrottle()
+
+/**
+ * Captures a failure that is logged and survived (decrypt, reconcile, webhook
+ * dispatch). At most once per `site` per minute, so a DB outage hitting a
+ * periodic job doesn't flood Sentry.
+ */
+export function reportError(err: unknown, site: string): void {
+  if (!initialized || admit(site) === null) return
+  captureException(err, { tags: { site } })
 }
 
 export async function flushSentry(timeoutMs: number): Promise<void> {

@@ -20,6 +20,10 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import * as Sentry from '@sentry/nextjs'
 
 import { scrubEvent } from '@/lib/observability/pii'
+import {
+  SENTRY_DATA_COLLECTION,
+  SENTRY_TRACE_LIFECYCLE
+} from '@/lib/observability/sentry-options'
 
 const OTC = 'a'.repeat(32) // 32-hex bearer credential (card activation code)
 const OTC_ROUTE_PATTERN = '/api/cards/otc/[otc]'
@@ -48,8 +52,12 @@ beforeAll(() => {
     // browser-only APIs do not interpose breadcrumbs / sessions / etc. that
     // would make assertions on the serialized event non-deterministic.
     integrations: [],
-    sendDefaultPii: false,
-    beforeSend: (event: unknown) => scrubEvent(event as never) as never
+    dataCollection: SENTRY_DATA_COLLECTION,
+    traceLifecycle: SENTRY_TRACE_LIFECYCLE,
+    tracesSampleRate: 1,
+    beforeSend: (event: unknown) => scrubEvent(event as never) as never,
+    beforeSendTransaction: (event: unknown) =>
+      scrubEvent(event as never) as never
   } as never)
 })
 
@@ -168,6 +176,22 @@ describe('Sentry tags leak — SDK contract (real @sentry/nextjs pipeline)', () 
     } as Parameters<typeof scrubEvent>[0]
     expect(scrubEvent(activationEvent).request?.url).not.toContain(activationId)
     expect(scrubEvent(activationEvent).request?.url).toContain('[id]')
+  })
+
+  it('still scrubs transactions under the traceLifecycle the app ships (Sentry v11)', async () => {
+    // v11 defaults to span streaming, where beforeSendTransaction is never
+    // called. The app pins 'static' so transactions keep passing scrubEvent;
+    // if that pin is dropped this transaction reaches the wire unscrubbed.
+    Sentry.startSpan(
+      { name: `GET /api/leak/${NSEC}`, forceTransaction: true },
+      () => {}
+    )
+    await Sentry.flush(2000)
+
+    expect(transportBody).toBeDefined()
+    const event = extractEvent(transportBody!)
+    expect(event.type).toBe('transaction')
+    expect(JSON.stringify(event)).not.toContain(NSEC)
   })
 
   it('does not redact a benign 32-hex card id placed in tags.path (kept actionable for debugging)', async () => {

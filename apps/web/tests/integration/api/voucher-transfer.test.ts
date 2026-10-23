@@ -33,8 +33,11 @@ vi.mock('@/lib/vouchers/status', () => ({
   fetchVoucherStatus: vi.fn()
 }))
 
+vi.mock('@/lib/observability/report', () => ({ reportError: vi.fn() }))
+
 import { POST as CallbackPost } from '@/app/api/lud16/[username]/cb/route'
 import { refreshVoucherAtService } from '@/lib/vouchers/status'
+import { reportError } from '@/lib/observability/report'
 
 const serviceKey = generateSecretKey()
 const servicePubkey = getPublicKey(serviceKey)
@@ -295,6 +298,17 @@ describe('POST {lud16 callback} action=voucher', () => {
     const data = (await assertResponse(await transfer(), 200)) as any
     expect(data.status).toBe('ERROR')
     expect(prismaMock.voucher.create).not.toHaveBeenCalled()
+  })
+
+  it('reports a voucher burned at the service that could not be stored', async () => {
+    mockRecipient()
+    mockKnownService()
+    const dbError = new Error('db down')
+    vi.mocked(prismaMock.voucher.create).mockRejectedValue(dbError)
+
+    const data = (await assertResponse(await transfer(), 200)) as any
+    expect(data.status).toBe('ERROR')
+    expect(reportError).toHaveBeenCalledWith(dbError, 'voucher')
   })
 
   it('caps how many outstanding vouchers a stranger can pile up', async () => {

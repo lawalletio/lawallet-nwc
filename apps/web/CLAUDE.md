@@ -56,7 +56,7 @@ Migrations run against the per-checkout DB from `.env.local`
 
 ## Frontend
 
-- shadcn/ui + Radix + Tailwind 3.4; forms via React Hook Form + Zod
+- shadcn/ui + Radix + Tailwind 4 (config lives in `app/globals.css` `@theme`); forms via React Hook Form + Zod
 - Provider stack in `app/providers.tsx`: ThemeProvider → AuthProvider →
   NostrProfileProvider → Toaster
 - Auth context: `components/admin/auth-context.tsx` (JWT in memory +

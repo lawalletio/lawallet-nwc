@@ -553,7 +553,7 @@ function BunkerTab({
             className={cn(
               'flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
               mode === 'qr'
-                ? 'bg-background text-foreground shadow-sm'
+                ? 'bg-background text-foreground shadow-xs'
                 : 'text-muted-foreground hover:text-foreground'
             )}
           >
@@ -566,7 +566,7 @@ function BunkerTab({
             className={cn(
               'flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
               mode === 'paste'
-                ? 'bg-background text-foreground shadow-sm'
+                ? 'bg-background text-foreground shadow-xs'
                 : 'text-muted-foreground hover:text-foreground'
             )}
           >

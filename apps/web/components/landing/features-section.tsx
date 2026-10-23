@@ -153,7 +153,7 @@ export function FeaturesSection() {
               style={{ width: RADIUS * 2, height: RADIUS * 2 }}
             />
             <div
-              className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-dashed border-white/[0.05]"
+              className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-dashed border-white/5"
               style={{ width: RADIUS * 1.28, height: RADIUS * 1.28 }}
             />
 
@@ -220,7 +220,7 @@ export function FeaturesSection() {
         {FEATURES.map(f => (
           <div
             key={f.title}
-            className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 backdrop-blur-sm"
+            className="rounded-2xl border border-white/10 bg-white/3 p-4 backdrop-blur-xs"
           >
             <span
               className="flex size-10 items-center justify-center rounded-xl"
@@ -437,7 +437,7 @@ function ExpandedCard({ active }: { active: Feature | null }) {
       {/* specular top edge + theme bloom */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent"
+        className="pointer-events-none absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-white/25 to-transparent"
       />
       <div
         aria-hidden

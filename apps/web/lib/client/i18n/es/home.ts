@@ -22,8 +22,7 @@ export const home: typeof En = {
   noWalletBody:
     'Conecta una URI de Nostr Wallet Connect para empezar a enviar y recibir.',
   connectWallet: 'Conectar una billetera',
-  tabActivity: 'Actividad',
-  tabTransfers: 'Transferencias',
+  activityTitle: 'Actividad',
   viewAll: 'Ver todo',
   list: {
     activity: {
@@ -31,12 +30,6 @@ export const home: typeof En = {
       loading: 'Cargando actividad…',
       error: 'No se pudo cargar la actividad.',
       empty: 'Todavía no hay actividad.'
-    },
-    transfers: {
-      connect: 'Conecta una billetera para ver tus transferencias.',
-      loading: 'Cargando transferencias…',
-      error: 'No se pudieron cargar las transferencias.',
-      empty: 'Todavía no hay transferencias.'
     }
   },
   install: {

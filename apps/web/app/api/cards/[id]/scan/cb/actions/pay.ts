@@ -8,6 +8,7 @@ import type {
 import { prisma } from '@/lib/prisma'
 import type { LUD03CallbackError, LUD03CallbackSuccess } from '@/types/lnurl'
 import { logger } from '@/lib/logger'
+import { reportError } from '@/lib/observability/report'
 import { payActionQuerySchema } from '@/lib/validation/schemas'
 import { validateQuery } from '@/lib/validation/middleware'
 import {
@@ -408,11 +409,15 @@ async function handleSuccess(
       { err: error, requestId: attempt.requestId },
       'Card payment result could not be persisted'
     )
+    reportError(error, 'card-pay')
     await markCardPaymentUnknown(
       attempt.id,
       'PAYMENT_PERSISTENCE_ERROR',
       result.transport ?? attempt.transport
-    ).catch(() => false)
+    ).catch(err => {
+      reportError(err, 'card-pay')
+      return false
+    })
     return ludError('Payment outcome is still being resolved', true)
   }
 }
@@ -456,6 +461,8 @@ async function handleDispatchError(
     { err: error, requestId: attempt.requestId, transport },
     'Card payment outcome is unknown'
   )
+  // Usually a slow wallet, resolved later by lookup: worth seeing, not paging.
+  reportError(error, 'card-pay', 'warning')
   return transitioned
     ? ludError('Payment outcome is still being resolved', true)
     : responseFromCurrentAttempt(attempt.id)

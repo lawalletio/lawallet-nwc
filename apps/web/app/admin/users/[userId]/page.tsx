@@ -219,7 +219,7 @@ export default function UserDetailPage({
                   otherwise a subtle gradient fallback so the layout doesn't
                   collapse for users who haven't set one. */}
               <div
-                className="relative h-32 w-full bg-gradient-to-br from-primary/30 via-primary/10 to-muted sm:h-48"
+                className="relative h-32 w-full bg-linear-to-br from-primary/30 via-primary/10 to-muted sm:h-48"
                 style={
                   profile?.banner
                     ? {
@@ -237,7 +237,7 @@ export default function UserDetailPage({
                     type="button"
                     onClick={() => setEditingProfile(true)}
                     aria-label="Change cover image"
-                    className="group absolute inset-0 flex items-center justify-center focus-visible:outline-none"
+                    className="group absolute inset-0 flex items-center justify-center focus-visible:outline-hidden"
                   >
                     <span className="flex items-center gap-2 rounded-full bg-black/60 px-3 py-1.5 text-xs font-medium text-white opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100">
                       <Camera className="size-4" />
@@ -256,7 +256,7 @@ export default function UserDetailPage({
                     type="button"
                     onClick={() => setEditingProfile(true)}
                     aria-label="Change avatar"
-                    className="group absolute -top-10 left-4 size-20 rounded-full ring-4 ring-card focus-visible:outline-none sm:-top-12 sm:left-6 sm:size-24"
+                    className="group absolute -top-10 left-4 size-20 rounded-full ring-4 ring-card focus-visible:outline-hidden sm:-top-12 sm:left-6 sm:size-24"
                   >
                     <Avatar className="size-full">
                       {profile?.picture && (

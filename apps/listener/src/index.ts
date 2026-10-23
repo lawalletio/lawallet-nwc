@@ -43,6 +43,7 @@ import { requestZapSettlement, ZapSettleScheduler } from './zap-settle'
 import { createProcessErrorReporter } from './process-errors'
 import {
   captureException,
+  reportError,
   endSentrySession,
   flushSentry,
   initSentry
@@ -177,9 +178,10 @@ async function main(): Promise<void> {
   ): void => {
     // A received payment is the moment a zap may be waiting on its receipt.
     if (n.notification_type === 'payment_received') zapScheduler?.wake()
-    void handleNotification(wallet, n).catch(err =>
+    void handleNotification(wallet, n).catch(err => {
       log.error({ err, walletId: wallet.id }, 'notification.handler_error')
-    )
+      reportError(err, 'notification.handler_error')
+    })
   }
 
   // Shared by the live stream (recovered=false) and downtime catch-up
@@ -281,9 +283,10 @@ async function main(): Promise<void> {
     }
     // Fire-and-forget: delivery failures are retried by the sweep, and must
     // never crash the notification subscriber.
-    void dispatcher
-      .dispatch(stored)
-      .catch(err => log.error({ err, eventKey }, 'webhook.dispatch_error'))
+    void dispatcher.dispatch(stored).catch(err => {
+      log.error({ err, eventKey }, 'webhook.dispatch_error')
+      reportError(err, 'webhook.dispatch_error')
+    })
     return true
   }
 
@@ -310,9 +313,10 @@ async function main(): Promise<void> {
         const at = catchup.getLastCatchupAt(wallet.id)
         if (at) nwcPool.noteCatchup(wallet.id, at)
       })
-      .catch(err =>
+      .catch(err => {
         log.error({ err, walletId: wallet.id }, 'catchup.run_error')
-      )
+        reportError(err, 'catchup.run_error')
+      })
   }
 
   // Wallets already reported dead in an earlier process lifetime. Loaded from
@@ -426,7 +430,10 @@ async function main(): Promise<void> {
         metrics.reconciles++
         void loadActiveNwcWallets(pgPool, log, env)
           .then(reconcileAll)
-          .catch(err => log.error({ err }, 'reconcile.full_failed'))
+          .catch(err => {
+            log.error({ err }, 'reconcile.full_failed')
+            reportError(err, 'reconcile.full_failed')
+          })
         return
       }
       void loadActiveWalletById(pgPool, payload.id, log, env)
@@ -434,9 +441,10 @@ async function main(): Promise<void> {
           if (!row) livenessWrittenAt.delete(payload.id)
           return nwcPool.reconcileOne(payload.id, row)
         })
-        .catch(err =>
+        .catch(err => {
           log.error({ err, walletId: payload.id }, 'reconcile.one_failed')
-        )
+          reportError(err, 'reconcile.one_failed')
+        })
     }
   })
 
@@ -474,7 +482,10 @@ async function main(): Promise<void> {
       catchup.resetUnsupported()
       void loadActiveNwcWallets(pgPool, log, env)
         .then(reconcileAll)
-        .catch(err => log.error({ err }, 'reconcile.periodic_failed'))
+        .catch(err => {
+          log.error({ err }, 'reconcile.periodic_failed')
+          reportError(err, 'reconcile.periodic_failed')
+        })
     }, env.RECONCILE_INTERVAL_MS),
     setInterval(
       () => {
@@ -495,9 +506,10 @@ async function main(): Promise<void> {
     ),
     setInterval(
       () => {
-        void dispatcher
-          .sweep()
-          .catch(err => log.error({ err }, 'webhook.sweep_failed'))
+        void dispatcher.sweep().catch(err => {
+          log.error({ err }, 'webhook.sweep_failed')
+          reportError(err, 'webhook.sweep_failed')
+        })
       },
       5 * 60 * 1000
     ),

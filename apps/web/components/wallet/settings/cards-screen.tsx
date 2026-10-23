@@ -104,13 +104,13 @@ export function CardsScreen() {
     try {
       await setCardEnabled(card.id, enabled)
       toast.success(
-        enabled ? c.enabledToast(cardName(card)) : c.disabledToast(cardName(card))
+        enabled
+          ? c.enabledToast(cardName(card))
+          : c.disabledToast(cardName(card))
       )
     } catch (err) {
       setEnabledOverrides(prev => ({ ...prev, [card.id]: undefined }))
-      toast.error(
-        err instanceof Error ? err.message : c.updateFailed
-      )
+      toast.error(err instanceof Error ? err.message : c.updateFailed)
     } finally {
       setPending(prev => {
         const next = new Set(prev)
@@ -131,9 +131,7 @@ export function CardsScreen() {
       toast.success(c.linkedToast(cardName(card)))
     } catch (err) {
       setLinkedOverrides(prev => ({ ...prev, [card.id]: undefined }))
-      toast.error(
-        err instanceof Error ? err.message : c.linkFailed
-      )
+      toast.error(err instanceof Error ? err.message : c.linkFailed)
     } finally {
       setLinkPending(prev => {
         const next = new Set(prev)
@@ -233,9 +231,9 @@ function CardRow({
       : 'Disabled'
 
   return (
-    <article className="relative isolate aspect-[1.55] min-h-44 overflow-hidden rounded-2xl bg-card shadow-sm ring-1 ring-border/40">
+    <article className="relative isolate aspect-[1.55] min-h-44 overflow-hidden rounded-2xl bg-card shadow-xs ring-1 ring-border/40">
       <CardArtwork card={card} dimmed={dimmed} />
-      <div className="absolute inset-0 bg-gradient-to-t from-background/85 via-background/30 to-background/5" />
+      <div className="absolute inset-0 bg-linear-to-t from-background/85 via-background/30 to-background/5" />
 
       <div className="relative flex h-full flex-col justify-between p-4">
         <div className="flex justify-end">
@@ -248,7 +246,7 @@ function CardRow({
                 size="sm"
                 disabled={linkPending}
                 onClick={onLinkWallet}
-                className="h-9 rounded-full bg-background/75 px-3 text-xs font-semibold text-foreground shadow-sm ring-1 ring-border/40 backdrop-blur-md transition-all duration-200 hover:bg-background/90 disabled:opacity-70"
+                className="h-9 rounded-full bg-background/75 px-3 text-xs font-semibold text-foreground shadow-xs ring-1 ring-border/40 backdrop-blur-md transition-all duration-200 hover:bg-background/90 disabled:opacity-70"
               >
                 {linkPending ? (
                   <RefreshCw
@@ -265,7 +263,7 @@ function CardRow({
         </div>
 
         <div className="flex min-w-0 items-end justify-between gap-3">
-          <div className="min-w-0 rounded-xl bg-background/65 px-3 py-2 shadow-sm ring-1 ring-border/30 backdrop-blur-md">
+          <div className="min-w-0 rounded-xl bg-background/65 px-3 py-2 shadow-xs ring-1 ring-border/30 backdrop-blur-md">
             <h2 className="truncate text-lg font-semibold text-foreground">
               {name}
             </h2>
@@ -274,7 +272,7 @@ function CardRow({
             </p>
           </div>
 
-          <div className="flex shrink-0 items-center gap-2 rounded-full bg-background/70 px-2.5 py-2 shadow-sm ring-1 ring-border/40 backdrop-blur-md">
+          <div className="flex shrink-0 items-center gap-2 rounded-full bg-background/70 px-2.5 py-2 shadow-xs ring-1 ring-border/40 backdrop-blur-md">
             <span className="hidden text-xs font-medium text-muted-foreground sm:inline">
               {c.tapPayments}
             </span>
@@ -297,7 +295,7 @@ function StatusBadge({ status }: { status: CardStatus }) {
     <Badge
       variant={status === 'Active' ? 'default' : 'secondary'}
       aria-label={c.statusLabel(c.status[status])}
-      className="grid h-8 shrink-0 place-items-center overflow-hidden px-0 text-center shadow-sm backdrop-blur-md transition-all duration-300 ease-out will-change-[width,border-radius]"
+      className="grid h-8 shrink-0 place-items-center overflow-hidden px-0 text-center shadow-xs backdrop-blur-md transition-all duration-300 ease-out will-change-[width,border-radius]"
       style={{ width: STATUS_BADGE_WIDTH[status] }}
     >
       {(['Active', 'Disabled', 'Blocked'] as const).map(label => (

@@ -28,6 +28,7 @@ import {
   type PaymentQuote
 } from '@/lib/client/nwc'
 import { paymentHashFromBolt11 } from '@/lib/client/payment-receipt'
+import { rememberPaymentDestination } from '@/lib/client/payment-destinations'
 import {
   useActiveCurrencies,
   type Currency
@@ -227,12 +228,23 @@ export function SendPreviewStep() {
         return
       }
       const result = await payQuotedInvoice(nwc, currentQuote.quote)
+      const paymentHash = paymentHashFromBolt11(
+        currentQuote.quote.paymentRequest
+      )
+      if (lightningAddress) {
+        rememberPaymentDestination(paymentHash, {
+          address: lightningAddress,
+          name: recipientDetails?.displayName || null,
+          avatarUrl: recipientDetails?.avatarUrl ?? null,
+          comment: currentQuote.quote.comment
+        })
+      }
       sendActions.setResult({
         preimage: result.preimage,
         feesPaidSats: result.feesPaidSats,
         amountSats: flow.amountSats!,
         recipient: recipientLabel,
-        paymentHash: paymentHashFromBolt11(currentQuote.quote.paymentRequest),
+        paymentHash,
         destination: destinationForReceipt(flow.recipient),
         comment: currentQuote.quote.comment,
         settledAt: Date.now()
@@ -257,9 +269,9 @@ export function SendPreviewStep() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4">
-      <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-y-contain pb-4 pt-4 [scrollbar-gutter:stable]">
+      <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-y-contain pb-4 pt-4 scrollbar-gutter-stable">
         <section className="relative overflow-hidden rounded-3xl border border-border bg-card shadow-[0_20px_60px_rgba(0,0,0,0.24)]">
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[var(--theme-300)] to-transparent" />
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-(--theme-300) to-transparent" />
 
           <div className="flex flex-col items-center gap-2 px-5 pb-7 pt-6 text-center">
             <span className="text-xs font-medium uppercase tracking-[0.22em] text-muted-foreground">
@@ -417,7 +429,7 @@ function PaymentQuotePanel({
       : t.send.preview.plusFee(quotedAmount.toLocaleString())
 
   return (
-    <section className="rounded-3xl border border-border/80 bg-card/85 p-4 shadow-sm">
+    <section className="rounded-3xl border border-border/80 bg-card/85 p-4 shadow-xs">
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
@@ -500,7 +512,7 @@ function QuoteStatus({ state }: { state: CurrentQuoteState }) {
   }
 
   return (
-    <span className="rounded-full border border-[var(--theme-300)] bg-[var(--theme-400)]/20 px-3 py-1 text-xs font-semibold text-foreground">
+    <span className="rounded-full border border-(--theme-300) bg-(--theme-400)/20 px-3 py-1 text-xs font-semibold text-foreground">
       {t.send.preview.statusReady}
     </span>
   )

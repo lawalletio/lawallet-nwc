@@ -324,7 +324,7 @@ export function ActivateClient({ tokenId }: { tokenId: string }) {
             <div className="fixed inset-x-0 bottom-0 z-30">
               <div
                 aria-hidden
-                className="pointer-events-none absolute inset-0 bg-gradient-to-t from-background via-background to-transparent"
+                className="pointer-events-none absolute inset-0 bg-linear-to-t from-background via-background to-transparent"
               />
               <div
                 className="relative mx-auto max-h-[85dvh] w-full max-w-md overflow-y-auto px-5 pt-10"

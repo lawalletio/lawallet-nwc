@@ -77,6 +77,34 @@ workflow only scaffolds when the file is absent, your version is what ships.
 The `--dry` numbers come from your checkout while the workflow recomputes them
 from `main`, so preview from an up-to-date `main` if you want them to match.
 
+### Every release gets a social image
+
+Each changelog opens with a 2400×1350 card (see `v2.8.0.md`). The image is
+also what the admin What's New dialog shows above the notes. Create it in the
+same PR as the changelog:
+
+1. Write `docs/changelogs/assets/v<next>.json`: a three-word `headline` (the
+   last word is the green accent), a one-line `tagline`, and exactly six
+   `cards` (`dot`: `green` | `yellow` | `red`, a short mono `title`, one line
+   of `text`). Copy the previous release's file as a starting point.
+2. Render it: `pnpm release:image <next>` writes `v<next>.png` next to the JSON.
+   The look lives in `scripts/release-image/template.html`.
+3. Put it under the title of `v<next>.md`, with a raw `main` URL so it renders
+   on GitHub, Umbrel and in the app:
+
+   ```md
+   ![LaWallet v<next> — <headline>](https://raw.githubusercontent.com/lawalletio/lawallet-nwc/main/docs/changelogs/assets/v<next>.png)
+   ```
+
+### Start9 release notes are handwritten
+
+The Start9 auto-bump only rewrites the version in
+`lawalletio/lawallet-startos`; it keeps whatever `releaseNotes` are in
+`startos/versions/current.ts`. Before dispatching, open a PR there with the new
+notes in all five locales. If `Start9-Community/lawallet-startos` moved
+`@start9labs/start-sdk` (or anything under `startos/`), port it in the same
+PR: the overlay refuses to run while Community's SDK is newer.
+
 ## Versioning policy
 
 Pre-1.0 semantics: **minor** for feature releases (the normal case),
@@ -88,11 +116,11 @@ Confirm the downstream packages picked it up — `docker-publish.yml` dispatches
 both after the images are pushed, and each opens (and self-merges) its own
 package bump:
 
-| Target | Repo | Expect |
-| --- | --- | --- |
-| Umbrel | `lawalletio/umbrel-app-store` | `version:` + both image tags bumped, `releaseNotes` matching the changelog |
-| Start9 (sideload) | `lawalletio/lawallet-startos` | `<version>:0` in `startos/versions/current.ts`, five-locale `releaseNotes`, a signed `.s9pk` on the release |
-| Start9 (Community) | `Start9-Community/lawallet-startos` | PR opened by the sideload Release workflow; they review and merge. Advisory in `deploy:check`. |
+| Target             | Repo                                | Expect                                                                                                      |
+| ------------------ | ----------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Umbrel             | `lawalletio/umbrel-app-store`       | `version:` + both image tags bumped, `releaseNotes` matching the changelog                                  |
+| Start9 (sideload)  | `lawalletio/lawallet-startos`       | `<version>:0` in `startos/versions/current.ts`, five-locale `releaseNotes`, a signed `.s9pk` on the release |
+| Start9 (Community) | `Start9-Community/lawallet-startos` | PR opened by the sideload Release workflow; they review and merge. Advisory in `deploy:check`.              |
 
 `Start9-Community/lawallet-startos` is **not** a pull-mirror and is **not**
 dispatched as a self-merge. Registry builds are made only from that fork.

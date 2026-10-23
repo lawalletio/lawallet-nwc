@@ -430,7 +430,7 @@ export function NwcServicesTab() {
             </Button>
           </div>
           {probe.status === 'ok' && (
-            <div className="rounded-md border border-emerald-500/30 bg-emerald-500/[0.06] p-3 text-sm">
+            <div className="rounded-md border border-emerald-500/30 bg-emerald-500/6 p-3 text-sm">
               <p className="flex items-center gap-2 font-medium">
                 <CheckCircle2 className="size-4 text-emerald-500" />
                 Listener reachable

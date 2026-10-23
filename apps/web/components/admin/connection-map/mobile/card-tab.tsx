@@ -97,7 +97,7 @@ export function CardTab({ cards, wallets, onOpenDetail }: Props) {
                   type="button"
                   aria-label={`Open ${title} details`}
                   onClick={() => onOpenDetail(card.id)}
-                  className="flex min-w-0 flex-1 items-center gap-3 rounded-l-lg px-3 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  className="flex min-w-0 flex-1 items-center gap-3 rounded-l-lg px-3 py-3 text-left focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
                   {card.design?.image ? (
                     <img

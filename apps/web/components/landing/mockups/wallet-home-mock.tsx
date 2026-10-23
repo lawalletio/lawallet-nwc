@@ -23,7 +23,7 @@ const ACTIVITY = [
 
 export function WalletHomeMock() {
   return (
-    <div className="flex h-full w-full flex-col bg-[#0a0a0f] px-4 pb-4 pt-3 text-foreground">
+    <div className="flex h-full w-full flex-col bg-lw-dark px-4 pb-4 pt-3 text-foreground">
       {/* Header */}
       <div className="flex items-center justify-between gap-2">
         <span
@@ -36,10 +36,10 @@ export function WalletHomeMock() {
         >
           ay
         </span>
-        <span className="flex h-9 flex-1 items-center justify-center rounded-2xl bg-white/[0.04] text-[11px] font-semibold tracking-tight text-foreground">
+        <span className="flex h-9 flex-1 items-center justify-center rounded-2xl bg-white/4 text-[11px] font-semibold tracking-tight text-foreground">
           lawallet
         </span>
-        <span className="flex size-9 items-center justify-center rounded-2xl bg-white/[0.04] text-muted-foreground">
+        <span className="flex size-9 items-center justify-center rounded-2xl bg-white/4 text-muted-foreground">
           <Eye className="size-4" />
         </span>
       </div>
@@ -57,9 +57,9 @@ export function WalletHomeMock() {
             sats
           </span>
         </div>
-        <div className="mt-1 flex items-center gap-1 rounded-full bg-white/[0.04] p-0.5">
+        <div className="mt-1 flex items-center gap-1 rounded-full bg-white/4 p-0.5">
           <span
-            className="rounded-full px-2.5 py-0.5 text-[9px] font-medium text-foreground shadow-sm"
+            className="rounded-full px-2.5 py-0.5 text-[9px] font-medium text-foreground shadow-xs"
             style={{
               background:
                 'color-mix(in srgb, var(--theme-400) 20%, transparent)'
@@ -78,7 +78,7 @@ export function WalletHomeMock() {
         <button
           type="button"
           tabIndex={-1}
-          className="flex h-10 flex-1 items-center justify-center gap-1.5 rounded-xl bg-white/[0.06] text-[12px] font-semibold text-foreground"
+          className="flex h-10 flex-1 items-center justify-center gap-1.5 rounded-xl bg-white/6 text-[12px] font-semibold text-foreground"
         >
           <ArrowDownLeft className="size-3.5" />
           Receive
@@ -100,7 +100,7 @@ export function WalletHomeMock() {
       </div>
 
       {/* Address pill */}
-      <div className="mt-3 flex items-center gap-2.5 rounded-xl border border-white/[0.06] bg-white/[0.03] px-3 py-2.5">
+      <div className="mt-3 flex items-center gap-2.5 rounded-xl border border-white/6 bg-white/3 px-3 py-2.5">
         <div className="flex min-w-0 flex-1 flex-col">
           <span className="text-[8px] uppercase tracking-wider text-muted-foreground/70">
             Address
@@ -110,7 +110,7 @@ export function WalletHomeMock() {
             satoshi@lawallet.io
           </span>
         </div>
-        <span className="flex size-7 items-center justify-center rounded-lg bg-white/[0.05] text-muted-foreground">
+        <span className="flex size-7 items-center justify-center rounded-lg bg-white/5 text-muted-foreground">
           <QrCode className="size-3.5" />
         </span>
       </div>
@@ -122,13 +122,13 @@ export function WalletHomeMock() {
         </span>
         <span className="text-[9px] text-muted-foreground/70">View all</span>
       </div>
-      <div className="mt-2 flex flex-col gap-px overflow-hidden rounded-xl bg-white/[0.03]">
+      <div className="mt-2 flex flex-col gap-px overflow-hidden rounded-xl bg-white/3">
         {ACTIVITY.map((tx, i) => {
           const incoming = tx.dir === 'in'
           return (
             <div
               key={i}
-              className="flex items-center gap-2.5 border-b border-white/[0.04] px-3 py-2 last:border-b-0"
+              className="flex items-center gap-2.5 border-b border-white/4 px-3 py-2 last:border-b-0"
             >
               <span
                 className="flex size-7 shrink-0 items-center justify-center rounded-full"

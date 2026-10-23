@@ -25,6 +25,7 @@ import {
   logActivity
 } from '@/lib/activity-log'
 import { logger } from '@/lib/logger'
+import { reportError } from '@/lib/observability/report'
 import {
   archiveDeadWallet,
   type ArchiveOutcome
@@ -234,6 +235,7 @@ async function handleRemoteWalletForwardPaymentSent(
       { paymentHash, attemptId: attempt.id, walletId: event.walletId },
       'nwc.remote_wallet_forward_preimage_mismatch'
     )
+    reportError('nwc.remote_wallet_forward_preimage_mismatch', 'nwc-webhook')
     return null
   }
   const transitioned = await prisma.$transaction(async tx => {
@@ -325,6 +327,7 @@ async function handlePaymentSent(
       { paymentHash, attemptId: proxyAttempt.id },
       'nwc.proxy_payment_sent_preimage_mismatch'
     )
+    reportError('nwc.proxy_payment_sent_preimage_mismatch', 'nwc-webhook')
   }
 
   const attempt = await prisma.cardPaymentAttempt.findUnique({
@@ -391,6 +394,7 @@ async function handlePaymentSent(
       { err: error, requestId: attempt.requestId, paymentHash },
       'nwc.payment_sent_preimage_mismatch'
     )
+    reportError(error, 'nwc-webhook')
   }
   return null
 }
@@ -453,6 +457,7 @@ async function handlePaymentReceived(
         { paymentHash, walletId: event.walletId },
         'nwc.proxy_payment_received_amount_mismatch'
       )
+      reportError('nwc.proxy_payment_received_amount_mismatch', 'nwc-webhook')
       return null
     }
     if (preimage && !preimageMatchesPaymentHash(preimage, paymentHash)) {
@@ -460,6 +465,7 @@ async function handlePaymentReceived(
         { paymentHash, walletId: event.walletId },
         'nwc.proxy_payment_received_preimage_mismatch'
       )
+      reportError('nwc.proxy_payment_received_preimage_mismatch', 'nwc-webhook')
       return null
     }
     if (invoice.status === 'PAID') {

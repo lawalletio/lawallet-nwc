@@ -129,6 +129,27 @@ describe('GET /api/remote-wallets/[id]/balance', () => {
     expect(getBalanceMock).not.toHaveBeenCalled()
   })
 
+  it('returns 0 for a DEAD wallet without dialing it', async () => {
+    mockAuth()
+    const user = createUserFixture({ pubkey: USER_PUBKEY })
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(
+      createRemoteWalletFixture({
+        id: 'w1',
+        userId: user.id,
+        status: 'DEAD'
+      }) as never
+    )
+
+    const res = await balanceHandler(
+      createNextRequest('/api/remote-wallets/w1/balance'),
+      createParamsPromise({ id: 'w1' })
+    )
+    const body = (await assertResponse(res, 200)) as { balanceSats: number }
+    expect(body.balanceSats).toBe(0)
+    expect(getBalanceMock).not.toHaveBeenCalled()
+  })
+
   it('returns 404 when the wallet does not exist', async () => {
     mockAuth()
     const user = createUserFixture({ pubkey: USER_PUBKEY })
@@ -144,7 +165,7 @@ describe('GET /api/remote-wallets/[id]/balance', () => {
     expect(res.status).toBe(404)
   })
 
-  it('returns 503 when the driver fails to read the balance', async () => {
+  it('returns 0 when the driver fails to read the balance', async () => {
     mockAuth()
     const user = createUserFixture({ pubkey: USER_PUBKEY })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
@@ -161,14 +182,11 @@ describe('GET /api/remote-wallets/[id]/balance', () => {
       createNextRequest('/api/remote-wallets/w1/balance'),
       createParamsPromise({ id: 'w1' })
     )
-    expect(res.status).toBe(503)
-    const body = (await res.json()) as {
-      error: { message: string }
-    }
-    expect(body.error.message).toBe('Wallet balance is currently unavailable')
+    const body = (await assertResponse(res, 200)) as { balanceSats: number }
+    expect(body.balanceSats).toBe(0)
   })
 
-  it('returns 503 when the stored vault envelope cannot be decrypted', async () => {
+  it('returns 0 when the stored vault envelope cannot be decrypted', async () => {
     mockAuth()
     const user = createUserFixture({ pubkey: USER_PUBKEY })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
@@ -188,11 +206,8 @@ describe('GET /api/remote-wallets/[id]/balance', () => {
       createNextRequest('/api/remote-wallets/w1/balance'),
       createParamsPromise({ id: 'w1' })
     )
-    expect(res.status).toBe(503)
-    const body = (await res.json()) as {
-      error: { message: string }
-    }
-    expect(body.error.message).toBe('Wallet balance is currently unavailable')
+    const body = (await assertResponse(res, 200)) as { balanceSats: number }
+    expect(body.balanceSats).toBe(0)
     expect(getBalanceMock).not.toHaveBeenCalled()
   })
 

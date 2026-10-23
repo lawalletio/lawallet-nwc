@@ -53,7 +53,7 @@ export function EndpointError({
       </div>
       <div className="flex-1 min-w-0 space-y-1">
         <h3 className="text-sm font-semibold text-destructive">{label}</h3>
-        <p className="break-words text-xs text-muted-foreground">
+        <p className="wrap-break-word text-xs text-muted-foreground">
           {error.message || 'Unknown error'}
         </p>
       </div>

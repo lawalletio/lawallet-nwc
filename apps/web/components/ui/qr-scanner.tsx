@@ -192,7 +192,7 @@ export function QRScanner({ onScan, onError, children }: QRScannerProps) {
               <div className="absolute inset-0">
                 {/* Dark overlay with transparent center */}
                 <div className="absolute inset-0 bg-black/50">
-                  <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-[100%]">
+                  <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-full">
                     <div className="w-64 h-64 border-2 border-white rounded-lg relative">
                       {/* Corner indicators */}
                       <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-primary rounded-tl-lg"></div>

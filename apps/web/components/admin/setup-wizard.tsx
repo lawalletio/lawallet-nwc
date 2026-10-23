@@ -327,7 +327,7 @@ export function SetupWizard() {
     ).toUpperCase()
 
     return (
-      <div className="fixed inset-0 z-[60] flex flex-col items-center justify-center bg-background px-4 animate-in fade-in duration-500">
+      <div className="fixed inset-0 z-60 flex flex-col items-center justify-center bg-background px-4 animate-in fade-in duration-500">
         <div className="absolute top-6 left-1/2 -translate-x-1/2">
           <Image
             src="/logos/lawallet.svg"
@@ -414,7 +414,7 @@ export function SetupWizard() {
   if (step === 'loading') {
     return (
       <div
-        className={`fixed inset-0 z-[60] flex flex-col items-center justify-center bg-background transition-opacity duration-400 animate-in fade-in ${fadeOut ? 'opacity-0' : 'opacity-100'}`}
+        className={`fixed inset-0 z-60 flex flex-col items-center justify-center bg-background transition-opacity duration-400 animate-in fade-in ${fadeOut ? 'opacity-0' : 'opacity-100'}`}
       >
         <Image
           src="/logos/lawallet.svg"
@@ -442,7 +442,7 @@ export function SetupWizard() {
   // form vanishing while a small spinner pops in mid-page.
   if (step === 'fetching') {
     return (
-      <div className="fixed inset-0 z-[60] flex flex-col items-center justify-center bg-background animate-in fade-in duration-300">
+      <div className="fixed inset-0 z-60 flex flex-col items-center justify-center bg-background animate-in fade-in duration-300">
         <Image
           src="/logos/lawallet.svg"
           alt="LaWallet"
@@ -467,7 +467,7 @@ export function SetupWizard() {
   const communityName = community?.title || fullDomain
 
   return (
-    <div className="fixed inset-0 z-[60] flex flex-col items-center justify-center bg-background px-4 animate-in fade-in duration-300">
+    <div className="fixed inset-0 z-60 flex flex-col items-center justify-center bg-background px-4 animate-in fade-in duration-300">
       {/* Logo at top */}
       <div className="absolute top-6 left-1/2 -translate-x-1/2">
         <Image

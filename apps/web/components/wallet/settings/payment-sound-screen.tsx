@@ -61,7 +61,7 @@ export function PaymentSoundScreen() {
                 aria-checked={checked}
                 onClick={() => choose(id)}
                 className={cn(
-                  'flex min-h-14 items-center justify-between gap-3 px-4 py-2 text-left transition-[background-color,transform] duration-200 ease-out hover:bg-accent/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 active:scale-[0.985] active:bg-accent/90 active:duration-75',
+                  'flex min-h-14 items-center justify-between gap-3 px-4 py-2 text-left transition-[background-color,transform] duration-200 ease-out hover:bg-accent/70 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring/70 active:scale-[0.985] active:bg-accent/90 active:duration-75',
                   index < PAYMENT_SOUND_IDS.length - 1 &&
                     'border-b border-border/40'
                 )}

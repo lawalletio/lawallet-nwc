@@ -73,7 +73,7 @@ export function ConnectionMapMock() {
   ]
 
   return (
-    <div className="relative h-full w-full overflow-hidden bg-[#0a0a0f]">
+    <div className="relative h-full w-full overflow-hidden bg-lw-dark">
       {/* Atmosphere: theme glow + faint dot grid */}
       <div
         className="pointer-events-none absolute inset-0"
@@ -248,7 +248,7 @@ function NodeShell({
 }) {
   return (
     <div
-      className="absolute flex -translate-x-1/2 -translate-y-1/2 items-center gap-2 rounded-lg border bg-[#101018]/95 px-2.5 py-1.5 shadow-lg backdrop-blur-sm"
+      className="absolute flex -translate-x-1/2 -translate-y-1/2 items-center gap-2 rounded-lg border bg-[#101018]/95 px-2.5 py-1.5 shadow-lg backdrop-blur-xs"
       style={{
         left: `${x}%`,
         top: `${y}%`,

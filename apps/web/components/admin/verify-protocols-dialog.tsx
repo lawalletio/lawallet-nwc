@@ -308,7 +308,7 @@ export function VerifyProtocolsDialog({
                   className="pointer-events-none absolute inset-0 overflow-hidden rounded-full"
                   aria-hidden
                 >
-                  <span className="absolute inset-y-0 w-1/3 animate-[shimmer_1.4s_linear_infinite] bg-gradient-to-r from-transparent via-primary-foreground/40 to-transparent" />
+                  <span className="absolute inset-y-0 w-1/3 animate-[shimmer_1.4s_linear_infinite] bg-linear-to-r from-transparent via-primary-foreground/40 to-transparent" />
                 </span>
               ) : null}
             </div>

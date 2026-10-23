@@ -86,7 +86,7 @@ export default function HomePage() {
       />
 
       {redirecting && (
-        <div className="fixed inset-0 z-[60] flex flex-col items-center justify-center gap-4 bg-background/95 backdrop-blur-sm">
+        <div className="fixed inset-0 z-60 flex flex-col items-center justify-center gap-4 bg-background/95 backdrop-blur-xs">
           <Spinner size={32} />
           <p className="text-sm text-muted-foreground">
             {homePath === '/wallet'
