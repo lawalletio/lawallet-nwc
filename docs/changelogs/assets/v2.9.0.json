@@ -1,0 +1,36 @@
+{
+  "headline": ["Native.", "Recoverable.", "Personal."],
+  "tagline": "Ready for native wallets and card holders.",
+  "cards": [
+    {
+      "dot": "green",
+      "title": "Card recovery",
+      "text": "Lost your key? Recover the whole account with its NFC card"
+    },
+    {
+      "dot": "yellow",
+      "title": "iOS + Android",
+      "text": "Passkeys and app links for the native wallets"
+    },
+    {
+      "dot": "red",
+      "title": "1st address free",
+      "text": "Operators can make a member's first address free"
+    },
+    {
+      "dot": "yellow",
+      "title": "Pay again",
+      "text": "Activity remembers who you paid, with avatar and note"
+    },
+    {
+      "dot": "green",
+      "title": "20s → 0s",
+      "text": "Silent wallets no longer stall your balance"
+    },
+    {
+      "dot": "red",
+      "title": "Node 24.22",
+      "text": "Compromised root CA dropped; all deps up to date"
+    }
+  ]
+}
