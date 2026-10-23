@@ -79,6 +79,13 @@ export function WalletNwcProvider({ children }: { children: ReactNode }) {
   const balance = useNwcBalance(nwcString, { onTransaction })
   const { sats, loading, error, refetch, updatedAt, status, fromCache } =
     balance
+
+  // Back online: reconnect the relay now instead of on the next poll tick.
+  useEffect(() => {
+    const reconnect = () => refetch()
+    window.addEventListener('online', reconnect)
+    return () => window.removeEventListener('online', reconnect)
+  }, [refetch])
   // Every wallet screen reads this context; a fresh object per render would
   // re-render all of them whenever the provider does.
   const value = useMemo<WalletNwcValue>(

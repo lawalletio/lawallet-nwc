@@ -1,6 +1,7 @@
 /** Building blocks reused across wallet screens (nav, receipts, inputs…). */
 export const shared = {
   goBack: 'Go back',
+  offlineMode: 'Offline mode',
   nav: {
     label: 'Wallet actions',
     home: 'Home',

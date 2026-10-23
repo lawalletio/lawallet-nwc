@@ -7,8 +7,8 @@ import vm from 'node:vm'
  * Boots `public/sw.js` in a fake ServiceWorkerGlobalScope and returns its
  * event handlers plus an in-memory CacheStorage double (one Map per cache).
  *
- * The service worker controls the whole origin, so its caching strategy for
- * `/api/wallet/*` decides whether an admin page can ever see a mutation.
+ * The service worker controls the whole origin, so any API caching here
+ * would decide whether an admin page can ever see a mutation.
  */
 const SW_ORIGIN = 'https://wallet.test'
 
@@ -82,12 +82,11 @@ function loadServiceWorker(fetchImpl: typeof fetch, cacheNames: string[] = []) {
     context
   )
   const names = vm.runInContext(
-    '({ STATIC_CACHE, PAGE_CACHE, API_CACHE, STATIC_CACHE_MAX_ENTRIES })',
+    '({ STATIC_CACHE, PAGE_CACHE, STATIC_CACHE_MAX_ENTRIES })',
     context
   ) as {
     STATIC_CACHE: string
     PAGE_CACHE: string
-    API_CACHE: string
     STATIC_CACHE_MAX_ENTRIES: number
   }
 
@@ -97,7 +96,6 @@ function loadServiceWorker(fetchImpl: typeof fetch, cacheNames: string[] = []) {
     stores,
     pages: store(names.PAGE_CACHE),
     statics: store(names.STATIC_CACHE),
-    api: store(names.API_CACHE),
     /** Resolves once every waitUntil() promise (cache writes) has settled. */
     async settled() {
       for (let i = 0; i < pending.length; i++) await pending[i]
@@ -152,33 +150,14 @@ function navigateRequest(url: string) {
   return request
 }
 
-describe('service worker: /api/wallet read caching', () => {
-  it('serves the network response, not a stale cached one', async () => {
-    let payload: string[] = ['alice', 'deleted-address']
-    const sw = loadServiceWorker(async () => jsonResponse(payload))
-
-    const first = await sw.handle(new Request(URL_ADDRESSES))
-    expect(await first.json()).toEqual(['alice', 'deleted-address'])
-
-    // The address is deleted server-side. A cache-first strategy would
-    // replay the previous body here — that is the bug this guards.
-    payload = ['alice']
-    const second = await sw.handle(new Request(URL_ADDRESSES))
-    expect(await second.json()).toEqual(['alice'])
-  })
-
-  it('falls back to the cached response when the network is unreachable', async () => {
-    let online = true
-    const sw = loadServiceWorker(async () => {
-      if (!online) throw new Error('offline')
-      return jsonResponse(['alice'])
-    })
-
-    await sw.handle(new Request(URL_ADDRESSES))
-    online = false
-
-    const offline = await sw.handle(new Request(URL_ADDRESSES))
-    expect(await offline.json()).toEqual(['alice'])
+describe('service worker: API reads', () => {
+  // The page owns API caching (`useApi` persists wallet reads). A worker
+  // copy answered offline failures with a stale 200, hiding the offline
+  // state, and once replayed a deleted Lightning Address to /admin.
+  it('leaves API requests to the network', () => {
+    const sw = loadServiceWorker(async () => jsonResponse(['alice']))
+    expect(sw.intercepts(new Request(URL_ADDRESSES))).toBe(false)
+    expect(sw.intercepts(new Request(`${SW_ORIGIN}/api/users/me`))).toBe(false)
   })
 })
 
@@ -381,13 +360,12 @@ describe('service worker: activate', () => {
         'unrelated-cache'
       ]
     )
-    const { STATIC_CACHE, PAGE_CACHE, API_CACHE } = sw.names
+    const { STATIC_CACHE, PAGE_CACHE } = sw.names
 
     await sw.activate()
 
     expect([...sw.stores.keys()].sort()).toEqual(
       [
-        API_CACHE,
         PAGE_CACHE,
         STATIC_CACHE,
         'lawallet-lottie-v1',
@@ -398,12 +376,10 @@ describe('service worker: activate', () => {
 })
 
 describe('service worker: CLEAR_USER_DATA', () => {
-  it('drops API data and visited pages but keeps the app shell', async () => {
-    const sw = loadServiceWorker(
-      async () => new Response(),
-      ['lawallet-api-v3', 'lawallet-lottie-v1']
-    )
-    sw.api.set(URL_ADDRESSES, jsonResponse(['alice']))
+  it('drops visited pages but keeps the app shell', async () => {
+    const sw = loadServiceWorker(async () => new Response(), [
+      'lawallet-lottie-v1'
+    ])
     sw.pages.set(WALLET_URL, htmlResponse('wallet-shell'))
     sw.pages.set(`${SW_ORIGIN}/wallet/send`, htmlResponse('send'))
     sw.pages.set(`${SW_ORIGIN}/admin/users/alice`, htmlResponse('alice'))
@@ -411,35 +387,10 @@ describe('service worker: CLEAR_USER_DATA', () => {
 
     await sw.message({ type: 'CLEAR_USER_DATA' })
 
-    expect(sw.stores.has(sw.names.API_CACHE)).toBe(false)
-    expect(sw.stores.has('lawallet-api-v3')).toBe(false)
     expect([...sw.pages.keys()].sort()).toEqual(
       [WALLET_URL, `${SW_ORIGIN}/wallet/send`].sort()
     )
     expect(sw.statics.has(CHUNK_URL)).toBe(true)
     expect(sw.stores.has('lawallet-lottie-v1')).toBe(true)
-  })
-})
-
-describe('service worker: API reads', () => {
-  it('starts the network request before hashing the cache key', () => {
-    const fetchSpy = vi.fn(async () => jsonResponse([]))
-    const sw = loadServiceWorker(fetchSpy)
-
-    void sw.handle(new Request(URL_ADDRESSES))
-    expect(fetchSpy).toHaveBeenCalledTimes(1)
-  })
-
-  it('does not cache a response that lands after logout', async () => {
-    const network = deferred<Response>()
-    const sw = loadServiceWorker(() => network.promise)
-
-    const pending = sw.handle(new Request(URL_ADDRESSES))
-    await sw.message({ type: 'CLEAR_USER_DATA' })
-    network.resolve(jsonResponse(['previous-account']))
-    await pending
-    await sw.settled()
-
-    expect(sw.stores.get(sw.names.API_CACHE)?.size ?? 0).toBe(0)
   })
 })

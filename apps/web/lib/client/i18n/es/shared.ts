@@ -2,6 +2,7 @@ import type { shared as En } from '../en/shared'
 
 export const shared: typeof En = {
   goBack: 'Volver',
+  offlineMode: 'Modo sin conexión',
   nav: {
     label: 'Acciones de la billetera',
     home: 'Inicio',

@@ -7,7 +7,7 @@ vi.mock('next/navigation', () => ({
 }))
 
 vi.mock('@/components/admin/auth-context', () => ({
-  useAuth: () => ({ login: vi.fn() })
+  useAuth: () => ({ status: 'unauthenticated', login: vi.fn() })
 }))
 
 vi.mock('@/lib/client/passkey-api', async importOriginal => {

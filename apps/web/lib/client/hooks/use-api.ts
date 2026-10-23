@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from '@/components/admin/auth-context'
 import { useSSEVersion, type SSEEventType } from '@/lib/client/hooks/use-sse'
+import { ApiClientError } from '@/lib/client/api-client'
 
 export interface UseApiResult<T> {
   data: T | null
@@ -84,8 +85,12 @@ function getEventTypeForPath(path: string): SSEEventType | null {
  * Design notes:
  *   - Data is stored by URL path, but each entry records the auth context that
  *     produced it so an authenticated admin never reuses an anonymous response.
- *   - Entries are in-memory only. A page reload re-fetches everything —
- *     that's fine; HTTP-level caching is the server's concern.
+ *   - Wallet reads (`PERSISTED_PATH`) also persist to localStorage for the
+ *     signed-in account, so a cold or offline launch paints the last
+ *     session's data on the first authenticated render. They keep their
+ *     original `fetchedAt`, so they are never "fresh": every mount still
+ *     revalidates and swaps in the live payload. Everything else is
+ *     memory-only.
  *   - Stale-while-revalidate semantics: cache hits render immediately with
  *     `loading=false`. Very recent hits skip background revalidation so
  *     staggered mounts of the same endpoint (common in the admin shell) do
@@ -105,6 +110,92 @@ const apiInvalidationVersions = new Map<string, number>()
 const API_CACHE_INVALIDATED_EVENT = 'lawallet:api-cache-invalidated'
 const API_CACHE_FRESH_MS = 5_000
 let apiCacheEpoch = 0
+
+// What the wallet needs for first paint: identity + NWC string, branding,
+// addresses, remote wallets and their balances, cards, account. Remote
+// wallet NWC URIs and older history pages are fetched on demand instead.
+const PERSISTED_PATH =
+  /^\/api\/(users\/me|settings|wallet|remote-wallets|account)(\/|\?|$)/
+const NOT_PERSISTED = /\/connection-string|[?&]cursor=/
+const PERSIST_STORAGE_KEY = 'lawallet-api-cache'
+// Far below the ~5 MB quota, which the JWT and balance caches share.
+const PERSIST_MAX_CHARS = 256_000
+const PERSIST_DELAY_MS = 500
+// Account whose blob is loaded into `apiCache` and gets written back.
+let persistedAuthKey: string | null = null
+let persistTimer: ReturnType<typeof setTimeout> | null = null
+
+interface PersistedApiCache {
+  authKey: string
+  entries: Record<string, { data: unknown; fetchedAt: number }>
+}
+
+function isPersistedPath(path: string) {
+  return PERSISTED_PATH.test(path) && !NOT_PERSISTED.test(path)
+}
+
+/** Loads the account's persisted reads into `apiCache`, once per account. */
+function hydratePersisted(authKey: string) {
+  if (persistedAuthKey === authKey) return
+  if (!authKey.startsWith('authenticated:')) return
+  if (typeof window === 'undefined') return
+  persistedAuthKey = authKey
+  try {
+    const raw = window.localStorage.getItem(PERSIST_STORAGE_KEY)
+    const stored = raw ? (JSON.parse(raw) as PersistedApiCache) : null
+    if (stored?.authKey !== authKey) return
+    for (const [path, entry] of Object.entries(stored.entries)) {
+      if (apiCache.get(path)?.authKey === authKey) continue
+      apiCache.set(path, {
+        data: entry.data,
+        fetchedAt: entry.fetchedAt,
+        authKey,
+        invalidationVersion: getInvalidationVersion(path)
+      })
+    }
+  } catch {
+    // Corrupt or blocked storage: start cold, the network fills it in.
+  }
+}
+
+/** Batches writes so a burst of mount-time fetches costs one setItem. */
+function schedulePersist() {
+  if (persistTimer || !persistedAuthKey) return
+  persistTimer = setTimeout(() => {
+    persistTimer = null
+    writePersisted()
+  }, PERSIST_DELAY_MS)
+}
+
+function writePersisted() {
+  const authKey = persistedAuthKey
+  if (!authKey) return
+  const rows = [...apiCache.entries()]
+    .filter(
+      ([path, entry]) =>
+        entry.authKey === authKey &&
+        entry.invalidationVersion === getInvalidationVersion(path) &&
+        isPersistedPath(path)
+    )
+    .sort((a, b) => b[1].fetchedAt - a[1].fetchedAt)
+  const entries: PersistedApiCache['entries'] = {}
+  let budget = PERSIST_MAX_CHARS
+  // Newest first; whatever doesn't fit is simply fetched cold next launch.
+  for (const [path, { data, fetchedAt }] of rows) {
+    const size = path.length + JSON.stringify(data).length
+    if (size > budget) continue
+    budget -= size
+    entries[path] = { data, fetchedAt }
+  }
+  try {
+    window.localStorage.setItem(
+      PERSIST_STORAGE_KEY,
+      JSON.stringify({ authKey, entries } satisfies PersistedApiCache)
+    )
+  } catch {
+    // Quota or private mode: the in-memory cache still serves this session.
+  }
+}
 
 function fetchWithDedupe<T>(key: string, loader: () => Promise<T>): Promise<T> {
   const existing = apiInflight.get(key) as Promise<T> | undefined
@@ -141,6 +232,7 @@ function getUsableCacheEntry<T>(
   path: string,
   authKey: string
 ): ApiCacheEntry<T> | null {
+  hydratePersisted(authKey)
   const entry = apiCache.get(path) as ApiCacheEntry<T> | undefined
   if (!entry) return null
   if (entry.authKey !== authKey) return null
@@ -167,6 +259,14 @@ export function clearApiCache() {
   apiInflight.clear()
   apiInvalidationVersions.clear()
   apiCacheEpoch += 1
+  persistedAuthKey = null
+  if (persistTimer) clearTimeout(persistTimer)
+  persistTimer = null
+  try {
+    window.localStorage.removeItem(PERSIST_STORAGE_KEY)
+  } catch {
+    // No storage (SSR, private mode): nothing persisted to remove.
+  }
 }
 
 /**
@@ -190,6 +290,7 @@ export function invalidateApiPath(path: string) {
   }
   clearInflightForPath(path)
   apiInvalidationVersions.set(path, getInvalidationVersion(path) + 1)
+  schedulePersist()
   if (typeof window !== 'undefined') {
     window.dispatchEvent(
       new CustomEvent(API_CACHE_INVALIDATED_EVENT, { detail: { path } })
@@ -323,6 +424,7 @@ export function useApi<T>(path: string | null): UseApiResult<T> {
           authKey: requestAuthKey,
           invalidationVersion: requestVersion
         })
+        if (isPersistedPath(path)) schedulePersist()
         // Only update if this is still the latest fetch
         if (fetchId === fetchIdRef.current) {
           dataRef.current = result
@@ -330,7 +432,12 @@ export function useApi<T>(path: string | null): UseApiResult<T> {
           setData(result)
         }
       } catch (err) {
-        if (fetchId === fetchIdRef.current) {
+        // No HTTP answer (offline) with data on screen: keep showing it as
+        // the last-known copy instead of swapping in an error state. The
+        // wallet's offline badge says so; `online` triggers the refetch.
+        const offlineWithData =
+          !(err instanceof ApiClientError) && dataRef.current !== null
+        if (fetchId === fetchIdRef.current && !offlineWithData) {
           setError(err instanceof Error ? err : new Error('Unknown error'))
         }
       } finally {
@@ -363,12 +470,20 @@ export function useApi<T>(path: string | null): UseApiResult<T> {
       }
     }
 
+    // Back online: replace whatever was rendered from the cache.
+    function handleOnline() {
+      void fetchData({ force: true })
+    }
+
     window.addEventListener(API_CACHE_INVALIDATED_EVENT, handleInvalidation)
-    return () =>
+    window.addEventListener('online', handleOnline)
+    return () => {
       window.removeEventListener(
         API_CACHE_INVALIDATED_EVENT,
         handleInvalidation
       )
+      window.removeEventListener('online', handleOnline)
+    }
   }, [fetchData, path])
 
   const refetch = useCallback(() => fetchData({ force: true }), [fetchData])

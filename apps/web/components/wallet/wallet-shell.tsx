@@ -4,6 +4,7 @@ import React from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/components/admin/auth-context'
 import { WalletLoadingScreen } from '@/components/wallet/wallet-loading-screen'
+import { OfflineBadge } from '@/components/wallet/shared/offline-badge'
 import { useFirstLoadProgress } from '@/components/pwa/first-load-progress'
 import { useSyncCurrencyPrefs } from '@/lib/client/hooks/use-sync-currency-prefs'
 
@@ -36,6 +37,7 @@ export function WalletShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-background">
       <div className="mx-auto flex min-h-0 w-full max-w-md flex-1 flex-col">
+        <OfflineBadge />
         {children}
       </div>
     </div>
