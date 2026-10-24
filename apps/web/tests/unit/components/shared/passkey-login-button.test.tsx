@@ -1,3 +1,14 @@
+vi.mock('@/lib/client/nostr-profile', async original => ({
+  ...(await original<typeof import('@/lib/client/nostr-profile')>()),
+  useNostrProfile: () => ({
+    profile: {
+      name: 'Alice',
+      displayName: 'Alice Example',
+      picture: 'https://example.com/alice.png'
+    },
+    updateProfile: vi.fn()
+  })
+}))
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -12,6 +23,7 @@ vi.mock('@simplewebauthn/browser', () => ({
 const mocks = vi.hoisted(() => ({
   login: vi.fn(),
   createNsecSigner: vi.fn(),
+  toastWarning: vi.fn(),
   toastError: vi.fn()
 }))
 
@@ -24,7 +36,11 @@ vi.mock('@/lib/client/nostr-signer', () => ({
 }))
 
 vi.mock('sonner', () => ({
-  toast: { error: mocks.toastError, success: vi.fn() }
+  toast: {
+    warning: mocks.toastWarning,
+    error: mocks.toastError,
+    success: vi.fn()
+  }
 }))
 
 // Keep the real translatePasskeyError / PasskeyError so the component's
@@ -41,7 +57,18 @@ vi.mock('@/lib/client/passkey-api', async importOriginal => {
   }
 })
 
+vi.mock('@/lib/client/passkey-import', async importOriginal => ({
+  ...(await importOriginal<typeof import('@/lib/client/passkey-import')>()),
+  signInWithRememberedSource: vi.fn()
+}))
+
 import { PasskeyLoginButton } from '@/components/shared/passkey-login-button'
+import {
+  readRememberedSource,
+  rememberSource,
+  signInWithRememberedSource
+} from '@/lib/client/passkey-import'
+import { hexToBytes, type StoredAccount } from '@/lib/passkey-store'
 import {
   PasskeyError,
   authenticateWithPasskey,
@@ -78,6 +105,7 @@ beforeEach(() => {
   vi.mocked(isPasskeySupported).mockReturnValue(true)
   mocks.login.mockResolvedValue(undefined)
   mocks.createNsecSigner.mockReturnValue(STUB_SIGNER)
+  localStorage.clear()
 })
 
 describe('PasskeyLoginButton', () => {
@@ -99,6 +127,14 @@ describe('PasskeyLoginButton', () => {
       screen.getByRole('button', { name: /continue with passkey/i })
     )
 
+    expect(mocks.login).not.toHaveBeenCalled()
+    expect(await screen.findByText('Alice Example')).toBeInTheDocument()
+    expect(screen.getByTestId('passkey-import-npub')).toHaveTextContent(
+      /^npub1/
+    )
+    await user.click(
+      await screen.findByRole('button', { name: 'Yes, this is my account' })
+    )
     await waitFor(() => expect(onSuccess).toHaveBeenCalledTimes(1))
     expect(authenticateWithPasskey).toHaveBeenCalledTimes(1)
     expect(registerPasskeyAccount).not.toHaveBeenCalled()
@@ -106,8 +142,27 @@ describe('PasskeyLoginButton', () => {
     // credentials — exactly like the nsec method.
     expect(mocks.createNsecSigner).toHaveBeenCalledWith(SECRET_HEX)
     expect(mocks.login).toHaveBeenCalledWith(STUB_SIGNER, 'passkey', {
-      secret: SECRET_HEX
+      secret: SECRET_HEX,
+      persistence: 'memory'
     })
+  })
+
+  it('can reject an identity and choose another without logging in', async () => {
+    vi.mocked(authenticateWithPasskey).mockResolvedValue(IDENTITY)
+    render(<PasskeyLoginButton mode="authenticate" />)
+    await userEvent.click(
+      screen.getByRole('button', { name: /continue with passkey/i })
+    )
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Use a different passkey' })
+    )
+    expect(authenticateWithPasskey).toHaveBeenCalledTimes(1)
+    await userEvent.click(
+      screen.getByRole('button', { name: 'LaWallet' })
+    )
+    expect(authenticateWithPasskey).toHaveBeenCalledTimes(2)
+    expect(mocks.login).not.toHaveBeenCalled()
+    expect(await screen.findByText('Is this your account?')).toBeInTheDocument()
   })
 
   it('register mode: runs the registration ceremony then the same login path', async () => {
@@ -135,7 +190,8 @@ describe('PasskeyLoginButton', () => {
 
     await waitFor(() =>
       expect(mocks.login).toHaveBeenCalledWith(STUB_SIGNER, 'passkey', {
-        secret: SECRET_HEX
+        secret: SECRET_HEX,
+        persistence: 'memory'
       })
     )
     expect(registerPasskeyAccount).toHaveBeenCalledTimes(1)
@@ -226,6 +282,9 @@ describe('PasskeyLoginButton', () => {
     expect(busyButton).toBeDisabled()
 
     pending.resolve(IDENTITY)
+    await user.click(
+      await screen.findByRole('button', { name: 'Yes, this is my account' })
+    )
 
     await waitFor(() =>
       expect(
@@ -286,5 +345,117 @@ describe('PasskeyLoginButton', () => {
       <PasskeyLoginButton mode="authenticate" label="Use passkey" disabled />
     )
     expect(screen.getByRole('button', { name: 'Use passkey' })).toBeDisabled()
+  })
+
+  describe('with a remembered passkey from another app', () => {
+    const ENTRY = {
+      rpId: 'passkeys.example',
+      credentialId: 'c291cmNl',
+      pubkey: 'c'.repeat(64)
+    }
+    const SOURCE = { label: 'passkeys.example', rpId: 'passkeys.example' }
+
+    it('reports failed recovery copies during a remembered sign-in', async () => {
+      rememberSource(ENTRY)
+      vi.mocked(signInWithRememberedSource).mockResolvedValue({
+        secretHex: SECRET_HEX,
+        warnings: ['A recovery copy failed.']
+      })
+      render(<PasskeyLoginButton mode="authenticate" />)
+      await userEvent.click(
+        screen.getByRole('button', { name: /continue with passkey/i })
+      )
+      await waitFor(() =>
+        expect(mocks.toastWarning).toHaveBeenCalledWith(
+          'A recovery copy failed.'
+        )
+      )
+    })
+
+    it('asks the remembered passkey first and logs in as its account', async () => {
+      rememberSource(ENTRY)
+      vi.mocked(signInWithRememberedSource).mockResolvedValue({
+        secretHex: SECRET_HEX
+      })
+      const sources = [{ ...SOURCE, relays: ['wss://relay.example'] }]
+      render(<PasskeyLoginButton mode="authenticate" importSources={sources} />)
+      await userEvent.click(
+        screen.getByRole('button', { name: /continue with passkey/i })
+      )
+      expect(mocks.login).not.toHaveBeenCalled()
+      await userEvent.click(
+        await screen.findByRole('button', { name: 'Yes, this is my account' })
+      )
+      await waitFor(() => expect(mocks.login).toHaveBeenCalled())
+      expect(signInWithRememberedSource).toHaveBeenCalledWith(ENTRY, sources)
+      expect(authenticateWithPasskey).not.toHaveBeenCalled()
+      expect(mocks.createNsecSigner).toHaveBeenCalledWith(SECRET_HEX)
+      expect(mocks.login).toHaveBeenCalledWith(STUB_SIGNER, 'passkey', {
+        secret: SECRET_HEX,
+        persistence: 'memory'
+      })
+    })
+
+    it('shows the picker when the account is gone, then remembers the choice', async () => {
+      rememberSource(ENTRY)
+      const key = '00'.repeat(31) + '0a'
+      const accounts: StoredAccount[] = [
+        {
+          pubkey: 'd'.repeat(64),
+          secret: hexToBytes(key),
+          label: 'Work',
+          default: true
+        }
+      ]
+      vi.mocked(signInWithRememberedSource).mockResolvedValue({
+        imported: {
+          source: SOURCE,
+          author: 'd'.repeat(64),
+          credentialId: ENTRY.credentialId,
+          accounts
+        }
+      })
+      render(<PasskeyLoginButton mode="authenticate" />)
+      await userEvent.click(
+        screen.getByRole('button', { name: /continue with passkey/i })
+      )
+      expect(
+        await screen.findByText(/doesn't have the account you used before/)
+      ).toBeInTheDocument()
+      expect(mocks.login).not.toHaveBeenCalled()
+      await userEvent.click(screen.getByRole('button', { name: 'Continue' }))
+      await waitFor(() =>
+        expect(mocks.login).toHaveBeenCalledWith(STUB_SIGNER, 'passkey', {
+          secret: key,
+          persistence: 'memory'
+        })
+      )
+      expect(readRememberedSource()).toEqual({
+        ...ENTRY,
+        pubkey: 'd'.repeat(64)
+      })
+      expect(accounts[0].secret.every(b => b === 0)).toBe(true)
+    })
+
+    it('offers to forget it after a failure; then behaves as before', async () => {
+      rememberSource(ENTRY)
+      vi.mocked(signInWithRememberedSource).mockRejectedValue(
+        new PasskeyError('cancelled', 'closed')
+      )
+      vi.mocked(authenticateWithPasskey).mockResolvedValue(IDENTITY)
+      render(<PasskeyLoginButton mode="authenticate" surfaceCancel />)
+      await userEvent.click(
+        screen.getByRole('button', { name: /continue with passkey/i })
+      )
+      await userEvent.click(
+        await screen.findByRole('button', { name: 'Use a different passkey' })
+      )
+      await userEvent.click(
+        screen.getByRole('button', { name: 'LaWallet' })
+      )
+      expect(readRememberedSource()).toBeNull()
+      await waitFor(() => expect(authenticateWithPasskey).toHaveBeenCalled())
+      expect(signInWithRememberedSource).toHaveBeenCalledTimes(1)
+    })
   })
 })
