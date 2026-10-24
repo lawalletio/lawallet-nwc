@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { Fingerprint, Plus, Trash2 } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Fingerprint, KeyRound, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -26,6 +26,16 @@ import {
   AlertDialogTitle
 } from '@/components/ui/alert-dialog'
 import { usePasskeys } from '@/lib/client/hooks/use-passkeys'
+import { invalidateApiPath } from '@/lib/client/hooks/use-api'
+import { useAuth } from '@/components/admin/auth-context'
+import { PasskeyImportPanel } from '@/components/shared/passkey-import-panel'
+import type { PasskeyImportSource } from '@/lib/passkey-import-sources'
+import {
+  copyRememberedSource,
+  forgetRememberedSource,
+  readRememberedSource,
+  type RememberedPasskeySource
+} from '@/lib/client/passkey-import'
 import {
   isPasskeySupported,
   type PasskeyCredentialSummary
@@ -67,9 +77,12 @@ function relativeTime(iso: string, locale: string) {
  * merge instead of a dead-end toast (the Account Settings page does).
  */
 export function PasskeysSection({
-  onDuplicatePasskey
+  onDuplicatePasskey,
+  importSources = []
 }: {
   onDuplicatePasskey?: () => void
+  /** Offers the import from another app's passkey. */
+  importSources?: PasskeyImportSource[]
 } = {}) {
   const {
     credentials,
@@ -94,6 +107,15 @@ export function PasskeysSection({
   )
   const [label, setLabel] = useState('')
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const { jwt } = useAuth()
+  // Another app's passkey this device signs in with (read after mount:
+  // localStorage is client-only).
+  const [remembered, setRemembered] = useState<RememberedPasskeySource | null>(
+    null
+  )
+  const [copying, setCopying] = useState(false)
+  useEffect(() => setRemembered(readRememberedSource()), [])
 
   const isLastCredential = credentials.length === 1
   // Only block the last-passkey delete while the custodied key has NOT been
@@ -118,6 +140,30 @@ export function PasskeysSection({
         toast.error(errorText(t, err, p.addFailed))
       }
     }
+  }
+
+  async function handleCopyRemembered() {
+    if (!remembered || !jwt) return
+    setCopying(true)
+    try {
+      const copied = await copyRememberedSource(remembered, jwt, importSources)
+      if (copied.warnings?.length) toast.warning(copied.warnings[0])
+      setRemembered(null)
+      invalidateApiPath('/api/auth/passkey/credentials')
+      toast.success(t.auth.passkeyImport.saved)
+    } catch (err) {
+      if ((err as { kind?: string }).kind !== 'cancelled') {
+        toast.error(errorText(t, err, p.addFailed))
+      }
+    } finally {
+      setCopying(false)
+    }
+  }
+
+  function handleForgetRemembered() {
+    forgetRememberedSource()
+    setRemembered(null)
+    toast.success(t.auth.passkeyImport.forgotten)
   }
 
   async function handleRename() {
@@ -192,6 +238,52 @@ export function PasskeysSection({
         ))}
       </div>
 
+      {remembered && (
+        <div className="space-y-3 rounded-2xl bg-card p-4">
+          <div className="flex items-start gap-3">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-background text-muted-foreground">
+              <KeyRound className="size-5" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-base font-medium text-foreground">
+                {t.auth.passkeyImport.rememberedTitle}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {t.auth.passkeyImport.rememberedBody}
+              </p>
+              <p className="truncate font-mono text-[11px] text-muted-foreground/80">
+                {remembered.rpId} · {truncateNpub(remembered.pubkey)}
+              </p>
+            </div>
+          </div>
+          {supported && jwt && (
+            <Button
+              type="button"
+              variant="secondary"
+              className="h-11 w-full"
+              onClick={() => void handleCopyRemembered()}
+              disabled={copying}
+            >
+              {copying ? (
+                <Spinner size={16} />
+              ) : (
+                <Fingerprint data-icon="inline-start" />
+              )}
+              {copying ? p.waiting : t.auth.passkeyImport.copyTitle}
+            </Button>
+          )}
+          <Button
+            type="button"
+            variant="ghost"
+            className="h-11 w-full"
+            onClick={handleForgetRemembered}
+            disabled={copying}
+          >
+            {t.auth.passkeyImport.forget}
+          </Button>
+        </div>
+      )}
+
       {supported && (
         <Button
           type="button"
@@ -204,6 +296,41 @@ export function PasskeysSection({
           {adding ? p.waiting : p.add}
         </Button>
       )}
+
+      {supported && importSources.length > 0 && jwt && (
+        <Button
+          type="button"
+          variant="ghost"
+          className="h-12 w-full"
+          onClick={() => setImporting(true)}
+        >
+          <Fingerprint data-icon="inline-start" />
+          {t.auth.passkeyImport.open}
+        </Button>
+      )}
+
+      <Dialog open={importing} onOpenChange={setImporting}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t.auth.passkeyImport.title}</DialogTitle>
+            <DialogDescription>
+              {t.auth.passkeyImport.subtitle}
+            </DialogDescription>
+          </DialogHeader>
+          {importing && jwt && (
+            <PasskeyImportPanel
+              sources={importSources}
+              mode="link"
+              token={jwt}
+              onDone={() => {
+                setImporting(false)
+                setRemembered(readRememberedSource())
+                invalidateApiPath('/api/auth/passkey/credentials')
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Rename / delete dialog for the tapped credential */}
       <Dialog

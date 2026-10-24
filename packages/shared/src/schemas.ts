@@ -1115,7 +1115,14 @@ export const webauthnRegistrationResponseSchema = z
   .passthrough()
 
 export const passkeyRegistrationOptionsRequestSchema = z.object({
-  label: passkeyLabelSchema.optional()
+  label: passkeyLabelSchema.optional(),
+  /**
+   * Public key of an imported Nostr key this passkey will protect as a
+   * stored record. Present → the handle is a tagged stored handle naming it;
+   * absent → a tagged derived handle. Only the public key; the secret never
+   * reaches the server.
+   */
+  storedPubkey: hexPubkeySchema.optional()
 })
 
 export const passkeyRegistrationVerifyRequestSchema = z.object({

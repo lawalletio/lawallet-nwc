@@ -21,11 +21,16 @@ import { ConnectedApps } from '@/components/oauth/connected-apps'
 import { hexToNsec } from '@/lib/nostr'
 import { toNpub, truncateNpub } from '@/lib/client/format'
 import { useT } from '@/lib/client/i18n'
+import type { PasskeyImportSource } from '@/lib/passkey-import-sources'
 import { cn } from '@/lib/utils'
 
 const SIGNER_SECRET_KEY = 'lawallet-signer-secret'
 
-export function SecurityScreen() {
+export function SecurityScreen({
+  passkeyImportSources = []
+}: {
+  passkeyImportSources?: PasskeyImportSource[]
+} = {}) {
   const router = useRouter()
   const {
     jwt,
@@ -157,7 +162,7 @@ export function SecurityScreen() {
         </Section>
 
         <Section title={s.passkeys}>
-          <PasskeysSection />
+          <PasskeysSection importSources={passkeyImportSources} />
         </Section>
 
         <Section title={s.connectedApps}>

@@ -5,7 +5,7 @@ import type {
   AccountMergeResponse
 } from '@/lib/validation/schemas'
 import { createNsecSigner } from '@/lib/client/nostr-signer'
-import { derivePrfNsecHex, getPrfAssertion } from '@/lib/client/passkey-prf'
+import { resolvePasskeyIdentity } from '@/lib/client/passkey-api'
 
 /** NIP-42 client-authentication kind; the server accepts it as link proof. */
 const LINK_PROOF_EVENT_KIND = 22242
@@ -29,8 +29,11 @@ async function request<T>(
 
   if (!response.ok) {
     const payload = await response.json().catch(() => null)
-    throw new Error(
-      payload?.error?.message || `Request failed (${response.status})`
+    throw Object.assign(
+      new Error(
+        payload?.error?.message || `Request failed (${response.status})`
+      ),
+      { status: response.status }
     )
   }
   return response.json()
@@ -76,15 +79,14 @@ export async function proveNostrKey(
 
 /**
  * Proves control of another account via one of its passkeys — entirely
- * client-side under the PRF model: the assertion evaluates the PRF, the
- * other account's key falls out deterministically, and the ordinary Nostr
+ * client-side: the assertion resolves the passkey's key (derived from the
+ * PRF, or decrypted from a stored record), and the ordinary Nostr
  * signed-event proof runs with it. The server never sees an assertion.
  */
 export async function provePasskeyAccount(
   token: string
 ): Promise<AccountLinkVerifyResponse> {
-  const assertion = await getPrfAssertion()
-  const secretHex = await derivePrfNsecHex(assertion.prfOutput)
+  const { secretHex } = await resolvePasskeyIdentity()
   return proveNostrKey(token, createNsecSigner(secretHex))
 }
 
