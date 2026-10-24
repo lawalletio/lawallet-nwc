@@ -9,8 +9,14 @@ import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { postAuthPath } from '@/lib/client/pending-activation'
 import { useT } from '@/lib/client/i18n'
+import type { PasskeyImportSource } from '@/lib/passkey-import-sources'
 
-export function LoginOptions() {
+export function LoginOptions({
+  importSources = []
+}: {
+  /** Offers the import from another app's passkey when non-empty. */
+  importSources?: PasskeyImportSource[]
+}) {
   const router = useRouter()
   const t = useT().onboarding.login
 
@@ -34,6 +40,7 @@ export function LoginOptions() {
             label={t.passkey}
             showCrossDeviceHint
             surfaceCancel
+            importSources={importSources}
             onSuccess={() => router.replace(postAuthPath('/wallet'))}
           />
 

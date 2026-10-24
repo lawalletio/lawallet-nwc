@@ -14,49 +14,38 @@
  * pins fixed vectors; if it fails after an edit here, revert the edit.
  */
 
+import {
+  isLaWalletHandle,
+  LAWALLET_PASSKEY_PARAMETERS
+} from '@/lib/passkey-handle'
+import {
+  deriveNostrKey,
+  derivedPrfInput,
+  bytesToHex,
+  type DerivedParameterSet
+} from '@nostr-wot/identity/vault'
+
 // sha256('lawallet-nsec-prf-v1') — precomputed so the constant is visibly
 // static rather than depending on runtime hashing.
 export const PRF_SALT_HEX =
   '8ee22949c1045c627e14236f1d06cf730b46b4cf309cbf4ede25a446cf33ad8d'
 
-const HKDF_INFO = 'lawallet-nsec-v1'
+export const prfSaltBytes = () => derivedPrfInput(LAWALLET_PASSKEY_PARAMETERS)
 
-export function prfSaltBytes(): Uint8Array {
-  const bytes = new Uint8Array(32)
-  for (let i = 0; i < 32; i++) {
-    bytes[i] = parseInt(PRF_SALT_HEX.slice(i * 2, i * 2 + 2), 16)
-  }
-  return bytes
-}
-
-/**
- * Derives the 64-char hex Nostr secret key from a PRF output.
- * HKDF-SHA256(ikm = prfOutput, salt = PRF_SALT, info = 'lawallet-nsec-v1')
- * → 32 bytes. The caller validates the scalar (e.g. by deriving the pubkey);
- * an out-of-range output has probability ≈ 2⁻¹²⁸ and surfaces as an error
- * rather than a silent retry, so derivation stays a pure function.
- */
+/** Preserve LaWallet's existing key derivation through the shared SDK. */
 export async function derivePrfNsecHex(
-  prfOutput: ArrayBuffer | Uint8Array
+  prfOutput: ArrayBuffer | Uint8Array,
+  parameters: DerivedParameterSet = LAWALLET_PASSKEY_PARAMETERS
 ): Promise<string> {
-  const ikm =
-    prfOutput instanceof Uint8Array ? toArrayBuffer(prfOutput) : prfOutput
-  const key = await crypto.subtle.importKey('raw', ikm, 'HKDF', false, [
-    'deriveBits'
-  ])
-  const bits = await crypto.subtle.deriveBits(
-    {
-      name: 'HKDF',
-      hash: 'SHA-256',
-      salt: toArrayBuffer(prfSaltBytes()),
-      info: toArrayBuffer(new TextEncoder().encode(HKDF_INFO))
-    },
-    key,
-    256
+  const { secret } = deriveNostrKey(
+    prfOutput instanceof Uint8Array ? prfOutput : new Uint8Array(prfOutput),
+    parameters
   )
-  return Array.from(new Uint8Array(bits))
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('')
+  try {
+    return bytesToHex(secret)
+  } finally {
+    secret.fill(0)
+  }
 }
 
 function toArrayBuffer(view: Uint8Array): ArrayBuffer {
@@ -66,7 +55,7 @@ function toArrayBuffer(view: Uint8Array): ArrayBuffer {
   ) as ArrayBuffer
 }
 
-function base64urlToBytes(value: string): Uint8Array {
+export function base64urlToBytes(value: string): Uint8Array<ArrayBuffer> {
   const base64 = value.replace(/-/g, '+').replace(/_/g, '/')
   const raw = atob(base64)
   const bytes = new Uint8Array(raw.length)
@@ -74,7 +63,7 @@ function base64urlToBytes(value: string): Uint8Array {
   return bytes
 }
 
-function bytesToBase64url(bytes: Uint8Array): string {
+export function bytesToBase64url(bytes: Uint8Array): string {
   let raw = ''
   for (const b of bytes) raw += String.fromCharCode(b)
   return btoa(raw).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
@@ -86,44 +75,85 @@ export interface PrfAssertion {
   credentialId: string
 }
 
+export interface PasskeyAssertionRequest {
+  /** Defaults to this page's host, LaWallet's own RP. */
+  rpId?: string
+  /** Pins one credential; omitted runs a discoverable ceremony. */
+  credentialId?: Uint8Array
+  prf?: { first: Uint8Array; second?: Uint8Array }
+  largeBlob?: { read: true } | { write: Uint8Array }
+}
+
+export interface PasskeyAssertionResult {
+  rawId: Uint8Array
+  /** base64url (no padding) of `rawId`, as WebAuthn and the server use it. */
+  credentialId: string
+  userHandle: Uint8Array | null
+  /**
+   * Views over the browser's own result buffers (no copies), so zeroing
+   * them wipes the only copy. Callers zero them as soon as they are used.
+   */
+  prfFirst?: Uint8Array
+  prfSecond?: Uint8Array
+  blob?: Uint8Array
+  written?: boolean
+}
+
+const view = (value?: ArrayBuffer | ArrayBufferView) =>
+  value === undefined
+    ? undefined
+    : value instanceof ArrayBuffer
+      ? new Uint8Array(value)
+      : new Uint8Array(value.buffer, value.byteOffset, value.byteLength)
+
 /**
- * Runs a WebAuthn assertion purely to evaluate the PRF — the server is not
- * involved and the challenge is local randomness (the PRF result depends
- * only on the credential and the salt, never on the challenge). Uses the
- * raw API instead of @simplewebauthn/browser because its JSON serializer
- * drops ArrayBuffer extension outputs (the PRF result would arrive as {}).
- *
- * Omitting `credentialIdB64u` runs a discoverable ceremony (the platform
- * account picker); passing it pins the just-created credential.
- *
- * Throws `{ name: 'PrfUnsupportedError' }` when the authenticator did not
- * evaluate the PRF — the caller maps it to the 'prf-unsupported' error kind.
+ * One local WebAuthn assertion: the server is not involved and the
+ * challenge is local randomness (PRF results and largeBlob contents depend
+ * only on the credential, never on the challenge). Uses the raw API instead
+ * of @simplewebauthn/browser because its JSON serializer drops ArrayBuffer
+ * extension outputs.
  */
-export async function getPrfAssertion(
-  credentialIdB64u?: string
-): Promise<PrfAssertion> {
+export async function passkeyAssertion(
+  request: PasskeyAssertionRequest
+): Promise<PasskeyAssertionResult> {
   const challenge = new Uint8Array(32)
   crypto.getRandomValues(challenge)
+
+  const extensions: Record<string, unknown> = {}
+  if (request.prf) {
+    extensions.prf = {
+      eval: {
+        first: toArrayBuffer(request.prf.first),
+        ...(request.prf.second
+          ? { second: toArrayBuffer(request.prf.second) }
+          : {})
+      }
+    }
+  }
+  if (request.largeBlob) {
+    extensions.largeBlob =
+      'write' in request.largeBlob
+        ? { write: toArrayBuffer(request.largeBlob.write) }
+        : { read: true }
+  }
 
   const credential = (await navigator.credentials.get({
     publicKey: {
       challenge: toArrayBuffer(challenge),
-      rpId: window.location.hostname,
+      rpId: request.rpId ?? window.location.hostname,
       userVerification: 'required',
       timeout: 300_000,
-      ...(credentialIdB64u
+      ...(request.credentialId
         ? {
             allowCredentials: [
               {
                 type: 'public-key' as const,
-                id: toArrayBuffer(base64urlToBytes(credentialIdB64u))
+                id: toArrayBuffer(request.credentialId)
               }
             ]
           }
         : {}),
-      extensions: {
-        prf: { eval: { first: toArrayBuffer(prfSaltBytes()) } }
-      } as AuthenticationExtensionsClientInputs
+      extensions: extensions as AuthenticationExtensionsClientInputs
     }
   })) as PublicKeyCredential | null
 
@@ -133,20 +163,73 @@ export async function getPrfAssertion(
     throw err
   }
 
-  const extensions = credential.getClientExtensionResults() as {
-    prf?: { results?: { first?: ArrayBuffer | Uint8Array } }
+  const { userHandle } = credential.response as AuthenticatorAssertionResponse
+  const results = credential.getClientExtensionResults() as {
+    prf?: {
+      enabled?: boolean
+      results?: {
+        first?: ArrayBuffer | Uint8Array
+        second?: ArrayBuffer | Uint8Array
+      }
+    }
+    largeBlob?: { blob?: ArrayBuffer | Uint8Array; written?: boolean }
   }
-  const first = extensions.prf?.results?.first
-  if (!first) {
-    const err = new Error(
-      'This passkey did not return a PRF result — the device or browser does not support key derivation'
-    )
-    err.name = 'PrfUnsupportedError'
+  if (results.prf?.enabled === false) {
+    view(results.prf.results?.first)?.fill(0)
+    view(results.prf.results?.second)?.fill(0)
+    throw prfUnsupportedError()
+  }
+  const rawId = new Uint8Array(credential.rawId)
+  return {
+    rawId,
+    credentialId: bytesToBase64url(rawId),
+    userHandle: userHandle ? new Uint8Array(userHandle) : null,
+    prfFirst: view(results.prf?.results?.first),
+    prfSecond: view(results.prf?.results?.second),
+    blob: view(results.largeBlob?.blob),
+    written: results.largeBlob?.written
+  }
+}
+
+/**
+ * Runs an assertion purely to evaluate LaWallet's derivation PRF.
+ * Omitting `credentialIdB64u` runs a discoverable ceremony (the platform
+ * account picker); passing it pins the just-created credential.
+ *
+ * Throws `{ name: 'PrfUnsupportedError' }` when the authenticator did not
+ * evaluate the PRF — the caller maps it to the 'prf-unsupported' error kind.
+ * Throws `{ name: 'ForeignPasskeyError' }` first when the user handle says
+ * the passkey belongs to another app ('foreign-passkey').
+ */
+export async function getPrfAssertion(
+  credentialIdB64u?: string
+): Promise<PrfAssertion> {
+  const assertion = await passkeyAssertion({
+    ...(credentialIdB64u
+      ? { credentialId: base64urlToBytes(credentialIdB64u) }
+      : {}),
+    prf: { first: prfSaltBytes() }
+  })
+
+  if (!isLaWalletHandle(assertion.userHandle)) {
+    assertion.prfFirst?.fill(0)
+    const err = new Error('This passkey belongs to another app')
+    err.name = 'ForeignPasskeyError'
     throw err
   }
 
-  return {
-    prfOutput: first instanceof Uint8Array ? toArrayBuffer(first) : first,
-    credentialId: bytesToBase64url(new Uint8Array(credential.rawId))
-  }
+  const first = assertion.prfFirst
+  if (!first) throw prfUnsupportedError()
+
+  const prfOutput = toArrayBuffer(first)
+  first.fill(0)
+  return { prfOutput, credentialId: assertion.credentialId }
+}
+
+export function prfUnsupportedError(): Error {
+  const err = new Error(
+    'This passkey did not return a PRF result — the device or browser does not support key derivation'
+  )
+  err.name = 'PrfUnsupportedError'
+  return err
 }

@@ -1,4 +1,8 @@
 import { z } from 'zod'
+import {
+  parsePasskeyImportSources,
+  passkeyImportSourcesSchema
+} from '@/lib/passkey-import-sources'
 
 const emptyEnvToUndefined = (value: unknown): unknown =>
   typeof value === 'string' && value.trim() === '' ? undefined : value
@@ -292,6 +296,13 @@ const envSchema = z.object({
         'Comma-separated SHA-256 signing-cert fingerprints (AA:BB:…) of the Android app. Empty disables Android App Links and native passkeys.'
       )
   ),
+
+  // Sign-in with a stored-mode passkey from another app's RP.
+  PASSKEY_IMPORT_SOURCES: z
+    .preprocess(parsePasskeyImportSources, passkeyImportSourcesSchema)
+    .describe(
+      'JSON array of {label, rpId, relays?} passkey import sources. Empty hides the import option.'
+    ),
 
   // iOS app association (passkeys + universal links). Unset → AASA is a 404.
   APPLE_APP_IDS: z.preprocess(

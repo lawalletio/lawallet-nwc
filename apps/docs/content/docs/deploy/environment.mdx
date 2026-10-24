@@ -144,6 +144,20 @@ accepts its `android:apk-key-hash:` origin during passkey registration.
   anyone take over passkey accounts.
 </Callout>
 
+## Passkeys from other apps (optional)
+
+Lets users open a temporary session with an identity encrypted in another app’s passkey. Remembering the source is optional and stores public routing metadata only. Creating a LaWallet copy is available in signed-in Security settings. Leave it unset to hide the option.
+
+| Variable                 | Service | Required when  | Purpose                                                                                     |
+| ------------------------ | ------- | -------------- | ------------------------------------------------------------------------------------------- |
+| `PASSKEY_IMPORT_SOURCES` | Web     | Passkey import | JSON array of `{ "label", "rpId", "relays"? }`. This directory is independent of each source RP’s browser related-origin limits. Read at runtime, not build time. |
+
+Each source's `/.well-known/webauthn` must list this instance's origin, or the browser refuses the request.
+
+<Callout type="warn" title="Only list apps you trust">
+  After a user unlocks a source passkey, this client receives its decrypted keys. Only enable sources that have agreed to authorize this deployment’s origin.
+</Callout>
+
 ## Vault secrets are not rotatable
 
 `KEY_VAULT_SECRET` and `NWC_VAULT_SECRET` each have exactly one value, and it
