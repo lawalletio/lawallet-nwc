@@ -173,6 +173,10 @@ function signedRequest(
 
 beforeEach(() => {
   resetPrismaMock()
+  // No payments received: the archive balance guard sees an empty wallet.
+  vi.mocked(prismaMock.invoice.aggregate).mockResolvedValue({
+    _sum: { amountSats: null }
+  } as never)
   vi.clearAllMocks()
   configState.secret = SECRET
   captureForwardingReceiptMock.mockResolvedValue(null)

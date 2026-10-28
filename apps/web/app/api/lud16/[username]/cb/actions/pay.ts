@@ -24,6 +24,10 @@ import type { Prisma } from '@/lib/generated/prisma'
 import { logger } from '@/lib/logger'
 import { resolveWalletRoute } from '@/lib/wallet/resolve-payment-route'
 import { DriverError, driverForWallet } from '@/lib/wallet/drivers'
+import {
+  holdsProtectedBalance,
+  readWalletBalance
+} from '@/lib/wallet/last-balance'
 import { eventBus } from '@/lib/events/event-bus'
 import { getSettings } from '@/lib/settings'
 import {
@@ -322,7 +326,15 @@ export default async function pay(
           (await getPrimaryRemoteWalletForUser(lightningAddress.user.id))?.id ??
           null
 
-        if (lncurl_auto_recreate === 'true' && deadWalletId) {
+        // One failed make_invoice is not death. A wallet that still answers
+        // get_balance is alive, and one that may hold funds is never swapped
+        // out automatically — either way this payer just gets a 503.
+        const replaceable =
+          lncurl_auto_recreate === 'true' &&
+          deadWalletId != null &&
+          (await isReplaceableLncurlWallet(deadWalletId))
+
+        if (replaceable && deadWalletId) {
           try {
             const replacement = await createLncurlRemoteWallet({
               userId: lightningAddress.user.id,
@@ -471,4 +483,35 @@ export default async function pay(
   }
 
   return NextResponse.json(response)
+}
+
+/**
+ * True when the LNCurl wallet behind a failed make_invoice is safe to replace:
+ * it no longer answers get_balance and it may not hold more than a few sats.
+ */
+async function isReplaceableLncurlWallet(walletId: string): Promise<boolean> {
+  const wallet = await prisma.remoteWallet.findUnique({
+    where: { id: walletId },
+    select: {
+      id: true,
+      type: true,
+      config: true,
+      lastBalanceSats: true,
+      lastBalanceAt: true
+    }
+  })
+  if (!wallet) return false
+  const alive = await readWalletBalance(wallet).then(
+    () => true,
+    () => false
+  )
+  if (alive) {
+    logger.warn({ walletId }, 'LNCurl replacement skipped: wallet answers')
+    return false
+  }
+  if (await holdsProtectedBalance(wallet)) {
+    logger.warn({ walletId }, 'LNCurl replacement skipped: wallet holds funds')
+    return false
+  }
+  return true
 }

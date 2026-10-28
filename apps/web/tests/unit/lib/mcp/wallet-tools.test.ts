@@ -106,6 +106,8 @@ function walletRow(overrides: Partial<RemoteWallet> = {}): RemoteWallet {
     updatedAt: new Date(),
     diedAt: null,
     diedReason: null,
+    lastBalanceSats: null,
+    lastBalanceAt: null,
     ...overrides
   }
 }

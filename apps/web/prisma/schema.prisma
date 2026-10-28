@@ -501,6 +501,11 @@ model RemoteWallet {
   /// (probe-confirmed silence with relays up), `idle` (>48h with no sign of
   /// life), `warmup_failed` (>48h and it never completed NWC warmup at all).
   diedReason           String?
+  /// Last balance a successful `get_balance` returned, and when. Automatic
+  /// archival refuses to tombstone a wallet whose last reading was above
+  /// `ARCHIVE_PROTECTED_BALANCE_SATS` — a silent wallet can still hold funds.
+  lastBalanceSats      Int?
+  lastBalanceAt        DateTime?
 
   lightningAddresses     LightningAddress[]
   cards                  Card[]
