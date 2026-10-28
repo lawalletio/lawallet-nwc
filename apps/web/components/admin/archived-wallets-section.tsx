@@ -159,7 +159,6 @@ function RestoreWallet({
   useEffect(() => {
     if (!open) return
     let cancelled = false
-    setCheck({ state: 'checking' })
     apiClient
       .get<RemoteWalletBalance>(`/api/remote-wallets/${wallet.id}/balance`)
       .then(balance => {
@@ -200,7 +199,10 @@ function RestoreWallet({
         className="size-8"
         aria-label={`Restore ${wallet.name}`}
         disabled={loading}
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          setCheck({ state: 'checking' })
+          setOpen(true)
+        }}
       >
         <ArchiveRestore className="size-4" />
       </Button>
