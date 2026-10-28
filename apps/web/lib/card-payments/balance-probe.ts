@@ -51,7 +51,8 @@ async function readSpendableMsats(route: SpendableCardWallet): Promise<number> {
     config: route.config
   })
   const { balanceSats } = await driver.getBalance(config)
-  if (route.walletId) await recordWalletBalance(route.walletId, balanceSats)
+  // Not awaited: the write must not eat into the tap's BALANCE_PROBE_MS window.
+  if (route.walletId) void recordWalletBalance(route.walletId, balanceSats)
   if (!Number.isSafeInteger(balanceSats) || balanceSats <= 0) return 0
   const msats = balanceSats * 1000
   if (!Number.isSafeInteger(msats)) throw new Error('Balance out of range')
