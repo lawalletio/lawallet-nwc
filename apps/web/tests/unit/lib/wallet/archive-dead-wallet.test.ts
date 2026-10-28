@@ -59,12 +59,18 @@ function remoteWallet(overrides: Record<string, unknown> = {}) {
     status: 'ACTIVE',
     config: { provider: 'nwc' },
     name: 'My Alby',
+    lastBalanceSats: null,
+    lastBalanceAt: null,
     ...overrides
   }
 }
 
 beforeEach(() => {
   resetPrismaMock()
+  // No payments received: the archive balance guard sees an empty wallet.
+  vi.mocked(prismaMock.invoice.aggregate).mockResolvedValue({
+    _sum: { amountSats: null }
+  } as never)
   fireAndForgetMock.mockClear()
   clearPrimaryWalletLinkMock.mockClear()
 })
@@ -468,6 +474,75 @@ describe('archiveDeadWallet — the LUD-16 proxy wallet', () => {
 
     await expect(archiveDeadWallet(walletDead())).resolves.toBe(
       'unknown_wallet'
+    )
+  })
+})
+
+describe('archiveDeadWallet — wallets that may hold funds', () => {
+  const unresponsiveLncurl = walletDead({
+    reason: 'unresponsive',
+    relaysConnected: true,
+    unresponsiveSeconds: 5 * HOUR
+  })
+
+  it('never archives a wallet whose last balance was above 5 sats', async () => {
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(
+      remoteWallet({
+        config: { provider: 'lncurl' },
+        lastBalanceSats: 6,
+        lastBalanceAt: new Date()
+      }) as never
+    )
+
+    await expect(archiveDeadWallet(unresponsiveLncurl)).resolves.toBe(
+      'ignored'
+    )
+    await expect(archiveDeadWallet(walletDead())).resolves.toBe('ignored')
+    expect(prismaMock.remoteWallet.updateMany).not.toHaveBeenCalled()
+  })
+
+  it('counts payments received since the last balance reading', async () => {
+    const lastBalanceAt = new Date('2026-10-26T00:00:00Z')
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(
+      remoteWallet({
+        config: { provider: 'lncurl' },
+        lastBalanceSats: 0,
+        lastBalanceAt
+      }) as never
+    )
+    vi.mocked(prismaMock.invoice.aggregate).mockResolvedValue({
+      _sum: { amountSats: 12_140 }
+    } as never)
+
+    await expect(archiveDeadWallet(unresponsiveLncurl)).resolves.toBe(
+      'ignored'
+    )
+    expect(prismaMock.invoice.aggregate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          remoteWalletId: 'wallet-1',
+          status: 'PAID',
+          paidAt: { gt: lastBalanceAt }
+        }
+      })
+    )
+    expect(prismaMock.remoteWallet.updateMany).not.toHaveBeenCalled()
+  })
+
+  it('still archives a wallet holding 5 sats or less', async () => {
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(
+      remoteWallet({
+        config: { provider: 'lncurl' },
+        lastBalanceSats: 5,
+        lastBalanceAt: new Date()
+      }) as never
+    )
+    vi.mocked(prismaMock.remoteWallet.updateMany).mockResolvedValue({
+      count: 1
+    } as never)
+
+    await expect(archiveDeadWallet(unresponsiveLncurl)).resolves.toBe(
+      'archived'
     )
   })
 })

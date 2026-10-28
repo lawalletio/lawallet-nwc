@@ -14,6 +14,7 @@ import {
   getPrimaryRemoteWalletForUser
 } from '@/lib/wallet/primary-wallet'
 import { logger } from '@/lib/logger'
+import { recordWalletBalance } from '@/lib/wallet/last-balance'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -43,6 +44,7 @@ async function readPrimaryBalance(userId: string): Promise<number | null> {
       timer = setTimeout(() => resolve(null), BALANCE_TIMEOUT_MS)
     })
     const result = await Promise.race([driver.getBalance(config), timeout])
+    if (result) await recordWalletBalance(wallet.id, result.balanceSats)
     return result?.balanceSats ?? null
   } catch (err) {
     // Relay down, revoked NWC grant, corrupt config: the operator sees

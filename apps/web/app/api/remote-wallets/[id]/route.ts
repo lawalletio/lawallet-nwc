@@ -126,12 +126,11 @@ export const PATCH = withErrorHandling(
         'RemoteWallet.isDefault is derived from the primary lightning address'
       )
     }
+    // Restoring (`status: 'ACTIVE'`) may rebind the primary in the same call.
+    const nextStatus = body.status ?? wallet.status
     if (
       body.isDefault === true &&
-      (wallet.status === 'REVOKED' ||
-        wallet.status === 'DEAD' ||
-        body.status === 'REVOKED' ||
-        body.status === 'DEAD')
+      (nextStatus === 'REVOKED' || nextStatus === 'DEAD')
     ) {
       throw new ValidationError(
         'Cannot use an archived wallet for the primary address'

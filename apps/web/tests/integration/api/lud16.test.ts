@@ -108,6 +108,14 @@ vi.mock('@/lib/wallet/lncurl-wallet', async importActual => ({
   reviveDeadCourtesyWallet: vi.fn()
 }))
 
+// The replace-on-failure guard dials get_balance and sums received invoices.
+// Default: the wallet is silent and empty, so replacement proceeds.
+vi.mock('@/lib/wallet/last-balance', () => ({
+  readWalletBalance: vi.fn(),
+  holdsProtectedBalance: vi.fn(),
+  recordWalletBalance: vi.fn()
+}))
+
 // The cb route now mints through the driver registry → NWC driver →
 // `getServerNwcClient` → `@getalby/sdk` NWCClient.makeInvoice. Mock the
 // NWCClient so we never touch a relay; the response shape mirrors NIP-47
@@ -161,6 +169,10 @@ import {
 import { DEV_ADMIN_USER_ID } from '@/lib/dev-identity'
 import { resetAdvertisedZapReceiptCapability } from '@/lib/nostr/zap-receipts'
 import { logger } from '@/lib/logger'
+import {
+  holdsProtectedBalance,
+  readWalletBalance
+} from '@/lib/wallet/last-balance'
 
 function nwcUri(walletKey: string, secret: string, relay: string): string {
   return `nostr+walletconnect://${walletKey.repeat(64)}?relay=${encodeURIComponent(`wss://${relay}`)}&secret=${secret.repeat(64)}`
@@ -195,7 +207,24 @@ function mockPrimaryAddressWallet(
 
 beforeEach(() => {
   resetPrismaMock()
+  // No payments received: the archive balance guard sees an empty wallet.
+  vi.mocked(prismaMock.invoice.aggregate).mockResolvedValue({
+    _sum: { amountSats: null }
+  } as never)
   vi.clearAllMocks()
+  vi.mocked(readWalletBalance).mockRejectedValue(new Error('wallet silent'))
+  vi.mocked(holdsProtectedBalance).mockResolvedValue(false)
+  vi.mocked(prismaMock.remoteWallet.findUnique).mockImplementation((async ({
+    where
+  }: {
+    where: { id: string }
+  }) => ({
+    id: where.id,
+    type: 'NWC',
+    config: {},
+    lastBalanceSats: null,
+    lastBalanceAt: null
+  })) as never)
   resolveWalletRouteHarness.restoreActual()
   // Sane default so every route that reads settings gets an object, not
   // `undefined`. The LUD-16 routes now consult the `lncurl_*` flags before
@@ -1443,6 +1472,102 @@ describe('GET /api/lud16/[username]/cb', () => {
     )
     // Two mint attempts: the dead wallet, then the fresh replacement.
     expect(makeInvoiceMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not replace an LNCurl wallet that still answers get_balance → 503', async () => {
+    vi.mocked(readWalletBalance).mockResolvedValue(0)
+
+    mockPrimaryAddressWallet(LNCURL_DEFAULT_WALLET as any)
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
+      username: 'alice',
+      mode: 'CUSTOM_NWC',
+      redirect: null,
+      remoteWallet: LNCURL_DEFAULT_WALLET,
+      nwcConnection: null,
+      user: { id: 'user-1', remoteWallets: [LNCURL_DEFAULT_WALLET] }
+    } as any)
+    vi.mocked(getSettings).mockResolvedValue({
+      domain: 'test.com',
+      endpoint: 'https://app.test.com',
+      lncurl_auto_recreate: 'true',
+      lncurl_server_url: 'https://my.lncurl.example'
+    })
+    vi.mocked(prismaMock.invoice.upsert).mockResolvedValue({
+      id: 'invoice-1',
+      paymentHash: 'a'.repeat(64)
+    } as any)
+
+    // The replacement wallet the route mints through on retry.
+    vi.mocked(createLncurlRemoteWallet).mockResolvedValue({
+      id: 'wallet-fresh',
+      type: 'NWC',
+      config: {
+        connectionString: FRESH_LNCURL_NWC_URI,
+        mode: 'SEND_RECEIVE',
+        provider: 'lncurl'
+      },
+      status: 'ACTIVE'
+    } as any)
+
+    // First mint (dead wallet) fails, retry (fresh wallet) succeeds.
+    makeInvoiceMock.mockRejectedValueOnce(new Error('relay timeout'))
+
+    const res = await Lud16CbGet(
+      createNextRequest('/api/lud16/alice/cb', {
+        searchParams: { amount: '10000' }
+      }),
+      createParamsPromise({ username: 'alice' })
+    )
+    await assertResponse(res, 503)
+    expect(createLncurlRemoteWallet).not.toHaveBeenCalled()
+  })
+
+  it('does not replace an LNCurl wallet that may hold funds → 503', async () => {
+    vi.mocked(holdsProtectedBalance).mockResolvedValue(true)
+
+    mockPrimaryAddressWallet(LNCURL_DEFAULT_WALLET as any)
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
+      username: 'alice',
+      mode: 'CUSTOM_NWC',
+      redirect: null,
+      remoteWallet: LNCURL_DEFAULT_WALLET,
+      nwcConnection: null,
+      user: { id: 'user-1', remoteWallets: [LNCURL_DEFAULT_WALLET] }
+    } as any)
+    vi.mocked(getSettings).mockResolvedValue({
+      domain: 'test.com',
+      endpoint: 'https://app.test.com',
+      lncurl_auto_recreate: 'true',
+      lncurl_server_url: 'https://my.lncurl.example'
+    })
+    vi.mocked(prismaMock.invoice.upsert).mockResolvedValue({
+      id: 'invoice-1',
+      paymentHash: 'a'.repeat(64)
+    } as any)
+
+    // The replacement wallet the route mints through on retry.
+    vi.mocked(createLncurlRemoteWallet).mockResolvedValue({
+      id: 'wallet-fresh',
+      type: 'NWC',
+      config: {
+        connectionString: FRESH_LNCURL_NWC_URI,
+        mode: 'SEND_RECEIVE',
+        provider: 'lncurl'
+      },
+      status: 'ACTIVE'
+    } as any)
+
+    // First mint (dead wallet) fails, retry (fresh wallet) succeeds.
+    makeInvoiceMock.mockRejectedValueOnce(new Error('relay timeout'))
+
+    const res = await Lud16CbGet(
+      createNextRequest('/api/lud16/alice/cb', {
+        searchParams: { amount: '10000' }
+      }),
+      createParamsPromise({ username: 'alice' })
+    )
+    await assertResponse(res, 503)
+    expect(createLncurlRemoteWallet).not.toHaveBeenCalled()
   })
 
   it('provisions a fresh LNCurl wallet on the invoice request for an address that never had one → 200', async () => {

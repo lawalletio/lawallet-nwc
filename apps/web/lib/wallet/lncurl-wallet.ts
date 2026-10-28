@@ -20,6 +20,9 @@ import {
   syncPrimaryRemoteWalletFlag
 } from '@/lib/wallet/primary-wallet'
 import { encryptRemoteWalletConfig } from '@/lib/wallet/remote-wallet-vault'
+import { holdsProtectedBalance } from '@/lib/wallet/last-balance'
+import { ActivityEvent, logActivity } from '@/lib/activity-log'
+import { ConflictError } from '@/types/server/errors'
 
 const DEFAULT_WALLET_NAME = 'LNCurl wallet'
 
@@ -325,8 +328,12 @@ export async function createLncurlRemoteWallet(
   const { connectionString, mode } =
     input.mint ?? (await createLncurlWallet(serverUrl || DEFAULT_LNCURL_SERVER))
   const walletId = randomUUID()
-
-  return prisma.$transaction(async tx => {
+  const { wallet, replaced } = await prisma.$transaction(async tx => {
+    let replaced: {
+      id: string
+      name: string
+      lastBalanceSats: number | null
+    } | null = null
     // Resolve a collision-free name within the user's namespace.
     const existing = await tx.remoteWallet.findMany({
       where: { userId },
@@ -378,10 +385,40 @@ export async function createLncurlRemoteWallet(
         // The disposable wallet was destroyed by the provider — archive it as
         // a DEAD tombstone (read-only, unbindable, removable) rather than
         // REVOKED, so the user can still see its death stats.
-        await tx.remoteWallet.updateMany({
+        const previous = await tx.remoteWallet.findFirst({
           where: { id: previousWalletId, userId },
-          data: { status: 'DEAD', diedAt: new Date(), isDefault: false }
+          select: {
+            id: true,
+            name: true,
+            status: true,
+            lastBalanceSats: true,
+            lastBalanceAt: true
+          }
         })
+        if (previous && previous.status !== 'DEAD') {
+          // A failed make_invoice is not proof the wallet is gone. Never
+          // tombstone one that may still hold funds — the throw rolls back the
+          // new row and the re-pointed bindings with it.
+          if (await holdsProtectedBalance(previous, tx)) {
+            logger.warn(
+              { userId, walletId: previous.id },
+              'LNCurl replacement refused: previous wallet holds a balance'
+            )
+            throw new ConflictError(
+              'Refusing to replace a wallet that may still hold funds'
+            )
+          }
+          await tx.remoteWallet.update({
+            where: { id: previous.id },
+            data: {
+              status: 'DEAD',
+              diedAt: new Date(),
+              diedReason: 'replaced',
+              isDefault: false
+            }
+          })
+          replaced = previous
+        }
       }
     }
 
@@ -401,8 +438,31 @@ export async function createLncurlRemoteWallet(
     const persisted = await tx.remoteWallet.findUniqueOrThrow({
       where: { id: created.id }
     })
-    return boundPrimaryAddress ? { ...persisted, isDefault: true } : persisted
+    return {
+      wallet: boundPrimaryAddress
+        ? { ...persisted, isDefault: true }
+        : persisted,
+      replaced
+    }
   })
+
+  // Logged after commit so a rolled-back replacement leaves no trace.
+  if (replaced) {
+    logActivity.fireAndForget({
+      category: 'NWC',
+      event: ActivityEvent.NWC_WALLET_DEAD,
+      level: 'WARN',
+      message: `NWC wallet "${replaced.name}" archived — replaced by "${wallet.name}"`,
+      userId,
+      metadata: {
+        walletId: replaced.id,
+        replacementWalletId: wallet.id,
+        reason: 'replaced',
+        lastBalanceSats: replaced.lastBalanceSats
+      }
+    })
+  }
+  return wallet
 }
 
 /**

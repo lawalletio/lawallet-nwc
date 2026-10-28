@@ -6,7 +6,8 @@ import { withErrorHandling } from '@/types/server/error-handler'
 import { NotFoundError } from '@/types/server/errors'
 import { idParam } from '@/lib/validation/schemas'
 import { validateParams } from '@/lib/validation/middleware'
-import { DriverError, driverForWallet } from '@/lib/wallet/drivers'
+import { DriverError } from '@/lib/wallet/drivers'
+import { readWalletBalance } from '@/lib/wallet/last-balance'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -23,8 +24,12 @@ export const revalidate = 0
  *
  * Ownership-scoped: 404 (not 403) when the wallet belongs to someone else,
  * so IDs can't be enumerated. A REVOKED wallet has no live balance — we
- * 404 it rather than dial a dead connection. A DEAD (archived) or
- * unreachable wallet reports `balanceSats: 0` — nothing is spendable.
+ * 404 it rather than dial a dead connection. A DEAD (archived) wallet IS
+ * dialed: archival can be wrong, and the restore flow needs to know whether
+ * the wallet still holds funds. An unreachable wallet reports
+ * `balanceSats: 0, reachable: false` — nothing is spendable right now.
+ * Every successful read is remembered as the wallet's last balance, which
+ * protects it from automatic archival.
  */
 export const GET = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ id: string }> }) => {
@@ -38,23 +43,16 @@ export const GET = withErrorHandling(
     if (!wallet || wallet.userId !== user.id || wallet.status === 'REVOKED') {
       throw new NotFoundError('Wallet not found')
     }
-    // Archived by the listener after 48h without a sign of life: nothing to dial.
-    if (wallet.status === 'DEAD') return NextResponse.json({ balanceSats: 0 })
 
     try {
-      const { driver, config } = driverForWallet({
-        id: wallet.id,
-        type: wallet.type,
-        config: wallet.config
-      })
-      const { balanceSats } = await driver.getBalance(config)
-      return NextResponse.json({ balanceSats })
+      const balanceSats = await readWalletBalance(wallet)
+      return NextResponse.json({ balanceSats, reachable: true })
     } catch (err) {
       // The wallet exists but its backing connection is unreachable (relay
       // down, wallet silent, revoked NWC grant, corrupt config): nothing is
       // spendable through it right now, so report 0.
       if (err instanceof DriverError) {
-        return NextResponse.json({ balanceSats: 0 })
+        return NextResponse.json({ balanceSats: 0, reachable: false })
       }
       throw err
     }

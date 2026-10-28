@@ -53,6 +53,10 @@ const USER_ID = 'user-1'
 
 beforeEach(() => {
   resetPrismaMock()
+  // No payments received: the archive balance guard sees an empty wallet.
+  vi.mocked(prismaMock.invoice.aggregate).mockResolvedValue({
+    _sum: { amountSats: null }
+  } as never)
   vi.clearAllMocks()
   // No existing wallet names by default → the default name is free.
   vi.mocked(prismaMock.remoteWallet.findMany).mockResolvedValue([] as never)
@@ -168,21 +172,69 @@ describe('createLncurlRemoteWallet', () => {
   })
 
   it('archives the previous wallet as DEAD (with diedAt) when revokePrevious is true', async () => {
+    vi.mocked(prismaMock.remoteWallet.findFirst).mockResolvedValueOnce({
+      id: 'dead-wallet',
+      name: 'LNCurl wallet',
+      status: 'ACTIVE',
+      lastBalanceSats: 3,
+      lastBalanceAt: new Date()
+    } as never)
+
     await createLncurlRemoteWallet({
       userId: USER_ID,
       previousWalletId: 'dead-wallet',
       revokePrevious: true
     })
 
-    expect(prismaMock.remoteWallet.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: 'dead-wallet', userId: USER_ID },
-        data: expect.objectContaining({
-          status: 'DEAD',
-          diedAt: expect.any(Date)
-        })
+    expect(prismaMock.remoteWallet.update).toHaveBeenCalledWith({
+      where: { id: 'dead-wallet' },
+      data: expect.objectContaining({
+        status: 'DEAD',
+        diedAt: expect.any(Date),
+        diedReason: 'replaced'
       })
-    )
+    })
+  })
+
+  it('refuses to replace a wallet whose last balance was above 5 sats', async () => {
+    vi.mocked(prismaMock.remoteWallet.findFirst).mockResolvedValueOnce({
+      id: 'dead-wallet',
+      name: 'LNCurl wallet 3',
+      status: 'ACTIVE',
+      lastBalanceSats: 177_676,
+      lastBalanceAt: new Date()
+    } as never)
+
+    await expect(
+      createLncurlRemoteWallet({
+        userId: USER_ID,
+        previousWalletId: 'dead-wallet',
+        revokePrevious: true
+      })
+    ).rejects.toThrow(/may still hold funds/)
+    expect(prismaMock.remoteWallet.update).not.toHaveBeenCalled()
+  })
+
+  it('refuses to replace a never-checked wallet that received payments', async () => {
+    vi.mocked(prismaMock.remoteWallet.findFirst).mockResolvedValueOnce({
+      id: 'dead-wallet',
+      name: 'LNCurl wallet 3',
+      status: 'ACTIVE',
+      lastBalanceSats: null,
+      lastBalanceAt: null
+    } as never)
+    vi.mocked(prismaMock.invoice.aggregate).mockResolvedValueOnce({
+      _sum: { amountSats: 12_140 }
+    } as never)
+
+    await expect(
+      createLncurlRemoteWallet({
+        userId: USER_ID,
+        previousWalletId: 'dead-wallet',
+        revokePrevious: true
+      })
+    ).rejects.toThrow(/may still hold funds/)
+    expect(prismaMock.remoteWallet.update).not.toHaveBeenCalled()
   })
 
   it('does NOT archive the previous wallet when revokePrevious is false', async () => {
@@ -610,12 +662,8 @@ describe('reviveDeadCourtesyWallet', () => {
         remoteWalletId: 'new-wallet'
       }
     })
-    expect(prismaMock.remoteWallet.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: 'dead-wallet', userId: USER_ID },
-        data: expect.objectContaining({ status: 'DEAD' })
-      })
-    )
+    // Already a DEAD tombstone: its death record is left as the listener wrote it.
+    expect(prismaMock.remoteWallet.update).not.toHaveBeenCalled()
   })
 
   it('replaces a courtesy wallet after archival left the primary address IDLE', async () => {

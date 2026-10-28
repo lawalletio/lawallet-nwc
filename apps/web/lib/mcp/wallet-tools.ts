@@ -33,6 +33,7 @@ import { nwcWalletCanSend } from '@/lib/wallet/nwc-send-capability'
 import { getPrimaryRemoteWalletForUser } from '@/lib/wallet/primary-wallet'
 import { parseLightningAddress } from '@/lib/wallet/resolve-payment-route'
 import { NotFoundError } from '@/types/server/errors'
+import { recordWalletBalance } from '@/lib/wallet/last-balance'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 /** Sanity cap on amount arguments; the grant budget is the real spend limit. */
@@ -757,6 +758,7 @@ export const walletTools: NativeTool[] = [
         () => driver.getBalance(config),
         `Could not read the balance of wallet "${wallet.name}": the wallet is unreachable or refused the request.`
       )
+      await recordWalletBalance(wallet.id, balanceSats)
       return { walletId: wallet.id, walletName: wallet.name, balanceSats }
     }
   }),

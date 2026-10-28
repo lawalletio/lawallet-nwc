@@ -59,6 +59,8 @@ export interface RemoteWalletFilters {
 /** Shape of `GET /api/remote-wallets/[id]/balance`. */
 export interface RemoteWalletBalance {
   balanceSats: number
+  /** False when the wallet did not answer (balance then reads 0). */
+  reachable?: boolean
 }
 
 /** Shape of `GET /api/remote-wallets/[id]/connection-string`. */
@@ -217,6 +219,24 @@ export function useRemoteWalletMutations() {
         'patch',
         `/api/remote-wallets/${id}`,
         { isDefault: true }
+      )
+      invalidateApiPath('/api/remote-wallets')
+      invalidateApiPath('/api/wallet/addresses')
+      invalidateApiPath('/api/users/me')
+      return updated
+    },
+
+    /**
+     * Bring an archived (DEAD) wallet back to ACTIVE, optionally rebinding the
+     * primary Lightning Address to it in the same request.
+     */
+    restoreWallet: async (id: string, makePrimary: boolean) => {
+      const updated = await update.mutate(
+        'patch',
+        `/api/remote-wallets/${id}`,
+        makePrimary
+          ? { status: 'ACTIVE', isDefault: true }
+          : { status: 'ACTIVE' }
       )
       invalidateApiPath('/api/remote-wallets')
       invalidateApiPath('/api/wallet/addresses')

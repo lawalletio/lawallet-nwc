@@ -3,6 +3,7 @@ import { logger } from '@/lib/logger'
 import { eventBus } from '@/lib/events/event-bus'
 import { ActivityEvent, logActivity } from '@/lib/activity-log'
 import { clearPrimaryWalletLinkToWallet } from '@/lib/wallet/primary-wallet'
+import { holdsProtectedBalance } from '@/lib/wallet/last-balance'
 import {
   WALLET_ARCHIVE_IDLE_MS,
   type NwcWalletDeadOutcome,
@@ -58,6 +59,9 @@ export function meetsIdleArchiveWindow(unresponsiveSeconds: number): boolean {
  *    never produce any other signal. Recoverable: the owner can PATCH the
  *    wallet back to ACTIVE.
  *
+ * Neither rule archives a wallet that may still hold more than
+ * `ARCHIVE_PROTECTED_BALANCE_SATS` (see `holdsProtectedBalance`).
+ *
  * Idempotent — a replayed webhook finds the row already archived and no-ops.
  * After the write, the `remote_wallet_changed` trigger drops the wallet from the
  * listener pool, which is what finally ends the reconnect churn.
@@ -91,7 +95,15 @@ export async function archiveDeadWallet(
 
   const wallet = await prisma.remoteWallet.findUnique({
     where: { id: event.walletId },
-    select: { id: true, userId: true, status: true, config: true, name: true }
+    select: {
+      id: true,
+      userId: true,
+      status: true,
+      config: true,
+      name: true,
+      lastBalanceSats: true,
+      lastBalanceAt: true
+    }
   })
   if (wallet) return archiveRemoteWallet(event, wallet)
   return archiveProxyWallet(event)
@@ -105,6 +117,8 @@ async function archiveRemoteWallet(
     status: string
     config: unknown
     name: string
+    lastBalanceSats: number | null
+    lastBalanceAt: Date | null
   }
 ): Promise<ArchiveOutcome> {
   if (wallet.status !== 'ACTIVE') return 'noop'
@@ -116,6 +130,20 @@ async function archiveRemoteWallet(
     logger.warn(
       { walletId: wallet.id, provider: provider ?? null },
       'nwc.wallet_dead_ignored_non_lncurl'
+    )
+    return 'ignored'
+  }
+
+  // Silence is not proof the funds are gone: a wallet that may still hold
+  // more than a few sats is only ever retired by its owner.
+  if (await holdsProtectedBalance(wallet)) {
+    logger.warn(
+      {
+        walletId: wallet.id,
+        reason: event.reason,
+        lastBalanceSats: wallet.lastBalanceSats
+      },
+      'nwc.wallet_dead_ignored_holds_balance'
     )
     return 'ignored'
   }

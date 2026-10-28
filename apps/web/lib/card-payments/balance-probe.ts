@@ -1,6 +1,7 @@
 import { logger } from '@/lib/logger'
 import { driverForWallet } from '@/lib/wallet/drivers'
 import type { CardWalletRoute } from '@/lib/wallet/resolve-payment-route'
+import { recordWalletBalance } from '@/lib/wallet/last-balance'
 
 /**
  * How long the card callback waits for the wallet balance before falling back
@@ -50,6 +51,7 @@ async function readSpendableMsats(route: SpendableCardWallet): Promise<number> {
     config: route.config
   })
   const { balanceSats } = await driver.getBalance(config)
+  if (route.walletId) await recordWalletBalance(route.walletId, balanceSats)
   if (!Number.isSafeInteger(balanceSats) || balanceSats <= 0) return 0
   const msats = balanceSats * 1000
   if (!Number.isSafeInteger(msats)) throw new Error('Balance out of range')

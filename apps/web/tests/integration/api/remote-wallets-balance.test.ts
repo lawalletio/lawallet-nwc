@@ -129,7 +129,7 @@ describe('GET /api/remote-wallets/[id]/balance', () => {
     expect(getBalanceMock).not.toHaveBeenCalled()
   })
 
-  it('returns 0 for a DEAD wallet without dialing it', async () => {
+  it('dials a DEAD wallet so a restore can see what it still holds', async () => {
     mockAuth()
     const user = createUserFixture({ pubkey: USER_PUBKEY })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
@@ -140,14 +140,37 @@ describe('GET /api/remote-wallets/[id]/balance', () => {
         status: 'DEAD'
       }) as never
     )
+    getBalanceMock.mockResolvedValue({ balance: 177_676_000 })
 
     const res = await balanceHandler(
       createNextRequest('/api/remote-wallets/w1/balance'),
       createParamsPromise({ id: 'w1' })
     )
-    const body = (await assertResponse(res, 200)) as { balanceSats: number }
-    expect(body.balanceSats).toBe(0)
-    expect(getBalanceMock).not.toHaveBeenCalled()
+    const body = await assertResponse(res, 200)
+    expect(body).toEqual({ balanceSats: 177_676, reachable: true })
+    // Remembered as the last balance — the archive guard reads it.
+    expect(prismaMock.$executeRaw).toHaveBeenCalled()
+  })
+
+  it('reports an unreachable wallet as 0 and not reachable', async () => {
+    mockAuth()
+    const user = createUserFixture({ pubkey: USER_PUBKEY })
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(
+      createRemoteWalletFixture({
+        id: 'w1',
+        userId: user.id,
+        status: 'DEAD'
+      }) as never
+    )
+    getBalanceMock.mockRejectedValue(new Error('relay down'))
+
+    const res = await balanceHandler(
+      createNextRequest('/api/remote-wallets/w1/balance'),
+      createParamsPromise({ id: 'w1' })
+    )
+    const body = await assertResponse(res, 200)
+    expect(body).toEqual({ balanceSats: 0, reachable: false })
   })
 
   it('returns 404 when the wallet does not exist', async () => {
