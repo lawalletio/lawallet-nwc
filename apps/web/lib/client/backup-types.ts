@@ -36,7 +36,7 @@ export const BACKUP_CATEGORIES: CategoryMeta[] = [
     key: 'core',
     label: 'Core data',
     description:
-      'Users, lightning addresses, remote wallets, cards, designs, NTAG keys, and activation tokens.',
+      'Users, private transaction tags, lightning addresses, remote wallets, cards, designs, NTAG keys, and activation tokens.',
     defaultOn: true
   },
   {
@@ -74,6 +74,7 @@ export const BACKUP_CATEGORIES: CategoryMeta[] = [
 /** Human, plural labels per table for the review UI. */
 export const TABLE_LABELS: Record<BackupTableName, string> = {
   users: 'Users',
+  transactionLabels: 'Private transaction tags',
   cardDesigns: 'Card designs',
   ntag424s: 'Card chips (NTAG424)',
   remoteWallets: 'Remote wallets',

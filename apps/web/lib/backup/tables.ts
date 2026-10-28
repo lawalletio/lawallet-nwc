@@ -7,6 +7,7 @@ import type { BackupCategory, BackupTableName } from '@/lib/validation/schemas'
  */
 export const BACKUP_TABLE_ORDER: BackupTableName[] = [
   'users',
+  'transactionLabels',
   'cardDesigns',
   'ntag424s',
   'remoteWallets',
@@ -25,6 +26,7 @@ export const BACKUP_TABLE_ORDER: BackupTableName[] = [
 export const CATEGORY_TABLES: Record<BackupCategory, BackupTableName[]> = {
   core: [
     'users',
+    'transactionLabels',
     'cardDesigns',
     'ntag424s',
     'remoteWallets',
@@ -123,6 +125,16 @@ export const TABLE_DESCRIPTORS: Record<BackupTableName, TableDescriptor> = {
     pk: ['id'],
     secondaryUniques: [{ fields: ['pubkey'], label: 'Nostr identity' }],
     fks: [],
+    softRefs: [],
+    partialUniques: [],
+    jsonNullableFields: []
+  },
+  transactionLabels: {
+    name: 'transactionLabels',
+    model: 'transactionLabel',
+    pk: ['userId', 'paymentHash'],
+    secondaryUniques: [],
+    fks: [{ field: 'userId', target: 'users', required: true }],
     softRefs: [],
     partialUniques: [],
     jsonNullableFields: []

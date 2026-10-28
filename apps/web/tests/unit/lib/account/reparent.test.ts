@@ -88,6 +88,7 @@ beforeEach(() => {
   } as any)
   vi.mocked(prismaMock.remoteWallet.findMany).mockResolvedValue([])
   vi.mocked(prismaMock.card.findFirst).mockResolvedValue(null)
+  vi.mocked(prismaMock.transactionLabel.findMany).mockResolvedValue([])
 })
 
 describe('reparentAccountResources', () => {
@@ -114,6 +115,40 @@ describe('reparentAccountResources', () => {
     expect(prismaMock.cardActivationBonus.updateMany).toHaveBeenCalledWith({
       where: { userId: FROM },
       data: { userId: TO }
+    })
+  })
+
+  describe('private transaction tags', () => {
+    it('re-inserts them under the target and drops the source rows', async () => {
+      vi.mocked(prismaMock.transactionLabel.findMany).mockResolvedValue([
+        { paymentHash: 'shared-payment', label: 'From source' },
+        { paymentHash: 'source-only', label: 'Travel' }
+      ] as any)
+
+      await reparentAccountResources(tx, params())
+
+      expect(prismaMock.transactionLabel.findMany).toHaveBeenCalledWith({
+        where: { userId: FROM },
+        select: { paymentHash: true, label: true }
+      })
+      // skipDuplicates keeps the target's own tag on a payment both annotated.
+      expect(prismaMock.transactionLabel.createMany).toHaveBeenCalledWith({
+        data: [
+          { userId: TO, paymentHash: 'shared-payment', label: 'From source' },
+          { userId: TO, paymentHash: 'source-only', label: 'Travel' }
+        ],
+        skipDuplicates: true
+      })
+      expect(prismaMock.transactionLabel.deleteMany).toHaveBeenCalledWith({
+        where: { userId: FROM }
+      })
+    })
+
+    it('writes nothing when the source has no tags', async () => {
+      await reparentAccountResources(tx, params())
+
+      expect(prismaMock.transactionLabel.createMany).not.toHaveBeenCalled()
+      expect(prismaMock.transactionLabel.deleteMany).not.toHaveBeenCalled()
     })
   })
 

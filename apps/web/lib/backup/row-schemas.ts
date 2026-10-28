@@ -2,7 +2,8 @@ import { z } from 'zod'
 import { Prisma } from '@/lib/generated/prisma'
 import {
   type BackupTableName,
-  storedImageUrlSchema
+  storedImageUrlSchema,
+  TRANSACTION_LABEL_MAX_LENGTH
 } from '@/lib/validation/schemas'
 import { TABLE_DESCRIPTORS } from '@/lib/backup/tables'
 
@@ -64,6 +65,12 @@ const userRow = z.object({
   relaysUpdatedAt: nullableDate,
   // Optional: keeps archives from before this column was added importable.
   lastRelayFetchAttemptAt: nullableDate.optional().default(null)
+})
+
+const transactionLabelRow = z.object({
+  userId: z.string().min(1),
+  paymentHash: z.string().regex(/^[0-9a-fA-F]{64}$/),
+  label: z.string().min(1).max(TRANSACTION_LABEL_MAX_LENGTH)
 })
 
 const cardDesignRow = z.object({
@@ -231,6 +238,7 @@ export const ROW_SCHEMAS: Record<
   z.ZodType<Record<string, unknown>>
 > = {
   users: userRow,
+  transactionLabels: transactionLabelRow,
   cardDesigns: cardDesignRow,
   ntag424s: ntag424Row,
   remoteWallets: remoteWalletRow,

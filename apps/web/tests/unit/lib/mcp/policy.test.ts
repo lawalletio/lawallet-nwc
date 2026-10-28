@@ -36,6 +36,15 @@ const fakeOp = (over: Partial<CatalogOperation>): CatalogOperation => ({
 })
 
 describe('exposure policy vs the live OpenAPI document', () => {
+  it('keeps private transaction labels out of delegated agent access', () => {
+    for (const id of [
+      'wallet.transactions.label.get',
+      'wallet.transactions.label.set',
+      'wallet.transactions.tags.list'
+    ]) {
+      expect(policyFor(findOperation(id)!)).toHaveProperty('excluded')
+    }
+  })
   it('classifies every operation on purpose', () => {
     const unclassified = catalog
       .filter(

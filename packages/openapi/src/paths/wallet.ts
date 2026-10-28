@@ -11,6 +11,74 @@ import { schemas } from '../schemas'
 
 const TAG = 'Wallet'
 
+registry.registerPath({
+  ...withRole('USER'),
+  method: 'get',
+  path: '/api/wallet/transaction-tags',
+  tags: [TAG],
+  summary: 'List the caller’s saved transaction tags.',
+  description:
+    'Returns distinct tags currently used on the authenticated account’s transactions. Tags disappear automatically when no transactions use them.',
+  operationId: 'wallet.transactions.tags.list',
+  security: protectedSecurity,
+  responses: {
+    200: inlineJsonResponse(
+      'Private saved tags.',
+      z.object({ tags: z.array(z.string()) })
+    ),
+    ...commonErrorResponses
+  }
+})
+
+const transactionLabelResponse = z.object({ label: z.string().nullable() })
+
+registry.registerPath({
+  ...withRole('USER'),
+  method: 'get',
+  path: '/api/wallet/transactions/{paymentHash}/label',
+  tags: [TAG],
+  summary: 'Read the caller’s private transaction label.',
+  description:
+    'Labels are scoped to the authenticated account, not shared with counterparties or included in payment receipts. An unlabelled hash returns null.',
+  operationId: 'wallet.transactions.label.get',
+  security: protectedSecurity,
+  request: { params: schemas.TransactionLabelParam },
+  responses: {
+    200: inlineJsonResponse(
+      'Private label (never publicly cached).',
+      transactionLabelResponse
+    ),
+    ...commonErrorResponses
+  }
+})
+
+registry.registerPath({
+  ...withRole('USER'),
+  method: 'put',
+  path: '/api/wallet/transactions/{paymentHash}/label',
+  tags: [TAG],
+  summary: 'Save or remove the caller’s private transaction label.',
+  description:
+    'Upserts a label for this account and payment hash. Labels are trimmed and limited to 100 characters. Saving an empty label removes it. Does not modify provider/payment metadata.',
+  operationId: 'wallet.transactions.label.set',
+  security: protectedSecurity,
+  request: {
+    params: schemas.TransactionLabelParam,
+    body: {
+      content: {
+        'application/json': { schema: schemas.TransactionLabelUpdateRequest }
+      }
+    }
+  },
+  responses: {
+    200: inlineJsonResponse(
+      'Saved label, or null if removed.',
+      transactionLabelResponse
+    ),
+    ...commonErrorResponses
+  }
+})
+
 const walletAddressSchema = z
   .object({
     username: z.string(),

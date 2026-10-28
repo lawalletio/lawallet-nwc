@@ -107,6 +107,7 @@ function seedMergeDefaults() {
   vi.mocked(prismaMock.cardDesign.updateMany).mockResolvedValue(count as any)
   vi.mocked(prismaMock.invoice.updateMany).mockResolvedValue(count as any)
   vi.mocked(prismaMock.activityLog.updateMany).mockResolvedValue(count as any)
+  vi.mocked(prismaMock.transactionLabel.findMany).mockResolvedValue([])
 }
 
 describe('mergeAccounts', () => {
@@ -350,6 +351,28 @@ describe('mergeAccounts', () => {
     expect(prismaMock.remoteWallet.update).toHaveBeenCalledWith({
       where: { id: 'wb-1' },
       data: { isDefault: true }
+    })
+  })
+
+  it('moves private transaction tags to the survivor and keeps the survivor tag on a shared payment', async () => {
+    seedMergeUsers()
+    seedMergeDefaults()
+    vi.mocked(prismaMock.transactionLabel.findMany).mockResolvedValue([
+      { paymentHash: 'shared-payment', label: 'From absorbed' },
+      { paymentHash: 'absorbed-only', label: 'Travel' }
+    ] as any)
+
+    await mergeAccounts({ survivorId: A, absorbedId: B, mainPubkey: PK_A })
+
+    expect(prismaMock.transactionLabel.createMany).toHaveBeenCalledWith({
+      data: [
+        { userId: A, paymentHash: 'shared-payment', label: 'From absorbed' },
+        { userId: A, paymentHash: 'absorbed-only', label: 'Travel' }
+      ],
+      skipDuplicates: true
+    })
+    expect(prismaMock.transactionLabel.deleteMany).toHaveBeenCalledWith({
+      where: { userId: B }
     })
   })
 

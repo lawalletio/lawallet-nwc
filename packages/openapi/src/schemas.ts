@@ -73,6 +73,8 @@ import {
   updateWalletCardSchema,
   updateWalletAddressSchema,
   userIdParam,
+  transactionLabelParam,
+  updateTransactionLabelSchema,
   walletAddressUsernameParam
 } from '@lawallet-nwc/shared'
 import { z } from 'zod'
@@ -87,6 +89,14 @@ export const schemas = {
   // ── Common ─────────────────────────────────────────────────────────────
   IdParam: registry.register('IdParam', idParam),
   UserIdParam: registry.register('UserIdParam', userIdParam),
+  TransactionLabelParam: registry.register(
+    'TransactionLabelParam',
+    transactionLabelParam
+  ),
+  TransactionLabelUpdateRequest: registry.register(
+    'TransactionLabelUpdateRequest',
+    updateTransactionLabelSchema
+  ),
 
   // ── Cards ──────────────────────────────────────────────────────────────
   CardCreateRequest: registry.register(
