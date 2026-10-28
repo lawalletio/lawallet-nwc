@@ -23,6 +23,7 @@ overrides:
   source-map-js@<1.2.2: 1.2.2
   next@>=16.0.0 <16.3.8: 16.3.8
   '@babel/core@<7.29.6': 7.29.7
+  zod@<4.6.6: 4.6.7
   esbuild: 0.28.2
   vite: 8.3.5
   ws: 8.22.0
@@ -173,7 +174,7 @@ importers:
         version: 8.1.1(typescript@6.0.3)
       '@hookform/resolvers':
         specifier: ^6.0.0
-        version: 6.0.0(@standard-schema/spec@1.1.0)(ajv-formats@2.1.1(ajv@8.20.0))(ajv@8.20.0)(effect@3.22.3)(react-hook-form@7.90.0(@types/react@19.3.0)(react@19.3.1))(valibot@1.4.2(typescript@6.0.3))(zod@4.6.7)
+        version: 6.0.0(@standard-schema/spec@1.1.0)(ajv-formats@2.1.1(ajv@8.20.0))(ajv@8.20.0)(effect@3.22.3)(react-hook-form@7.91.0(@types/react@19.3.0)(react@19.3.1))(valibot@1.4.2(typescript@6.0.3))(zod@4.6.7)
       '@lawallet-nwc/openapi':
         specifier: workspace:*
         version: link:../../packages/openapi
@@ -371,13 +372,13 @@ importers:
         version: 19.3.1(react@19.3.1)
       react-hook-form:
         specifier: latest
-        version: 7.90.0(@types/react@19.3.0)(react@19.3.1)
+        version: 7.91.0(@types/react@19.3.0)(react@19.3.1)
       react-image-crop:
         specifier: ^11.1.2
         version: 11.1.2(react@19.3.1)
       react-resizable-panels:
         specifier: latest
-        version: 4.14.8(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+        version: 4.15.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       recharts:
         specifier: latest
         version: 3.10.1(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react-is@17.0.2)(react@19.3.1)(redux@5.0.1)
@@ -585,13 +586,13 @@ packages:
     resolution: {integrity: sha512-RFpxyh5j9g7ZMfKxhiwCcF7bGU872o3JvoiIqZbHOM4qkR4RCzeKJF+k+zHomcJYGeUabEbeMXTKNASzz4Toxw==}
     engines: {node: '>=18'}
     peerDependencies:
-      zod: ^3.25.76 || ^4.1.8
+      zod: 4.6.7
 
   '@ai-sdk/provider-utils@4.0.33':
     resolution: {integrity: sha512-nJ0bAfegMAIJtrzMJtbzer1cS3nb7c7DsyU1S4nrPm7ZU0Mn6SBBZv5IGZZGTbpWTJwqKTSPeZJTXalbAxt1BA==}
     engines: {node: '>=18'}
     peerDependencies:
-      zod: ^3.25.76 || ^4.1.8
+      zod: 4.6.7
 
   '@ai-sdk/provider@3.0.12':
     resolution: {integrity: sha512-sj9DWTJ2Ze0WR9qsiOPqoqzNx3OxL6iMxHImbhvoe9qOspekbzxNDMiJ4TIGfYHYh9w4OmBjz3prvqhzTi96+Q==}
@@ -610,7 +611,7 @@ packages:
   '@asteasolutions/zod-to-openapi@9.1.0':
     resolution: {integrity: sha512-pLMeRgRYS7/vZIgAAkOe2P6+XGTifR1MT9pqDoxZ11EmcJJ+DPmdPqLN8ZZF4U8R9KHCCQCS9c2wtuE8wSrfkw==}
     peerDependencies:
-      zod: ^4.0.0
+      zod: 4.6.7
 
   '@babel/code-frame@7.29.7':
     resolution: {integrity: sha512-Aup7aUOfpbAUg2ROOJN6Iw5f9DMBlzu0mIkm/malLQFN/YQgO48wCj0Kxa3sEHJvPVFg7siR+qRInwXd2qhQKw==}
@@ -1076,7 +1077,7 @@ packages:
       valibot: '>=0.31.0 || ^1.0.0-beta.4 || ^1.0.0-rc'
       vest: '>=6.0.0'
       yup: ^1.0.0
-      zod: ^3.25.0 || ^4.0.0
+      zod: 4.6.7
     peerDependenciesMeta:
       '@sinclair/typebox':
         optional: true
@@ -4024,7 +4025,7 @@ packages:
     resolution: {integrity: sha512-9MlePEXT5pXtQv4fXqmiR0RG3DZU4Dbv+kU9ktEJC2COi2RH2WvI2GiyG9MuCqgPII6f1w+5kB5fNIiArqPzaQ==}
     engines: {node: '>=18'}
     peerDependencies:
-      zod: ^3.25.76 || ^4.1.8
+      zod: 4.6.7
 
   ajv-formats@2.1.1:
     resolution: {integrity: sha512-Wx0Kx52hxE7C18hkMEggYlEifqWZtYaRgouJor+WMdPnQyEK13vgEWyVNup7SoeeoLMsr4kf5h6dOW11I15MUA==}
@@ -5109,7 +5110,7 @@ packages:
       react-dom: ^19.2.0
       react-router: 7.x.x || 8.x.x
       waku: '*'
-      zod: 4.x.x
+      zod: 4.6.7
     peerDependenciesMeta:
       '@mdx-js/mdx':
         optional: true
@@ -6730,8 +6731,8 @@ packages:
     peerDependencies:
       react: ^19.3.1
 
-  react-hook-form@7.90.0:
-    resolution: {integrity: sha512-+NdG0FLzCPhFOp2NNxaUYLF9fyZhNjx9FTBBSYWF71/l6BBlmIc/j6xlp3DbaHWLJbIG7Zd8oznA19xJClU97w==}
+  react-hook-form@7.91.0:
+    resolution: {integrity: sha512-5BEBUnCBwa28AFXYTYmOaB/+CSpJ/+CWVASHEvIGUzFdHyUiPHeRhG7r5hOZ8nZi0yP7pbHdFNXO/p31EKTJFQ==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       '@types/react': '*'
@@ -6783,8 +6784,8 @@ packages:
       '@types/react':
         optional: true
 
-  react-resizable-panels@4.14.8:
-    resolution: {integrity: sha512-kVot7JCIZct85ZY87vww95R7tI25VSTjHpEAIIy2YcsOtbtwG6l1+vDD6TCYgmgE/JSp0ADqNooHn97Y6dMOFw==}
+  react-resizable-panels@4.15.0:
+    resolution: {integrity: sha512-DRjF1E8QHg4j5n6RcpxDoeP0C15T0w+dlEE9eyooGCwOE8rPPxfXt4OfhJjEuezzCG/JjRwh5ZHLVkakUJF+dA==}
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
       react-dom: ^18.0.0 || ^19.0.0
@@ -7864,10 +7865,7 @@ packages:
     resolution: {integrity: sha512-Q6/nZLe6jxuU80qb/4uJ4t5v2VEZ44lzQjPDhYJNztRQ4wyWc6VF3D3Kb/fAuPetZQnhS3hnajCf9CsWesghLQ==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
-      zod: ^3.25.0 || ^4.0.0
-
-  zod@3.25.76:
-    resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
+      zod: 4.6.7
 
   zod@4.6.7:
     resolution: {integrity: sha512-g8W2D2kU6a8untc053fX1uVBKzM7yqAxW/3zwk83+6RyF2+SKOuV+c0wBDhUwzV1PaGapmZH+rmcUzPf+3CGwg==}
@@ -8411,10 +8409,10 @@ snapshots:
 
   '@hexagon/base64@1.1.28': {}
 
-  '@hookform/resolvers@6.0.0(@standard-schema/spec@1.1.0)(ajv-formats@2.1.1(ajv@8.20.0))(ajv@8.20.0)(effect@3.22.3)(react-hook-form@7.90.0(@types/react@19.3.0)(react@19.3.1))(valibot@1.4.2(typescript@6.0.3))(zod@4.6.7)':
+  '@hookform/resolvers@6.0.0(@standard-schema/spec@1.1.0)(ajv-formats@2.1.1(ajv@8.20.0))(ajv@8.20.0)(effect@3.22.3)(react-hook-form@7.91.0(@types/react@19.3.0)(react@19.3.1))(valibot@1.4.2(typescript@6.0.3))(zod@4.6.7)':
     dependencies:
       '@standard-schema/utils': 0.3.0
-      react-hook-form: 7.90.0(@types/react@19.3.0)(react@19.3.1)
+      react-hook-form: 7.91.0(@types/react@19.3.0)(react@19.3.1)
     optionalDependencies:
       '@standard-schema/spec': 1.1.0
       ajv: 8.20.0
@@ -8642,7 +8640,7 @@ snapshots:
       lru-cache: 10.4.3
       nostr-tools: 2.25.2(typescript@6.0.3)
       websocket-ts: 2.3.0
-      zod: 3.25.76
+      zod: 4.6.7
     transitivePeerDependencies:
       - typescript
 
@@ -14827,7 +14825,7 @@ snapshots:
       react: 19.3.1
       scheduler: 0.28.0
 
-  react-hook-form@7.90.0(@types/react@19.3.0)(react@19.3.1):
+  react-hook-form@7.91.0(@types/react@19.3.0)(react@19.3.1):
     dependencies:
       react: 19.3.1
     optionalDependencies:
@@ -14869,7 +14867,7 @@ snapshots:
     optionalDependencies:
       '@types/react': 19.3.0
 
-  react-resizable-panels@4.14.8(react-dom@19.3.1(react@19.3.1))(react@19.3.1):
+  react-resizable-panels@4.15.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1):
     dependencies:
       react: 19.3.1
       react-dom: 19.3.1(react@19.3.1)
@@ -16278,8 +16276,6 @@ snapshots:
   zod-validation-error@4.0.2(zod@4.6.7):
     dependencies:
       zod: 4.6.7
-
-  zod@3.25.76: {}
 
   zod@4.6.7: {}
 

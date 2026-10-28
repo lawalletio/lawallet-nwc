@@ -119,6 +119,11 @@ overrides:
   # Reached through next > styled-jsx, which pins @babel/core loosely enough
   # that a patched 7.x satisfies it. Build-time only.
   '@babel/core@<7.29.6': 7.29.7
+  # GHSA-mrhx-c7xc-m3w5 (high, 2026-10): memory exhaustion validating oversized
+  # constrained collections; patched only on the 4.x line (>=4.6.6). Reached via
+  # apps/web > @nostrify/nostrify, which still asks for zod ^3. Every zod call
+  # it makes (two-arg record, passthrough, ZodIssueCode) exists in zod 4.
+  zod@<4.6.6: 4.6.7
   esbuild: 0.28.2
   # GHSA-587h-7wmj-h5pm (high, 2026-10): launch-editor (bundled in vite
   # >=8.3.0 <=8.3.2) existence check bypass on Windows. Patched in 8.3.3.
