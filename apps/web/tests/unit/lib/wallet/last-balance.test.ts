@@ -16,7 +16,7 @@ import {
 import { logger } from '@/lib/logger'
 
 function received(sats: number | null) {
-  prismaMock.invoice.aggregate.mockResolvedValue({
+  vi.mocked(prismaMock.invoice.aggregate).mockResolvedValue({
     _sum: { amountSats: sats }
   } as never)
 }
@@ -72,7 +72,7 @@ describe('recordWalletBalance', () => {
   })
 
   it('swallows a failed write so the balance read still succeeds', async () => {
-    prismaMock.$executeRaw.mockRejectedValue(new Error('db down'))
+    vi.mocked(prismaMock.$executeRaw).mockRejectedValue(new Error('db down'))
     await expect(recordWalletBalance('w', 100)).resolves.toBeUndefined()
     expect(logger.warn).toHaveBeenCalledWith(
       expect.objectContaining({ walletId: 'w' }),
