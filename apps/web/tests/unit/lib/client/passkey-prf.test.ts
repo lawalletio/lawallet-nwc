@@ -1,12 +1,30 @@
-import { describe, it, expect } from 'vitest'
+vi.mock('@nostr-wot/identity/vault', { spy: true })
+import * as identitySdk from '@nostr-wot/identity/vault'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import {
   PRF_SALT_HEX,
   prfSaltBytes,
-  derivePrfNsecHex
+  derivePrfNsecHex,
+  getPrfAssertion,
+  passkeyAssertion
 } from '@/lib/client/passkey-prf'
 import { getPublicKeyFromPrivate } from '@/lib/nostr'
 
 describe('passkey PRF derivation', () => {
+  it('shares the caller-owned PRF buffer instead of leaving an extra secret copy', async () => {
+    const derive = vi.spyOn(identitySdk, 'deriveNostrKey')
+    try {
+      const input = new Uint8Array(32).fill(7)
+      await derivePrfNsecHex(input)
+      expect(derive.mock.calls[0][0]).toBe(input)
+      expect(
+        derive.mock.results[0].value.secret.every((b: number) => b === 0)
+      ).toBe(true)
+    } finally {
+      derive.mockRestore()
+    }
+  })
+
   it('pins the consensus-critical salt (sha256 of lawallet-nsec-prf-v1)', async () => {
     expect(PRF_SALT_HEX).toBe(
       '8ee22949c1045c627e14236f1d06cf730b46b4cf309cbf4ede25a446cf33ad8d'
@@ -49,4 +67,59 @@ describe('passkey PRF derivation', () => {
       expect(getPublicKeyFromPrivate(hex)).toMatch(/^[0-9a-f]{64}$/)
     }
   })
+})
+
+describe('getPrfAssertion', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  function stubAssertion(userHandle: string | null, withPrf = true) {
+    const get = vi.fn().mockResolvedValue({
+      rawId: new Uint8Array([1, 2, 3]).buffer,
+      response: {
+        userHandle: userHandle && new Uint8Array(Buffer.from(userHandle, 'hex'))
+      },
+      getClientExtensionResults: () =>
+        withPrf ? { prf: { results: { first: new Uint8Array(32) } } } : {}
+    })
+    vi.stubGlobal('navigator', { credentials: { get } })
+  }
+
+  it.each([
+    ['tagged 0x02', '4e504b010102ffeeddccbbaa99887766554433221100'],
+    ['legacy UUID', Buffer.from(crypto.randomUUID()).toString('hex')],
+    ['missing', null]
+  ])('accepts a %s handle', async (_label, handle) => {
+    stubAssertion(handle)
+    expect((await getPrfAssertion()).credentialId).toBe('AQID')
+  })
+
+  it("refuses another app's passkey before reading the PRF result", async () => {
+    stubAssertion('79'.repeat(32), false)
+    await expect(getPrfAssertion()).rejects.toMatchObject({
+      name: 'ForeignPasskeyError'
+    })
+  })
+})
+
+it('rejects and clears output when PRF is explicitly disabled', async () => {
+  const output = new Uint8Array(32).fill(7)
+  vi.stubGlobal('navigator', {
+    credentials: {
+      get: vi.fn().mockResolvedValue({
+        rawId: new Uint8Array([1]).buffer,
+        response: { userHandle: null },
+        getClientExtensionResults: () => ({
+          prf: { enabled: false, results: { first: output.buffer } }
+        })
+      })
+    }
+  })
+  try {
+    await expect(passkeyAssertion({})).rejects.toMatchObject({
+      name: 'PrfUnsupportedError'
+    })
+    expect(output.every(byte => byte === 0)).toBe(true)
+  } finally {
+    vi.unstubAllGlobals()
+  }
 })
