@@ -1,5 +1,7 @@
 'use client'
 
+import { closePasskeyProviderSigner } from '@/lib/client/passkey-provider'
+
 import React, {
   createContext,
   useContext,
@@ -43,14 +45,10 @@ const LOGIN_METHOD_KEY = 'lawallet-login-method'
  * recreate themselves from `window.nostr` so we don't persist anything for
  * that method. Empty / missing key falls back to the unlock dialog flow.
  *
- * Security tradeoff: `localStorage` is readable from any script running on
- * the same origin. We accept that here so users stay signed in across
- * reloads — the user opted into this explicitly. A future iteration should
- * replace this with WebAuthn-encrypted storage or a passphrase wrap.
- *
- * `'passkey'` sessions store the PRF-DERIVED key here too — a passkey is
- * just a deterministic way to produce an nsec, so its session persists and
- * restores exactly like the nsec method.
+ * Legacy persistent sessions may still read this key. Passkey sign-in and
+ * imported sessions use provider-local memory instead; they do not write
+ * the signer secret or JWT here. Migrating existing saved secrets requires
+ * a separate, explicit recovery-safe transition.
  */
 const SIGNER_SECRET_KEY = 'lawallet-signer-secret'
 const IMPERSONATOR_RETURN_KEY = 'lawallet-impersonator-return'
@@ -221,6 +219,9 @@ export interface AuthState {
  */
 export interface SignerCredentials {
   secret: string
+  /** Keep this login and subsequent token refreshes in memory until logout or reload. */
+  persistence?: 'memory'
+  signal?: AbortSignal
 }
 
 export interface AuthContextValue extends AuthState {
@@ -282,7 +283,46 @@ function installHistoryRestoreGuard() {
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AuthState>(EMPTY_AUTH_STATE)
+  // Scoped to this provider: a reload/remount cannot restore a temporary token.
+  const sessionStorage = useMemo(() => {
+    let temporary = false
+    let deadline = 0
+    const memory = new Map<string, string>()
+    return {
+      read: (key: string) =>
+        temporary ? (memory.get(key) ?? null) : readStorage(key),
+      write: (key: string, value: string) => {
+        if (temporary) {
+          if (key !== SIGNER_SECRET_KEY) memory.set(key, value)
+        } else localStorage.setItem(key, value)
+      },
+      remove: (key: string) => {
+        memory.delete(key)
+        localStorage.removeItem(key)
+      },
+      start: (inMemory: boolean, expiresAt: string) => {
+        memory.clear()
+        temporary = inMemory
+        deadline = inMemory ? new Date(expiresAt).getTime() : 0
+        if (inMemory) {
+          for (const key of [
+            JWT_STORAGE_KEY,
+            LOGIN_METHOD_KEY,
+            SIGNER_SECRET_KEY,
+            IMPERSONATOR_RETURN_KEY
+          ])
+            localStorage.removeItem(key)
+        }
+      },
+      isTemporary: () => temporary,
+      expiresAt: () => deadline,
+      isExpired: () =>
+        temporary && (!Number.isFinite(deadline) || Date.now() >= deadline),
+      clear: () => memory.clear()
+    }
+  }, [])
 
+  const sessionGenerationRef = useRef(0)
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Pending signer-unlock request. When set, the SignerUnlockDialog is
@@ -309,18 +349,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Logout - clear everything
   const logout = useCallback(() => {
+    sessionGenerationRef.current++
     trackEvent(AnalyticsEvent.LOGOUT)
     if (refreshTimerRef.current) {
       clearTimeout(refreshTimerRef.current)
       refreshTimerRef.current = null
     }
-    localStorage.removeItem(JWT_STORAGE_KEY)
-    localStorage.removeItem(LOGIN_METHOD_KEY)
-    localStorage.removeItem(SIGNER_SECRET_KEY)
-    localStorage.removeItem(IMPERSONATOR_RETURN_KEY)
+    sessionStorage.remove(JWT_STORAGE_KEY)
+    sessionStorage.remove(LOGIN_METHOD_KEY)
+    sessionStorage.remove(SIGNER_SECRET_KEY)
+    sessionStorage.remove(IMPERSONATOR_RETURN_KEY)
     // Synchronous stores are gone before this returns. IndexedDB and browser
     // CacheStorage continue behind a barrier that the next login awaits.
     void clearSessionCaches()
+    closePasskeyProviderSigner(signerRef.current)
     signerRef.current = null
     setState({
       status: 'unauthenticated',
@@ -331,18 +373,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signer: null,
       loginMethod: null
     })
-  }, [])
+  }, [sessionStorage])
 
   // Drop the JWT but keep signer credentials so the next hydrate can remint.
   // Used when a silent refresh fails and when another tab expires the token
   // without an explicit logout. Must not call logout() — that wipes secrets.
   const endSessionKeepCredentials = useCallback(() => {
+    sessionGenerationRef.current++
     if (refreshTimerRef.current) {
       clearTimeout(refreshTimerRef.current)
       refreshTimerRef.current = null
     }
-    localStorage.removeItem(JWT_STORAGE_KEY)
+    sessionStorage.remove(JWT_STORAGE_KEY)
     void clearSessionCaches()
+    closePasskeyProviderSigner(signerRef.current)
     signerRef.current = null
     setState({
       status: 'unauthenticated',
@@ -353,34 +397,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signer: null,
       loginMethod: null
     })
-  }, [])
+  }, [sessionStorage])
 
   // Schedule a silent remint before expiry. Mobile PWAs suspend JS timers
   // while backgrounded, so this is a best-effort foreground helper — the
   // resume path in ensureFreshSession is what actually keeps the session.
-  const scheduleRefresh = useCallback((expiresAt: string) => {
-    if (refreshTimerRef.current) {
-      clearTimeout(refreshTimerRef.current)
-      refreshTimerRef.current = null
-    }
+  const scheduleRefresh = useCallback(
+    (expiresAt: string) => {
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current)
+        refreshTimerRef.current = null
+      }
 
-    const expiresMs = new Date(expiresAt).getTime()
-    if (Number.isNaN(expiresMs)) return
+      if (sessionStorage.isTemporary()) {
+        const remaining = sessionStorage.expiresAt() - Date.now()
+        if (!Number.isFinite(remaining) || remaining <= 0) {
+          logout()
+          return
+        }
+        // Never extend a temporary session when another token is minted.
+        refreshTimerRef.current = setTimeout(
+          logout,
+          Math.min(remaining, 2_147_483_647)
+        )
+        return
+      }
 
-    const delay = expiresMs - SESSION_REFRESH_BUFFER_MS - Date.now()
-    // Already inside the buffer (or past it): don't spin a 0ms timer —
-    // ensureFreshSession handles that on mount / visibility / focus.
-    // Retry on a short backoff only while the token is still usable.
-    const wait =
-      delay > 0
-        ? delay
-        : Math.min(30_000, Math.max(5_000, expiresMs - Date.now()))
-    if (wait <= 0) return
+      const expiresMs = new Date(expiresAt).getTime()
+      if (Number.isNaN(expiresMs)) return
 
-    refreshTimerRef.current = setTimeout(() => {
-      void ensureFreshSessionRef.current()
-    }, wait)
-  }, [])
+      const delay = expiresMs - SESSION_REFRESH_BUFFER_MS - Date.now()
+      // Already inside the buffer (or past it): don't spin a 0ms timer —
+      // ensureFreshSession handles that on mount / visibility / focus.
+      // Retry on a short backoff only while the token is still usable.
+      const wait =
+        delay > 0
+          ? delay
+          : Math.min(30_000, Math.max(5_000, expiresMs - Date.now()))
+      if (wait <= 0) return
+
+      refreshTimerRef.current = setTimeout(() => {
+        void ensureFreshSessionRef.current()
+      }, wait)
+    },
+    [logout, sessionStorage]
+  )
 
   // Login with a signer. When `credentials` is supplied we persist enough
   // to silently rebuild the signer on the next reload — the nsec for nsec
@@ -391,20 +452,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       method: LoginMethod,
       credentials?: SignerCredentials
     ) => {
+      const generation = ++sessionGenerationRef.current
+      credentials?.signal?.throwIfAborted()
       await waitForSessionCacheCleanup()
+      credentials?.signal?.throwIfAborted()
       const { token } = await exchangeNip98ForJwt(signer)
       const validation = await claimsOf(token)
 
-      localStorage.setItem(JWT_STORAGE_KEY, token)
-      localStorage.setItem(LOGIN_METHOD_KEY, method)
+      credentials?.signal?.throwIfAborted()
+      if (generation !== sessionGenerationRef.current)
+        throw new Error('Session changed during sign-in')
+      sessionStorage.start(
+        credentials?.persistence === 'memory',
+        validation.expiresAt
+      )
+      sessionStorage.write(JWT_STORAGE_KEY, token)
+      sessionStorage.write(LOGIN_METHOD_KEY, method)
       if (credentials?.secret) {
-        localStorage.setItem(SIGNER_SECRET_KEY, credentials.secret)
+        sessionStorage.write(SIGNER_SECRET_KEY, credentials.secret)
       } else {
         // Different login method — make sure stale credentials from a
         // previous account don't get re-applied on reload.
-        localStorage.removeItem(SIGNER_SECRET_KEY)
+        sessionStorage.remove(SIGNER_SECRET_KEY)
       }
 
+      if (signerRef.current !== signer)
+        closePasskeyProviderSigner(signerRef.current)
       signerRef.current = signer
       confirmedJwtRef.current = token
       setState({
@@ -424,7 +497,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       scheduleRefresh(validation.expiresAt)
     },
-    [scheduleRefresh]
+    [scheduleRefresh, sessionStorage]
   )
 
   // Re-mints the session token NOW and re-reads identity/role from it.
@@ -436,6 +509,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // still authenticates; identity updates on next login) and we return false.
   const refreshSession = useCallback(
     async (signerOverride?: NostrSigner): Promise<boolean> => {
+      if (sessionStorage.isExpired()) {
+        logout()
+        return false
+      }
+      const generation = sessionGenerationRef.current
       // An explicit signer (e.g. one the caller just obtained via
       // requestSigner()) wins over the ref — the ref is synced from state in
       // an effect, so it can lag a just-unlocked signer by a render.
@@ -448,7 +526,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!token) return false
 
       const validation = await claimsOf(token)
-      localStorage.setItem(JWT_STORAGE_KEY, token)
+      if (generation !== sessionGenerationRef.current) return false
+      if (sessionStorage.isExpired()) {
+        logout()
+        return false
+      }
+      sessionStorage.write(JWT_STORAGE_KEY, token)
       if (signer) signerRef.current = signer
       confirmedJwtRef.current = token
       setState(prev => ({
@@ -461,7 +544,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       scheduleRefresh(validation.expiresAt)
       return true
     },
-    [scheduleRefresh]
+    [scheduleRefresh, sessionStorage, logout]
   )
 
   useEffect(() => {
@@ -501,7 +584,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let replacedToken = false
 
     function noteIfTokenReplaced(expectedToken: string | null) {
-      if (readStorage(JWT_STORAGE_KEY) === expectedToken) return false
+      if (sessionStorage.read(JWT_STORAGE_KEY) === expectedToken) return false
       // A newer token landed mid-flight. Re-validate it once this check
       // finishes, instead of leaving status on "loading".
       replacedToken = true
@@ -520,10 +603,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signer: NostrSigner,
       method: LoginMethod | null
     ): Promise<boolean> {
+      const generation = sessionGenerationRef.current
       const { token } = await exchangeNip98ForJwt(signer)
       const validation = await claimsOf(token)
-      if (cancelled) return false
-      localStorage.setItem(JWT_STORAGE_KEY, token)
+      if (cancelled || generation !== sessionGenerationRef.current) return false
+      sessionStorage.write(JWT_STORAGE_KEY, token)
+      if (signerRef.current !== signer)
+        closePasskeyProviderSigner(signerRef.current)
       signerRef.current = signer
       confirmedJwtRef.current = token
       setState({
@@ -576,7 +662,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       method: LoginMethod | null
     ) {
       if (signerRef.current) return
-      const restored = await restoreStoredSigner(method)
+      const restored = sessionStorage.isTemporary()
+        ? null
+        : await restoreStoredSigner(method)
       if (cancelled || !restored) return
       signerRef.current = restored
       setState(prev => {
@@ -587,22 +675,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     async function ensureFreshSession(source: 'hydrate' | 'resume') {
       if (cancelled) return
+      if (sessionStorage.isExpired()) {
+        logout()
+        return
+      }
       if (inFlight) {
         await inFlight
         return
       }
 
       inFlight = (async () => {
-        const storedToken = readStorage(JWT_STORAGE_KEY)
-        const storedMethod = readStorage(LOGIN_METHOD_KEY) as LoginMethod | null
-        const impersonating = Boolean(readStorage(IMPERSONATOR_RETURN_KEY))
+        const storedToken = sessionStorage.read(JWT_STORAGE_KEY)
+        const storedMethod = sessionStorage.read(
+          LOGIN_METHOD_KEY
+        ) as LoginMethod | null
+        const impersonating = Boolean(
+          sessionStorage.read(IMPERSONATOR_RETURN_KEY)
+        )
 
         const resolveSigner = async () =>
-          signerRef.current ?? (await restoreStoredSigner(storedMethod))
+          signerRef.current ??
+          (sessionStorage.isTemporary()
+            ? null
+            : await restoreStoredSigner(storedMethod))
 
         // Dev impersonation is a pure-JWT session. Reminting with the
         // admin signer would swap identities; never do that.
-        const canRemint = !impersonating
+        const canRemint = !impersonating && !sessionStorage.isTemporary()
 
         if (!storedToken) {
           // Recover from a dropped JWT only on first hydrate. Retrying on
@@ -752,6 +851,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       cancelled = true
+      // Invalidate outstanding operations, not a captured DOM ref.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      sessionGenerationRef.current++
       ensureFreshSessionRef.current = async () => {}
       window.removeEventListener('pageshow', recheckAuthOnHistoryRestore)
       document.removeEventListener('visibilitychange', recheckAuthWhenVisible)
@@ -763,11 +865,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Cleanup timer on unmount
   useEffect(() => {
     return () => {
+      sessionStorage.clear()
+      closePasskeyProviderSigner(signerRef.current)
+      signerRef.current = null
       if (refreshTimerRef.current) {
         clearTimeout(refreshTimerRef.current)
       }
     }
-  }, [])
+  }, [sessionStorage])
 
   // Permission check
   const isAuthorized = useCallback(
@@ -779,12 +884,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   )
 
   const requestSigner = useCallback(async (): Promise<NostrSigner> => {
+    if (sessionStorage.isExpired()) {
+      logout()
+      throw new Error('Session expired. Sign in again.')
+    }
     if (state.signer) return state.signer
 
     // Passkey sessions restore from the stored PRF-derived secret like any
     // nsec session; when it's gone (cleared storage) the dialog covers it.
     if (state.loginMethod === 'passkey') {
-      const storedSecret = readStorage(SIGNER_SECRET_KEY)
+      const storedSecret = sessionStorage.read(SIGNER_SECRET_KEY)
       if (storedSecret) {
         const { createNsecSigner } = await import('@/lib/client/nostr-signer')
         try {
@@ -793,7 +902,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setState(prev => ({ ...prev, signer }))
           return signer
         } catch {
-          localStorage.removeItem(SIGNER_SECRET_KEY)
+          sessionStorage.remove(SIGNER_SECRET_KEY)
         }
       }
     }
@@ -802,7 +911,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       unlockPromiseRef.current = { resolve, reject }
       setUnlockOpen(true)
     })
-  }, [state.signer, state.loginMethod])
+  }, [state.signer, state.loginMethod, sessionStorage, logout])
 
   const handleUnlock = useCallback(
     (
@@ -812,9 +921,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     ) => {
       // Keep localStorage aligned so future reloads pick the same method
       // and can silently re-create the signer.
-      localStorage.setItem(LOGIN_METHOD_KEY, method)
+      sessionStorage.write(LOGIN_METHOD_KEY, method)
       if (credentials?.secret) {
-        localStorage.setItem(SIGNER_SECRET_KEY, credentials.secret)
+        sessionStorage.write(SIGNER_SECRET_KEY, credentials.secret)
       }
       signerRef.current = signer
       setState(prev => ({ ...prev, signer, loginMethod: method }))
@@ -822,7 +931,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       unlockPromiseRef.current = null
       setUnlockOpen(false)
     },
-    []
+    [sessionStorage]
   )
 
   const handleUnlockCancel = useCallback(() => {
@@ -833,7 +942,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // API client bound to current JWT
   const handleUnauthorized = useCallback(() => {
-    const stored = readStorage(JWT_STORAGE_KEY)
+    const stored = sessionStorage.read(JWT_STORAGE_KEY)
     // Anonymous 401s must not wipe a token that was just written and isn't
     // in React state yet — that's the dev admin login race.
     if (stored && stored !== state.jwt) return
@@ -842,7 +951,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return
     }
     logout()
-  }, [state.jwt, endSessionKeepCredentials, logout])
+  }, [state.jwt, endSessionKeepCredentials, logout, sessionStorage])
 
   const apiClient = useMemo(
     () =>

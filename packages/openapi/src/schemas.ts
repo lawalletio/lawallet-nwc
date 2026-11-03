@@ -349,8 +349,9 @@ export const schemas = {
     'PasskeyRegistrationOptionsRequest',
     passkeyRegistrationOptionsRequestSchema.openapi({
       description:
-        'Optional label for the passkey being created. The body may be omitted ' +
-        'entirely — the label is only applied at verify time.'
+        'Optional label for the passkey being created, and the public key of ' +
+        'an imported key the passkey will protect (stored mode). The body may ' +
+        'be omitted entirely — the label is only applied at verify time.'
     })
   ),
   PasskeyRegistrationVerifyRequest: registry.register(

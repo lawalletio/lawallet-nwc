@@ -1,4 +1,5 @@
 import { getEnv, type Env } from './env'
+import type { PasskeyImportSource } from '@/lib/passkey-import-sources'
 
 /**
  * Application configuration
@@ -80,6 +81,11 @@ export interface AppConfig {
     packageName: string
     /** Valid fingerprints only, normalized to uppercase colon-hex. */
     certFingerprints: string[]
+  }
+
+  // Other apps' RPs a stored-mode passkey can be imported from, once.
+  passkeyImport: {
+    sources: PasskeyImportSource[]
   }
 
   // Sentry error monitoring (server-side DSN)
@@ -183,6 +189,10 @@ export function getConfig(strict: boolean = true): AppConfig {
     android: {
       packageName: env.ANDROID_APP_PACKAGE,
       certFingerprints: parseCertFingerprints(env.ANDROID_APP_CERT_SHA256)
+    },
+
+    passkeyImport: {
+      sources: env.PASSKEY_IMPORT_SOURCES
     },
 
     sentry: {

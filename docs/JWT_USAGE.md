@@ -394,6 +394,29 @@ With fingerprints set:
 > takes over every passkey account. Publish only the release / upload key you
 > hold privately, or the Play App Signing key (Play Console → App integrity).
 
+## Passkey Handles
+
+LaWallet uses derived passkeys with parameter set `0x02`. Existing UUID handles retain the same derivation and keys; new handles identify the parameter set explicitly. Tagged parameter set `0x01` passkeys also sign in using their original derivation, with a second assertion pinned to the same credential only when its parameters were not evaluated initially. The browser remembers the last successful parameter set as a performance hint; credential handles still determine derivation. Unsupported handles are rejected instead of deriving an unrelated account. A passkey created to hold an imported key uses stored mode.
+
+### Passkeys from other apps
+
+Configure named compatible sources for the source chooser:
+
+```bash
+PASSKEY_IMPORT_SOURCES='[{"label":"Other app","rpId":"passkeys.example.com"}]'
+```
+
+Each entry is `{ label, rpId, relays? }`; empty or unset hides the option. The source's `/.well-known/webauthn` must authorize this deployment's origin. This is a trust decision: after unlocking a source passkey, LaWallet receives its decrypted keys, including a vault's accounts before selection.
+
+1. The user selects a configured source or enters a bare RP domain. Manual domains use the standard recovery format and default relays; they cannot set a provider URL and are used for the current session only. The browser still enforces related-origin authorization. The user then completes a passkey ceremony. Only supported stored-key handles are imported; other formats produce an error.
+2. LaWallet compares provider and relay recovery records, then shows the account for confirmation. The user chooses an account if the vault contains several.
+3. “Use this time” opens a temporary session through the existing NIP-98 → JWT exchange. An unchecked option can remember public routing metadata `{ rpId, credentialId, pubkey }` in `lawallet-passkey-source`; it never stores a secret.
+4. Signed-in Security settings can link the selected identity or create a LaWallet passkey containing that selected key. Copying requires a confirmed `largeBlob` write before registration. Forgetting a source removes its local routing entry.
+
+The shared login button handles existing derived passkeys and LaWallet stored passkeys. Before starting a session, it shows the recovered public key for confirmation and offers choosing another passkey. Remembered sources must remain configured; otherwise no ceremony starts. PRF outputs and decrypted key buffers are cleared after use. The server never receives PRF results or private keys.
+
+`@nostr-wot/identity` owns handle parsing, key derivation, record encryption and payload validation. LaWallet's adapters supply its established derivation parameters and credential encoding; its existing WebAuthn, relay, authentication and UI code owns the client flow. The recovery event kind remains provisional.
+
 ## Security Considerations
 
 1. **JWT Secret**: Use a strong, random secret key (32+ characters) and keep it secure
@@ -441,3 +464,19 @@ If your routes previously used `validateNip98` directly:
 5. Client-side: replace manual `Authorization: Nostr` headers with `jwtClient.authenticatedRequest(url)`
 
 Routes updated to unified auth automatically accept both NIP-98 and JWT authentication, providing backward compatibility.
+
+### Provisional stored-key recovery contract
+
+Cross-app import queries provisional kind 31778 with credential-specific `d` coordinates and no `v` tag; legacy kind 31777 is queried separately. It compares provider and relay vaults by authenticated `updated_at`, prefers usable vaults over immutable keys, and selects the newest signed relay vault before attempting payload decoding. A failed latest relay vault never permits restoring an older relay vault. A usable alternate copy can recover the account, with a warning shown before the user confirms it.
+
+Vault parsing rejects duplicate JSON members, malformed timestamps and invalid top-level data; unusable accounts are skipped and exact BIP-32 paths are required. New seed-only records use a vault containing a seed and its main account; type 02 is read for legacy recovery only. The event kind remains provisional pending upstream acceptance, and these local checks do not prove provider synchronization or deploy this flow.
+
+### Temporary imported-passkey sessions
+
+The shared passkey login button, imported and remembered-source sign-ins pass `persistence: 'memory'` to AuthProvider. The signer and bearer token remain in the mounted provider, including token refreshes; they are not written to localStorage or sessionStorage. Reload, provider unmount, logout, a rejected session or the original login token’s expiry ends managed client access. The original expiry is fixed for the session: explicit account-refresh operations cannot extend it, and temporary sessions are not silently reminted on resume. Issued server JWTs retain their normal server-side TTL; client logout does not revoke an already issued token. Remembered source entries contain public routing metadata only and do not restore signing authority.
+
+Existing legacy sessions retain their previous storage behavior until the user signs in again; this change does not silently erase an existing stored key on application startup. The broader rollout still requires explicit legacy-session migration guidance, real-device recovery verification and a review of server-token revocation requirements. Imported passkeys and their configured origins remain a pilot feature, not a claim of verified cross-device support.
+
+A remembered RP must still appear in the receiving deployment's configured sources. Removing it disables future ceremonies from that remembered entry; the client does not reconstruct a source configuration from browser storage.
+
+Ordinary import now offers “Use this time” with an unchecked option to remember public account routing. Creating a LaWallet copy remains in the signed-in Security flow. A configured source directory can exceed five entries and is searched locally; selecting a source starts one ceremony, never a sequence of probes.

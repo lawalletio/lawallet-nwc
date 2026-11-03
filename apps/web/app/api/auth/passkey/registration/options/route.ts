@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto'
 import { NextResponse } from 'next/server'
 import { generateRegistrationOptions } from '@simplewebauthn/server'
 import { getConfig } from '@/lib/config'
@@ -13,6 +12,7 @@ import {
   resolveRpContext,
   storeWebAuthnChallenge
 } from '@/lib/auth/passkey'
+import { createDerivedHandle, createStoredHandle } from '@/lib/passkey-handle'
 
 export const runtime = 'nodejs'
 
@@ -24,8 +24,11 @@ export const runtime = 'nodejs'
  * credential's Nostr identity is derived CLIENT-SIDE from the WebAuthn PRF
  * extension; the server only records the credential and never holds a key,
  * so there is no key-vault gating here. Nothing is persisted besides the
- * single-use challenge; the user handle is random opaque bytes (the account
- * is keyed by the PRF-derived pubkey, not by this handle).
+ * single-use challenge; the user handle is a tagged random handle
+ * (lib/passkey-handle.ts) and the account is keyed by the PRF-derived
+ * pubkey, not by this handle. With `storedPubkey` the handle is a tagged
+ * stored handle instead: the passkey will protect an imported key, which
+ * the client encrypts into the passkey's largeBlob.
  */
 export const POST = withErrorHandling(async (request: Request) => {
   await checkRequestLimits(request, 'json')
@@ -37,20 +40,29 @@ export const POST = withErrorHandling(async (request: Request) => {
 
   // Body is optional for this endpoint (mirrors /api/jwt) — tolerate an
   // empty or absent body; the label is only applied at verify time anyway.
-  try {
-    await validateBody(request, passkeyRegistrationOptionsRequestSchema)
-  } catch {
-    // No body — fine.
-  }
+  // A body that is present but invalid still fails: a bad `storedPubkey`
+  // must never fall back to a derived handle.
+  const body = (await request.text()).trim()
+  const { storedPubkey } = body
+    ? await validateBody(
+        new Request(request.url, { method: 'POST', body }),
+        passkeyRegistrationOptionsRequestSchema
+      )
+    : {}
 
   const rp = await resolveRpContext(request)
-  const handle = randomUUID()
+  // Stored handles name the imported key's public key; derived handles end
+  // in random bytes. Either way userName shows 4 of the trailing bytes.
+  const handle = storedPubkey
+    ? createStoredHandle(storedPubkey)
+    : createDerivedHandle()
+  const nameStart = storedPubkey ? 5 : 6
 
   const options = await generateRegistrationOptions({
     rpName: rp.rpName,
     rpID: rp.rpId,
-    userName: `lawallet-${handle.slice(0, 8)}`,
-    userID: new TextEncoder().encode(handle),
+    userName: `lawallet-${Buffer.from(handle).toString('hex', nameStart, nameStart + 4)}`,
+    userID: handle,
     attestationType: 'none',
     authenticatorSelection: {
       residentKey: 'required',
