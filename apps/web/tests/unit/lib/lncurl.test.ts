@@ -90,6 +90,18 @@ describe('createLncurlWallet', () => {
     )
   })
 
+  it('sends a trusted-caller key as a bearer token, and nothing without one', async () => {
+    const fetchMock = mockFetch(VALID_NWC)
+
+    await createLncurlWallet('https://my.lncurl.example/', 'secret-key')
+    await createLncurlWallet('https://my.lncurl.example/')
+
+    expect(fetchMock.mock.calls[0][1].headers).toEqual({
+      Authorization: 'Bearer secret-key'
+    })
+    expect(fetchMock.mock.calls[1][1].headers).toBeUndefined()
+  })
+
   it('defaults to the documented LNCurl server', async () => {
     const fetchMock = mockFetch(VALID_NWC)
 

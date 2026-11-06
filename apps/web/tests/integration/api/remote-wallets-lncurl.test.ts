@@ -11,6 +11,7 @@ vi.mock('@/lib/config', () => ({
   getConfig: vi.fn(() => ({
     maintenance: { enabled: false },
     requestLimits: { maxBodySize: 1_048_576, maxJsonSize: 1_048_576 },
+    lncurl: { apiKey: undefined, apiKeyOrigin: undefined },
     nwcVault: {
       secret: 'test-nwc-vault-secret-0123456789abcdef',
       enabled: true
@@ -173,7 +174,10 @@ describe('POST /api/remote-wallets/lncurl', () => {
       })
     )
 
-    expect(createLncurlWallet).toHaveBeenCalledWith('https://my.lncurl.example')
+    expect(createLncurlWallet).toHaveBeenCalledWith(
+      'https://my.lncurl.example',
+      undefined
+    )
     expect(prismaMock.remoteWallet.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({

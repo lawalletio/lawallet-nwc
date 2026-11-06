@@ -82,6 +82,12 @@ export interface AppConfig {
     certFingerprints: string[]
   }
 
+  // LNCurl trusted-caller key, sent only to `apiKeyOrigin`
+  lncurl: {
+    apiKey: string | undefined
+    apiKeyOrigin: string | undefined
+  }
+
   // Sentry error monitoring (server-side DSN)
   sentry: {
     dsn: string | undefined
@@ -183,6 +189,13 @@ export function getConfig(strict: boolean = true): AppConfig {
     android: {
       packageName: env.ANDROID_APP_PACKAGE,
       certFingerprints: parseCertFingerprints(env.ANDROID_APP_CERT_SHA256)
+    },
+
+    lncurl: {
+      apiKey: env.LNCURL_API_KEY,
+      apiKeyOrigin: env.LNCURL_API_KEY_ORIGIN
+        ? new URL(env.LNCURL_API_KEY_ORIGIN).origin
+        : undefined
     },
 
     sentry: {
