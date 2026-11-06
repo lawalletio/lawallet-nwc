@@ -564,6 +564,34 @@ describe('resolveProfiles', () => {
     )
   })
 
+  it('retries a known-missing profile in the scheduled task, not inline', async () => {
+    vi.mocked(prismaMock.user.findMany).mockResolvedValue([
+      { pubkey: PUBKEY_A }
+    ] as any)
+    vi.mocked(prismaMock.nostrProfileCache.findMany).mockResolvedValue([
+      cacheRow({
+        fetchedAt: null,
+        lastFetchAttemptAt: new Date(NOW.getTime() - 11 * 60 * 1000),
+        lastFetchError: 'Profile not found on relays'
+      })
+    ] as any)
+    const relayFetcher = vi.fn().mockResolvedValue([])
+    const tasks: Array<() => Promise<void>> = []
+
+    const profiles = await resolveProfiles([PUBKEY_A], {
+      now: NOW,
+      relayFetcher,
+      precacheImages: vi.fn(),
+      schedule: task => tasks.push(task)
+    })
+
+    expect(profiles).toEqual([])
+    expect(relayFetcher).not.toHaveBeenCalled()
+    expect(tasks).toHaveLength(1)
+    await tasks[0]()
+    expect(relayFetcher).toHaveBeenCalledWith([PUBKEY_A])
+  })
+
   it('force blocks on relays even with a scheduler', async () => {
     vi.mocked(prismaMock.user.findMany).mockResolvedValue([
       { pubkey: PUBKEY_A }

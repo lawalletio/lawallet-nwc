@@ -108,13 +108,19 @@ export async function resolveProfiles(
   })
 
   // Stale-while-revalidate: a stale row still yields a profile, so serve it
-  // and refresh after the response. Only missing (or forced) profiles block.
+  // and refresh after the response. A pubkey already looked up and not found
+  // (most passkey and card users never publish kind 0) is answered "no
+  // profile" now too; blocking on it hit the 3s relay cap every backoff
+  // window. Only never-attempted (or forced) pubkeys block.
   const schedule = options.schedule
   const blocking: NormalizedNostrPubkey[] = []
   const background: NormalizedNostrPubkey[] = []
   for (const n of toFetch) {
     const cached = cachedByPubkey.get(n.pubkey)
-    const servable = !force && cached && profileFromCacheRow(cached, now)
+    const servable =
+      !force &&
+      cached &&
+      (profileFromCacheRow(cached, now) || cached.lastFetchAttemptAt)
     if (schedule && servable) background.push(n)
     else blocking.push(n)
   }
