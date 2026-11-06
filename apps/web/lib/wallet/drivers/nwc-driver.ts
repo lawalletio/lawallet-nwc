@@ -129,20 +129,7 @@ export const nwcDriver: RemoteWalletDriver<NwcDriverConfig> = {
           })
           return { balanceSats: Math.floor(res.balance / 1000) }
         } catch (err) {
-          // Wallet rejections (DriverRemoteError) are final; only transport
-          // failures fall back to the direct relay connection below.
-          if (!(err instanceof ListenerUnavailableError)) throw err
-          // The listener reached the relay and the wallet stayed silent: a
-          // direct retry would just wait out a second timeout (~20s p95).
-          if (err.code === 'timeout') {
-            throw new DriverRemoteError('NWC get_balance timed out', {
-              cause: err
-            })
-          }
-          logger.warn(
-            { err },
-            'nwc.listener_bridge_unavailable — falling back to direct NWC'
-          )
+          allowDirectFallback(err, 'get_balance')
         }
       }
       try {
@@ -312,11 +299,7 @@ export const nwcDriver: RemoteWalletDriver<NwcDriverConfig> = {
               typeof res.expires_at === 'number' ? res.expires_at * 1000 : null
           }
         } catch (err) {
-          if (!(err instanceof ListenerUnavailableError)) throw err
-          logger.warn(
-            { err },
-            'nwc.listener_bridge_unavailable — falling back to direct NWC'
-          )
+          allowDirectFallback(err, 'make_invoice')
         }
       }
       try {
@@ -367,11 +350,7 @@ export const nwcDriver: RemoteWalletDriver<NwcDriverConfig> = {
           })
           return toLookupResult(res)
         } catch (err) {
-          if (!(err instanceof ListenerUnavailableError)) throw err
-          logger.warn(
-            { err },
-            'nwc.listener_bridge_unavailable — falling back to direct NWC'
-          )
+          allowDirectFallback(err, 'lookup_invoice')
         }
       }
       try {
@@ -384,6 +363,24 @@ export const nwcDriver: RemoteWalletDriver<NwcDriverConfig> = {
       }
     })
   }
+}
+
+/**
+ * Returns when a failed listener request may be retried over a direct relay
+ * connection; throws otherwise. Wallet rejections are final. A listener
+ * `timeout` means it reached the relay and the wallet stayed silent, so a
+ * direct retry only waits out the SDK's own ~60s timeout (LUD-16 callbacks
+ * took 69s this way).
+ */
+function allowDirectFallback(err: unknown, method: string): void {
+  if (!(err instanceof ListenerUnavailableError)) throw err
+  if (err.code === 'timeout') {
+    throw new DriverRemoteError(`NWC ${method} timed out`, { cause: err })
+  }
+  logger.warn(
+    { err },
+    'nwc.listener_bridge_unavailable — falling back to direct NWC'
+  )
 }
 
 /** The subset of `Nip47Transaction` settlement needs. */
