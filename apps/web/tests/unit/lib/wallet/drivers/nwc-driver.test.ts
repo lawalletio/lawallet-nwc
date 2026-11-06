@@ -570,6 +570,27 @@ describe('nwcDriver', () => {
       expect(nwcCtor).not.toHaveBeenCalled()
     })
 
+    it.each([
+      ['makeInvoice', () => nwcDriver.makeInvoice(CONFIG, { amountSats: 21 })],
+      [
+        'lookupInvoice',
+        () => nwcDriver.lookupInvoice!(CONFIG, { paymentHash: 'a'.repeat(64) })
+      ]
+    ])(
+      'does not retry %s over direct NWC when the wallet timed out on the listener',
+      async (_name, call) => {
+        bridge.enabled = true
+        const { ListenerUnavailableError } =
+          await import('@/lib/wallet/drivers/listener-transport')
+        bridge.request.mockRejectedValueOnce(
+          new ListenerUnavailableError('timeout', { code: 'timeout' })
+        )
+
+        await expect(call()).rejects.toBeInstanceOf(DriverRemoteError)
+        expect(nwcCtor).not.toHaveBeenCalled()
+      }
+    )
+
     it('falls back to direct NWC for getBalance when the listener is unreachable', async () => {
       bridge.enabled = true
       const { ListenerUnavailableError } =
