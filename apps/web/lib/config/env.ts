@@ -245,6 +245,29 @@ const envSchema = z.object({
     .pipe(z.number().int().positive())
     .describe('Maximum number of files per upload request (default: 10)'),
 
+  // LNCurl trusted-caller key (optional): lifts the server's per-IP mint limit
+  LNCURL_API_KEY: z.preprocess(
+    emptyEnvToUndefined,
+    z
+      .string()
+      .min(32, 'LNCURL_API_KEY must be at least 32 characters')
+      .optional()
+      .describe(
+        'Trusted-caller key for the LNCurl server at LNCURL_API_KEY_ORIGIN; it skips that server per-IP wallet-creation limit (optional)'
+      )
+  ),
+
+  LNCURL_API_KEY_ORIGIN: z.preprocess(
+    emptyEnvToUndefined,
+    z
+      .string()
+      .url('LNCURL_API_KEY_ORIGIN must be a valid URL')
+      .optional()
+      .describe(
+        'Origin of the LNCurl server that issued LNCURL_API_KEY; the key is sent only there (optional)'
+      )
+  ),
+
   // Sentry error monitoring (optional — nothing initializes without a DSN)
   SENTRY_DSN: z.preprocess(
     emptyEnvToUndefined,

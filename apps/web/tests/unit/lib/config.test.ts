@@ -214,6 +214,28 @@ describe('getConfig', () => {
     expect(config.requestLimits.maxFiles).toBe(10)
   })
 
+  it('normalizes LNCURL_API_KEY_ORIGIN to a bare origin, unset by default', async () => {
+    process.env.DATABASE_URL = 'postgresql://localhost/test'
+    setNodeEnv('test')
+    delete process.env.LNCURL_API_KEY
+    delete process.env.LNCURL_API_KEY_ORIGIN
+    const { getConfig, resetConfig } = await import('@/lib/config')
+    expect(getConfig().lncurl).toEqual({
+      apiKey: undefined,
+      apiKeyOrigin: undefined
+    })
+
+    process.env.LNCURL_API_KEY = 'k'.repeat(32)
+    process.env.LNCURL_API_KEY_ORIGIN = 'https://LNCurl.example.com/some/path'
+    resetConfig()
+    vi.resetModules()
+    const fresh = await import('@/lib/config')
+    expect(fresh.getConfig().lncurl).toEqual({
+      apiKey: 'k'.repeat(32),
+      apiKeyOrigin: 'https://lncurl.example.com'
+    })
+  })
+
   it('sets rateLimit from env defaults', async () => {
     process.env.DATABASE_URL = 'postgresql://localhost/test'
     setNodeEnv('test')

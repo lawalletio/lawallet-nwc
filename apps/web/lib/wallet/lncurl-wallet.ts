@@ -24,6 +24,7 @@ import { holdsProtectedBalance } from '@/lib/wallet/last-balance'
 import { ActivityEvent, logActivity } from '@/lib/activity-log'
 import { ConflictError } from '@/types/server/errors'
 import { reportError } from '@/lib/observability/report'
+import { getConfig } from '@/lib/config'
 
 const DEFAULT_WALLET_NAME = 'LNCurl wallet'
 
@@ -310,8 +311,15 @@ function uniqueName(requested: string, taken: Set<string>): string {
 export async function mintLncurlWallet(
   serverUrl?: string
 ): Promise<LncurlWallet> {
+  const url = serverUrl || DEFAULT_LNCURL_SERVER
+  // Every mint leaves from the same few egress IPs, so LNCurl's per-IP limit
+  // caps the whole platform. The key lifts it — sent only to the server it was
+  // issued by, so pointing `lncurl_server_url` elsewhere never leaks it.
+  const { apiKey, apiKeyOrigin } = getConfig().lncurl
+  const key =
+    apiKey && apiKeyOrigin === new URL(url).origin ? apiKey : undefined
   try {
-    return await createLncurlWallet(serverUrl || DEFAULT_LNCURL_SERVER)
+    return await createLncurlWallet(url, key)
   } catch (err) {
     reportError(err, 'lncurl')
     throw err

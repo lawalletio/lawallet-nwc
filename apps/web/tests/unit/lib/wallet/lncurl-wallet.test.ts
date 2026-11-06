@@ -6,6 +6,10 @@ import { createRemoteWalletFixture } from '@/tests/helpers/fixtures'
 vi.mock('@/lib/config', () => ({
   getConfig: vi.fn(() => ({
     maintenance: { enabled: false },
+    lncurl: {
+      apiKey: 'k'.repeat(32),
+      apiKeyOrigin: 'https://lncurl.example.com'
+    },
     nwcVault: {
       secret: 'test-nwc-vault-secret-0123456789abcdef',
       enabled: true
@@ -114,7 +118,10 @@ describe('createLncurlRemoteWallet', () => {
       serverUrl: 'https://my.lncurl.example'
     })
 
-    expect(createLncurlWallet).toHaveBeenCalledWith('https://my.lncurl.example')
+    expect(createLncurlWallet).toHaveBeenCalledWith(
+      'https://my.lncurl.example',
+      undefined
+    )
     expect(prismaMock.remoteWallet.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -360,7 +367,10 @@ describe('mintCourtesyLncurlWallet', () => {
     const created = await mintCourtesyLncurlWallet(USER_ID)
 
     expect(created?.id).toBe('new-wallet')
-    expect(createLncurlWallet).toHaveBeenCalledWith('https://lncurl.example')
+    expect(createLncurlWallet).toHaveBeenCalledWith(
+      'https://lncurl.example',
+      undefined
+    )
     // The caller inserts the first address and stores the binding itself.
     expect(prismaMock.lightningAddress.update).not.toHaveBeenCalled()
   })
@@ -374,7 +384,10 @@ describe('mintCourtesyLncurlWallet', () => {
 
     await mintCourtesyLncurlWallet(USER_ID)
 
-    expect(createLncurlWallet).toHaveBeenCalledWith('https://lncurl.lol/')
+    expect(createLncurlWallet).toHaveBeenCalledWith(
+      'https://lncurl.lol/',
+      undefined
+    )
   })
 })
 
@@ -653,7 +666,10 @@ describe('reviveDeadCourtesyWallet', () => {
     const created = await reviveDeadCourtesyWallet(USER_ID)
 
     expect(created?.id).toBe('new-wallet')
-    expect(createLncurlWallet).toHaveBeenCalledWith('https://my.lncurl.example')
+    expect(createLncurlWallet).toHaveBeenCalledWith(
+      'https://my.lncurl.example',
+      undefined
+    )
     expect(prismaMock.lightningAddress.updateMany).toHaveBeenCalledWith({
       where: { userId: USER_ID, remoteWalletId: 'dead-wallet' },
       data: { remoteWalletId: 'new-wallet' }
@@ -749,5 +765,19 @@ describe('mintLncurlWallet', () => {
 
     await expect(mintLncurlWallet()).rejects.toBe(err)
     expect(reportError).toHaveBeenCalledWith(err, 'lncurl')
+  })
+
+  it('sends the trusted-caller key only to the origin that issued it', async () => {
+    await mintLncurlWallet('https://lncurl.example.com/')
+    expect(createLncurlWallet).toHaveBeenLastCalledWith(
+      'https://lncurl.example.com/',
+      'k'.repeat(32)
+    )
+
+    await mintLncurlWallet('https://lncurl.lol/')
+    expect(createLncurlWallet).toHaveBeenLastCalledWith(
+      'https://lncurl.lol/',
+      undefined
+    )
   })
 })

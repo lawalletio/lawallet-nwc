@@ -110,6 +110,19 @@ The complete list of lower-level tuning variables is documented in
 [`apps/web/.env.example`](https://github.com/lawalletio/lawallet-nwc/blob/main/apps/web/.env.example)
 and the [listener setup guide](/docs/deploy/listener-setup).
 
+## LNCurl trusted-caller key (optional)
+
+Every LNCurl wallet mint (signup, card activation, address creation) leaves
+from the web app's egress IP, and an LNCurl server limits wallet creation per
+IP. On a shared host such as Vercel that one limit caps the whole platform.
+If you run the LNCurl server, set a trusted-caller key in its Settings page and
+the same key here; mints that carry it skip the per-IP limit.
+
+| Variable                | Service | Required when | Purpose                                                                                      |
+| ----------------------- | ------- | ------------- | -------------------------------------------------------------------------------------------- |
+| `LNCURL_API_KEY`        | Web     | Optional      | Trusted-caller key (at least 32 characters), sent as `Authorization: Bearer <key>` on mints. |
+| `LNCURL_API_KEY_ORIGIN` | Web     | With the key  | Origin of the LNCurl server that issued the key. The key is never sent to any other server.  |
+
 ## Error monitoring (optional)
 
 Sentry integration is **entirely optional and off by default**. Self-hosters
