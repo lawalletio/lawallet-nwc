@@ -2,12 +2,11 @@ import { NextResponse } from 'next/server'
 import { authenticate } from '@/lib/auth/unified-auth'
 import { resolveAccountId } from '@/lib/auth/account'
 import { getSettings } from '@/lib/settings'
+import type { LncurlWallet } from '@/lib/lncurl'
 import {
-  createLncurlWallet,
-  DEFAULT_LNCURL_SERVER,
-  type LncurlWallet
-} from '@/lib/lncurl'
-import { createLncurlRemoteWallet } from '@/lib/wallet/lncurl-wallet'
+  createLncurlRemoteWallet,
+  mintLncurlWallet
+} from '@/lib/wallet/lncurl-wallet'
 import { withErrorHandling } from '@/types/server/error-handler'
 import {
   ConflictError,
@@ -114,7 +113,7 @@ export const POST = withErrorHandling(async (request: Request) => {
   // a 503; a later create/bind error must not inherit that mapping.
   let mint: LncurlWallet
   try {
-    mint = await createLncurlWallet(serverUrl || DEFAULT_LNCURL_SERVER)
+    mint = await mintLncurlWallet(serverUrl)
   } catch (err) {
     logger.error({ userId, err: String(err) }, 'LNCurl provisioning failed')
     throw new ServiceUnavailableError('Could not provision an LNCurl wallet')

@@ -29,6 +29,8 @@ vi.mock('@/lib/events/event-bus', () => ({
   eventBus: { emit: vi.fn() }
 }))
 
+vi.mock('@/lib/observability/report', () => ({ reportError: vi.fn() }))
+
 vi.mock('@/lib/lncurl', () => ({
   createLncurlWallet: vi.fn(async () => ({
     connectionString: LNCURL_URI,
@@ -44,9 +46,11 @@ import {
   isLncurlWalletConfig,
   lncurlHealTarget,
   mintCourtesyLncurlWallet,
+  mintLncurlWallet,
   reviveDeadCourtesyWallet
 } from '@/lib/wallet/lncurl-wallet'
 import { createLncurlWallet } from '@/lib/lncurl'
+import { reportError } from '@/lib/observability/report'
 import { getSettings } from '@/lib/settings'
 
 const USER_ID = 'user-1'
@@ -735,5 +739,15 @@ describe('reviveDeadCourtesyWallet', () => {
 
     await expect(reviveDeadCourtesyWallet(USER_ID)).resolves.toBeNull()
     expect(prismaMock.lightningAddress.findFirst).not.toHaveBeenCalled()
+  })
+})
+
+describe('mintLncurlWallet', () => {
+  it('reports a failed mint to Sentry and rethrows it', async () => {
+    const err = new Error('LNCurl server returned 429')
+    vi.mocked(createLncurlWallet).mockRejectedValueOnce(err)
+
+    await expect(mintLncurlWallet()).rejects.toBe(err)
+    expect(reportError).toHaveBeenCalledWith(err, 'lncurl')
   })
 })

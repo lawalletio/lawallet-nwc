@@ -23,6 +23,7 @@ import { encryptRemoteWalletConfig } from '@/lib/wallet/remote-wallet-vault'
 import { holdsProtectedBalance } from '@/lib/wallet/last-balance'
 import { ActivityEvent, logActivity } from '@/lib/activity-log'
 import { ConflictError } from '@/types/server/errors'
+import { reportError } from '@/lib/observability/report'
 
 const DEFAULT_WALLET_NAME = 'LNCurl wallet'
 
@@ -302,6 +303,22 @@ function uniqueName(requested: string, taken: Set<string>): string {
 }
 
 /**
+ * Mint an LNCurl wallet, reporting failures to Sentry. Callers turn them into
+ * 503s, which `withErrorHandling` keeps out of Sentry, so without this the
+ * cause (e.g. LNCurl's per-IP 429 shared by every Vercel function) was lost.
+ */
+export async function mintLncurlWallet(
+  serverUrl?: string
+): Promise<LncurlWallet> {
+  try {
+    return await createLncurlWallet(serverUrl || DEFAULT_LNCURL_SERVER)
+  } catch (err) {
+    reportError(err, 'lncurl')
+    throw err
+  }
+}
+
+/**
  * Provision a fresh LNCurl custodial wallet and persist it as a RemoteWallet.
  *
  * The mint is a network call, so it stays outside the DB transaction (either
@@ -326,7 +343,7 @@ export async function createLncurlRemoteWallet(
   // hold a DB transaction open while we wait on LNCurl. Callers that need to
   // map provider failures separately can inject `mint` and skip this.
   const { connectionString, mode } =
-    input.mint ?? (await createLncurlWallet(serverUrl || DEFAULT_LNCURL_SERVER))
+    input.mint ?? (await mintLncurlWallet(serverUrl))
   const walletId = randomUUID()
   const { wallet, replaced } = await prisma.$transaction(async tx => {
     let replaced: {
