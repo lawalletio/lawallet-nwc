@@ -93,7 +93,9 @@ function parseNwcUri(body: string): string | null {
  *         body with no parseable NWC URI.
  */
 export async function createLncurlWallet(
-  serverUrl: string = DEFAULT_LNCURL_SERVER
+  serverUrl: string = DEFAULT_LNCURL_SERVER,
+  /** Trusted-caller key: the server skips its per-IP mint limit for it. */
+  apiKey?: string
 ): Promise<LncurlWallet> {
   // Strip the trailing slash so we always POST to the bare origin.
   const origin = serverUrl.replace(/\/+$/, '')
@@ -106,6 +108,7 @@ export async function createLncurlWallet(
   try {
     res = await fetch(origin, {
       method: 'POST',
+      headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : undefined,
       // Runs inside the payer's LUD-16 /cb request (auto-heal), so a stalled
       // LNCurl server must not hold that request open.
       signal: AbortSignal.timeout(8000)

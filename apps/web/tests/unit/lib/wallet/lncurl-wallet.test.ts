@@ -6,6 +6,10 @@ import { createRemoteWalletFixture } from '@/tests/helpers/fixtures'
 vi.mock('@/lib/config', () => ({
   getConfig: vi.fn(() => ({
     maintenance: { enabled: false },
+    lncurl: {
+      apiKey: 'k'.repeat(32),
+      apiKeyOrigin: 'https://lncurl.example.com'
+    },
     nwcVault: {
       secret: 'test-nwc-vault-secret-0123456789abcdef',
       enabled: true
@@ -29,6 +33,8 @@ vi.mock('@/lib/events/event-bus', () => ({
   eventBus: { emit: vi.fn() }
 }))
 
+vi.mock('@/lib/observability/report', () => ({ reportError: vi.fn() }))
+
 vi.mock('@/lib/lncurl', () => ({
   createLncurlWallet: vi.fn(async () => ({
     connectionString: LNCURL_URI,
@@ -44,9 +50,11 @@ import {
   isLncurlWalletConfig,
   lncurlHealTarget,
   mintCourtesyLncurlWallet,
+  mintLncurlWallet,
   reviveDeadCourtesyWallet
 } from '@/lib/wallet/lncurl-wallet'
 import { createLncurlWallet } from '@/lib/lncurl'
+import { reportError } from '@/lib/observability/report'
 import { getSettings } from '@/lib/settings'
 
 const USER_ID = 'user-1'
@@ -110,7 +118,10 @@ describe('createLncurlRemoteWallet', () => {
       serverUrl: 'https://my.lncurl.example'
     })
 
-    expect(createLncurlWallet).toHaveBeenCalledWith('https://my.lncurl.example')
+    expect(createLncurlWallet).toHaveBeenCalledWith(
+      'https://my.lncurl.example',
+      undefined
+    )
     expect(prismaMock.remoteWallet.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -356,7 +367,10 @@ describe('mintCourtesyLncurlWallet', () => {
     const created = await mintCourtesyLncurlWallet(USER_ID)
 
     expect(created?.id).toBe('new-wallet')
-    expect(createLncurlWallet).toHaveBeenCalledWith('https://lncurl.example')
+    expect(createLncurlWallet).toHaveBeenCalledWith(
+      'https://lncurl.example',
+      undefined
+    )
     // The caller inserts the first address and stores the binding itself.
     expect(prismaMock.lightningAddress.update).not.toHaveBeenCalled()
   })
@@ -370,7 +384,10 @@ describe('mintCourtesyLncurlWallet', () => {
 
     await mintCourtesyLncurlWallet(USER_ID)
 
-    expect(createLncurlWallet).toHaveBeenCalledWith('https://lncurl.lol/')
+    expect(createLncurlWallet).toHaveBeenCalledWith(
+      'https://lncurl.lol/',
+      undefined
+    )
   })
 })
 
@@ -649,7 +666,10 @@ describe('reviveDeadCourtesyWallet', () => {
     const created = await reviveDeadCourtesyWallet(USER_ID)
 
     expect(created?.id).toBe('new-wallet')
-    expect(createLncurlWallet).toHaveBeenCalledWith('https://my.lncurl.example')
+    expect(createLncurlWallet).toHaveBeenCalledWith(
+      'https://my.lncurl.example',
+      undefined
+    )
     expect(prismaMock.lightningAddress.updateMany).toHaveBeenCalledWith({
       where: { userId: USER_ID, remoteWalletId: 'dead-wallet' },
       data: { remoteWalletId: 'new-wallet' }
@@ -735,5 +755,29 @@ describe('reviveDeadCourtesyWallet', () => {
 
     await expect(reviveDeadCourtesyWallet(USER_ID)).resolves.toBeNull()
     expect(prismaMock.lightningAddress.findFirst).not.toHaveBeenCalled()
+  })
+})
+
+describe('mintLncurlWallet', () => {
+  it('reports a failed mint to Sentry and rethrows it', async () => {
+    const err = new Error('LNCurl server returned 429')
+    vi.mocked(createLncurlWallet).mockRejectedValueOnce(err)
+
+    await expect(mintLncurlWallet()).rejects.toBe(err)
+    expect(reportError).toHaveBeenCalledWith(err, 'lncurl')
+  })
+
+  it('sends the trusted-caller key only to the origin that issued it', async () => {
+    await mintLncurlWallet('https://lncurl.example.com/')
+    expect(createLncurlWallet).toHaveBeenLastCalledWith(
+      'https://lncurl.example.com/',
+      'k'.repeat(32)
+    )
+
+    await mintLncurlWallet('https://lncurl.lol/')
+    expect(createLncurlWallet).toHaveBeenLastCalledWith(
+      'https://lncurl.lol/',
+      undefined
+    )
   })
 })
