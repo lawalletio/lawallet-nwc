@@ -352,6 +352,13 @@ describe('scrubLog', () => {
       status: 500
     })
   })
+
+  it('leaves parameterized messages and attribute-less logs alone', () => {
+    const message = Object.assign(new String('x'), {
+      __sentry_template_string__: 'x'
+    })
+    expect(scrubLog({ message })).toEqual({ message })
+  })
 })
 
 describe('Sentry instrumentation wiring', () => {
