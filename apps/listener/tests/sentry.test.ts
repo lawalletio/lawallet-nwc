@@ -4,13 +4,17 @@ vi.mock('@sentry/node', () => ({
   init: vi.fn(),
   captureSession: vi.fn(),
   captureException: vi.fn(),
-  pinoIntegration: vi.fn(() => ({ name: 'Pino' }))
+  pinoIntegration: vi.fn(() => ({ name: 'Pino' })),
+  endSession: vi.fn(),
+  flush: vi.fn(async () => true)
 }))
 
 import * as Sentry from '@sentry/node'
 import type { ListenerEnv } from '../src/env'
 import {
   captureException,
+  endSentrySession,
+  flushSentry,
   initSentry,
   reportError,
   sampleTrace,
@@ -122,5 +126,42 @@ describe('log scrubbing', () => {
     })!
     expect(JSON.stringify(log)).not.toContain('walletconnect')
     expect(log.attributes?.attempt).toBe(3)
+  })
+})
+
+describe('event scrubbing', () => {
+  it('redacts PII from message, exception values and breadcrumbs', () => {
+    initSentry({ SENTRY_DSN: 'https://k@o.ingest.sentry.io/1' } as ListenerEnv)
+    const { beforeSend } = vi.mocked(Sentry.init).mock.calls.at(-1)![0]!
+    const secret = 'nostr+walletconnect://abc?secret=def'
+    const event = beforeSend!(
+      {
+        type: undefined,
+        message: secret,
+        exception: { values: [{ value: secret }, {}] },
+        breadcrumbs: [{ message: secret }, {}]
+      },
+      {}
+    )
+    expect(JSON.stringify(event)).not.toContain('walletconnect')
+  })
+})
+
+describe('shutdown', () => {
+  it('ends the session and flushes once initialized', async () => {
+    initSentry({ SENTRY_DSN: 'https://k@o.ingest.sentry.io/1' } as ListenerEnv)
+    endSentrySession()
+    await flushSentry(10)
+    expect(Sentry.endSession).toHaveBeenCalled()
+    expect(Sentry.flush).toHaveBeenCalledWith(10)
+  })
+
+  it('swallows SDK failures on shutdown', async () => {
+    vi.mocked(Sentry.endSession).mockImplementationOnce(() => {
+      throw new Error('x')
+    })
+    vi.mocked(Sentry.flush).mockRejectedValueOnce(new Error('x'))
+    expect(() => endSentrySession()).not.toThrow()
+    await expect(flushSentry(10)).resolves.toBeUndefined()
   })
 })
