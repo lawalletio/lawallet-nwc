@@ -4,6 +4,7 @@ import { describe, it, expect } from 'vitest'
 import {
   scrubPii,
   scrubEvent,
+  scrubLog,
   redactPathBearerTokens
 } from '@/lib/observability/pii'
 
@@ -332,6 +333,27 @@ describe('scrubEvent', () => {
   })
 })
 
+describe('scrubLog', () => {
+  it('scrubs the message, string attributes and serialized objects', () => {
+    const log = scrubLog({
+      message: `pay failed ${NWC_URI}`,
+      attributes: {
+        url: '/api/cards/otc/abc123/activate',
+        pubkey: HEX_A,
+        err: { message: `boom npub1${'q'.repeat(58)}` },
+        status: 500
+      }
+    })
+    expect(log.message).toBe('pay failed [redacted]')
+    expect(log.attributes).toEqual({
+      url: '/api/cards/otc/[otc]/activate',
+      pubkey: '[redacted]',
+      err: '{"message":"boom [redacted]"}',
+      status: 500
+    })
+  })
+})
+
 describe('Sentry instrumentation wiring', () => {
   it('registers beforeSendTransaction next to beforeSend', () => {
     const server = readFileSync(
@@ -347,6 +369,7 @@ describe('Sentry instrumentation wiring', () => {
     expect(server).toMatch(
       /beforeSendTransaction:\s*event\s*=>\s*scrubEvent\(event\)/
     )
+    expect(server).toMatch(/beforeSendLog:\s*log\s*=>\s*scrubLog\(log\)/)
     // Client drops third-party noise first, then scrubs everything else.
     expect(client).toMatch(
       /beforeSend:\s*event\s*=>\s*\(?isThirdPartyNoise\(event\)\s*\?\s*null\s*:\s*scrubEvent\(event\)\)?/

@@ -186,3 +186,21 @@ export function scrubEvent<T extends SentryEventLike>(event: T): T {
   scrubRecord(event.contexts?.trace?.data)
   return event
 }
+
+/** Structural subset of a Sentry log — keeps this module Sentry-free. */
+type SentryLogLike = {
+  message: unknown
+  attributes?: Record<string, unknown>
+}
+
+/** Sentry `beforeSendLog` scrubber. Mutates and returns the log. */
+export function scrubLog<T extends SentryLogLike>(log: T): T {
+  if (typeof log.message === 'string') log.message = scrubPii(log.message)
+  for (const [key, value] of Object.entries(log.attributes ?? {})) {
+    if (typeof value === 'string') log.attributes![key] = scrubUrl(value)
+    else if (value && typeof value === 'object') {
+      log.attributes![key] = scrubPii(JSON.stringify(value))
+    }
+  }
+  return log
+}

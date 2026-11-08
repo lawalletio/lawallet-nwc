@@ -52,6 +52,27 @@ describe('IGNORE_ERRORS', () => {
     expect(ignored('i: Failed to connect to MetaMask')).toBe(true)
   })
 
+  it('drops LAWALLET-WEB-19: Safari passkey cancel', () => {
+    expect(
+      ignored(
+        'NotAllowedError: The request is not allowed by the user agent or the platform in the current context, possibly because the user denied permission.'
+      )
+    ).toBe(true)
+  })
+
+  it('drops LAWALLET-WEB-T/V: Google Translate DOM mutations', () => {
+    expect(
+      ignored(
+        "NotFoundError: Failed to execute 'insertBefore' on 'Node': The node before which the new node is to be inserted is not a child of this node."
+      )
+    ).toBe(true)
+    expect(
+      ignored(
+        "NotFoundError: Failed to execute 'removeChild' on 'Node': The node to be removed is not a child of this node."
+      )
+    ).toBe(true)
+  })
+
   it('drops LAWALLET-WEB-Z: a dismissed passkey prompt', () => {
     expect(
       ignored(

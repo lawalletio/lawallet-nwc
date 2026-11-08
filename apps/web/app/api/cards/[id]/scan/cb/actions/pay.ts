@@ -505,12 +505,20 @@ async function handleDispatchError(
       : 'PAYMENT_DISPATCH_ERROR',
     transport
   )
-  logger.error(
-    { err: error, requestId: attempt.requestId, transport },
-    'Card payment outcome is unknown'
-  )
-  // Usually a slow wallet, resolved later by lookup: worth seeing, not paging.
-  reportError(error, 'card-pay', 'warning')
+  if (error instanceof PaymentOutcomeUnknownError) {
+    // A slow wallet, resolved later by lookup: expected, so a warn log (Sentry
+    // Logs) rather than an issue (LAWALLET-WEB-11).
+    logger.warn(
+      { err: error, requestId: attempt.requestId, transport },
+      'Card payment outcome is unknown'
+    )
+  } else {
+    logger.error(
+      { err: error, requestId: attempt.requestId, transport },
+      'Card payment dispatch failed'
+    )
+    reportError(error, 'card-pay', 'warning')
+  }
   return transitioned
     ? ludError('Payment outcome is still being resolved', true)
     : responseFromCurrentAttempt(attempt.id)

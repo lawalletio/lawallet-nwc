@@ -17,8 +17,8 @@ export async function register() {
 
   if (process.env.SENTRY_DSN) {
     const Sentry = await import('@sentry/nextjs')
-    const { scrubEvent } = await import('@/lib/observability/pii')
-    const { DEFAULT_TRACES_SAMPLE_RATE, sampleServerTrace } =
+    const { scrubEvent, scrubLog } = await import('@/lib/observability/pii')
+    const { sampleServerTrace } =
       await import('@/lib/observability/traces-sampler')
     const { SENTRY_DATA_COLLECTION, SENTRY_TRACE_LIFECYCLE } =
       await import('@/lib/observability/sentry-options')
@@ -26,12 +26,16 @@ export async function register() {
       dsn: process.env.SENTRY_DSN,
       environment:
         process.env.VERCEL_ENV ?? process.env.NODE_ENV ?? 'development',
-      tracesSampleRate: DEFAULT_TRACES_SAMPLE_RATE,
       tracesSampler: sampleServerTrace,
       traceLifecycle: SENTRY_TRACE_LIFECYCLE,
       dataCollection: SENTRY_DATA_COLLECTION,
       beforeSend: event => scrubEvent(event),
-      beforeSendTransaction: event => scrubEvent(event)
+      beforeSendTransaction: event => scrubEvent(event),
+      // pino warn+ lines go to Sentry Logs (not issues: reportError owns those).
+      integrations: [
+        Sentry.pinoIntegration({ log: { levels: ['warn', 'error', 'fatal'] } })
+      ],
+      beforeSendLog: log => scrubLog(log)
     })
   }
 

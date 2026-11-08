@@ -675,11 +675,7 @@ describe('card payment callback action', () => {
     expect(mocks.driverPay).toHaveBeenCalledTimes(1)
     expect(mocks.getInFlight).not.toHaveBeenCalled()
     expect(mocks.reconcileDirect).not.toHaveBeenCalled()
-    expect(mocks.reportError).toHaveBeenCalledWith(
-      expect.any(PaymentOutcomeUnknownError),
-      'card-pay',
-      'warning'
-    )
+    expect(mocks.reportError).not.toHaveBeenCalled()
   })
 
   describe('balance read alongside the payment', () => {
