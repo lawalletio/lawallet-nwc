@@ -1,5 +1,5 @@
-// Optional, DSN-gated Sentry error reporting. With no SENTRY_DSN set every
-// export is a no-op. Errors-only: no tracing, no PII.
+// Optional, DSN-gated Sentry reporting: errors, pino logs, sampled traces.
+// With no SENTRY_DSN set every export is a no-op. No PII.
 import * as Sentry from '@sentry/node'
 import type { ListenerEnv } from './env'
 import { createLogThrottle } from './process-errors'
@@ -36,15 +36,55 @@ function scrubEvent(event: Sentry.ErrorEvent): Sentry.ErrorEvent {
   return event
 }
 
+function scrubLog(log: Sentry.Log): Sentry.Log {
+  if (typeof log.message === 'string') log.message = scrub(log.message)
+  const attributes = log.attributes ?? {}
+  for (const [key, value] of Object.entries(attributes)) {
+    if (typeof value === 'string') attributes[key] = scrub(value)
+    // Nested objects (a serialized `err`) go out as scrubbed JSON.
+    else if (value && typeof value === 'object')
+      attributes[key] = scrub(JSON.stringify(value))
+  }
+  return log
+}
+
+// Health probes are hit every few seconds, and the payment-status poll is a
+// tight loop; neither is worth a trace on its own.
+const UNTRACED = /^GET \/(health|ready|status|v1\/nwc\/payments\/)/
+
+/**
+ * Inbound requests from web carry its sampling decision, so a payment trace
+ * links web → listener. Everything else is sampled at a low base rate.
+ */
+export function sampleTrace({
+  name,
+  inheritOrSampleWith
+}: {
+  name: string
+  inheritOrSampleWith: (fallbackSampleRate: number) => number
+}): number {
+  if (UNTRACED.test(name)) return 0
+  return inheritOrSampleWith(0.05)
+}
+
 export function initSentry(env: ListenerEnv): void {
   if (!env.SENTRY_DSN) return
   Sentry.init({
     dsn: env.SENTRY_DSN,
     environment: env.SENTRY_ENVIRONMENT ?? process.env.NODE_ENV ?? 'production',
     release: env.SENTRY_RELEASE,
-    tracesSampleRate: 0,
+    tracesSampler: sampleTrace,
+    // pino → Sentry Logs (v11 has no `enableLogs` gate; the integration is the
+    // switch). Logs only: warn/error are NOT turned into error events — the
+    // pool logs every retry at warn and reports to Sentry itself, throttled.
+    integrations: [
+      Sentry.pinoIntegration({
+        log: { levels: ['info', 'warn', 'error', 'fatal'] }
+      })
+    ],
+    beforeSendLog: scrubLog,
     // Sentry v11 removed `sendDefaultPii`; an unset `dataCollection` now
-    // collects everything. Errors-only, so turn every category off.
+    // collects everything. Turn every category off.
     dataCollection: {
       userInfo: false,
       cookies: false,
