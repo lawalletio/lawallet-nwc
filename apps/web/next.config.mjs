@@ -107,6 +107,10 @@ export default withSentryConfig(nextConfig, {
   project: 'lawallet-web',
   silent: !process.env.CI,
   bundleSizeOptimizations: { excludeDebugStatements: true },
+  // Also upload maps for node_modules / Next internals, so framework frames
+  // (React DOM errors) resolve instead of showing minified chunks.
+  widenClientFileUpload: true,
+  sourcemaps: { deleteSourcemapsAfterUpload: true },
   // Records each build as a deploy against its release (Sentry ▸ Releases ▸
   // Deploys), so a spike can be read against "what shipped when". Only runs
   // when SENTRY_AUTH_TOKEN is present — a no-op for forks and self-hosters.

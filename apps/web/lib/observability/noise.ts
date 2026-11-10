@@ -10,7 +10,11 @@ export const IGNORE_ERRORS: RegExp[] = [
   // MetaMask extension (LAWALLET-WEB-8); we never talk to MetaMask.
   /Failed to connect to MetaMask/,
   // The user dismissed or timed out the passkey prompt (LAWALLET-WEB-Z).
-  /^NotAllowedError: The operation either timed out or was not allowed/
+  /^NotAllowedError: The operation either timed out or was not allowed/,
+  // Safari's wording of the same cancel (LAWALLET-WEB-19).
+  /^NotAllowedError: The request is not allowed by the user agent or the platform in the current context/,
+  // Google Translate rewrites text nodes under React (LAWALLET-WEB-T/V).
+  /Failed to execute '(insertBefore|removeChild)' on 'Node'/
 ]
 
 /** Sentry `denyUrls`: matched against the top frame's URL. */

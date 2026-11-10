@@ -675,11 +675,27 @@ describe('card payment callback action', () => {
     expect(mocks.driverPay).toHaveBeenCalledTimes(1)
     expect(mocks.getInFlight).not.toHaveBeenCalled()
     expect(mocks.reconcileDirect).not.toHaveBeenCalled()
-    expect(mocks.reportError).toHaveBeenCalledWith(
-      expect.any(PaymentOutcomeUnknownError),
-      'card-pay',
-      'warning'
+    expect(mocks.reportError).not.toHaveBeenCalled()
+  })
+
+  it('reports a non-ambiguous dispatch error as PAYMENT_DISPATCH_ERROR', async () => {
+    const created = attempt()
+    mocks.claim.mockResolvedValue({ outcome: 'CREATED', attempt: created })
+    const crash = new Error('driver exploded')
+    mocks.driverPay.mockRejectedValue(crash)
+
+    const response = await pay(request(), card, 7)
+
+    expect(await responseBody(response)).toEqual({
+      status: 'ERROR',
+      reason: 'Payment outcome is still being resolved'
+    })
+    expect(mocks.markUnknown).toHaveBeenCalledWith(
+      created.id,
+      'PAYMENT_DISPATCH_ERROR',
+      created.transport
     )
+    expect(mocks.reportError).toHaveBeenCalledWith(crash, 'card-pay', 'warning')
   })
 
   describe('balance read alongside the payment', () => {
