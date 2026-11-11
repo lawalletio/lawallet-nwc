@@ -28,6 +28,11 @@ describe('backup serialize', () => {
       expect(fromNdjson('')).toEqual([])
     })
 
+    it('serializes BigInt columns as decimal strings (Invoice.amountMsats)', () => {
+      const text = toNdjson([{ id: 'a', amountMsats: BigInt(21000) }])
+      expect(fromNdjson(text)).toEqual([{ id: 'a', amountMsats: '21000' }])
+    })
+
     it('skips blank lines when parsing', () => {
       expect(fromNdjson('\n\n{"id":"a"}\n\n')).toEqual([{ id: 'a' }])
     })
@@ -52,6 +57,12 @@ describe('backup serialize', () => {
   })
 
   describe('rowsEqual', () => {
+    it('is true for a BigInt vs its decimal string', () => {
+      expect(
+        rowsEqual({ amountMsats: BigInt(21000) }, { amountMsats: '21000' })
+      ).toBe(true)
+    })
+
     it('is true for a Date vs its ISO string', () => {
       const iso = '2026-01-01T00:00:00.000Z'
       expect(rowsEqual({ createdAt: new Date(iso) }, { createdAt: iso })).toBe(

@@ -196,6 +196,33 @@ describe('backup export (buildBackup)', () => {
     )
   })
 
+  it('exports invoices whose amountMsats is a BigInt (LAWALLET-WEB-1B)', async () => {
+    ;(
+      prismaMock.invoice.findMany as ReturnType<typeof vi.fn>
+    ).mockResolvedValue([
+      { id: 'inv-1', amountSats: 21, amountMsats: BigInt(21000) }
+    ])
+    const { buffer, manifest } = await buildBackup(
+      ['invoices'],
+      options,
+      undefined
+    )
+    expect(manifest.tables.invoices?.count).toBe(1)
+    const parsed = await parseBackupFile(
+      new File([new Uint8Array(buffer)], 'backup.zip')
+    )
+    expect(parsed.tables.invoices?.[0]).toMatchObject({ amountMsats: '21000' })
+  })
+
+  it('names the failing table in the error message', async () => {
+    ;(
+      prismaMock.invoice.findMany as ReturnType<typeof vi.fn>
+    ).mockRejectedValue(new Error('connection reset'))
+    await expect(buildBackup(['invoices'], options, undefined)).rejects.toThrow(
+      'Backup export failed on table "invoices": connection reset'
+    )
+  })
+
   it('round-trips an encrypted archive with the correct password', async () => {
     const { buffer } = await buildBackup(['core'], options, 'hunter2')
     const file = new File([new Uint8Array(buffer)], 'backup.zip.enc')

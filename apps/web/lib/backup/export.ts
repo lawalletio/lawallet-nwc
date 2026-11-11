@@ -16,6 +16,7 @@ import {
 } from '@/lib/backup/serialize'
 import { encryptArchive } from '@/lib/backup/crypto'
 import { decryptRemoteWalletConfig } from '@/lib/wallet/remote-wallet-vault'
+import { InternalServerError } from '@/types/server/errors'
 import packageJson from '../../package.json'
 
 type ExportOptions = BackupExportRequest['options']
@@ -113,8 +114,19 @@ export async function buildBackup(
   const tableMeta: BackupManifest['tables'] = {}
 
   for (const table of tables) {
-    const { rows, truncated } = await gatherTable(table, options)
-    const bytes = utf8Encode(toNdjson(rows))
+    let rows: unknown[], truncated: boolean, bytes: Uint8Array
+    try {
+      ;({ rows, truncated } = await gatherTable(table, options))
+      bytes = utf8Encode(toNdjson(rows))
+    } catch (error) {
+      // ADMIN-only route: name the failing table + cause so the operator can
+      // act on it instead of a bare "Internal server error".
+      const reason = error instanceof Error ? error.message : String(error)
+      throw new InternalServerError(
+        `Backup export failed on table "${table}": ${reason}`,
+        { cause: error }
+      )
+    }
     files[`tables/${table}.ndjson`] = bytes
     tableMeta[table] = {
       count: rows.length,
