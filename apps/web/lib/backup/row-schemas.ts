@@ -158,6 +158,8 @@ const invoiceRow = z.object({
   bolt11: z.string(),
   paymentHash: z.string().min(1),
   amountSats: z.number().int(),
+  // BigInt column, exported as a decimal string. Optional for older archives.
+  amountMsats: z.coerce.bigint().nullable().optional().default(null),
   description: z.string(),
   purpose: invoicePurpose,
   metadata: json.nullable(),

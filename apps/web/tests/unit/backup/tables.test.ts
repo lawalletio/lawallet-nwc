@@ -195,6 +195,20 @@ describe('backup row-schemas', () => {
       createdAt: new Date()
     }
 
+    it('restores an exported BigInt amountMsats string as a BigInt', () => {
+      const row = ROW_SCHEMAS.invoices.parse({
+        ...invoiceBase,
+        metadata: null,
+        amountMsats: '21000'
+      }) as { amountMsats: bigint | null }
+      expect(row.amountMsats).toBe(BigInt(21000))
+      const legacy = ROW_SCHEMAS.invoices.parse({
+        ...invoiceBase,
+        metadata: null
+      }) as { amountMsats: bigint | null }
+      expect(legacy.amountMsats).toBeNull()
+    })
+
     it('replaces a null nullable-Json field with Prisma.DbNull', () => {
       const out = toPrismaData('invoices', { ...invoiceBase, metadata: null })
       expect(out.metadata).toBe(Prisma.DbNull)

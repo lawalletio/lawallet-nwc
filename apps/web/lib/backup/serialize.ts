@@ -16,13 +16,18 @@ export function utf8Decode(bytes: Uint8Array): string {
   return decoder.decode(bytes)
 }
 
+/** `JSON.stringify` throws on BigInt (e.g. `Invoice.amountMsats`) — emit a decimal string. */
+const bigintReplacer = (_key: string, value: unknown) =>
+  typeof value === 'bigint' ? value.toString() : value
+
 /**
  * Serializes rows to newline-delimited JSON. `JSON.stringify` renders `Date`
- * values as ISO-8601 strings and embeds Json columns natively, so this is a
- * faithful, line-diffable dump. A table with no rows yields an empty string.
+ * values as ISO-8601 strings, BigInt as decimal strings, and embeds Json
+ * columns natively, so this is a faithful, line-diffable dump. A table with no
+ * rows yields an empty string.
  */
 export function toNdjson(rows: unknown[]): string {
-  return rows.map(row => JSON.stringify(row)).join('\n')
+  return rows.map(row => JSON.stringify(row, bigintReplacer)).join('\n')
 }
 
 /** Parses newline-delimited JSON back into an array of raw objects. */
@@ -36,7 +41,8 @@ export function fromNdjson(text: string): unknown[] {
 }
 
 /**
- * Canonical JSON with recursively sorted keys and `Date`→ISO normalization, so
+ * Canonical JSON with recursively sorted keys and `Date`→ISO / BigInt→string
+ * normalization, so
  * two rows compare equal regardless of key order or Date-vs-string form. Used
  * to detect "identical" rows during analyze.
  */
@@ -47,6 +53,7 @@ export function canonicalJson(value: unknown): string {
 function normalize(value: unknown): unknown {
   if (value === null || value === undefined) return null
   if (value instanceof Date) return value.toISOString()
+  if (typeof value === 'bigint') return value.toString()
   if (Array.isArray(value)) return value.map(normalize)
   if (typeof value === 'object') {
     const obj = value as Record<string, unknown>
