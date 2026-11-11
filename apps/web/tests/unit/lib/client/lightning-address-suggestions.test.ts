@@ -56,9 +56,9 @@ describe('lightning-address-suggestions', () => {
     expect(
       lightningAddressMatchesQuery('fierillo@lawallet.io', 'fierillo@law')
     ).toBe(true)
-    expect(lightningAddressMatchesQuery('fierillo@lawallet.io', 'satoshi')).toBe(
-      false
-    )
+    expect(
+      lightningAddressMatchesQuery('fierillo@lawallet.io', 'satoshi')
+    ).toBe(false)
     expect(
       lightningAddressMatchesQuery('fierillo@lawallet.io', 'lawallet')
     ).toBe(false)
@@ -73,6 +73,29 @@ describe('lightning-address-suggestions', () => {
   it('resolves avatar URLs from the static domain image folder', () => {
     expect(getDomainAvatarUrl('blink.sv')).toBe(
       'https://raw.githubusercontent.com/lawalletio/static/main/public/img/domains/blink.sv.png'
+    )
+  })
+
+  it('suggests wapupay.com and obelisk.ar right after the La Crypta domains, with bundled icons', () => {
+    const suggestions = buildLightningAddressSuggestions(
+      'hola',
+      'lawallet.io',
+      6
+    )
+
+    expect(suggestions.map(s => s.domain)).toEqual([
+      'lawallet.io',
+      'lacrypta.ar',
+      'wapupay.com',
+      'obelisk.ar',
+      'walletofsatoshi.com',
+      'blink.sv'
+    ])
+    expect(getDomainAvatarUrl('wapupay.com')).toBe(
+      '/images/domains/wapupay.com.png'
+    )
+    expect(getDomainAvatarUrl('obelisk.ar')).toBe(
+      '/images/domains/obelisk.ar.png'
     )
   })
 })
