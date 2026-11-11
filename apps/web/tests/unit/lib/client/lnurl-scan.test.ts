@@ -83,6 +83,34 @@ describe('looksLikeLnurl', () => {
   })
 })
 
+describe('merchant-terminal URL with a lightning query param', () => {
+  const lnurl =
+    'LNURL1DP68GURN8GHJ7CNVD9HXKTNNWCHJUAM9D3KZ66MWDAMKUTMVDE6HYMRS9AKKZUMF0FJSZUVQG3'
+  const blink = `https://terminal.blinkbtc.com/MASIZE?LIGHTNING=${lnurl}`
+  const decoded = lnurlToHttpUrl(lnurl)
+
+  it('unwraps the uppercase LIGHTNING param (Blink terminal)', () => {
+    expect(decoded).toMatch(/^https:\/\//)
+    expect(looksLikeLnurl(blink)).toBe(true)
+    expect(lnurlToHttpUrl(blink)).toBe(decoded)
+  })
+
+  it('unwraps a lowercase lightning param', () => {
+    const url = `https://pos.example.com/x?foo=1&lightning=${lnurl.toLowerCase()}`
+    expect(looksLikeLnurl(url)).toBe(true)
+    expect(lnurlToHttpUrl(url)).toBe(decoded)
+  })
+
+  it('leaves URLs without an LNURL lightning param unchanged', () => {
+    const plain = 'https://terminal.blinkbtc.com/MASIZE'
+    expect(looksLikeLnurl(plain)).toBe(false)
+    expect(lnurlToHttpUrl(plain)).toBe(plain)
+    const notLnurl = 'https://x.com/a?lightning=hello'
+    expect(looksLikeLnurl(notLnurl)).toBe(false)
+    expect(lnurlToHttpUrl(notLnurl)).toBe(notLnurl)
+  })
+})
+
 describe('resolveLnurl', () => {
   it('classifies a withdrawRequest and converts msat→sat', async () => {
     mockFetchOnce({

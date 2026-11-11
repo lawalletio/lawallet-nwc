@@ -78,3 +78,28 @@ describe('parseDestination', () => {
     expect(result.npub).toBe(npub)
   })
 })
+
+describe('parseDestination — lightning query param', () => {
+  const lnurl =
+    'LNURL1DP68GURN8GHJ7CNVD9HXKTNNWCHJUAM9D3KZ66MWDAMKUTMVDE6HYMRS9AKKZUMF0FJSZUVQG3'
+
+  it('parses the LNURL carried by a Blink terminal URL', () => {
+    const viaUrl = parseDestination(
+      `https://terminal.blinkbtc.com/MASIZE?LIGHTNING=${lnurl}`
+    )
+    expect(viaUrl).toEqual(parseDestination(lnurl))
+    expect(viaUrl.kind).toBe('lnurl-pay')
+  })
+
+  it('accepts a lowercase lightning param', () => {
+    expect(
+      parseDestination(`https://x.com/p?lightning=${lnurl.toLowerCase()}`)
+    ).toEqual(parseDestination(lnurl))
+  })
+
+  it('still rejects a plain URL', () => {
+    expect(() =>
+      parseDestination('https://terminal.blinkbtc.com/MASIZE')
+    ).toThrow(DestinationParseError)
+  })
+})

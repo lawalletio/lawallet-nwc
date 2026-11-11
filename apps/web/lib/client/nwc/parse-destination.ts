@@ -52,13 +52,26 @@ export class DestinationParseError extends Error {
 }
 
 /**
- * Strips a `lightning:` scheme if present and trims whitespace.
- * Many wallets share payment requests prefixed with the scheme.
+ * Strips a `lightning:` scheme if present and trims whitespace. Also unwraps
+ * merchant-terminal URLs that carry the LNURL in a `lightning` query param
+ * (e.g. Blink's `https://terminal.blinkbtc.com/<user>?LIGHTNING=LNURL1…`):
+ * the param name is case-insensitive and its value must be a bech32 `lnurl1…`,
+ * otherwise the URL is returned unchanged. Shared by every scan/paste parser.
  */
-function normalize(input: string): string {
+export function normalizeLightningInput(input: string): string {
   const trimmed = input.trim()
-  const lower = trimmed.toLowerCase()
-  if (lower.startsWith('lightning:')) return trimmed.slice('lightning:'.length)
+  if (/^lightning:/i.test(trimmed))
+    return trimmed.slice('lightning:'.length).trim()
+  if (/^https?:\/\//i.test(trimmed)) {
+    try {
+      for (const [key, value] of new URL(trimmed).searchParams) {
+        if (key.toLowerCase() === 'lightning' && /^lnurl1/i.test(value.trim()))
+          return value.trim()
+      }
+    } catch {
+      // Not a parseable URL — leave it as is.
+    }
+  }
   return trimmed
 }
 
@@ -76,7 +89,7 @@ const LN_ADDRESS_RE = /^([a-z0-9._-]+)@([a-z0-9.-]+\.[a-z]{2,})$/i
  *   4. bech32 `npub1…` (future — returns descriptor, payment not yet wired)
  */
 export function parseDestination(rawInput: string): ParsedDestination {
-  const input = normalize(rawInput)
+  const input = normalizeLightningInput(rawInput)
   if (!input) throw new DestinationParseError('empty', 'Enter a recipient')
 
   const lower = input.toLowerCase()

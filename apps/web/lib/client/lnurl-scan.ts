@@ -1,6 +1,7 @@
 'use client'
 
 import { bech32 } from 'bech32'
+import { normalizeLightningInput } from './nwc/parse-destination'
 
 /**
  * Client-side LNURL classification + LNURL-withdraw claim, used by the wallet
@@ -74,15 +75,14 @@ export class LnurlError extends Error {
  * input isn't an LNURL at all (so the caller can fall through to
  * `parseDestination`). Handles:
  *   - `lightning:` scheme prefix (stripped)
+ *   - an http(s) URL with an LNURL in its `lightning` query param (unwrapped)
  *   - bech32 `lnurl1…`
  *   - `lnurlw://` / `lnurlp://` / `lnurlc://` / `keyauth://` pseudo-schemes
  *   - a plain `http(s)://…` LNURL endpoint (e.g. carrying `?tag=withdrawRequest`)
  */
 export function lnurlToHttpUrl(input: string): string | null {
-  let text = input.trim()
+  const text = normalizeLightningInput(input)
   if (!text) return null
-
-  if (/^lightning:/i.test(text)) text = text.slice('lightning:'.length).trim()
 
   const lower = text.toLowerCase()
 
@@ -121,8 +121,7 @@ export function lnurlToHttpUrl(input: string): string | null {
  * `parseDestination` already handles it.
  */
 export function looksLikeLnurl(input: string): boolean {
-  let text = input.trim()
-  if (/^lightning:/i.test(text)) text = text.slice('lightning:'.length).trim()
+  const text = normalizeLightningInput(input)
   const lower = text.toLowerCase()
 
   if (lower.startsWith('lnurl1')) return true
