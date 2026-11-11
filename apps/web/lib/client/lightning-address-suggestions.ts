@@ -8,6 +8,8 @@ const PUBLIC_DOMAIN_RE = /^[a-z0-9.-]+\.[a-z]{2,}$/i
 interface DomainOption {
   domain: string
   avatarSlug?: string
+  /** Bundled icon for domains missing from the lawalletio/static repo. */
+  avatarUrl?: string
 }
 
 export interface LightningAddressSuggestion {
@@ -20,6 +22,8 @@ export interface LightningAddressSuggestion {
 const BASE_DOMAIN_OPTIONS: readonly DomainOption[] = [
   { domain: 'lacrypta.ar' },
   { domain: 'lawallet.io', avatarSlug: 'lawallet.ar' },
+  { domain: 'wapupay.com', avatarUrl: '/images/domains/wapupay.com.png' },
+  { domain: 'obelisk.ar', avatarUrl: '/images/domains/obelisk.ar.png' },
   { domain: 'walletofsatoshi.com' },
   { domain: 'blink.sv' },
   { domain: 'strike.me' },
@@ -34,10 +38,11 @@ const BASE_DOMAIN_OPTIONS: readonly DomainOption[] = [
   { domain: 'npub.cash' }
 ]
 
-const AVATAR_SLUG_BY_DOMAIN = new Map(
+const AVATAR_URL_BY_DOMAIN = new Map(
   BASE_DOMAIN_OPTIONS.map(option => [
     option.domain,
-    option.avatarSlug ?? option.domain
+    option.avatarUrl ??
+      `${DOMAIN_AVATAR_BASE_URL}/${option.avatarSlug ?? option.domain}.png`
   ])
 )
 
@@ -51,8 +56,7 @@ export function resolveCurrentLightningDomain(
 export function getDomainAvatarUrl(domain: string): string {
   const normalized = domain.trim().toLowerCase()
   if (!PUBLIC_DOMAIN_RE.test(normalized)) return DEFAULT_DOMAIN_AVATAR
-  const slug = AVATAR_SLUG_BY_DOMAIN.get(normalized)
-  return slug ? `${DOMAIN_AVATAR_BASE_URL}/${slug}.png` : DEFAULT_DOMAIN_AVATAR
+  return AVATAR_URL_BY_DOMAIN.get(normalized) ?? DEFAULT_DOMAIN_AVATAR
 }
 
 /**
@@ -123,11 +127,7 @@ function orderedDomains(currentDomain: string): DomainOption[] {
   const normalizedCurrent = PUBLIC_DOMAIN_RE.test(currentDomain)
     ? currentDomain.toLowerCase()
     : DEFAULT_DOMAIN
-  const current: DomainOption = {
-    domain: normalizedCurrent,
-    avatarSlug: AVATAR_SLUG_BY_DOMAIN.get(normalizedCurrent)
-  }
-  const options = [current, ...BASE_DOMAIN_OPTIONS]
+  const options = [{ domain: normalizedCurrent }, ...BASE_DOMAIN_OPTIONS]
   const seen = new Set<string>()
   return options.filter(option => {
     if (seen.has(option.domain)) return false
