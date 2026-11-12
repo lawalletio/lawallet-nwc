@@ -98,14 +98,17 @@ describe('UserSelector', () => {
     expect(screen.getByTestId('value').textContent).toBe('user_a')
   })
 
-  it('uses the first two npub characters as the avatar fallback', async () => {
+  it('shows the low-poly placeholder face when a user has no picture', async () => {
     const user = userEvent.setup()
     render(<Harness />)
     await user.click(screen.getByRole('combobox'))
 
-    // Bob (PK_B) has no profile picture, so the fallback initials show.
-    const expected = nip19.npubEncode(PK_B).slice(5, 7).toUpperCase()
-    expect(await screen.findByText(expected)).toBeInTheDocument()
+    // Bob (PK_B) has no profile picture, so the placeholder face shows.
+    await waitFor(() =>
+      expect(
+        document.querySelectorAll('[data-avatar-placeholder]').length
+      ).toBeGreaterThan(0)
+    )
   })
 
   it('clears the selection with the clear (x) button', async () => {

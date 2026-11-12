@@ -4,6 +4,7 @@ import { prismaMock, resetPrismaMock } from '@/tests/helpers/prisma-mock'
 vi.mock('@/lib/config', () => ({
   getConfig: vi.fn(() => ({
     jwt: { secret: 'a'.repeat(48), enabled: true },
+    keyVault: { secret: 'k'.repeat(48), enabled: true },
     isDevelopment: false,
     isTest: true
   }))
@@ -39,6 +40,8 @@ import {
   unlinkIdentity
 } from '@/lib/account/merge'
 import { logActivity } from '@/lib/activity-log'
+import { decryptNsec, encryptNsec } from '@/lib/auth/key-vault'
+import { getPublicKeyFromPrivate } from '@/lib/nostr'
 import { requestContext } from '@/lib/request-context'
 import { resolveAccountByPubkey } from '@/lib/auth/account'
 import {
@@ -51,6 +54,21 @@ const A = 'user-a'
 const B = 'user-b'
 const PK_A = 'a'.repeat(64)
 const PK_B = 'b'.repeat(64)
+// A meaningful hosted key: the survivor's own primary identity.
+const SURVIVOR_SECRET = '7'.repeat(64)
+const survivorOwnKey = () => ({
+  managedNostrKey: {
+    exportedAt: null,
+    ciphertext: encryptNsec(SURVIVOR_SECRET, A)
+  },
+  nostrIdentities: [
+    {
+      pubkey: getPublicKeyFromPrivate(SURVIVOR_SECRET),
+      isPrimary: true,
+      label: null
+    }
+  ]
+})
 
 /** Seeds the two tx.user.findUnique calls made at the top of mergeAccounts. */
 function seedMergeUsers(overrides?: {
@@ -107,6 +125,7 @@ function seedMergeDefaults() {
   vi.mocked(prismaMock.cardDesign.updateMany).mockResolvedValue(count as any)
   vi.mocked(prismaMock.invoice.updateMany).mockResolvedValue(count as any)
   vi.mocked(prismaMock.activityLog.updateMany).mockResolvedValue(count as any)
+  vi.mocked(prismaMock.emailIdentity.updateMany).mockResolvedValue(count as any)
 }
 
 describe('mergeAccounts', () => {
@@ -121,8 +140,9 @@ describe('mergeAccounts', () => {
     ).rejects.toBeInstanceOf(ValidationError)
   })
 
-  it('refuses when the absorbed account custodies a never-exported key', async () => {
+  it('refuses when both accounts custody a key and the absorbed one was never exported', async () => {
     seedMergeUsers({
+      survivor: survivorOwnKey(),
       absorbed: { managedNostrKey: { exportedAt: null } }
     })
     seedMergeDefaults()
@@ -137,6 +157,7 @@ describe('mergeAccounts', () => {
 
   it('allows the merge when the absorbed custodied key was exported, and drops it', async () => {
     seedMergeUsers({
+      survivor: survivorOwnKey(),
       absorbed: { managedNostrKey: { exportedAt: new Date() } }
     })
     seedMergeDefaults()
@@ -144,6 +165,116 @@ describe('mergeAccounts', () => {
     await mergeAccounts({ survivorId: A, absorbedId: B, mainPubkey: PK_A })
     expect(prismaMock.managedNostrKey.delete).toHaveBeenCalledWith({
       where: { userId: B }
+    })
+    expect(prismaMock.managedNostrKey.create).not.toHaveBeenCalled()
+  })
+
+  it('swaps out the survivor’s email sign-in helper key for the absorbed key', async () => {
+    const helper = '8'.repeat(64)
+    const helperPk = getPublicKeyFromPrivate(helper)
+    const absorbedSecret = '9'.repeat(64)
+    seedMergeUsers({
+      survivor: {
+        managedNostrKey: {
+          exportedAt: null,
+          ciphertext: encryptNsec(helper, A)
+        },
+        nostrIdentities: [
+          { pubkey: PK_A, isPrimary: true, label: null },
+          { pubkey: helperPk, isPrimary: false, label: 'Email sign-in' }
+        ]
+      },
+      absorbed: {
+        managedNostrKey: {
+          exportedAt: null,
+          ciphertext: encryptNsec(absorbedSecret, B)
+        }
+      }
+    })
+    seedMergeDefaults()
+
+    await mergeAccounts({ survivorId: A, absorbedId: B, mainPubkey: PK_A })
+
+    expect(prismaMock.managedNostrKey.delete).toHaveBeenCalledWith({
+      where: { userId: A }
+    })
+    expect(prismaMock.nostrIdentity.deleteMany).toHaveBeenCalledWith({
+      where: { pubkey: helperPk, userId: A }
+    })
+    const { data } = vi.mocked(prismaMock.managedNostrKey.create).mock
+      .calls[0][0] as any
+    expect(decryptNsec(data.ciphertext, A)).toBe(absorbedSecret)
+  })
+
+  it('"Lose the key" merges past an unexported key and deletes it', async () => {
+    seedMergeUsers({
+      survivor: survivorOwnKey(),
+      absorbed: { managedNostrKey: { exportedAt: null } }
+    })
+    seedMergeDefaults()
+
+    await mergeAccounts({
+      survivorId: A,
+      absorbedId: B,
+      mainPubkey: PK_A,
+      discardUnexportedKey: true
+    })
+
+    expect(prismaMock.managedNostrKey.delete).toHaveBeenCalledWith({
+      where: { userId: B }
+    })
+    expect(prismaMock.managedNostrKey.create).not.toHaveBeenCalled()
+    expect(prismaMock.user.delete).toHaveBeenCalled()
+  })
+
+  it('moves addresses and wallets by owner only, keeping their links', async () => {
+    seedMergeUsers()
+    seedMergeDefaults()
+
+    await mergeAccounts({ survivorId: A, absorbedId: B, mainPubkey: PK_A })
+
+    // The survivor keeps its primary address: incoming ones are demoted…
+    expect(prismaMock.lightningAddress.updateMany).toHaveBeenCalledWith({
+      where: { userId: B, isPrimary: true },
+      data: { isPrimary: false }
+    })
+    // …and re-parented touching only userId, so remoteWalletId links stay.
+    expect(prismaMock.lightningAddress.updateMany).toHaveBeenCalledWith({
+      where: { userId: B },
+      data: { userId: A }
+    })
+    expect(prismaMock.remoteWallet.updateMany).toHaveBeenCalledWith({
+      where: { userId: B, isDefault: true },
+      data: { isDefault: false }
+    })
+  })
+
+  it('re-homes an unexported key when the survivor has none (email accounts)', async () => {
+    const secret = '3'.repeat(64)
+    seedMergeUsers({
+      absorbed: {
+        managedNostrKey: {
+          exportedAt: null,
+          ciphertext: encryptNsec(secret, B)
+        }
+      }
+    })
+    seedMergeDefaults()
+
+    await mergeAccounts({ survivorId: A, absorbedId: B, mainPubkey: PK_A })
+
+    // Re-encrypted for the survivor (AAD is the userId), then removed from B.
+    const { data } = vi.mocked(prismaMock.managedNostrKey.create).mock
+      .calls[0][0] as any
+    expect(data.userId).toBe(A)
+    expect(decryptNsec(data.ciphertext, A)).toBe(secret)
+    expect(prismaMock.managedNostrKey.delete).toHaveBeenCalledWith({
+      where: { userId: B }
+    })
+    // Linked emails follow the account.
+    expect(prismaMock.emailIdentity.updateMany).toHaveBeenCalledWith({
+      where: { userId: B },
+      data: { userId: A }
     })
   })
 
@@ -415,11 +546,15 @@ describe('previewMerge', () => {
     vi.clearAllMocks()
   })
 
-  function seedSummaries(absorbedManaged: { exportedAt: Date | null } | null) {
+  function seedSummaries(
+    absorbedManaged: { exportedAt: Date | null } | null,
+    survivorManaged: ReturnType<typeof survivorOwnKey> | null = survivorOwnKey()
+  ) {
     vi.mocked(prismaMock.user.findUnique).mockImplementation((args: any) => {
       const base = {
         relays: null,
         nostrIdentities: [],
+        emailIdentities: [],
         lightningAddresses: [],
         remoteWallets: [],
         _count: {
@@ -434,7 +569,8 @@ describe('previewMerge', () => {
           ...base,
           id: A,
           pubkey: PK_A,
-          managedNostrKey: null
+          managedNostrKey: null,
+          ...survivorManaged
         }) as any
       }
       if (args.where.id === B) {
@@ -460,6 +596,13 @@ describe('previewMerge', () => {
     seedSummaries({ exportedAt: new Date() })
     const preview = await previewMerge(A, B)
     expect(preview.blocked).toBe(false)
+  })
+
+  it('moves an unexported key to a survivor that has none', async () => {
+    seedSummaries({ exportedAt: null }, null)
+    const preview = await previewMerge(A, B)
+    expect(preview.blocked).toBe(false)
+    expect(preview.collisions[0].kind).toBe('managed-key-moved')
   })
 
   it('404s on a missing account', async () => {

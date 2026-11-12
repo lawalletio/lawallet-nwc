@@ -96,7 +96,7 @@ beforeEach(() => {
 
 describe('POST /api/auth/email/request', () => {
   it('sends the signup template to an unknown email and stores only the token hash', async () => {
-    db.user.findUnique.mockResolvedValue(null)
+    db.emailIdentity.findUnique.mockResolvedValue(null)
     db.emailLoginToken.create.mockResolvedValue({} as never)
 
     const res = await requestRoute(
@@ -119,7 +119,7 @@ describe('POST /api/auth/email/request', () => {
   })
 
   it('sends the login template to a known email with the same response', async () => {
-    db.user.findUnique.mockResolvedValue({ id: 'u1' } as never)
+    db.emailIdentity.findUnique.mockResolvedValue({ user: { id: 'u1' } } as never)
     db.emailLoginToken.create.mockResolvedValue({} as never)
 
     const res = await requestRoute(
@@ -131,8 +131,26 @@ describe('POST /api/auth/email/request', () => {
     expect(vi.mocked(sendEmail).mock.calls[0][0].template).toBe('login')
   })
 
+  it('carries the login context in the link fragment', async () => {
+    db.emailIdentity.findUnique.mockResolvedValue(null)
+    db.emailLoginToken.create.mockResolvedValue({} as never)
+    await requestRoute(
+      post('/api/auth/email/request', { email: 'a@b.co', context: 'wallet' })
+    )
+    expect(vi.mocked(sendEmail).mock.calls[0][0].data!.link).toMatch(
+      /#token=[\w-]+&ctx=wallet$/
+    )
+  })
+
+  it('rejects an unknown login context', async () => {
+    const res = await requestRoute(
+      post('/api/auth/email/request', { email: 'a@b.co', context: 'evil' })
+    )
+    expect(res.status).toBe(400)
+  })
+
   it('applies a per-address rate limit', async () => {
-    db.user.findUnique.mockResolvedValue(null)
+    db.emailIdentity.findUnique.mockResolvedValue(null)
     db.emailLoginToken.create.mockResolvedValue({} as never)
     await requestRoute(post('/api/auth/email/request', { email: 'a@b.co' }))
     expect(vi.mocked(rateLimit)).toHaveBeenCalledWith(
@@ -142,7 +160,7 @@ describe('POST /api/auth/email/request', () => {
   })
 
   it('reports a failed send instead of success', async () => {
-    db.user.findUnique.mockResolvedValue(null)
+    db.emailIdentity.findUnique.mockResolvedValue(null)
     db.emailLoginToken.create.mockResolvedValue({} as never)
     vi.mocked(sendEmail).mockRejectedValue(
       new ServiceUnavailableError("Couldn't send the email via SMTP: refused")
@@ -182,9 +200,11 @@ describe('POST /api/auth/email/preview', () => {
       usedAt: null,
       expiresAt: new Date(Date.now() + 60_000)
     } as never)
-    db.user.findUnique.mockResolvedValue({
-      id: 'u1',
-      pubkey: 'a'.repeat(64)
+    db.emailIdentity.findUnique.mockResolvedValue({
+      user: {
+        id: 'u1',
+        pubkey: 'a'.repeat(64)
+      }
     } as never)
 
     const res = await previewRoute(
@@ -210,9 +230,11 @@ describe('POST /api/auth/email/preview', () => {
       usedAt: null,
       expiresAt: new Date(Date.now() + 60_000)
     } as never)
-    db.user.findUnique.mockResolvedValue({
-      id: 'u1',
-      pubkey: 'a'.repeat(64)
+    db.emailIdentity.findUnique.mockResolvedValue({
+      user: {
+        id: 'u1',
+        pubkey: 'a'.repeat(64)
+      }
     } as never)
     vi.mocked(resolveProfiles)
       .mockResolvedValueOnce([])
@@ -252,8 +274,8 @@ describe('POST /api/auth/email/verify', () => {
     db.emailLoginToken.findUnique.mockResolvedValue({
       email: 'new@example.com'
     } as never)
-    db.user.findUnique.mockResolvedValue(null)
-    db.user.update.mockResolvedValue({} as never)
+    db.emailIdentity.findUnique.mockResolvedValue(null)
+    db.emailIdentity.create.mockResolvedValue({} as never)
     db.managedNostrKey.create.mockResolvedValue({} as never)
 
     const res = await verifyRoute(
@@ -268,9 +290,8 @@ describe('POST /api/auth/email/verify', () => {
     const [pubkey, opts] = vi.mocked(createNewUser).mock.calls[0]
     expect(pubkey).toBe(body.pubkey)
     const userId = opts!.userId!
-    expect(db.user.update).toHaveBeenCalledWith({
-      where: { id: userId },
-      data: { email: 'new@example.com' }
+    expect(db.emailIdentity.create).toHaveBeenCalledWith({
+      data: { email: 'new@example.com', userId }
     })
     const { ciphertext } = db.managedNostrKey.create.mock.calls[0][0].data
     expect(decryptNsec(ciphertext as Uint8Array, userId)).toBe(body.secretHex)
@@ -286,10 +307,12 @@ describe('POST /api/auth/email/verify', () => {
     db.emailLoginToken.findUnique.mockResolvedValue({
       email: 'old@example.com'
     } as never)
-    db.user.findUnique.mockResolvedValue({
-      id: 'u1',
-      pubkey: getPublicKeyFromPrivate(secret),
-      managedNostrKey: { ciphertext: encryptNsec(secret, 'u1') }
+    db.emailIdentity.findUnique.mockResolvedValue({
+      user: {
+        id: 'u1',
+        pubkey: getPublicKeyFromPrivate(secret),
+        managedNostrKey: { ciphertext: encryptNsec(secret, 'u1') }
+      }
     } as never)
 
     const res = await verifyRoute(

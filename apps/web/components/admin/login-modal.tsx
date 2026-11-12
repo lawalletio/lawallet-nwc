@@ -89,6 +89,8 @@ export function LoginModal({ open, onOpenChange, onSuccess }: LoginModalProps) {
   const [passkeySupported] = useState(() => isPasskeySupported())
   const initialStep: Step = 'choose'
   const [step, setStep] = useState<Step>(initialStep)
+  // The email step's hint is redundant once the "check your inbox" card shows.
+  const [emailSent, setEmailSent] = useState(false)
 
   // The landing page keeps this modal mounted and toggles `open`; reset to the
   // first screen whenever it reopens so it never resurfaces mid-flow.
@@ -99,6 +101,7 @@ export function LoginModal({ open, onOpenChange, onSuccess }: LoginModalProps) {
     setPrevOpen(open)
     if (open) {
       setStep(initialStep)
+      setEmailSent(false)
       setBunkerBusy(false)
     }
   }
@@ -127,7 +130,11 @@ export function LoginModal({ open, onOpenChange, onSuccess }: LoginModalProps) {
             type="button"
             variant="ghost"
             size="icon"
-            onClick={() => backTo && setStep(backTo)}
+            onClick={() => {
+              if (!backTo) return
+              setStep(backTo)
+              setEmailSent(false)
+            }}
             aria-label="Back"
             className="absolute left-3 top-3 size-8 rounded-full text-muted-foreground"
           >
@@ -140,7 +147,13 @@ export function LoginModal({ open, onOpenChange, onSuccess }: LoginModalProps) {
           <DialogTitle className="text-center text-xl">
             Connect to LaWallet
           </DialogTitle>
-          <DialogDescription id="login-description" className="text-center">
+          <DialogDescription
+            id="login-description"
+            className={cn(
+              'text-center',
+              step === 'email' && emailSent && 'sr-only'
+            )}
+          >
             {STEP_DESCRIPTIONS[step]}
           </DialogDescription>
         </DialogHeader>
@@ -158,7 +171,13 @@ export function LoginModal({ open, onOpenChange, onSuccess }: LoginModalProps) {
             onCreateNew={() => setStep('nostr-create')}
           />
         )}
-        {step === 'email' && <EmailLoginForm className="mt-2" />}
+        {step === 'email' && (
+          <EmailLoginForm
+            className="mt-2"
+            context="admin"
+            onSentChange={setEmailSent}
+          />
+        )}
         {step === 'nostr-create' && <NostrCreateStep />}
         {step === 'passkey' && <PasskeyTab />}
       </DialogContent>

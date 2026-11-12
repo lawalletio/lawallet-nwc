@@ -5,6 +5,7 @@ import * as React from 'react'
 import * as AvatarPrimitive from '@radix-ui/react-avatar'
 
 import { cn } from '@/lib/utils'
+import { LowPolyAvatar } from '@/components/ui/low-poly-avatar'
 
 const Avatar = React.forwardRef<
   React.ElementRef<typeof AvatarPrimitive.Root>,
@@ -33,41 +34,24 @@ const AvatarImage = React.forwardRef<
 ))
 AvatarImage.displayName = AvatarPrimitive.Image.displayName
 
-/**
- * Deterministic hue (0–359) from the monogram letters, so the same identity
- * always gets the same color — like a stable colored-initials avatar.
- */
-function hueFromString(value: string): number {
-  let hash = 0
-  for (let i = 0; i < value.length; i++) {
-    hash = (hash * 31 + value.charCodeAt(i)) % 360
-  }
-  return hash
-}
-
 const AvatarFallback = React.forwardRef<
   React.ElementRef<typeof AvatarPrimitive.Fallback>,
   React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Fallback>
->(({ className, children, style, ...props }, ref) => {
-  // No avatar → a per-identity diagonal gradient (two related hues for depth)
-  // instead of a flat grey, with crisp monogram letters on top.
-  const seed = typeof children === 'string' ? children : ''
-  const hue = hueFromString(seed)
-  const gradient = `linear-gradient(135deg, hsl(${hue} 68% 52%), hsl(${(hue + 42) % 360} 70% 38%))`
+>(({ className, children, ...props }, ref) => {
+  // No picture → the same low-poly person placeholder everywhere. Callers'
+  // monogram children are ignored: they're derived differently per screen,
+  // so tinting by them gave one user different colors on different pages.
+  void children
   return (
     <AvatarPrimitive.Fallback
       ref={ref}
       className={cn(
-        // `select-none` keeps the initials non-selectable — they're decorative,
-        // not content. Letters: bold, slightly tracked, white with a soft
-        // shadow so they read on any hue.
-        'flex h-full w-full items-center justify-center rounded-full select-none font-semibold uppercase tracking-wide text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.35)]',
+        'flex h-full w-full items-center justify-center overflow-hidden rounded-full select-none',
         className
       )}
-      style={{ backgroundImage: gradient, ...style }}
       {...props}
     >
-      {children}
+      <LowPolyAvatar />
     </AvatarPrimitive.Fallback>
   )
 })

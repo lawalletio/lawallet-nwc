@@ -26,7 +26,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   await assertEmailLoginEnabled()
 
   const { token } = await validateBody(request, emailLoginTokenSchema)
-  const email = await consumeEmailLoginToken(token)
+  const { email } = await consumeEmailLoginToken(token)
   const result = await loginOrSignupByEmail(email)
 
   logActivity.fireAndForget({

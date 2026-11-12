@@ -2,11 +2,16 @@ import { randomUUID } from 'crypto'
 import { prisma } from '@/lib/prisma'
 import { getSettings } from '@/lib/settings'
 import { generateCredential, hashCredential } from '@/lib/oauth/grants'
-import { decryptNsec, encryptNsec, isVaultConfigured } from '@/lib/auth/key-vault'
+import {
+  decryptNsec,
+  encryptNsec,
+  isVaultConfigured
+} from '@/lib/auth/key-vault'
 import { generatePrivateKey, getPublicKeyFromPrivate } from '@/lib/nostr'
 import { createNewUser } from '@/lib/user'
 import { isEmailConfigured } from '@/lib/email/send'
 import { logger } from '@/lib/logger'
+import { EMAIL_SIGN_IN_KEY_LABEL } from '@/lib/account/merge'
 import {
   AuthenticationError,
   ConflictError,
@@ -48,14 +53,33 @@ export function maskEmail(email: string): string {
   return `${masked}@${domain}`
 }
 
+/**
+ * `login` tokens sign in (or up); `link` tokens attach the email to the
+ * account that requested them. A token only ever works for its own purpose.
+ */
+export type EmailTokenPurpose = 'login' | 'link'
+
+export interface EmailTokenClaims {
+  email: string
+  /** The requesting account, for `link` tokens. */
+  linkUserId: string | null
+}
+
+const purposeFilter = (purpose: EmailTokenPurpose) =>
+  purpose === 'link' ? { linkUserId: { not: null } } : { linkUserId: null }
+
 /** Creates a token for `email`; returns the raw token (goes only into the link). */
-export async function issueEmailLoginToken(email: string): Promise<string> {
+export async function issueEmailLoginToken(
+  email: string,
+  linkUserId?: string
+): Promise<string> {
   const token = generateCredential('')
   const now = new Date()
   await prisma.emailLoginToken.create({
     data: {
       tokenHash: hashCredential(token),
       email,
+      linkUserId: linkUserId ?? null,
       expiresAt: new Date(now.getTime() + TTL_MS)
     }
   })
@@ -67,35 +91,55 @@ export async function issueEmailLoginToken(email: string): Promise<string> {
 }
 
 /** Looks a token up WITHOUT consuming it (landing preview). */
-export async function peekEmailLoginToken(token: string): Promise<string> {
+export async function peekEmailLoginToken(
+  token: string,
+  purpose: EmailTokenPurpose = 'login'
+): Promise<EmailTokenClaims> {
   const row = await prisma.emailLoginToken.findUnique({
     where: { tokenHash: hashCredential(token) }
   })
-  if (!row || row.usedAt || row.expiresAt <= new Date()) {
+  if (
+    !row ||
+    row.usedAt ||
+    row.expiresAt <= new Date() ||
+    (purpose === 'link') !== (row.linkUserId != null)
+  ) {
     throw new AuthenticationError(INVALID_LINK)
   }
-  return row.email
+  return { email: row.email, linkUserId: row.linkUserId ?? null }
 }
 
-/** Atomically consumes a token; returns its email. */
-export async function consumeEmailLoginToken(token: string): Promise<string> {
+/** Atomically consumes a token of `purpose`; returns its claims. */
+export async function consumeEmailLoginToken(
+  token: string,
+  purpose: EmailTokenPurpose = 'login'
+): Promise<EmailTokenClaims> {
   const tokenHash = hashCredential(token)
   const now = new Date()
   const { count } = await prisma.emailLoginToken.updateMany({
-    where: { tokenHash, usedAt: null, expiresAt: { gt: now } },
+    where: {
+      tokenHash,
+      usedAt: null,
+      expiresAt: { gt: now },
+      ...purposeFilter(purpose)
+    },
     data: { usedAt: now }
   })
   if (count !== 1) throw new AuthenticationError(INVALID_LINK)
   const row = await prisma.emailLoginToken.findUnique({ where: { tokenHash } })
   if (!row) throw new AuthenticationError(INVALID_LINK)
-  return row.email
+  return { email: row.email, linkUserId: row.linkUserId ?? null }
 }
 
+/** The account an email signs in to, if any. */
 export async function findUserByEmail(email: string) {
-  return prisma.user.findUnique({
+  const identity = await prisma.emailIdentity.findUnique({
     where: { email },
-    select: { id: true, pubkey: true, managedNostrKey: true }
+    select: {
+      user: { select: { id: true, pubkey: true, managedNostrKey: true } }
+    }
   })
+  return identity?.user ?? null
 }
 
 export interface EmailLoginResult {
@@ -111,15 +155,21 @@ export async function loginOrSignupByEmail(
   const existing = await findUserByEmail(email)
   if (existing) {
     if (!existing.managedNostrKey) {
-      // ponytail: only the email flow sets User.email, so this is a data
-      // anomaly (e.g. restored without ManagedNostrKey). Surface it.
+      // Linking an email always provisions a hosted key, so this is a data
+      // anomaly (e.g. a restore without ManagedNostrKey). Surface it.
       throw new ConflictError(
         'This account has no hosted key — sign in with your Nostr key instead'
       )
     }
+    const secretHex = decryptNsec(
+      existing.managedNostrKey.ciphertext,
+      existing.id
+    )
+    // The hosted key may be a secondary identity (email linked later); any
+    // linked key signs in, and the session presents the primary.
     return {
-      secretHex: decryptNsec(existing.managedNostrKey.ciphertext, existing.id),
-      pubkey: existing.pubkey,
+      secretHex,
+      pubkey: getPublicKeyFromPrivate(secretHex),
       isNew: false
     }
   }
@@ -132,10 +182,13 @@ export async function loginOrSignupByEmail(
   await createNewUser(pubkey, { userId })
   try {
     await prisma.$transaction([
-      prisma.user.update({ where: { id: userId }, data: { email } }),
+      prisma.emailIdentity.create({ data: { email, userId } }),
       prisma.managedNostrKey.create({
         // Fresh Buffer: Prisma's Bytes wants Uint8Array<ArrayBuffer>.
-        data: { userId, ciphertext: Buffer.from(encryptNsec(secretHex, userId)) }
+        data: {
+          userId,
+          ciphertext: Buffer.from(encryptNsec(secretHex, userId))
+        }
       })
     ])
   } catch (err) {
@@ -148,4 +201,97 @@ export async function loginOrSignupByEmail(
     throw err
   }
   return { secretHex, pubkey, isNew: true }
+}
+
+/**
+ * Attaches a verified, unclaimed `email` to `userId`. Email sign-in hands
+ * back the account's hosted key, so an account without one (Nostr or
+ * passkey only) gets a fresh key, linked as a secondary identity.
+ * Throws 409 if the email was claimed in the meantime.
+ */
+export async function linkEmailToAccount(
+  userId: string,
+  email: string
+): Promise<void> {
+  const account = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { managedNostrKey: { select: { userId: true } } }
+  })
+  if (!account) throw new NotFoundError('Account not found')
+
+  try {
+    await prisma.$transaction(async tx => {
+      if (!account.managedNostrKey) {
+        const secretHex = generatePrivateKey()
+        await tx.nostrIdentity.create({
+          data: {
+            pubkey: getPublicKeyFromPrivate(secretHex),
+            userId,
+            isPrimary: false,
+            label: EMAIL_SIGN_IN_KEY_LABEL
+          }
+        })
+        await tx.managedNostrKey.create({
+          data: {
+            userId,
+            ciphertext: Buffer.from(encryptNsec(secretHex, userId))
+          }
+        })
+      }
+      await tx.emailIdentity.create({ data: { email, userId } })
+    })
+  } catch (err) {
+    if ((err as { code?: string } | null)?.code === 'P2002') {
+      throw new ConflictError('This email is already linked to an account')
+    }
+    throw err
+  }
+}
+
+/**
+ * Removes `email` from `userId`. Refused for the last email of an account
+ * whose only key is the never-exported hosted one — it would lock the user
+ * out. When the last email goes and the hosted key was only the email
+ * sign-in identity, that key is removed with it.
+ */
+export async function unlinkEmailFromAccount(
+  userId: string,
+  email: string
+): Promise<void> {
+  const account = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      pubkey: true,
+      emailIdentities: { select: { email: true } },
+      managedNostrKey: { select: { ciphertext: true, exportedAt: true } }
+    }
+  })
+  if (!account || !account.emailIdentities.some(e => e.email === email)) {
+    throw new NotFoundError('Email not linked to this account')
+  }
+
+  const isLast = account.emailIdentities.length === 1
+  const hostedPubkey = account.managedNostrKey
+    ? getPublicKeyFromPrivate(
+        decryptNsec(account.managedNostrKey.ciphertext, userId)
+      )
+    : null
+  const hostedIsPrimary = hostedPubkey === account.pubkey
+
+  if (isLast && hostedIsPrimary && !account.managedNostrKey?.exportedAt) {
+    throw new ConflictError(
+      'This is your only way to sign in. Export your secret key or add another email first.'
+    )
+  }
+
+  await prisma.$transaction(async tx => {
+    await tx.emailIdentity.delete({ where: { email } })
+    if (isLast && hostedPubkey && !hostedIsPrimary) {
+      // The email sign-in key has no purpose without an email.
+      await tx.managedNostrKey.delete({ where: { userId } })
+      await tx.nostrIdentity.deleteMany({
+        where: { pubkey: hostedPubkey, userId, isPrimary: false }
+      })
+    }
+  })
 }

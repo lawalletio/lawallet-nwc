@@ -3,7 +3,15 @@
 import React, { useEffect, useRef, useCallback } from 'react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
-import { Check, Copy, RefreshCw, Wallet } from 'lucide-react'
+import {
+  ArrowRight,
+  AtSign,
+  Check,
+  Copy,
+  RefreshCw,
+  Wallet,
+  X
+} from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import {
   Dialog,
@@ -19,6 +27,7 @@ import { Label } from '@/components/ui/label'
 import { Spinner } from '@/components/ui/spinner'
 import { useNewAddressFlow } from '@/components/wallet/claim/use-new-address-flow'
 import { useT } from '@/lib/client/i18n'
+import { cn } from '@/lib/utils'
 
 interface NewAddressDialogProps {
   open: boolean
@@ -201,28 +210,60 @@ export function NewAddressDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent onKeyDown={handleDialogKeyDown}>
         {step === 'username' && (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <DialogHeader>
-              <DialogTitle>{tc.dialog.title}</DialogTitle>
+          <form onSubmit={handleSubmit} className="relative space-y-6">
+            {/* Soft theme glow behind the header. */}
+            <div
+              aria-hidden
+              className="pointer-events-none absolute -inset-x-6 -top-6 h-40 bg-[radial-gradient(ellipse_70%_100%_at_50%_0%,hsl(var(--primary)/0.18),transparent_70%)]"
+            />
+
+            <DialogHeader className="relative items-center space-y-3 text-center sm:text-center">
+              <span className="animate-in fade-in-0 zoom-in-90 grid size-14 place-items-center rounded-2xl border border-(--theme-300) bg-linear-to-b from-(--theme-200) to-(--theme-400) text-foreground shadow-[0_0_32px_hsl(var(--primary)/0.45)] duration-500">
+                <AtSign className="size-7" />
+              </span>
+              <div className="space-y-1">
+                <DialogTitle className="text-xl">{tc.dialog.title}</DialogTitle>
+                <DialogDescription>{tc.dialog.subtitle}</DialogDescription>
+              </div>
             </DialogHeader>
 
-            <div className="space-y-2">
-              <Label htmlFor="username">{tc.username}</Label>
-              <div className="flex items-center rounded-md border border-input bg-background focus-within:ring-2 focus-within:ring-ring">
+            <div className="relative space-y-2">
+              <Label htmlFor="username" className="sr-only">
+                {tc.username}
+              </Label>
+              <div
+                className={cn(
+                  'flex h-14 items-center rounded-xl border bg-card/60 pl-4 pr-3 transition-colors focus-within:ring-2 focus-within:ring-ring/60',
+                  available === true && !formatError && 'border-primary/60',
+                  (available === false || formatError) &&
+                    'border-destructive/60'
+                )}
+              >
                 <Input
                   id="username"
                   autoFocus
+                  autoComplete="off"
+                  spellCheck={false}
                   value={username}
                   onChange={e => setUsername(e.target.value.toLowerCase())}
                   placeholder="satoshi"
                   maxLength={16}
-                  className="flex-1 border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                  className="h-full min-w-0 flex-1 border-0 bg-transparent px-0 text-lg font-medium shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
                 />
-                <span className="px-3 text-sm text-muted-foreground">
+                <span className="max-w-[55%] shrink truncate text-lg text-muted-foreground">
                   @{domain}
                 </span>
+                <span className="ml-2 grid size-6 shrink-0 place-items-center">
+                  {checking ? (
+                    <Spinner size={16} />
+                  ) : formatError || available === false ? (
+                    <X className="size-4 text-destructive" />
+                  ) : available === true ? (
+                    <Check className="size-4 text-primary animate-in zoom-in-50 duration-200" />
+                  ) : null}
+                </span>
               </div>
-              <p className="min-h-4 text-xs">
+              <p className="min-h-4 px-1 text-xs">
                 {formatError ? (
                   <span className="text-destructive">{formatError}</span>
                 ) : checking ? (
@@ -232,9 +273,7 @@ export function NewAddressDialog({
                 ) : available === false ? (
                   <span className="text-destructive">{tc.taken}</span>
                 ) : available === true ? (
-                  <span className="text-green-600 dark:text-green-500">
-                    {tc.available}
-                  </span>
+                  <span className="text-primary">{tc.available}</span>
                 ) : (
                   <span className="text-muted-foreground">
                     {tc.usernameHint}
@@ -243,20 +282,24 @@ export function NewAddressDialog({
               </p>
             </div>
 
-            <DialogFooter className="flex-row justify-end space-x-2">
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => onOpenChange(false)}
-                disabled={submitting}
-              >
-                {t.common.cancel}
-              </Button>
-              <Button type="submit" variant="theme" disabled={submitDisabled}>
-                {submitting && <Spinner size={16} className="mr-2" />}
-                {submitting ? tc.dialog.creating : tc.dialog.create}
-              </Button>
-            </DialogFooter>
+            <Button
+              type="submit"
+              variant="theme"
+              className="group relative h-12 w-full text-base"
+              disabled={submitDisabled}
+            >
+              {submitting ? (
+                <>
+                  <Spinner size={16} />
+                  {tc.dialog.creating}
+                </>
+              ) : (
+                <>
+                  {tc.dialog.create}
+                  <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
+                </>
+              )}
+            </Button>
           </form>
         )}
 

@@ -20,7 +20,11 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import { useAuth } from '@/components/admin/auth-context'
 import { createNsecSigner } from '@/lib/client/nostr-signer'
-import { previewMagicLink, verifyMagicLink } from '@/lib/client/email-login-api'
+import {
+  previewMagicLink,
+  verifyEmailLink,
+  verifyMagicLink
+} from '@/lib/client/email-login-api'
 import { useSettings } from '@/lib/client/hooks/use-settings'
 import { npubInitials } from '@/lib/client/format'
 import { postAuthPath } from '@/lib/client/pending-activation'
@@ -34,6 +38,9 @@ type Phase =
   | { kind: 'preview'; token: string; preview: EmailLoginPreviewResponse }
   | { kind: 'signing'; token: string; preview: EmailLoginPreviewResponse }
   | { kind: 'success'; preview: EmailLoginPreviewResponse; dest: string }
+  // "Link this email to my account" links (`ctx=link`)
+  | { kind: 'link'; token: string; linking: boolean }
+  | { kind: 'linked'; merge: boolean; dest: string }
 
 const REDIRECT_MS = 1600
 /** The three dots of the LaWallet mark (same as the emails' footer). */
@@ -63,18 +70,27 @@ export function EmailLanding() {
   // Read once and keep in a ref: the effect re-runs (StrictMode) after the
   // hash has already been scrubbed below.
   const tokenRef = useRef<string | null | undefined>(undefined)
+  // Where sign-in started (`ctx` in the link): `wallet` lands in the wallet,
+  // anything else on the admin dashboard.
+  const contextRef = useRef<'admin' | 'wallet' | 'link'>('admin')
 
   useEffect(() => {
     if (tokenRef.current === undefined) {
-      tokenRef.current = new URLSearchParams(window.location.hash.slice(1)).get(
-        'token'
-      )
+      const params = new URLSearchParams(window.location.hash.slice(1))
+      tokenRef.current = params.get('token')
+      const ctx = params.get('ctx')
+      if (ctx === 'wallet' || ctx === 'link') contextRef.current = ctx
       // Drop the token from the address bar / history right away.
       window.history.replaceState(null, '', window.location.pathname)
     }
     const token = tokenRef.current
     if (!token) {
       setPhase({ kind: 'invalid' })
+      return
+    }
+    // A link token isn't previewable (no account to show yet) — confirm on tap.
+    if (contextRef.current === 'link') {
+      setPhase({ kind: 'link', token, linking: false })
       return
     }
     let cancelled = false
@@ -103,8 +119,14 @@ export function EmailLanding() {
       verifiedRef.current ??= await verifyMagicLink(token)
       const { secretHex, isNew } = verifiedRef.current
       await login(createNsecSigner(secretHex), 'email', { secret: secretHex })
+      // Only a brand-new signup is offered profile setup; signing in never
+      // detours through it, even for a nameless account.
       const dest =
-        isNew || !preview.displayName ? '/wallet/settings/profile' : '/wallet'
+        contextRef.current !== 'wallet'
+          ? '/admin'
+          : isNew
+            ? '/wallet/settings/profile'
+            : '/wallet'
       setPhase({ kind: 'success', preview, dest })
       window.setTimeout(() => router.replace(postAuthPath(dest)), REDIRECT_MS)
     } catch (err) {
@@ -115,6 +137,30 @@ export function EmailLanding() {
       }
       setError(err instanceof Error ? err.message : String(err))
       setPhase({ kind: 'preview', token, preview })
+    }
+  }
+
+  async function handleLinkEmail() {
+    if (phase.kind !== 'link') return
+    const { token } = phase
+    setError(null)
+    setPhase({ kind: 'link', token, linking: true })
+    try {
+      const res = await verifyEmailLink(token)
+      // A merge ticket only works for the requesting account's session, so
+      // both outcomes head back to that account's settings.
+      const dest = res.mergeTicket
+        ? `/admin/account?tab=login#merge=${encodeURIComponent(res.mergeTicket)}`
+        : '/admin/account?tab=login'
+      setPhase({ kind: 'linked', merge: !res.linked, dest })
+      window.setTimeout(() => router.replace(dest), REDIRECT_MS)
+    } catch (err) {
+      if ((err as { status?: number }).status === 401) {
+        setPhase({ kind: 'invalid' })
+        return
+      }
+      setError(err instanceof Error ? err.message : String(err))
+      setPhase({ kind: 'link', token, linking: false })
     }
   }
 
@@ -138,7 +184,31 @@ export function EmailLanding() {
           />
         )}
         {phase.kind === 'success' && (
-          <SuccessState preview={phase.preview} dest={phase.dest} />
+          <SuccessState
+            title={t.success}
+            highlight={phase.preview.displayName}
+            subtitle={
+              phase.dest === '/admin'
+                ? t.redirectingDashboard
+                : phase.dest === '/wallet'
+                  ? t.redirecting
+                  : t.redirectingProfile
+            }
+          />
+        )}
+        {phase.kind === 'link' && (
+          <LinkConfirmState
+            community={community}
+            linking={phase.linking}
+            error={error}
+            onConfirm={handleLinkEmail}
+          />
+        )}
+        {phase.kind === 'linked' && (
+          <SuccessState
+            title={phase.merge ? t.linkMergeTitle : t.linkedTitle}
+            subtitle={phase.merge ? t.redirectingMerge : t.redirectingAccount}
+          />
         )}
 
         <footer className="mt-6 flex items-center justify-center gap-2 text-xs text-muted-foreground">
@@ -303,7 +373,11 @@ function PreviewState({
           </Eyebrow>
         </div>
 
-        <ProfileAvatar preview={preview} />
+        {/* A returning user without a picture gets no initials placeholder;
+            new users keep the welcome badge. */}
+        {(preview.isNew || preview.picture) && (
+          <ProfileAvatar preview={preview} />
+        )}
 
         <div className="space-y-3">
           <Headline line1={line1} line2={line2} />
@@ -374,13 +448,14 @@ function PreviewState({
 }
 
 function SuccessState({
-  preview,
-  dest
+  title,
+  highlight,
+  subtitle
 }: {
-  preview: EmailLoginPreviewResponse
-  dest: string
+  title: string
+  highlight?: string | null
+  subtitle: string
 }) {
-  const t = useT().auth.emailLanding
   return (
     <main
       className="flex flex-1 flex-col items-center justify-center gap-8 text-center"
@@ -414,12 +489,12 @@ function SuccessState({
       </div>
 
       <div className="space-y-3">
-        <Headline line1={t.success} line2={preview.displayName} />
+        <Headline line1={title} line2={highlight} />
         <p
           className="animate-fade-in text-sm text-muted-foreground"
           style={stagger(0.3)}
         >
-          {dest === '/wallet' ? t.redirecting : t.redirectingProfile}
+          {subtitle}
         </p>
       </div>
 
@@ -430,6 +505,74 @@ function SuccessState({
         />
       </div>
     </main>
+  )
+}
+
+function LinkConfirmState({
+  community,
+  linking,
+  error,
+  onConfirm
+}: {
+  community: string
+  linking: boolean
+  error: string | null
+  onConfirm: () => void
+}) {
+  const t = useT().auth.emailLanding
+  return (
+    <>
+      <main className="flex flex-1 flex-col justify-center gap-6 py-8">
+        <div className="animate-fade-in">
+          <Eyebrow>
+            <Mail className="size-3" />
+            {t.linkEyebrow}
+          </Eyebrow>
+        </div>
+        <span className="animate-scale-in grid size-20 place-items-center rounded-full border border-(--theme-300) bg-linear-to-b from-(--theme-200) to-(--theme-400) text-foreground shadow-[0_0_40px_hsl(var(--primary)/0.45)]">
+          <Mail className="size-8" />
+        </span>
+        <div className="space-y-3">
+          <Headline line1={t.linkTitle} line2={community} />
+          <p
+            className="animate-fade-in text-base text-muted-foreground"
+            style={stagger(0.3)}
+          >
+            {t.linkBody}
+          </p>
+        </div>
+      </main>
+      <div className="animate-fade-in space-y-3" style={stagger(0.4)}>
+        <Button
+          variant="theme"
+          className="group h-12 w-full text-base"
+          disabled={linking}
+          onClick={onConfirm}
+        >
+          {linking ? (
+            <>
+              <Spinner size={16} />
+              {t.linking}
+            </>
+          ) : (
+            <>
+              {t.linkCta}
+              <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
+            </>
+          )}
+        </Button>
+        {error ? (
+          <p role="alert" className="text-center text-xs text-destructive">
+            {error}
+          </p>
+        ) : (
+          <p className="flex items-center justify-center gap-1.5 text-center text-xs text-muted-foreground">
+            <Lock className="size-3 shrink-0" />
+            {t.oneTime}
+          </p>
+        )}
+      </div>
+    </>
   )
 }
 

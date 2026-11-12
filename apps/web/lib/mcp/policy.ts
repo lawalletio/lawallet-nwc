@@ -86,6 +86,9 @@ export const OPERATION_POLICY: Record<string, OperationPolicy> = {
   'account.merge': exclude(IDENTITY),
   'account.identities.update': exclude(IDENTITY),
   'account.identities.delete': exclude(IDENTITY),
+  'account.emails.link': exclude(IDENTITY),
+  'account.emails.verify': exclude(IDENTITY),
+  'account.emails.delete': exclude(IDENTITY),
 
   // Cards
   'cards.list': READ,

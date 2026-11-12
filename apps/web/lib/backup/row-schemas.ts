@@ -63,8 +63,7 @@ const userRow = z.object({
   relays: z.string().nullable(),
   relaysUpdatedAt: nullableDate,
   // Optional: keeps archives from before this column was added importable.
-  lastRelayFetchAttemptAt: nullableDate.optional().default(null),
-  email: z.string().nullable().optional().default(null)
+  lastRelayFetchAttemptAt: nullableDate.optional().default(null)
 })
 
 const cardDesignRow = z.object({

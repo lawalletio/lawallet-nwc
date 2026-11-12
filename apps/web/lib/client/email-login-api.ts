@@ -1,4 +1,6 @@
 import type {
+  AccountEmailLinkVerifyResponse,
+  EmailLoginContext,
   EmailLoginPreviewResponse,
   EmailLoginVerifyResponse
 } from '@/lib/validation/schemas'
@@ -29,12 +31,27 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   return data as T
 }
 
-export function requestMagicLink(email: string, locale?: 'en' | 'es') {
-  return post<{ ok: true }>('/api/auth/email/request', { email, locale })
+export function requestMagicLink(
+  email: string,
+  locale?: 'en' | 'es',
+  context?: EmailLoginContext
+) {
+  return post<{ ok: true }>('/api/auth/email/request', {
+    email,
+    locale,
+    context
+  })
 }
 
 export function previewMagicLink(token: string) {
   return post<EmailLoginPreviewResponse>('/api/auth/email/preview', { token })
+}
+
+/** Confirms a "link this email to my account" token (no session needed). */
+export function verifyEmailLink(token: string) {
+  return post<AccountEmailLinkVerifyResponse>('/api/account/emails/verify', {
+    token
+  })
 }
 
 export function verifyMagicLink(token: string) {

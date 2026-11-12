@@ -32,7 +32,7 @@ export function LoginOptions() {
           {/* Email first when enabled: one form for new and returning users. */}
           {emailEnabled && (
             <>
-              <EmailLoginForm />
+              <EmailLoginForm context="wallet" />
               <div className="relative">
                 <Separator />
                 <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-background px-2 text-xs text-muted-foreground">

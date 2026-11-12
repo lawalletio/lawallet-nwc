@@ -162,6 +162,12 @@ export async function reparentAccountResources(
     where: { userId: fromId },
     data: { userId: toId }
   })
+  // Linked emails follow the account they sign in to.
+  await tx.emailIdentity.updateMany({
+    where: { userId: fromId },
+    data: { userId: toId }
+  })
+
   // FREE_ADDRESS is once per account: the record moves so a recovered or
   // merged account can't redeem the bonus a second time.
   await tx.cardActivationBonus.updateMany({

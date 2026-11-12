@@ -1596,6 +1596,9 @@
                 "type": "string"
               }
             }
+          },
+          "discardUnexportedKey": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -2019,6 +2022,24 @@
               ]
             }
           },
+          "emails": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "email": {
+                  "type": "string"
+                },
+                "createdAt": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "email",
+                "createdAt"
+              ]
+            }
+          },
           "hasManagedKey": {
             "type": "boolean"
           },
@@ -2031,6 +2052,7 @@
           "primaryPubkey",
           "identities",
           "credentials",
+          "emails",
           "hasManagedKey",
           "managedKeyExported"
         ],
@@ -2132,6 +2154,12 @@
               "passkeys": {
                 "type": "number"
               },
+              "emails": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
               "lightningAddresses": {
                 "type": "array",
                 "items": {
@@ -2213,6 +2241,7 @@
               "primaryPubkey",
               "identities",
               "passkeys",
+              "emails",
               "lightningAddresses",
               "primaryAddress",
               "remoteWallets",
@@ -2274,6 +2303,12 @@
               "passkeys": {
                 "type": "number"
               },
+              "emails": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
               "lightningAddresses": {
                 "type": "array",
                 "items": {
@@ -2355,6 +2390,7 @@
               "primaryPubkey",
               "identities",
               "passkeys",
+              "emails",
               "lightningAddresses",
               "primaryAddress",
               "remoteWallets",
@@ -2407,6 +2443,12 @@
               "passkeys": {
                 "type": "number"
               },
+              "emails": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
               "lightningAddresses": {
                 "type": "array",
                 "items": {
@@ -2488,6 +2530,7 @@
               "primaryPubkey",
               "identities",
               "passkeys",
+              "emails",
               "lightningAddresses",
               "primaryAddress",
               "remoteWallets",
@@ -2511,6 +2554,7 @@
                   "enum": [
                     "managed-key-unexported",
                     "managed-key-dropped",
+                    "managed-key-moved",
                     "wallet-name-renamed",
                     "primary-address-kept",
                     "default-wallet-kept"
@@ -3675,6 +3719,13 @@
                       "en",
                       "es"
                     ]
+                  },
+                  "context": {
+                    "type": "string",
+                    "enum": [
+                      "admin",
+                      "wallet"
+                    ]
                   }
                 },
                 "required": [
@@ -4815,6 +4866,387 @@
           },
           "409": {
             "description": "The identity is the account’s primary (promote another identity first) or its last remaining identity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded; check the Retry-After header.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/account/emails": {
+      "post": {
+        "x-required-role": "USER",
+        "tags": [
+          "Account"
+        ],
+        "summary": "Email a confirmation link to add an email to the account.",
+        "description": "Sends a single-use, 15-minute link bound to the caller’s account. Opening it (`/api/account/emails/verify`) links the email, or — when it already signs in to another account — returns a merge ticket. Never reveals whether the email is taken. Rate limited per caller and address.",
+        "operationId": "account.emails.link",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "maxLength": 254,
+                    "format": "email"
+                  },
+                  "locale": {
+                    "type": "string",
+                    "enum": [
+                      "en",
+                      "es"
+                    ]
+                  }
+                },
+                "required": [
+                  "email"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Link sent.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Email login is disabled (or no email provider / KEY_VAULT_SECRET is configured).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The email is already linked to this account.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded; check the Retry-After header.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The email provider is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/account/emails/verify": {
+      "post": {
+        "x-required-role": "PUBLIC",
+        "tags": [
+          "Account"
+        ],
+        "summary": "Confirm an email-link token.",
+        "description": "No session needed: the token is bound to the account that requested it. An unclaimed email is linked (an account without a hosted key gets one, as a secondary identity, so email sign-in works). An email that signs in to another account yields a merge ticket only the requesting account can redeem via `/api/account/merge`.",
+        "operationId": "account.emails.verify",
+        "security": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": {
+                    "type": "string",
+                    "minLength": 40,
+                    "maxLength": 64,
+                    "pattern": "^[A-Za-z0-9_-]+$"
+                  }
+                },
+                "required": [
+                  "token"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Linked, or a merge ticket for the other account.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "linked": {
+                      "type": "boolean"
+                    },
+                    "email": {
+                      "type": "string"
+                    },
+                    "mergeTicket": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "linked",
+                    "email"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The link is invalid, used, or expired.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Email login is disabled (or no email provider / KEY_VAULT_SECRET is configured).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded; check the Retry-After header.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/account/emails/{email}": {
+      "delete": {
+        "x-required-role": "USER",
+        "tags": [
+          "Account"
+        ],
+        "summary": "Remove a linked email.",
+        "description": "The email stops signing in to the account. Refused (409) for the last email of an account whose only key is its never-exported hosted one. Removing the last email drops a hosted key that only existed for email sign-in.",
+        "operationId": "account.emails.delete",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "The linked email (URL-encoded)."
+            },
+            "required": true,
+            "description": "The linked email (URL-encoded).",
+            "name": "email",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Email removed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "deleted": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    }
+                  },
+                  "required": [
+                    "deleted"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Email not linked to the caller’s account.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "It is the last way to sign in to this account.",
             "content": {
               "application/json": {
                 "schema": {

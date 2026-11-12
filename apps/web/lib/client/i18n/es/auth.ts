@@ -91,6 +91,17 @@ export const auth: typeof En = {
     success: '¡Listo!',
     redirecting: 'Te llevamos a tu billetera…',
     redirectingProfile: 'Vamos a armar tu perfil…',
+    redirectingDashboard: 'Te llevamos a tu panel…',
+    linkEyebrow: 'Vincular correo',
+    linkTitle: 'Agrega este correo a',
+    linkBody:
+      'Confirma que es tuyo y podrás iniciar sesión en tu cuenta con él.',
+    linkCta: 'Confirmar correo',
+    linking: 'Confirmando…',
+    linkedTitle: 'Correo vinculado',
+    linkMergeTitle: 'Este correo ya tiene una cuenta',
+    redirectingAccount: 'Te llevamos a tu cuenta…',
+    redirectingMerge: 'Te llevamos a unir las dos cuentas…',
     invalidEyebrow: 'Enlace no disponible',
     invalidTitle: 'Este enlace venció',
     invalidBody:

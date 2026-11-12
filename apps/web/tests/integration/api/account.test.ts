@@ -129,6 +129,9 @@ describe('GET /api/account', () => {
         }
       ],
       passkeyCredentials: [],
+      emailIdentities: [
+        { email: 'alice@example.com', createdAt: new Date('2026-01-02') }
+      ],
       // ciphertext decrypts (mocked) to a key deriving PK_A → custodied.
       managedNostrKey: { exportedAt: null, ciphertext: Buffer.from('x') }
     } as any)
@@ -141,6 +144,9 @@ describe('GET /api/account', () => {
     expect(body.identities[0].isPrimary).toBe(true)
     expect(body.hasManagedKey).toBe(true)
     expect(body.managedKeyExported).toBe(false)
+    expect(body.emails).toEqual([
+      { email: 'alice@example.com', createdAt: '2026-01-02T00:00:00.000Z' }
+    ])
     // Only the identity whose derived pubkey matches the managed key is custodied.
     expect(body.identities.find((i: any) => i.pubkey === PK_A).custodied).toBe(
       true
@@ -159,6 +165,7 @@ describe('GET /api/account', () => {
         { pubkey: PK_A, isPrimary: true, label: null, createdAt: new Date() }
       ],
       passkeyCredentials: [],
+      emailIdentities: [],
       managedNostrKey: null
     } as any)
 

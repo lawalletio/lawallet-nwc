@@ -92,6 +92,17 @@ export const auth = {
     success: "You're in",
     redirecting: 'Taking you to your wallet…',
     redirectingProfile: "Let's set up your profile…",
+    redirectingDashboard: 'Taking you to your dashboard…',
+    linkEyebrow: 'Link email',
+    linkTitle: 'Add this email to',
+    linkBody:
+      "Confirm it's yours and you'll be able to sign in to your account with it.",
+    linkCta: 'Confirm email',
+    linking: 'Confirming…',
+    linkedTitle: 'Email linked',
+    linkMergeTitle: 'This email has an account',
+    redirectingAccount: 'Taking you to your account…',
+    redirectingMerge: 'Taking you to merge the two accounts…',
     invalidEyebrow: 'Link unavailable',
     invalidTitle: 'This link has expired',
     invalidBody:

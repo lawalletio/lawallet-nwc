@@ -9,6 +9,44 @@ import { forgetResolvedAccounts } from '@/lib/auth/account'
 import { parseStoredRelays } from '@/lib/nostr/relay-list'
 import { resolveProfiles } from '@/lib/nostr/profile-cache'
 import { reparentAccountResources } from '@/lib/account/reparent'
+import { decryptNsec, encryptNsec } from '@/lib/auth/key-vault'
+import { getPublicKeyFromPrivate } from '@/lib/nostr'
+
+/** Label of the hosted identity created when an email is linked. */
+export const EMAIL_SIGN_IN_KEY_LABEL = 'Email sign-in'
+
+type Db = Pick<typeof prisma, 'user'>
+
+/**
+ * The pubkey of `userId`'s hosted key when it is only the never-exported,
+ * unrenamed "Email sign-in" helper (created by linking an email) — safe to
+ * replace with another account's hosted key in a merge. Null otherwise.
+ */
+async function disposableHostedKeyPubkey(
+  db: Db,
+  userId: string
+): Promise<string | null> {
+  const user = await db.user.findUnique({
+    where: { id: userId },
+    select: {
+      managedNostrKey: { select: { ciphertext: true, exportedAt: true } },
+      nostrIdentities: {
+        select: { pubkey: true, isPrimary: true, label: true }
+      }
+    }
+  })
+  const managed = user?.managedNostrKey
+  if (!managed || managed.exportedAt) return null
+  const pubkey = getPublicKeyFromPrivate(
+    decryptNsec(managed.ciphertext, userId)
+  )
+  const identity = user.nostrIdentities.find(i => i.pubkey === pubkey)
+  return identity &&
+    !identity.isPrimary &&
+    identity.label === EMAIL_SIGN_IN_KEY_LABEL
+    ? pubkey
+    : null
+}
 
 /**
  * Per-account snapshot shown in the side-by-side merge preview, with enough
@@ -20,6 +58,7 @@ export interface AccountResourceSummary {
   primaryPubkey: string
   identities: { pubkey: string; isPrimary: boolean; label: string | null }[]
   passkeys: number
+  emails: string[]
   lightningAddresses: string[]
   /** Username of the primary lightning address, when one exists. */
   primaryAddress: string | null
@@ -44,6 +83,7 @@ export interface MergeCollision {
   kind:
     | 'managed-key-unexported'
     | 'managed-key-dropped'
+    | 'managed-key-moved'
     | 'wallet-name-renamed'
     | 'primary-address-kept'
     | 'default-wallet-kept'
@@ -72,6 +112,10 @@ async function summarizeAccount(
         orderBy: { createdAt: 'asc' }
       },
       managedNostrKey: { select: { exportedAt: true } },
+      emailIdentities: {
+        select: { email: true },
+        orderBy: { createdAt: 'asc' }
+      },
       lightningAddresses: { select: { username: true, isPrimary: true } },
       remoteWallets: {
         select: { id: true, name: true, isDefault: true },
@@ -110,6 +154,7 @@ async function summarizeAccount(
     primaryPubkey: user.pubkey,
     identities: user.nostrIdentities,
     passkeys: user._count.passkeyCredentials,
+    emails: user.emailIdentities.map(e => e.email),
     lightningAddresses: user.lightningAddresses.map(a => a.username),
     primaryAddress:
       user.lightningAddresses.find(a => a.isPrimary)?.username ?? null,
@@ -145,7 +190,21 @@ export async function previewMerge(
   const collisions: MergeCollision[] = []
   let blocked = false
 
-  if (absorbed.hasManagedKey && !absorbed.managedKeyExported) {
+  const survivorKeyDisposable =
+    absorbed.hasManagedKey &&
+    survivor.hasManagedKey &&
+    (await disposableHostedKeyPubkey(prisma, survivorId)) !== null
+  if (
+    absorbed.hasManagedKey &&
+    (!survivor.hasManagedKey || survivorKeyDisposable)
+  ) {
+    // Re-homed, not destroyed — so an unexported key is no reason to block.
+    collisions.push({
+      kind: 'managed-key-moved',
+      detail:
+        "The other account's hosted key moves to this account, so its email sign-in keeps working."
+    })
+  } else if (absorbed.hasManagedKey && !absorbed.managedKeyExported) {
     blocked = true
     collisions.push({
       kind: 'managed-key-unexported',
@@ -164,7 +223,7 @@ export async function previewMerge(
     collisions.push({
       kind: 'primary-address-kept',
       detail:
-        "Both accounts have a primary lightning address — you'll choose which one stays primary."
+        "This account's primary lightning address stays primary; the incoming addresses join as secondary, still linked to their wallets."
     })
   }
   if (
@@ -174,7 +233,7 @@ export async function previewMerge(
     collisions.push({
       kind: 'default-wallet-kept',
       detail:
-        "Both accounts have a default wallet — you'll choose which one stays default. Identically-named incoming wallets are renamed with a suffix."
+        "This account's default wallet stays default; the incoming wallets join as non-default. Identically-named incoming wallets are renamed with a suffix."
     })
   }
 
@@ -223,8 +282,16 @@ export async function mergeAccounts(params: {
   absorbedId: string
   mainPubkey: string
   resolutions?: MergeResolutions
+  /** User chose "Lose the key": skip the unexported-key guard. */
+  discardUnexportedKey?: boolean
 }): Promise<MergeResult> {
-  const { survivorId, absorbedId, mainPubkey, resolutions = {} } = params
+  const {
+    survivorId,
+    absorbedId,
+    mainPubkey,
+    resolutions = {},
+    discardUnexportedKey = false
+  } = params
   if (survivorId === absorbedId) {
     throw new ValidationError('Cannot merge an account with itself')
   }
@@ -248,7 +315,7 @@ export async function mergeAccounts(params: {
           id: true,
           pubkey: true,
           relays: true,
-          managedNostrKey: { select: { exportedAt: true } },
+          managedNostrKey: { select: { exportedAt: true, ciphertext: true } },
           nostrIdentities: { select: { pubkey: true } },
           lightningAddresses: { select: { username: true, isPrimary: true } },
           remoteWallets: { select: { id: true, name: true } }
@@ -257,8 +324,22 @@ export async function mergeAccounts(params: {
     ])
     if (!survivor || !absorbed) throw new NotFoundError('Account not found')
 
-    // Custody guard: never destroy a key the user provably doesn't hold.
-    if (absorbed.managedNostrKey && !absorbed.managedNostrKey.exportedAt) {
+    // Custody guard: never destroy a key the user provably doesn't hold. A
+    // survivor without a key of its own — or with only the email sign-in
+    // helper key — adopts it instead (see below).
+    const survivorDisposablePubkey =
+      absorbed.managedNostrKey && survivor.managedNostrKey
+        ? await disposableHostedKeyPubkey(tx, survivorId)
+        : null
+    const adoptAbsorbedKey =
+      !!absorbed.managedNostrKey &&
+      (!survivor.managedNostrKey || survivorDisposablePubkey !== null)
+    if (
+      absorbed.managedNostrKey &&
+      !absorbed.managedNostrKey.exportedAt &&
+      !adoptAbsorbedKey &&
+      !discardUnexportedKey
+    ) {
       throw new ConflictError(
         'The other account has a custodied secret key that was never exported. Export it before merging.'
       )
@@ -274,6 +355,8 @@ export async function mergeAccounts(params: {
       ).map(i => i.pubkey),
       ...absorbed.nostrIdentities.map(i => i.pubkey)
     ])
+    // The email sign-in helper is about to be replaced — never a main key.
+    if (survivorDisposablePubkey) combined.delete(survivorDisposablePubkey)
     if (!combined.has(mainPubkey)) {
       throw new ValidationError(
         'mainPubkey must be one of the merged accounts’ linked pubkeys'
@@ -308,10 +391,29 @@ export async function mergeAccounts(params: {
 
     // ── 1:1 rows first (survivor's always win) ────────────────────────────
     if (absorbed.managedNostrKey) {
-      // Always dropped, never moved: the export guard above proves the user
-      // holds the key themselves, and the vault ciphertext is AAD-bound to
-      // the absorbed userId — re-homing it without re-encryption would
-      // produce an undecryptable row.
+      // The vault ciphertext is AAD-bound to its userId, so re-homing means
+      // re-encrypting. A survivor that already custodies a key keeps its own
+      // and the (exported, per the guard) absorbed one is dropped.
+      if (adoptAbsorbedKey) {
+        if (survivorDisposablePubkey) {
+          // Replace the email sign-in helper: the adopted key does its job.
+          await tx.managedNostrKey.delete({ where: { userId: survivorId } })
+          await tx.nostrIdentity.deleteMany({
+            where: { pubkey: survivorDisposablePubkey, userId: survivorId }
+          })
+        }
+        const secretHex = decryptNsec(
+          absorbed.managedNostrKey.ciphertext,
+          absorbedId
+        )
+        await tx.managedNostrKey.create({
+          data: {
+            userId: survivorId,
+            ciphertext: Buffer.from(encryptNsec(secretHex, survivorId)),
+            exportedAt: absorbed.managedNostrKey.exportedAt
+          }
+        })
+      }
       await tx.managedNostrKey.delete({ where: { userId: absorbedId } })
     }
 

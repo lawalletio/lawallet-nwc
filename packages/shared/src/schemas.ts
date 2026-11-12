@@ -1199,9 +1199,14 @@ export const emailTestResponseSchema = z.object({
 })
 export type EmailTestResponse = z.infer<typeof emailTestResponseSchema>
 
+/** Where sign-in started; the magic link lands back there. Default: admin. */
+export const emailLoginContextSchema = z.enum(['admin', 'wallet'])
+export type EmailLoginContext = z.infer<typeof emailLoginContextSchema>
+
 export const emailLoginRequestSchema = z.object({
   email: emailAddressSchema,
-  locale: emailLocaleSchema.optional()
+  locale: emailLocaleSchema.optional(),
+  context: emailLoginContextSchema.optional()
 })
 export type EmailLoginRequest = z.infer<typeof emailLoginRequestSchema>
 
@@ -1260,12 +1265,20 @@ export const nostrIdentitySummarySchema = z.object({
 })
 export type NostrIdentitySummary = z.infer<typeof nostrIdentitySummarySchema>
 
+export const accountEmailSummarySchema = z.object({
+  email: z.string(),
+  createdAt: z.string()
+})
+export type AccountEmailSummary = z.infer<typeof accountEmailSummarySchema>
+
 export const accountSummaryResponseSchema = z.object({
   userId: z.string(),
   /** The account's public identity — mirrors the isPrimary NostrIdentity. */
   primaryPubkey: hexPubkeySchema,
   identities: z.array(nostrIdentitySummarySchema),
   credentials: z.array(passkeyCredentialSummarySchema),
+  /** Verified emails that sign in to this account. */
+  emails: z.array(accountEmailSummarySchema),
   hasManagedKey: z.boolean(),
   managedKeyExported: z.boolean()
 })
@@ -1324,6 +1337,7 @@ export const accountMergeCollisionSchema = z.object({
   kind: z.enum([
     'managed-key-unexported',
     'managed-key-dropped',
+    'managed-key-moved',
     'wallet-name-renamed',
     'primary-address-kept',
     'default-wallet-kept'
@@ -1342,6 +1356,7 @@ export const accountResourceSummarySchema = z.object({
     })
   ),
   passkeys: z.number(),
+  emails: z.array(z.string()),
   lightningAddresses: z.array(z.string()),
   /** Username of the primary lightning address, when one exists. */
   primaryAddress: z.string().nullable(),
@@ -1382,6 +1397,29 @@ export type AccountLinkVerifyResponse = z.infer<
   typeof accountLinkVerifyResponseSchema
 >
 
+/** `POST /api/account/emails`: email a confirmation link to add `email`. */
+export const accountEmailLinkRequestSchema = z.object({
+  email: emailAddressSchema,
+  locale: emailLocaleSchema.optional()
+})
+export type AccountEmailLinkRequest = z.infer<
+  typeof accountEmailLinkRequestSchema
+>
+
+/**
+ * `POST /api/account/emails/verify` result: the email was unclaimed and is
+ * now linked, or it signs in to another account and a merge ticket (bound
+ * to the requesting account) is returned for the merge wizard.
+ */
+export const accountEmailLinkVerifyResponseSchema = z.object({
+  linked: z.boolean(),
+  email: z.string(),
+  mergeTicket: z.string().optional()
+})
+export type AccountEmailLinkVerifyResponse = z.infer<
+  typeof accountEmailLinkVerifyResponseSchema
+>
+
 export const accountMergePreviewRequestSchema = z.object({
   mergeTicket: z.string().min(16)
 })
@@ -1408,7 +1446,12 @@ export const accountMergeRequestSchema = z.object({
       primaryAddressUsername: z.string().optional(),
       defaultWalletId: z.string().optional()
     })
-    .optional()
+    .optional(),
+  /**
+   * Explicit "Lose the key": merge even though the other account custodies a
+   * never-exported key. That key is permanently deleted.
+   */
+  discardUnexportedKey: z.boolean().optional()
 })
 export const accountMergeResponseSchema = z.object({
   survivorId: z.string(),

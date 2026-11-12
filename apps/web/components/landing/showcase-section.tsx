@@ -5,7 +5,7 @@ import { WalletHomeMock } from '@/components/landing/mockups/wallet-home-mock'
 
 export function ShowcaseSection() {
   return (
-    <section className="relative mx-auto max-w-6xl px-4 py-28">
+    <section className="relative mx-auto max-w-6xl overflow-x-clip px-4 py-28">
       <div className="mb-16 text-center">
         <span
           className="mb-4 inline-block text-xs font-semibold uppercase tracking-[0.22em]"

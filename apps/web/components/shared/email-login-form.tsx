@@ -8,24 +8,37 @@ import { Spinner } from '@/components/ui/spinner'
 import { requestMagicLink } from '@/lib/client/email-login-api'
 import { useLocale, useT } from '@/lib/client/i18n'
 import { cn } from '@/lib/utils'
+import type { EmailLoginContext } from '@/lib/validation/schemas'
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const RESEND_COOLDOWN_S = 30
 
 interface EmailLoginFormProps {
   className?: string
+  /** Where the magic link should land after sign-in. */
+  context?: EmailLoginContext
+  /** Fires when the form switches to / from its "check your inbox" state. */
+  onSentChange?: (sent: boolean) => void
 }
 
 /**
  * One form for everybody: type an email, get a magic link. The server signs
  * in a known address and signs up an unknown one when the link is opened.
  */
-export function EmailLoginForm({ className }: EmailLoginFormProps) {
+export function EmailLoginForm({
+  className,
+  context,
+  onSentChange
+}: EmailLoginFormProps) {
   // Outside the wallet's I18nProvider (admin modal) this is English.
   const copy = useT().auth.emailLogin
   const locale = useLocale()
   const [email, setEmail] = useState('')
-  const [sentTo, setSentTo] = useState<string | null>(null)
+  const [sentTo, setSentToState] = useState<string | null>(null)
+  function setSentTo(value: string | null) {
+    setSentToState(value)
+    onSentChange?.(value !== null)
+  }
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [cooldown, setCooldown] = useState(0)
@@ -45,7 +58,7 @@ export function EmailLoginForm({ className }: EmailLoginFormProps) {
     setSending(true)
     setError(null)
     try {
-      await requestMagicLink(normalized, locale)
+      await requestMagicLink(normalized, locale, context)
       setSentTo(normalized)
       setCooldown(RESEND_COOLDOWN_S)
     } catch (err) {

@@ -9,6 +9,11 @@ type RouteModule = Record<string, unknown>
 /* v8 ignore start -- generated loaders, exercised through dispatch */
 export const routeManifest: Record<string, () => Promise<RouteModule>> = {
   '/api/account': () => import('@/app/api/account/route'),
+  '/api/account/emails': () => import('@/app/api/account/emails/route'),
+  '/api/account/emails/verify': () =>
+    import('@/app/api/account/emails/verify/route'),
+  '/api/account/emails/{email}': () =>
+    import('@/app/api/account/emails/[email]/route'),
   '/api/account/identities/link/begin': () =>
     import('@/app/api/account/identities/link/begin/route'),
   '/api/account/identities/link/verify': () =>

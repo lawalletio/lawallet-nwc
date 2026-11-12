@@ -7,7 +7,7 @@
 import { DEFAULT_PRESET, THEME_PRESETS } from '@/lib/client/theme-presets'
 
 export type EmailLocale = 'en' | 'es'
-export type EmailTemplateId = 'login' | 'signup' | 'test'
+export type EmailTemplateId = 'login' | 'signup' | 'link' | 'test'
 
 export interface EmailBrand {
   community: string
@@ -112,6 +112,34 @@ const COPY: Record<
       fallback: '¿El botón no funciona? Pega este enlace en tu navegador:',
       footnote:
         '¿No lo pediste? Puedes ignorar este correo: no se crea ninguna cuenta hasta usar el enlace.',
+      poweredBy: 'Impulsado por'
+    })
+  },
+  link: {
+    en: (b, d) => ({
+      subject: `Confirm your email for ${b.community}`,
+      eyebrow: 'Link email',
+      heading: 'Add this email to',
+      highlight: b.community,
+      body: "Confirm it's yours and you'll be able to sign in to your account with it.",
+      cta: 'Confirm email',
+      meta: [`Expires in ${d.expiresMinutes ?? 15} min`, 'Single use'],
+      fallback: 'Button not working? Paste this link into your browser:',
+      footnote:
+        "Didn't ask for this? You can safely ignore it — nothing changes until the link is used.",
+      poweredBy: 'Powered by'
+    }),
+    es: (b, d) => ({
+      subject: `Confirma tu correo en ${b.community}`,
+      eyebrow: 'Vincular correo',
+      heading: 'Agrega este correo a',
+      highlight: b.community,
+      body: 'Confirma que es tuyo y podrás iniciar sesión en tu cuenta con él.',
+      cta: 'Confirmar correo',
+      meta: [`Vence en ${d.expiresMinutes ?? 15} min`, 'Un solo uso'],
+      fallback: '¿El botón no funciona? Pega este enlace en tu navegador:',
+      footnote:
+        '¿No lo pediste? Puedes ignorar este correo: nada cambia hasta usar el enlace.',
       poweredBy: 'Impulsado por'
     })
   },

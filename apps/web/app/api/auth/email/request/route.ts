@@ -26,7 +26,10 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   await rateLimit(request, RateLimitPresets.sensitive)
   await assertEmailLoginEnabled()
 
-  const { email, locale } = await validateBody(request, emailLoginRequestSchema)
+  const { email, locale, context } = await validateBody(
+    request,
+    emailLoginRequestSchema
+  )
 
   // Per-address cap so nobody can mail-bomb an inbox from many IPs.
   await rateLimit(request, {
@@ -43,7 +46,9 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   ])
 
   // Fragment, not query: the token never reaches server logs or Referer.
-  const link = `${url}/wallet/auth/email#token=${token}`
+  // `ctx` rides in the link (not client storage) so it survives opening
+  // the email on another device.
+  const link = `${url}/wallet/auth/email#token=${token}${context ? `&ctx=${context}` : ''}`
 
   await sendEmail({
     to: email,

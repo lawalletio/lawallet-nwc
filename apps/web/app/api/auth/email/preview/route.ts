@@ -26,7 +26,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   await assertEmailLoginEnabled()
 
   const { token } = await validateBody(request, emailLoginTokenSchema)
-  const email = await peekEmailLoginToken(token)
+  const { email } = await peekEmailLoginToken(token)
   const user = await findUserByEmail(email)
 
   let displayName: string | null = null
