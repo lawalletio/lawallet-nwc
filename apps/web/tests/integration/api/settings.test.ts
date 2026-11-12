@@ -716,18 +716,18 @@ describe('email settings', () => {
       ...smtp,
       email_login_enabled: 'true'
     })
-    const usable = await assertResponse(
+    const usable = (await assertResponse(
       await GET(createNextRequest('/api/settings')),
       200
-    )
+    )) as Record<string, unknown>
     // Vault off → the toggle is stored but not advertised.
     expect(usable.email_login_enabled).toBeUndefined()
 
     vaultOn()
-    const enabled = await assertResponse(
+    const enabled = (await assertResponse(
       await GET(createNextRequest('/api/settings')),
       200
-    )
+    )) as Record<string, unknown>
     expect(enabled.email_login_enabled).toBe('true')
   })
 })
