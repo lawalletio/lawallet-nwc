@@ -764,3 +764,144 @@ describe('AuthProvider signer unlock dialog', () => {
     expect(mocks.unlockDialogLoaded).toHaveBeenCalled()
   })
 })
+
+describe('temporary passkey sessions', () => {
+  it('keeps credentials and refresh tokens in memory and cannot restore after remount', async () => {
+    const view = renderProvider()
+    await waitFor(() => expect(held.ctx!.status).toBe('unauthenticated'))
+    await act(async () => {
+      await held.ctx!.login(STUB_SIGNER, 'passkey', {
+        secret: DERIVED_SECRET,
+        persistence: 'memory'
+      })
+    })
+    expect(held.ctx!.status).toBe('authenticated')
+    expect(localStorage.getItem(JWT_KEY)).toBeNull()
+    expect(localStorage.getItem(SECRET_KEY)).toBeNull()
+    await act(async () => {
+      await held.ctx!.refreshSession()
+    })
+    expect(localStorage.getItem(JWT_KEY)).toBeNull()
+    await act(async () => {
+      fireVisibilityChange('visible')
+    })
+    expect(held.ctx!.signer).toBe(STUB_SIGNER)
+    view.unmount()
+    renderProvider()
+    await waitFor(() => expect(held.ctx!.status).toBe('unauthenticated'))
+    expect(mocks.createNsecSigner).not.toHaveBeenCalled()
+  })
+})
+
+it('discards an old temporary refresh after logout and another account login', async () => {
+  renderProvider()
+  await waitFor(() => expect(held.ctx!.status).toBe('unauthenticated'))
+  await act(async () => {
+    await held.ctx!.login(STUB_SIGNER, 'passkey', {
+      secret: DERIVED_SECRET,
+      persistence: 'memory'
+    })
+  })
+  let resolveOld!: (value: { token: string }) => void
+  mocks.exchangeNip98ForJwt.mockReturnValueOnce(
+    new Promise(resolve => {
+      resolveOld = resolve
+    })
+  )
+  let refreshing!: Promise<boolean>
+  act(() => {
+    refreshing = held.ctx!.refreshSession()
+  })
+  act(() => held.ctx!.logout())
+  mocks.exchangeNip98ForJwt.mockResolvedValueOnce({ token: 'account-b-token' })
+  await act(async () => {
+    await held.ctx!.login(STUB_SIGNER, 'nsec', { secret: 'b'.repeat(64) })
+  })
+  await act(async () => {
+    resolveOld({ token: 'temporary-a-token' })
+    await refreshing
+  })
+  expect(localStorage.getItem(JWT_KEY)).toBe('account-b-token')
+  expect(held.ctx!.jwt).toBe('account-b-token')
+})
+
+it('expires a temporary session at its original deadline after suspended timers', async () => {
+  renderProvider()
+  await waitFor(() => expect(held.ctx?.status).toBe('unauthenticated'))
+  mocks.validateJwt.mockResolvedValue(validation(1000))
+  await act(async () => {
+    await held.ctx!.login(STUB_SIGNER, 'passkey', {
+      secret: DERIVED_SECRET,
+      persistence: 'memory'
+    })
+  })
+  const now = Date.now()
+  const clock = vi.spyOn(Date, 'now').mockReturnValue(now + 2000)
+  try {
+    await act(async () => {
+      window.dispatchEvent(new Event('focus'))
+    })
+    expect(held.ctx?.status).toBe('unauthenticated')
+    expect(held.ctx?.signer).toBeNull()
+    expect(mocks.exchangeNip98ForJwt).toHaveBeenCalledTimes(1)
+  } finally {
+    clock.mockRestore()
+  }
+})
+
+it('does not let a temporary refresh extend its original lifetime', async () => {
+  renderProvider()
+  await waitFor(() => expect(held.ctx?.status).toBe('unauthenticated'))
+  mocks.validateJwt.mockResolvedValue(validation(1000))
+  await act(async () => {
+    await held.ctx!.login(STUB_SIGNER, 'passkey', {
+      secret: DERIVED_SECRET,
+      persistence: 'memory'
+    })
+  })
+  const now = Date.now()
+  mocks.validateJwt.mockResolvedValue(validation())
+  await act(async () => {
+    expect(await held.ctx!.refreshSession()).toBe(true)
+  })
+  const clock = vi.spyOn(Date, 'now').mockReturnValue(now + 2000)
+  try {
+    await act(async () => {
+      expect(await held.ctx!.refreshSession()).toBe(false)
+    })
+    expect(held.ctx?.status).toBe('unauthenticated')
+    expect(mocks.exchangeNip98ForJwt).toHaveBeenCalledTimes(2)
+  } finally {
+    clock.mockRestore()
+  }
+})
+
+it('does not commit a login cancelled during the JWT exchange', async () => {
+  renderProvider()
+  await waitFor(() => expect(held.ctx?.status).toBe('unauthenticated'))
+  let finish!: (value: { token: string }) => void
+  mocks.exchangeNip98ForJwt.mockReturnValueOnce(
+    new Promise(resolve => {
+      finish = resolve
+    })
+  )
+  const controller = new AbortController()
+  let pending!: Promise<void>
+  act(() => {
+    pending = held.ctx!.login(STUB_SIGNER, 'passkey', {
+      secret: '',
+      persistence: 'memory',
+      signal: controller.signal
+    })
+  })
+  await waitFor(() => expect(mocks.exchangeNip98ForJwt).toHaveBeenCalled())
+  const rejected = expect(pending).rejects.toThrow()
+  await act(async () => {
+    controller.abort()
+    finish({ token: sessionJwt() })
+    await rejected
+  })
+  expect(held.ctx?.status).toBe('unauthenticated')
+  expect(held.ctx?.signer).toBeNull()
+  expect(localStorage.getItem(JWT_KEY)).toBeNull()
+})

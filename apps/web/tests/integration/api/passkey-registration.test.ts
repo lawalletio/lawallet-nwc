@@ -105,7 +105,10 @@ vi.mock('@/lib/public-url', () => ({
 
 import { POST as optionsRoute } from '@/app/api/auth/passkey/registration/options/route'
 import { POST as verifyRoute } from '@/app/api/auth/passkey/registration/verify/route'
-import { verifyRegistrationResponse } from '@simplewebauthn/server'
+import {
+  generateRegistrationOptions,
+  verifyRegistrationResponse
+} from '@simplewebauthn/server'
 import { authenticate } from '@/lib/auth/unified-auth'
 import { resolveAccountByPubkey } from '@/lib/auth/account'
 import { linkPubkeyToAccount } from '@/lib/account/merge'
@@ -220,6 +223,56 @@ describe('POST /api/auth/passkey/registration/options', () => {
     expect(prismaMock.webAuthnChallenge.create).toHaveBeenCalledWith({
       data: expect.objectContaining({ flow: 'REGISTER', userId: null })
     })
+  })
+
+  it('tags the user handle as derived mode, parameter set 0x02', async () => {
+    await optionsRoute(
+      createNextRequest('/api/auth/passkey/registration/options', {
+        method: 'POST',
+        body: {}
+      })
+    )
+    const { userID, userName } = vi.mocked(generateRegistrationOptions).mock
+      .calls[0][0] as { userID: Uint8Array; userName: string }
+    const hex = Buffer.from(userID).toString('hex')
+    expect(hex).toMatch(/^4e504b010102[0-9a-f]{32}$/)
+    expect(userName).toBe(`lawallet-${hex.slice(12, 20)}`)
+  })
+
+  it('tags the handle as stored mode for an imported key', async () => {
+    const pubkey =
+      '79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798'
+    const response = await optionsRoute(
+      createNextRequest('/api/auth/passkey/registration/options', {
+        method: 'POST',
+        body: { storedPubkey: pubkey }
+      })
+    )
+    expect(response.status).toBe(200)
+    const { userID, userName } = vi.mocked(generateRegistrationOptions).mock
+      .calls[0][0] as { userID: Uint8Array; userName: string }
+    expect(Buffer.from(userID).toString('hex')).toBe(`4e504b0102${pubkey}`)
+    expect(userName).toBe('lawallet-79be667e')
+  })
+
+  it('rejects an invalid storedPubkey instead of minting a derived handle', async () => {
+    const response = await optionsRoute(
+      createNextRequest('/api/auth/passkey/registration/options', {
+        method: 'POST',
+        body: { storedPubkey: 'not-a-key' }
+      })
+    )
+    expect(response.status).toBe(400)
+    expect(generateRegistrationOptions).not.toHaveBeenCalled()
+  })
+
+  it('still accepts an absent body', async () => {
+    const response = await optionsRoute(
+      createNextRequest('/api/auth/passkey/registration/options', {
+        method: 'POST'
+      })
+    )
+    expect(response.status).toBe(200)
   })
 
   it('falls back to "LaWallet" for rp.name when community_name is unset', async () => {
