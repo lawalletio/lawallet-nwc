@@ -58,6 +58,15 @@ export const OPERATION_POLICY: Record<string, OperationPolicy> = {
   // Passkeys
   'passkey.registration.options': exclude(WEBAUTHN),
   'passkey.registration.verify': exclude(WEBAUTHN),
+
+  // Email magic-link login
+  'auth.email.request': exclude(
+    'sends a sign-in email to an arbitrary address on the caller’s behalf'
+  ),
+  'auth.email.preview': exclude(TOKEN_PLUMBING),
+  'auth.email.verify': exclude(
+    'releases a custodied secret key; sign-in stays with the email owner'
+  ),
   'passkey.credentials.list': READ,
   'passkey.credentials.update': exclude(
     'account-security change: edits a passkey that signs in to this account'
@@ -197,6 +206,9 @@ export const OPERATION_POLICY: Record<string, OperationPolicy> = {
   ),
   'settings.listenerProbe': exclude(
     'sends the stored listener secret (by default the one that signs payment webhooks) to a caller-supplied URL'
+  ),
+  'settings.emailTest': exclude(
+    'sends email from the instance to a caller-supplied address'
   ),
 
   // Plugins

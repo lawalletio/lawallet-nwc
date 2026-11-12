@@ -25,6 +25,7 @@ type Item = {
 }
 
 const accountItems = (t: Dict): Item[] => [
+  { label: t.settings.profile, href: '/wallet/settings/profile' },
   { label: t.settings.myCards, href: '/wallet/settings/cards' },
   { label: t.settings.security, href: '/wallet/settings/security' },
   { label: t.settings.remoteWallets, href: '/wallet/settings/remote-wallets' }

@@ -17,6 +17,7 @@ import {
   Smartphone,
   ChevronLeft,
   ChevronRight,
+  Mail,
   Sparkles
 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
@@ -48,6 +49,8 @@ import {
   hasBrowserExtension
 } from '@/lib/client/nostr-signer'
 import { PasskeyLoginButton } from '@/components/shared/passkey-login-button'
+import { EmailLoginForm } from '@/components/shared/email-login-form'
+import { useSettings } from '@/lib/client/hooks/use-settings'
 import { isPasskeySupported } from '@/lib/client/passkey-api'
 import { SecretKeyReveal } from '@/components/shared/secret-key-reveal'
 import { BrandLogotype } from '@/components/ui/brand-logotype'
@@ -65,14 +68,14 @@ interface LoginModalProps {
 type BunkerConnectionStatus = 'generating' | 'waiting' | 'connecting' | 'error'
 
 /**
- * Login wizard steps. `choose` is the two-method picker; the rest are each
- * method's own screen. When WebAuthn is unavailable Nostr is the only method,
- * so we skip `choose` and open straight on `nostr`.
+ * Login wizard steps. `choose` is the method picker; the rest are each
+ * method's own screen. A detected extension connects straight from the picker.
  */
-type Step = 'choose' | 'nostr' | 'nostr-create' | 'passkey'
+type Step = 'choose' | 'email' | 'nostr' | 'nostr-create' | 'passkey'
 
 const STEP_DESCRIPTIONS: Record<Step, string> = {
   choose: 'Choose how to sign in.',
+  email: "We'll email you a sign-in link. New here? It creates your account.",
   nostr: 'Sign in with a Nostr key.',
   'nostr-create': 'We generated a new key for you.',
   passkey: 'Use a passkey — Face ID, Touch ID, or your screen lock.'
@@ -82,9 +85,9 @@ export function LoginModal({ open, onOpenChange, onSuccess }: LoginModalProps) {
   const dismissible = !!onOpenChange
   const [bunkerBusy, setBunkerBusy] = useState(false)
   // WebAuthn support is stable for the page's lifetime; unsupported browsers
-  // never see the Passkey method and open straight on the Nostr step.
+  // never see the Passkey method.
   const [passkeySupported] = useState(() => isPasskeySupported())
-  const initialStep: Step = passkeySupported ? 'choose' : 'nostr'
+  const initialStep: Step = 'choose'
   const [step, setStep] = useState<Step>(initialStep)
 
   // The landing page keeps this modal mounted and toggles `open`; reset to the
@@ -155,6 +158,7 @@ export function LoginModal({ open, onOpenChange, onSuccess }: LoginModalProps) {
             onCreateNew={() => setStep('nostr-create')}
           />
         )}
+        {step === 'email' && <EmailLoginForm className="mt-2" />}
         {step === 'nostr-create' && <NostrCreateStep />}
         {step === 'passkey' && <PasskeyTab />}
       </DialogContent>
@@ -173,16 +177,36 @@ function ChooseMethodStep({
 }) {
   const extensionAvailable = useBrowserExtensionDetected()
   const { connect, loading } = useExtensionLogin()
+  const { data: settings } = useSettings()
 
   return (
     <div className="flex flex-col gap-3 pt-2">
+      {extensionAvailable && (
+        <MethodButton
+          highlight
+          icon={loading ? <Spinner size={16} /> : <Globe />}
+          title="Extension"
+          subtitle={
+            loading ? 'Connecting...' : 'Alby, nos2x or another NIP-07 signer'
+          }
+          disabled={loading}
+          onClick={connect}
+        />
+      )}
+      {settings?.email_login_enabled === 'true' && (
+        <MethodButton
+          icon={<Mail />}
+          title="Email"
+          subtitle="Get a magic sign-in link"
+          onClick={() => onPick('email')}
+        />
+      )}
       <MethodButton
         icon={<KeyRound />}
         title="Nostr"
         subtitle="Secret key, bunker, or a new key"
         onClick={() => onPick('nostr')}
       />
-
       {passkeySupported && (
         <MethodButton
           icon={<Fingerprint />}
@@ -190,34 +214,6 @@ function ChooseMethodStep({
           subtitle="Syncs across your devices"
           onClick={() => onPick('passkey')}
         />
-      )}
-
-      {extensionAvailable && (
-        <>
-          <div className="flex items-center gap-3 pt-1">
-            <Separator className="flex-1" />
-            <span className="text-xs text-muted-foreground">or</span>
-            <Separator className="flex-1" />
-          </div>
-          <Button
-            variant="theme"
-            onClick={connect}
-            disabled={loading}
-            className="h-11 w-full"
-          >
-            {loading ? (
-              <>
-                <Spinner size={16} />
-                Connecting...
-              </>
-            ) : (
-              <>
-                <Globe />
-                Continue with extension
-              </>
-            )}
-          </Button>
-        </>
       )}
     </div>
   )
@@ -232,18 +228,24 @@ function MethodButton({
   icon,
   title,
   subtitle,
-  onClick
+  onClick,
+  disabled,
+  highlight
 }: {
   icon: React.ReactNode
   title: string
   subtitle: string
   onClick: () => void
+  disabled?: boolean
+  /** Primary (theme) styling — the one-tap extension path. */
+  highlight?: boolean
 }) {
   return (
     <Button
       type="button"
-      variant="secondary"
+      variant={highlight ? 'theme' : 'secondary'}
       onClick={onClick}
+      disabled={disabled}
       // whitespace-normal overrides the button base's `whitespace-nowrap`, and
       // min-w-0 lets the label shrink — otherwise a long subtitle's no-wrap
       // min-content stretches the dialog's grid track past its padding and
@@ -251,25 +253,39 @@ function MethodButton({
       className="h-auto w-full justify-between gap-3 whitespace-normal px-3 py-3 text-left"
     >
       <span className="flex min-w-0 flex-1 items-center gap-3">
-        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-green-500/10 text-green-400">
+        <span
+          className={cn(
+            'flex size-9 shrink-0 items-center justify-center rounded-lg',
+            highlight
+              ? 'bg-black/15 text-foreground'
+              : 'bg-green-500/10 text-green-400'
+          )}
+        >
           {icon}
         </span>
         <span className="flex min-w-0 flex-col items-start">
           <span className="text-sm font-semibold text-foreground">{title}</span>
-          <span className="text-xs font-normal text-muted-foreground">
+          <span
+            className={cn(
+              'text-xs font-normal',
+              highlight ? 'text-foreground/80' : 'text-muted-foreground'
+            )}
+          >
             {subtitle}
           </span>
         </span>
       </span>
-      <ChevronRight className="shrink-0 text-muted-foreground" />
+      <ChevronRight
+        className={cn(
+          'shrink-0',
+          highlight ? 'text-foreground/80' : 'text-muted-foreground'
+        )}
+      />
     </Button>
   )
 }
 
-/**
- * Shared connect handler for a detected NIP-07 extension, reused by both the
- * step-1 shortcut and the Extension sub-tab under Nostr.
- */
+/** Connect handler for a detected NIP-07 extension (picker shortcut). */
 function useExtensionLogin() {
   const { login } = useAuth()
   const [loading, setLoading] = useState(false)
@@ -299,8 +315,8 @@ function useExtensionLogin() {
 
 /**
  * Polls for a NIP-07 browser extension. Some extensions inject `window.nostr`
- * asynchronously, so we re-check for a few seconds after mount. The Extension
- * sub-tab is only shown once one is detected.
+ * asynchronously, so we re-check for a few seconds after mount. The picker's
+ * Extension option is only shown once one is detected.
  */
 function useBrowserExtensionDetected(): boolean {
   const [detected, setDetected] = useState(() => hasBrowserExtension())
@@ -334,27 +350,10 @@ function NostrMethods({
   onBunkerBusyChange: (busy: boolean) => void
   onCreateNew: () => void
 }) {
-  const extensionAvailable = useBrowserExtensionDetected()
-
   return (
-    <Tabs
-      // Default to the extension when one is present, otherwise the secret key.
-      defaultValue={extensionAvailable ? 'extension' : 'nsec'}
-      className="w-full"
-    >
+    <Tabs defaultValue="nsec" className="w-full">
       {!bunkerBusy && (
-        <TabsList
-          className={cn(
-            'mt-3 grid w-full',
-            extensionAvailable ? 'grid-cols-3' : 'grid-cols-2'
-          )}
-        >
-          {extensionAvailable && (
-            <TabsTrigger value="extension" className="text-xs">
-              <Globe className="mr-1 size-3.5" />
-              Extension
-            </TabsTrigger>
-          )}
+        <TabsList className="mt-3 grid w-full grid-cols-2">
           <TabsTrigger value="nsec" className="text-xs">
             <Key className="mr-1 size-3.5" />
             Secret Key
@@ -366,11 +365,6 @@ function NostrMethods({
         </TabsList>
       )}
 
-      {extensionAvailable && (
-        <TabsContent value="extension">
-          <ExtensionTab />
-        </TabsContent>
-      )}
       <TabsContent value="nsec">
         <NsecTab />
       </TabsContent>
@@ -398,37 +392,6 @@ function NostrMethods({
         </div>
       )}
     </Tabs>
-  )
-}
-
-// ─── Extension Tab (NIP-07) ────────────────────────────────────────────────
-
-// Only rendered once `useBrowserExtensionDetected()` has found `window.nostr`,
-// so there's no "no extension" fallback state here.
-function ExtensionTab() {
-  const { connect, loading } = useExtensionLogin()
-
-  return (
-    <div className="flex flex-col gap-4 pt-4">
-      <p className="text-sm text-muted-foreground">
-        Connect using a Nostr browser extension like Alby, nos2x, or Nostr
-        Connect.
-      </p>
-
-      <Button onClick={connect} disabled={loading} className="w-full">
-        {loading ? (
-          <>
-            <Spinner size={16} className="mr-2" />
-            Connecting...
-          </>
-        ) : (
-          <>
-            <Globe className="mr-2 size-4" />
-            Connect with Extension
-          </>
-        )}
-      </Button>
-    </div>
   )
 }
 

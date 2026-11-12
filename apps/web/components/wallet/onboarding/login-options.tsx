@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { KeyRound } from 'lucide-react'
 import { BrandLogotype } from '@/components/ui/brand-logotype'
 import { PasskeyLoginButton } from '@/components/shared/passkey-login-button'
+import { EmailLoginForm } from '@/components/shared/email-login-form'
+import { useSettings } from '@/lib/client/hooks/use-settings'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { postAuthPath } from '@/lib/client/pending-activation'
@@ -13,6 +15,8 @@ import { useT } from '@/lib/client/i18n'
 export function LoginOptions() {
   const router = useRouter()
   const t = useT().onboarding.login
+  const { data: settings } = useSettings()
+  const emailEnabled = settings?.email_login_enabled === 'true'
 
   return (
     <div className="flex flex-1 flex-col justify-between py-8">
@@ -25,11 +29,23 @@ export function LoginOptions() {
         </div>
 
         <div className="w-full space-y-5">
+          {/* Email first when enabled: one form for new and returning users. */}
+          {emailEnabled && (
+            <>
+              <EmailLoginForm />
+              <div className="relative">
+                <Separator />
+                <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-background px-2 text-xs text-muted-foreground">
+                  {t.or}
+                </span>
+              </div>
+            </>
+          )}
           {/* Passkey-first: renders nothing on unsupported browsers, leaving
               the Nostr button as the only option. */}
           <PasskeyLoginButton
             mode="authenticate"
-            variant="theme"
+            variant={emailEnabled ? 'secondary' : 'theme'}
             className="h-12 w-full"
             label={t.passkey}
             showCrossDeviceHint

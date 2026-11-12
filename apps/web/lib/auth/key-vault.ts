@@ -42,7 +42,8 @@ export class VaultDecryptError extends Error {
 
 /** True when `KEY_VAULT_SECRET` is configured (passkey signup available). */
 export function isVaultConfigured(): boolean {
-  return getConfig().keyVault.enabled
+  // Optional chaining: config mocks in route tests are partial.
+  return Boolean(getConfig()?.keyVault?.enabled)
 }
 
 function deriveKey(secret: string, salt: Buffer): Buffer {

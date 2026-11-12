@@ -34,6 +34,9 @@ export const routeManifest: Record<string, () => Promise<RouteModule>> = {
     import('@/app/api/admin/backup/import/route'),
   '/api/admin/listener/status': () =>
     import('@/app/api/admin/listener/status/route'),
+  '/api/auth/email/preview': () => import('@/app/api/auth/email/preview/route'),
+  '/api/auth/email/request': () => import('@/app/api/auth/email/request/route'),
+  '/api/auth/email/verify': () => import('@/app/api/auth/email/verify/route'),
   '/api/auth/passkey/credentials': () =>
     import('@/app/api/auth/passkey/credentials/route'),
   '/api/auth/passkey/credentials/{id}': () =>
@@ -146,6 +149,8 @@ export const routeManifest: Record<string, () => Promise<RouteModule>> = {
   '/api/settings': () => import('@/app/api/settings/route'),
   '/api/settings/domain-probe': () =>
     import('@/app/api/settings/domain-probe/route'),
+  '/api/settings/email-test': () =>
+    import('@/app/api/settings/email-test/route'),
   '/api/settings/listener-probe': () =>
     import('@/app/api/settings/listener-probe/route'),
   '/api/settings/lud16-proxy': () =>

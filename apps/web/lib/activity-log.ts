@@ -21,6 +21,7 @@ export const ActivityEvent = {
   USER_JWT_ISSUED: 'user.jwt_issued',
   USER_DEVICE_TOKEN_ISSUED: 'user.device_token_issued',
   USER_SIGNUP: 'user.signup',
+  USER_EMAIL_LOGIN: 'user.email_login',
   USER_AUTH_FAILED: 'user.auth_failed',
   USER_ROLE_CHANGED: 'user.role_changed',
   USER_RELAYS_UPDATED: 'user.relays_updated',

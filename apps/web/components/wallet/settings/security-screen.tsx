@@ -168,7 +168,9 @@ export function SecurityScreen() {
           <CardRecoverySection />
         </Section>
 
-        {(loginMethod === 'nsec' || loginMethod === 'passkey') && (
+        {(loginMethod === 'nsec' ||
+          loginMethod === 'passkey' ||
+          loginMethod === 'email') && (
           <Section title={s.secretKey}>
             {revealedSecret ? (
               <SecretKeyReveal nsec={revealedSecret} />
@@ -184,7 +186,11 @@ export function SecurityScreen() {
               </Button>
             )}
             <p className="px-1 text-xs text-muted-foreground">
-              {loginMethod === 'passkey' ? s.passkeyKeyHint : s.nsecKeyHint}
+              {loginMethod === 'passkey'
+                ? s.passkeyKeyHint
+                : loginMethod === 'email'
+                  ? s.emailKeyHint
+                  : s.nsecKeyHint}
             </p>
           </Section>
         )}

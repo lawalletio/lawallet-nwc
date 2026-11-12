@@ -95,7 +95,13 @@ describe('GET /api/settings', () => {
       listener_url_source: 'none',
       listener_secret_source: 'none',
       listener_url_effective: '',
-      listener_secret_configured: 'false'
+      listener_secret_configured: 'false',
+      // Computed email keys (presence flags only, never secret values)
+      smtp_password_configured: 'false',
+      ses_secret_access_key_configured: 'false',
+      resend_api_key_configured: 'false',
+      email_configured: 'false',
+      key_vault_configured: 'false'
     })
   })
 
@@ -118,6 +124,26 @@ describe('GET /api/settings', () => {
     expect(JSON.stringify(body)).not.toContain(
       'super-secret-value-that-must-not-leak'
     )
+  })
+
+  it('never returns email provider secrets — only presence flags', async () => {
+    vi.mocked(validateNip98Auth).mockResolvedValue(mockPubkey)
+    vi.mocked(getSettings).mockResolvedValue({
+      root: mockPubkey,
+      smtp_host: 'smtp.test',
+      smtp_password: 'smtp-secret-leak',
+      ses_secret_access_key: 'ses-secret-leak',
+      resend_api_key: 're_secret-leak'
+    })
+
+    const res = await GET(createNextRequest('/api/settings'))
+    const body: any = await assertResponse(res, 200)
+
+    expect(body.smtp_host).toBe('smtp.test')
+    expect(body.smtp_password_configured).toBe('true')
+    expect(body.ses_secret_access_key_configured).toBe('true')
+    expect(body.resend_api_key_configured).toBe('true')
+    expect(JSON.stringify(body)).not.toMatch(/secret-leak/)
   })
 
   it('returns minimal settings when not authenticated', async () => {

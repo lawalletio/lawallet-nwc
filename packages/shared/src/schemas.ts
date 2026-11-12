@@ -1171,6 +1171,77 @@ export type PasskeyCredentialListResponse = z.infer<
 >
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Email (providers + magic-link login)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const emailProviderTypeSchema = z.enum(['smtp', 'ses', 'resend'])
+export type EmailProviderTypeValue = z.infer<typeof emailProviderTypeSchema>
+
+/** Normalized (trimmed, lowercased) email address, RFC 5321 length cap. */
+export const emailAddressSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .max(254)
+  .email()
+
+export const emailLocaleSchema = z.enum(['en', 'es'])
+
+export const emailTestRequestSchema = z.object({
+  provider: emailProviderTypeSchema,
+  to: emailAddressSchema
+})
+export type EmailTestRequest = z.infer<typeof emailTestRequestSchema>
+
+export const emailTestResponseSchema = z.object({
+  ok: z.boolean(),
+  error: z.string().optional()
+})
+export type EmailTestResponse = z.infer<typeof emailTestResponseSchema>
+
+export const emailLoginRequestSchema = z.object({
+  email: emailAddressSchema,
+  locale: emailLocaleSchema.optional()
+})
+export type EmailLoginRequest = z.infer<typeof emailLoginRequestSchema>
+
+export const emailLoginRequestResponseSchema = z.object({
+  ok: z.literal(true)
+})
+
+/** Magic-link token: 32 random bytes, base64url. */
+export const emailLoginTokenSchema = z.object({
+  token: z
+    .string()
+    .min(40)
+    .max(64)
+    .regex(/^[A-Za-z0-9_-]+$/)
+})
+export type EmailLoginTokenRequest = z.infer<typeof emailLoginTokenSchema>
+
+export const emailLoginPreviewResponseSchema = z.object({
+  isNew: z.boolean(),
+  /** Masked address, e.g. `a•••@example.com`. */
+  email: z.string(),
+  pubkey: hexPubkeySchema.nullable(),
+  displayName: z.string().nullable(),
+  picture: z.string().nullable()
+})
+export type EmailLoginPreviewResponse = z.infer<
+  typeof emailLoginPreviewResponseSchema
+>
+
+export const emailLoginVerifyResponseSchema = z.object({
+  /** The custodied secret key, hex — returned once so the client can sign NIP-98. */
+  secretHex: z.string().regex(/^[0-9a-f]{64}$/),
+  pubkey: hexPubkeySchema,
+  isNew: z.boolean()
+})
+export type EmailLoginVerifyResponse = z.infer<
+  typeof emailLoginVerifyResponseSchema
+>
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Account (multi-pubkey identities, linking & merge)
 // ─────────────────────────────────────────────────────────────────────────────
 

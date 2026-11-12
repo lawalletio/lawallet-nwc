@@ -1,4 +1,6 @@
 import {
+  emailTestRequestSchema,
+  emailTestResponseSchema,
   listenerProbeRequestSchema,
   listenerProbeResponseSchema
 } from '@lawallet-nwc/shared'
@@ -184,5 +186,29 @@ registry.registerPath({
   responses: {
     200: inlineJsonResponse('Probe outcome.', listenerProbeResponseSchema),
     ...commonErrorResponses
+  }
+})
+
+registry.registerPath({
+  ...withRole('ADMIN'),
+  method: 'post',
+  path: '/api/settings/email-test',
+  tags: [TAG],
+  summary: 'Send a test email through a configured provider.',
+  description:
+    'Requires `settings:write`. Sends the `test` template with the STORED ' +
+    'config of `provider` (smtp | ses | resend). Delivery outcomes are always ' +
+    '200 with `ok: false` and an `error` on failure.',
+  operationId: 'settings.emailTest',
+  security: protectedSecurity,
+  request: {
+    body: {
+      content: { 'application/json': { schema: emailTestRequestSchema } }
+    }
+  },
+  responses: {
+    200: inlineJsonResponse('Send outcome.', emailTestResponseSchema),
+    ...commonErrorResponses,
+    429: responses.rateLimited
   }
 })

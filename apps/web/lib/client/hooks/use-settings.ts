@@ -25,11 +25,27 @@ export interface SettingsData {
   isotypo_url?: string
   /** Absolute URL to the Blossom-hosted community profile cover image. */
   community_cover_url?: string
+  /** Email: which provider `sendEmail()` uses — 'smtp' | 'ses' | 'resend'. */
+  email_default_provider?: string
+  email_from_address?: string
+  email_from_name?: string
+  /** 'true' | 'false'. Public GET reports the EFFECTIVE (usable) state. */
+  email_login_enabled?: string
+  /** Computed: default provider + from address configured. */
+  email_configured?: string
+  /** Computed: KEY_VAULT_SECRET set (needed to custody email users' keys). */
+  key_vault_configured?: string
   /** SMTP server hostname (no protocol, e.g. `smtp.example.com`). */
   smtp_host?: string
   smtp_port?: string
   smtp_username?: string
-  smtp_password?: string
+  smtp_secure?: string
+  /** Presence flags — secret values are write-only, never returned. */
+  smtp_password_configured?: string
+  ses_region?: string
+  ses_access_key_id?: string
+  ses_secret_access_key_configured?: string
+  resend_api_key_configured?: string
   /** Social media handles / URLs surfaced on the branding tab. */
   social_whatsapp?: string
   social_telegram?: string

@@ -290,6 +290,9 @@ model User {
   /// public `nostr.json` endpoint doesn't fan out to relays on every request
   /// while still retrying a degraded answer far sooner than the 6h TTL.
   lastRelayFetchAttemptAt            DateTime?
+  /// Verified login email (magic link), normalized: trimmed + lowercased.
+  /// Only set by the email-login flow, which also custodies the user's key.
+  email                              String?                            @unique
   passkeyCredentials                 PasskeyCredential[]
   managedNostrKey                    ManagedNostrKey?
   nostrIdentities                    NostrIdentity[]
@@ -414,6 +417,20 @@ model WebAuthnChallenge {
   origin    String
   expiresAt DateTime
   createdAt DateTime     @default(now())
+
+  @@index([expiresAt])
+}
+
+/// Single-use email magic-link token. Only the SHA-256 of the token is stored;
+/// it is consumed atomically (`usedAt` set via a conditional update) on verify.
+/// `email` is a plain column: the user may not exist until the link is used.
+model EmailLoginToken {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
+  email     String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
 
   @@index([expiresAt])
 }

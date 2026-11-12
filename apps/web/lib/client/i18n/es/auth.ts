@@ -55,5 +55,47 @@ export const auth: typeof En = {
   errorBody:
     'Esta pantalla tuvo un error inesperado. Inténtalo de nuevo o vuelve al inicio.',
   errorRetry: 'Reintentar',
-  goHome: 'Ir al inicio'
+  goHome: 'Ir al inicio',
+  emailLogin: {
+    label: 'Correo',
+    placeholder: 'tu@ejemplo.com',
+    submit: 'Continuar con correo',
+    sending: 'Enviando enlace…',
+    invalid: 'Ingresa un correo válido',
+    checkInbox: 'Revisa tu correo',
+    sentTo: (email: string) =>
+      `Enviamos un enlace de acceso a ${email}. Ábrelo en este dispositivo para continuar.`,
+    resend: 'Reenviar enlace',
+    resendIn: (seconds: number) => `Reenviar en ${seconds}s`,
+    useDifferent: 'Usar otro correo',
+    failed: 'No pudimos enviar el enlace, inténtalo de nuevo'
+  },
+  emailLanding: {
+    eyebrow: 'Enlace mágico',
+    checking: 'Verificando tu enlace…',
+    welcomeBack: 'Qué bueno verte,',
+    signInTo: 'Inicia sesión en',
+    welcomeTo: 'Bienvenido a',
+    returningBody: 'Confirma que eres tú para abrir tu billetera.',
+    newBody: 'Tu billetera está a un toque.',
+    perks: {
+      address: 'Tu propia dirección Lightning',
+      nostr: 'Una identidad Nostr lista para usar',
+      custody: 'Pasa a autocustodia cuando quieras'
+    },
+    continueAs: (name: string) => `Continuar como ${name}`,
+    continue: 'Continuar',
+    createAccount: 'Crear mi billetera',
+    signingIn: 'Iniciando sesión…',
+    oneTime: 'Enlace de un solo uso: deja de funcionar al continuar.',
+    success: '¡Listo!',
+    redirecting: 'Te llevamos a tu billetera…',
+    redirectingProfile: 'Vamos a armar tu perfil…',
+    invalidEyebrow: 'Enlace no disponible',
+    invalidTitle: 'Este enlace venció',
+    invalidBody:
+      'Los enlaces de acceso funcionan una sola vez y vencen a los 15 minutos. Pide uno nuevo para continuar.',
+    requestNew: 'Pedir un enlace nuevo',
+    poweredBy: 'Impulsado por'
+  }
 }

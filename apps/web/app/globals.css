@@ -453,6 +453,16 @@
   animation: success-pop 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+/* Determinate progress fill (redirect countdowns); pair with a duration. */
+@keyframes grow-x {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
 @keyframes ring-expand {
   0% {
     transform: scale(0.35);
