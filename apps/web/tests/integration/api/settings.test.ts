@@ -65,6 +65,7 @@ vi.mock('@/lib/listener-config', () => ({
 import { GET, POST } from '@/app/api/settings/route'
 import { validateNip98Auth } from '@/lib/admin-auth'
 import { getSettings, invalidateHotSettingsCache } from '@/lib/settings'
+import { getConfig } from '@/lib/config'
 
 const mockPubkey = 'a'.repeat(64)
 
@@ -649,5 +650,84 @@ describe('NWC listener settings', () => {
       body: { listener_enabled: 'false' }
     })
     await assertResponse(await POST(req), 200)
+  })
+})
+
+describe('email settings', () => {
+  const smtp = {
+    email_default_provider: 'smtp',
+    email_from_address: 'hello@wallet.test',
+    smtp_host: 'mail.test',
+    smtp_port: '587'
+  }
+  const authAsRoot = (stored: Record<string, string> = {}) => {
+    vi.mocked(validateNip98Auth).mockResolvedValue(mockPubkey)
+    vi.mocked(getSettings).mockResolvedValue({ root: mockPubkey, ...stored })
+    vi.mocked(prismaMock.settings.upsert).mockResolvedValue({} as any)
+  }
+  const vaultOn = () =>
+    vi.mocked(getConfig).mockReturnValue({
+      maintenance: { enabled: false },
+      requestLimits: { maxBodySize: 1048576, maxJsonSize: 1048576 },
+      keyVault: { enabled: true, secret: 'k'.repeat(48) }
+    } as any)
+  const post = (body: Record<string, string>) =>
+    POST(createNextRequest('/api/settings', { method: 'POST', body }))
+
+  it('rejects an unknown default provider', async () => {
+    authAsRoot()
+    expect((await post({ email_default_provider: 'mailgun' })).status).toBe(400)
+    expect(prismaMock.settings.upsert).not.toHaveBeenCalled()
+  })
+
+  it('rejects a malformed from address', async () => {
+    authAsRoot()
+    expect((await post({ email_from_address: 'nope' })).status).toBe(400)
+    expect(prismaMock.settings.upsert).not.toHaveBeenCalled()
+  })
+
+  it('refuses to enable email login without a configured provider', async () => {
+    authAsRoot()
+    vaultOn()
+    expect((await post({ email_login_enabled: 'true' })).status).toBe(400)
+    expect(prismaMock.settings.upsert).not.toHaveBeenCalled()
+  })
+
+  it('refuses to enable email login without the key vault', async () => {
+    authAsRoot(smtp)
+    expect((await post({ email_login_enabled: 'true' })).status).toBe(400)
+    expect(prismaMock.settings.upsert).not.toHaveBeenCalled()
+  })
+
+  it('enables email login once provider, from address and vault are set', async () => {
+    authAsRoot(smtp)
+    vaultOn()
+    await assertResponse(await post({ email_login_enabled: 'true' }), 200)
+    expect(prismaMock.settings.upsert).toHaveBeenCalledWith({
+      where: { name: 'email_login_enabled' },
+      update: { value: 'true' },
+      create: { name: 'email_login_enabled', value: 'true' }
+    })
+  })
+
+  it('advertises email login publicly only while it is usable', async () => {
+    vi.mocked(validateNip98Auth).mockRejectedValue(new Error('no auth'))
+    vi.mocked(getSettings).mockResolvedValue({
+      ...smtp,
+      email_login_enabled: 'true'
+    })
+    const usable = await assertResponse(
+      await GET(createNextRequest('/api/settings')),
+      200
+    )
+    // Vault off → the toggle is stored but not advertised.
+    expect(usable.email_login_enabled).toBeUndefined()
+
+    vaultOn()
+    const enabled = await assertResponse(
+      await GET(createNextRequest('/api/settings')),
+      200
+    )
+    expect(enabled.email_login_enabled).toBe('true')
   })
 })
