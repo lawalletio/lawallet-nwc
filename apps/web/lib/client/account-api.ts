@@ -103,21 +103,22 @@ export function fetchMergePreview(
 }
 
 /**
- * Destructive merge commit. `mainPubkey` picks the surviving primary;
- * `resolutions` carries the wizard's per-conflict answers (omitted fields
- * fall back to survivor-wins defaults server-side).
+ * Destructive merge commit. `mainPubkey` picks the surviving primary; the
+ * survivor's primary address and default wallet always stay (incoming ones
+ * join as secondary). `discardUnexportedKey` is the explicit "Lose the key"
+ * override for the other account's never-exported custodied key.
  */
 export function commitMerge(
   token: string,
   mergeTicket: string,
   mainPubkey: string,
-  resolutions?: { primaryAddressUsername?: string; defaultWalletId?: string }
+  options?: { discardUnexportedKey?: boolean }
 ): Promise<AccountMergeResponse> {
   return request<AccountMergeResponse>('/api/account/merge', token, {
     body: {
       mergeTicket,
       mainPubkey,
-      ...(resolutions ? { resolutions } : {})
+      ...(options?.discardUnexportedKey ? { discardUnexportedKey: true } : {})
     }
   })
 }

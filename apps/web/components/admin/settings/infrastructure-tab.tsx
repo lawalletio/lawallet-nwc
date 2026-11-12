@@ -45,6 +45,7 @@ import { DEFAULT_BLOSSOM_SERVERS } from '@/lib/client/blossom-defaults'
 import { buildPublicUrl } from '@/lib/public-url-utils'
 import { cn } from '@/lib/utils'
 import { DomainOnboardingWizard } from '@/components/admin/settings/domain-onboarding-wizard'
+import { EmailSettingsSection } from '@/components/admin/settings/email-settings-section'
 import type { DomainProbeResult } from '@/lib/domain-onboarding'
 
 const IS_DEV = process.env.NODE_ENV !== 'production'
@@ -204,10 +205,6 @@ export function InfrastructureTab() {
 
   const [relays, setRelays] = useState<string[]>([''])
   const [blossomServers, setBlossomServers] = useState<string[]>([''])
-  const [smtpHost, setSmtpHost] = useState('')
-  const [smtpPort, setSmtpPort] = useState('')
-  const [smtpUsername, setSmtpUsername] = useState('')
-  const [smtpPassword, setSmtpPassword] = useState('')
   const [gtagId, setGtagId] = useState('')
 
   // Capture the current browser origin once on mount for the endpoint placeholder
@@ -239,10 +236,6 @@ export function InfrastructureTab() {
     setBlossomServers(
       parseStringArray(settings.blossom_servers, DEFAULT_BLOSSOM_SERVERS)
     )
-    setSmtpHost(settings.smtp_host ?? '')
-    setSmtpPort(settings.smtp_port ?? '')
-    setSmtpUsername(settings.smtp_username ?? '')
-    setSmtpPassword(settings.smtp_password ?? '')
     setGtagId(settings.gtag_id ?? '')
   }, [settings])
 
@@ -314,7 +307,6 @@ export function InfrastructureTab() {
   const blossomInvalid = blossomServers.map(
     s => s.trim() !== '' && !isValidUrlWithProtocol(s, HTTP_PROTOCOLS)
   )
-  const smtpHostInvalid = smtpHost.trim() !== '' && !isValidDomain(smtpHost)
   const gtagIdInvalid = !isValidGtagId(gtagId)
   const savedDomain = settings?.domain?.trim().toLowerCase() ?? ''
   const savedEndpoint = (settings?.endpoint ?? '')
@@ -810,62 +802,7 @@ export function InfrastructureTab() {
 
       <Separator />
 
-      <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-8">
-        <div>
-          <h3 className="text-sm font-semibold">SMTP / AWS SES</h3>
-          <p className="text-sm text-muted-foreground mt-1">
-            Configure email service for notifications.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4">
-          <div className="space-y-1">
-            <Label>Host</Label>
-            <SettingInputGroup
-              prefix="https://"
-              placeholder="smtp.example.com"
-              value={smtpHost}
-              onValueChange={setSmtpHost}
-              save={v => saveSetting({ smtp_host: v.trim().toLowerCase() })}
-              invalid={smtpHostInvalid}
-              isInvalidValue={v => v.trim() !== '' && !isValidDomain(v)}
-            />
-            {smtpHostInvalid && (
-              <p className="text-xs text-destructive">
-                Enter a valid host (e.g. smtp.example.com) — no protocol.
-              </p>
-            )}
-          </div>
-          <div className="space-y-1">
-            <Label>Port</Label>
-            <SettingTextInput
-              placeholder="587"
-              inputMode="numeric"
-              value={smtpPort}
-              onValueChange={setSmtpPort}
-              save={v => saveSetting({ smtp_port: v.trim() })}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label>Username</Label>
-            <SettingTextInput
-              placeholder="user@example.com"
-              value={smtpUsername}
-              onValueChange={setSmtpUsername}
-              save={v => saveSetting({ smtp_username: v.trim() })}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label>Password</Label>
-            <SettingTextInput
-              type="password"
-              placeholder="••••••••"
-              value={smtpPassword}
-              onValueChange={setSmtpPassword}
-              save={v => saveSetting({ smtp_password: v })}
-            />
-          </div>
-        </div>
-      </div>
+      <EmailSettingsSection settings={settings} saveSetting={saveSetting} />
 
       <Separator />
 

@@ -42,6 +42,8 @@ function createPrismaMock(): PrismaClient {
     passkeyCredential: createModelMock(),
     managedNostrKey: createModelMock(),
     webAuthnChallenge: createModelMock(),
+    emailLoginToken: createModelMock(),
+    emailIdentity: createModelMock(),
     nostrIdentity: createModelMock(),
     activityLog: createModelMock(),
     proxyServiceConfig: createModelMock(),

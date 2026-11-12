@@ -84,9 +84,21 @@ export async function publishProfile(
 
   const pool = new SimplePool()
   try {
-    // Publish to all relays in parallel; at least one must accept or we
-    // surface the error. Promise.any resolves on first success.
-    await Promise.any(pool.publish(DEFAULT_NOSTR_RELAYS, signed as never))
+    // Publish to all relays in parallel; at least one must accept.
+    // Promise.any resolves on first success; when every relay fails, name
+    // each one's reason instead of the bare "All promises were rejected".
+    await Promise.any(
+      pool.publish(DEFAULT_NOSTR_RELAYS, signed as never)
+    ).catch((err: unknown) => {
+      const reasons = err instanceof AggregateError ? err.errors : [err]
+      const detail = DEFAULT_NOSTR_RELAYS.map(
+        (url, i) =>
+          `${url.replace(/^wss:\/\//, '')}: ${
+            (reasons[i] as Error | undefined)?.message ?? reasons[i]
+          }`
+      ).join('; ')
+      throw new Error(`No Nostr relay accepted the profile (${detail})`)
+    })
   } finally {
     try {
       pool.close(DEFAULT_NOSTR_RELAYS)

@@ -290,6 +290,8 @@ model User {
   /// public `nostr.json` endpoint doesn't fan out to relays on every request
   /// while still retrying a degraded answer far sooner than the 6h TTL.
   lastRelayFetchAttemptAt            DateTime?
+  /// Verified emails that sign in to this account (magic link).
+  emailIdentities                    EmailIdentity[]
   passkeyCredentials                 PasskeyCredential[]
   managedNostrKey                    ManagedNostrKey?
   nostrIdentities                    NostrIdentity[]
@@ -414,6 +416,35 @@ model WebAuthnChallenge {
   origin    String
   expiresAt DateTime
   createdAt DateTime     @default(now())
+
+  @@index([expiresAt])
+}
+
+/// Single-use email magic-link token. Only the SHA-256 of the token is stored;
+/// it is consumed atomically (`usedAt` set via a conditional update) on verify.
+/// `email` is a plain column: the user may not exist until the link is used.
+/// A verified email linked to an account. Any of them signs in by magic
+/// link, which hands back the account's ManagedNostrKey. Normalized:
+/// trimmed + lowercased. Like NostrIdentity, not part of backups.
+model EmailIdentity {
+  email     String   @id
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model EmailLoginToken {
+  id         String    @id @default(cuid())
+  tokenHash  String    @unique
+  email      String
+  /// Set for "link this email to my account" tokens (the requesting
+  /// account); null for sign-in tokens. The two kinds never cross.
+  linkUserId String?
+  expiresAt  DateTime
+  usedAt     DateTime?
+  createdAt  DateTime  @default(now())
 
   @@index([expiresAt])
 }
@@ -822,21 +853,21 @@ model Card {
 /// Minting a new token of the same kind first REVOKEs the prior one in a
 /// transaction so the constraint holds.
 model CardActivationToken {
-  id              String                @id @default(cuid())
-  cardId          String
-  card            Card                  @relation(fields: [cardId], references: [id], onDelete: Cascade)
-  qrKind          ActivationQrKind      @default(ONE_TIME)
-  status          ActivationTokenStatus @default(PENDING)
+  id                String                @id @default(cuid())
+  cardId            String
+  card              Card                  @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  qrKind            ActivationQrKind      @default(ONE_TIME)
+  status            ActivationTokenStatus @default(PENDING)
   /// The activation URL the wallet scans (e.g. `https://host/activate/<id>`).
-  qrPayload       String
+  qrPayload         String
   /// DB id of the holder/operator who minted the token (audit only).
-  issuedByUserId  String?
-  expiresAt       DateTime?
-  claimedAt       DateTime?
+  issuedByUserId    String?
+  expiresAt         DateTime?
+  claimedAt         DateTime?
   /// DB id of the claimer (ONE_TIME only — single audit row).
-  claimedByUserId String?
-  createdAt       DateTime              @default(now())
-  purpose         CardActivationPurpose @default(ACTIVATE)
+  claimedByUserId   String?
+  createdAt         DateTime              @default(now())
+  purpose           CardActivationPurpose @default(ACTIVATE)
   /// RECOVER only: the holder account at mint time. The claim refuses if the
   /// card changed hands since, so a stale QR can't move a different account.
   recoverFromUserId String?

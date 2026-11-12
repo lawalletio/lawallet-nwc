@@ -7,6 +7,24 @@ export const settings: typeof En = {
   support: 'Soporte',
   dangerZone: 'Zona de peligro',
   myCards: 'Mis tarjetas',
+  profile: 'Perfil',
+  profileScreen: {
+    welcomeTitle: 'Configura tu perfil',
+    welcomeBody: 'Elige un nombre y una foto para que te reconozcan.',
+    changePhoto: 'Cambiar foto',
+    name: 'Nombre',
+    namePlaceholder: 'ej. Satoshi',
+    about: 'Sobre ti',
+    aboutPlaceholder: 'Unas palabras sobre ti',
+    save: 'Guardar perfil',
+    saving: 'Guardando…',
+    saved: 'Perfil guardado',
+    saveFailed: 'No pudimos guardar tu perfil',
+    uploading: (pct: number) => `Subiendo… ${pct}%`,
+    uploadFailed: 'Falló la subida',
+    notImage: 'Elige un archivo de imagen',
+    skip: 'Omitir por ahora'
+  },
   security: 'Seguridad',
   remoteWallets: 'Billeteras remotas',
   language: 'Idioma',
@@ -137,6 +155,8 @@ export const settings: typeof En = {
     revealSecret: 'Mostrar clave privada',
     passkeyKeyHint:
       'Tu clave se deriva de tu passkey y se guarda solo en este dispositivo. Respáldala para usar esta identidad en otras apps de Nostr.',
+    emailKeyHint:
+      'Tu clave la custodia esta comunidad y se desbloquea con el enlace de tu correo. Respáldala para usar esta identidad en otras apps de Nostr.',
     nsecKeyHint:
       'Tu clave se guarda solo en este dispositivo. Respáldala para no perder el acceso si pierdes este dispositivo.',
     device: 'Dispositivo',

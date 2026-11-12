@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Copy,
@@ -58,6 +58,7 @@ import { Label } from '@/components/ui/label'
 import { Spinner } from '@/components/ui/spinner'
 import { AdminTopbar } from '@/components/admin/admin-topbar'
 import { MergeDialog } from '@/components/admin/account/merge-dialog'
+import { EmailsSection } from '@/components/admin/account/emails-section'
 import { PasskeysSection } from '@/components/wallet/settings/passkeys-section'
 import { ConnectedApps } from '@/components/oauth/connected-apps'
 import { DeviceTokensTab } from '@/components/admin/account/device-tokens-tab'
@@ -116,6 +117,26 @@ export function AccountScreen() {
     'nostr'
   )
   const [mergeHint, setMergeHint] = useState<string | undefined>(undefined)
+  const [mergeTicket, setMergeTicket] = useState<string | undefined>(undefined)
+
+  // An email-link confirmation for an email that signs in to another account
+  // lands here with `#merge=<ticket>`: open the wizard straight at preview.
+  useEffect(() => {
+    const ticket = new URLSearchParams(window.location.hash.slice(1)).get(
+      'merge'
+    )
+    if (!ticket) return
+    window.history.replaceState(
+      null,
+      '',
+      window.location.pathname + window.location.search
+    )
+    setMergeTicket(ticket)
+    setMergeHint(
+      'That email signs in to another account. Review and merge it into this one.'
+    )
+    setMergeOpen(true)
+  }, [])
   const [renameTarget, setRenameTarget] = useState<NostrIdentitySummary | null>(
     null
   )
@@ -287,13 +308,28 @@ export function AccountScreen() {
                 </CardContent>
               </Card>
 
+              {/* ── Emails ───────────────────────────────────────────────── */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Emails</CardTitle>
+                  <CardDescription>
+                    Sign in with a magic link sent to any of these addresses.
+                    The server keeps a sign-in key for email access.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <EmailsSection />
+                </CardContent>
+              </Card>
+
               {/* ── Link / merge another account ─────────────────────────── */}
               <Card>
                 <CardHeader>
                   <CardTitle>Link another account</CardTitle>
                   <CardDescription>
                     Merge another Nostr account or key into this one — prove you
-                    control it by signing or with its passkey.
+                    control it by signing or with its passkey. To merge an email
+                    account, add its email above.
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -314,9 +350,13 @@ export function AccountScreen() {
 
       <MergeDialog
         open={mergeOpen}
-        onOpenChange={setMergeOpen}
+        onOpenChange={open => {
+          setMergeOpen(open)
+          if (!open) setMergeTicket(undefined)
+        }}
         initialTab={mergeInitialTab}
         hint={mergeHint}
+        initialMergeTicket={mergeTicket}
       />
 
       {/* Rename dialog */}

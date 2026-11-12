@@ -2,10 +2,14 @@ import { nip19 } from 'nostr-tools'
 
 export const NOSTR_PROFILE_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000
 
+// relay.nostr.band was dropped (unreachable since late 2026) and nos.lol
+// silently ignores writes from fresh keys, so primal + snort keep at least
+// two relays that accept a new user's first kind-0.
 export const DEFAULT_NOSTR_RELAYS = [
   'wss://relay.damus.io',
-  'wss://relay.nostr.band',
+  'wss://relay.primal.net',
   'wss://nos.lol',
+  'wss://relay.snort.social',
   'wss://relay.lawallet.ar'
 ]
 

@@ -363,7 +363,9 @@ export function AdminSidebar({ disabled = false }: { disabled?: boolean }) {
         ? 'Private key'
         : loginMethod === 'bunker'
           ? 'Bunker'
-          : ''
+          : loginMethod === 'email'
+            ? 'Email'
+            : ''
 
   const displayName =
     profile?.displayName ||

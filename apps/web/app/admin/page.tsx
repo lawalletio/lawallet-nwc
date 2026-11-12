@@ -1,12 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import {
-  Monitor,
-  CreditCard,
-  AtSign,
-  Zap
-} from 'lucide-react'
+import { Monitor, CreditCard, AtSign, Zap } from 'lucide-react'
 import { AdminTopbar } from '@/components/admin/admin-topbar'
 import { StatCard } from '@/components/admin/stat-card'
 import { Badge } from '@/components/ui/badge'
@@ -30,6 +25,7 @@ import {
 import { useAuth } from '@/components/admin/auth-context'
 import { Permission } from '@/lib/auth/permissions'
 import { RegisterAddressBanner } from '@/components/admin/register-address-banner'
+import { ClaimAddressEmptyState } from '@/components/admin/claim-address-empty-state'
 import { EndpointError } from '@/components/admin/endpoint-error'
 import { IdentityCircles } from '@/components/admin/identity-circles'
 import { LightningAddressHero } from '@/components/admin/lightning-address-hero'
@@ -64,12 +60,7 @@ export default function AdminDashboardPage() {
     lightningAddress: string | null
     // The primary address's configured mode drives which card renders
     // below. Null when the user has no primary address yet.
-    primaryAddressMode:
-      | 'IDLE'
-      | 'ALIAS'
-      | 'PROXY_ALIAS'
-      | 'CUSTOM_NWC'
-      | null
+    primaryAddressMode: 'IDLE' | 'ALIAS' | 'PROXY_ALIAS' | 'CUSTOM_NWC' | null
     primaryUsername: string | null
     primaryRedirect: string | null
   }>(status === 'authenticated' ? '/api/users/me' : null)
@@ -154,26 +145,9 @@ export default function AdminDashboardPage() {
               // EndpointError banner above; showing this below it would
               // contradict the true problem.
               !meError && !me?.lightningAddress ? (
-                <div className="flex flex-col items-center justify-center py-24 text-center gap-4">
-                  <div className="flex size-16 items-center justify-center rounded-full bg-yellow-500/10">
-                    <Zap className="size-8 text-yellow-500" />
-                  </div>
-                  <div className="space-y-1">
-                    <h2 className="text-lg font-semibold">
-                      Set up your Lightning Address
-                    </h2>
-                    <p className="text-sm text-muted-foreground max-w-sm">
-                      You need to configure a Lightning Address to get started
-                      receiving payments on this platform.
-                    </p>
-                  </div>
-                  <Button
-                    variant="theme"
-                    onClick={() => router.push('/admin/addresses/register')}
-                  >
-                    Register now
-                  </Button>
-                </div>
+                <ClaimAddressEmptyState
+                  onClaim={() => router.push('/admin/addresses/register')}
+                />
               ) : null
             ) : (
               <>

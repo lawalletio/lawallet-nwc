@@ -30,11 +30,17 @@ export function useAccount() {
     NostrIdentitySummary
   >()
   const unlink = useMutation<undefined, { message: string; pubkey: string }>()
+  const emailLink = useMutation<
+    { email: string; locale?: 'en' | 'es' },
+    { ok: true }
+  >()
+  const emailUnlink = useMutation<undefined, { deleted: true }>()
 
   return {
     account: data ?? null,
     identities: data?.identities ?? [],
     credentials: data?.credentials ?? [],
+    emails: data?.emails ?? [],
     hasManagedKey: data?.hasManagedKey ?? false,
     managedKeyExported: data?.managedKeyExported ?? false,
     loading,
@@ -65,7 +71,23 @@ export function useAccount() {
       await unlink.mutate('del', `${ACCOUNT_PATH}/identities/${pubkey}`)
       invalidateApiPath(ACCOUNT_PATH)
     },
+    /** Emails a confirmation link; the email is linked once it's opened. */
+    linkEmail: async (email: string, locale?: 'en' | 'es') => {
+      await emailLink.mutate('post', `${ACCOUNT_PATH}/emails`, {
+        email,
+        locale
+      })
+    },
+    unlinkEmail: async (email: string) => {
+      await emailUnlink.mutate(
+        'del',
+        `${ACCOUNT_PATH}/emails/${encodeURIComponent(email)}`
+      )
+      invalidateApiPath(ACCOUNT_PATH)
+    },
     updating: update.loading,
-    unlinking: unlink.loading
+    unlinking: unlink.loading,
+    linkingEmail: emailLink.loading,
+    unlinkingEmail: emailUnlink.loading
   }
 }

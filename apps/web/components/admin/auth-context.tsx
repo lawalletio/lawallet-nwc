@@ -169,7 +169,10 @@ async function restoreStoredSigner(
       // Bunker relay unreachable or signer rejected the resume.
       // Keep the secret so a manual retry can pick it up later.
     }
-  } else if (storedMethod === 'passkey' && storedSecret) {
+  } else if (
+    (storedMethod === 'passkey' || storedMethod === 'email') &&
+    storedSecret
+  ) {
     // A passkey session is an nsec session whose key came from the PRF
     // extension — restore it exactly like the nsec method.
     try {
@@ -198,7 +201,8 @@ declare global {
   }
 }
 
-export type LoginMethod = 'nsec' | 'bunker' | 'extension' | 'passkey'
+/** `'email'`: an nsec session whose key the server custodies (magic link). */
+export type LoginMethod = 'nsec' | 'bunker' | 'extension' | 'passkey' | 'email'
 export type AuthStatus = 'loading' | 'unauthenticated' | 'authenticated'
 
 export interface AuthState {
@@ -783,7 +787,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Passkey sessions restore from the stored PRF-derived secret like any
     // nsec session; when it's gone (cleared storage) the dialog covers it.
-    if (state.loginMethod === 'passkey') {
+    if (state.loginMethod === 'passkey' || state.loginMethod === 'email') {
       const storedSecret = readStorage(SIGNER_SECRET_KEY)
       if (storedSecret) {
         const { createNsecSigner } = await import('@/lib/client/nostr-signer')

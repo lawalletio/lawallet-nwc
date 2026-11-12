@@ -11,7 +11,7 @@ interface CtaSectionProps {
 
 export function CtaSection({ onClaim, onSetup, setupNeeded }: CtaSectionProps) {
   return (
-    <section className="relative max-w-3xl mx-auto text-center px-4 py-28">
+    <section className="relative max-w-3xl mx-auto overflow-x-clip text-center px-4 py-28">
       {/* Background glow */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div

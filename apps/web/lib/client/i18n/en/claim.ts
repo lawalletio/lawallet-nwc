@@ -41,6 +41,7 @@ export const claim = {
   yourDomain: 'your-domain',
   dialog: {
     title: 'New address',
+    subtitle: "Pick your Lightning address — it's how people pay you.",
     creating: 'Creating…',
     create: 'Create',
     preparingPayment: 'Preparing payment',

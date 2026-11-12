@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { CheckCircle2, Fingerprint, KeyRound } from 'lucide-react'
 import { toast } from 'sonner'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -56,11 +56,6 @@ type Step = 'prove' | 'preview' | 'resolve' | 'review' | 'done'
 
 type ProfileSide = 'survivor' | 'absorbed'
 
-interface MergeResolutions {
-  primaryAddressUsername?: string
-  defaultWalletId?: string
-}
-
 const ACCOUNT_PATH = '/api/account'
 
 const STEP_NUMBER: Record<Exclude<Step, 'done'>, number> = {
@@ -77,6 +72,11 @@ interface MergeDialogProps {
   initialTab?: 'nostr' | 'passkey'
   /** Optional banner shown above the tabs (e.g. duplicate-passkey hint). */
   hint?: string
+  /**
+   * Ticket already proven elsewhere (an email-link confirmation): skips the
+   * prove step and opens at the preview.
+   */
+  initialMergeTicket?: string
 }
 
 /**
@@ -88,10 +88,6 @@ interface MergeConflicts {
   pictureConflict: boolean
   nameConflict: boolean
   profileShown: boolean
-  addressConflict: boolean
-  walletConflict: boolean
-  survivorDefaultWallet: MergeSide['wallets'][number] | null
-  absorbedDefaultWallet: MergeSide['wallets'][number] | null
   relaysShown: boolean
   relayUnionCount: number
   survivorDisplayName: string | undefined
@@ -115,19 +111,12 @@ function computeConflicts(
     absorbedDisplayName &&
     survivorDisplayName !== absorbedDisplayName
   )
-  const survivorDefaultWallet = s.wallets.find(w => w.isDefault) ?? null
-  const absorbedDefaultWallet = a.wallets.find(w => w.isDefault) ?? null
   return {
     pictureConflict,
     nameConflict,
     profileShown: Boolean(
       s.profile && a.profile && (pictureConflict || nameConflict)
     ),
-    addressConflict: s.primaryAddress !== null && a.primaryAddress !== null,
-    walletConflict:
-      survivorDefaultWallet !== null && absorbedDefaultWallet !== null,
-    survivorDefaultWallet,
-    absorbedDefaultWallet,
     relaysShown: s.relays.length > 0 || a.relays.length > 0,
     relayUnionCount: new Set([...s.relays, ...a.relays]).size,
     survivorDisplayName,
@@ -152,7 +141,8 @@ export function MergeDialog({
   open,
   onOpenChange,
   initialTab = 'nostr',
-  hint
+  hint,
+  initialMergeTicket
 }: MergeDialogProps) {
   const { jwt, refreshSession, requestSigner } = useAuth()
   const { refetch } = useAccount()
@@ -167,8 +157,7 @@ export function MergeDialog({
     picture: ProfileSide
     displayName: ProfileSide
   }>({ picture: 'survivor', displayName: 'survivor' })
-  const [addressChoice, setAddressChoice] = useState('')
-  const [walletChoice, setWalletChoice] = useState('')
+  const [loseKey, setLoseKey] = useState(false)
   const [proving, setProving] = useState(false)
   const [committing, setCommitting] = useState(false)
   const [publishingProfile, setPublishingProfile] = useState(false)
@@ -190,8 +179,7 @@ export function MergeDialog({
       setPreview(null)
       setMainPubkey('')
       setProfileSource({ picture: 'survivor', displayName: 'survivor' })
-      setAddressChoice('')
-      setWalletChoice('')
+      setLoseKey(false)
       setProving(false)
       setCommitting(false)
       setPublishingProfile(false)
@@ -221,7 +209,6 @@ export function MergeDialog({
     }
 
     const mergePreview = await fetchMergePreview(jwt, res.mergeTicket)
-    const nextConflicts = computeConflicts(mergePreview)
     setTicket(res.mergeTicket)
     setPreview(mergePreview)
     // Survivor-wins defaults for every decision the resolve step offers.
@@ -230,10 +217,26 @@ export function MergeDialog({
         mergePreview.survivor.primaryPubkey
     )
     setProfileSource({ picture: 'survivor', displayName: 'survivor' })
-    setAddressChoice(mergePreview.survivor.primaryAddress ?? '')
-    setWalletChoice(nextConflicts.survivorDefaultWallet?.id ?? '')
     setStep('preview')
   }
+
+  // A pre-proven ticket (email link) goes straight to the preview, once.
+  const startedTicket = useRef<string | null>(null)
+  useEffect(() => {
+    if (!open || !initialMergeTicket || !jwt) return
+    if (startedTicket.current === initialMergeTicket) return
+    startedTicket.current = initialMergeTicket
+    handleProofResult({ linked: false, mergeTicket: initialMergeTicket }).catch(
+      err =>
+        toast.error(
+          err instanceof Error
+            ? err.message
+            : 'Could not load the merge preview'
+        )
+    )
+    // handleProofResult is recreated every render; the ref guards re-runs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initialMergeTicket, jwt])
 
   async function handlePasskeyProve() {
     if (!jwt) return
@@ -316,25 +319,19 @@ export function MergeDialog({
   }
 
   async function handleCommit() {
-    if (!jwt || !ticket || !mainPubkey || !preview || preview.blocked) return
+    if (
+      !jwt ||
+      !ticket ||
+      !mainPubkey ||
+      !preview ||
+      (preview.blocked && !loseKey)
+    )
+      return
     setCommitting(true)
     try {
-      // Only answer the questions the resolve step actually asked —
-      // omitted keys fall back to survivor-wins server-side.
-      const resolutions: MergeResolutions = {}
-      if (conflicts?.addressConflict && addressChoice) {
-        resolutions.primaryAddressUsername = addressChoice
-      }
-      if (conflicts?.walletConflict && walletChoice) {
-        resolutions.defaultWalletId = walletChoice
-      }
-
-      const res = await commitMerge(
-        jwt,
-        ticket,
-        mainPubkey,
-        Object.keys(resolutions).length > 0 ? resolutions : undefined
-      )
+      const res = await commitMerge(jwt, ticket, mainPubkey, {
+        discardUnexportedKey: loseKey
+      })
       setResult(res)
       // The merged token may present a different primary — re-mint it, but
       // a refresh failure is non-fatal (the old token still authenticates).
@@ -447,8 +444,8 @@ export function MergeDialog({
             <DialogHeader>
               <DialogTitle>Merge accounts</DialogTitle>
               <DialogDescription>
-                That key belongs to another account. Review what would move
-                before merging it into this one.
+                That key or email belongs to another account. Review what would
+                move before merging it into this one.
               </DialogDescription>
             </DialogHeader>
 
@@ -464,7 +461,9 @@ export function MergeDialog({
               {preview.collisions.map((collision, i) => (
                 <Alert
                   key={`${collision.kind}-${i}`}
-                  variant={preview.blocked ? 'destructive' : 'default'}
+                  variant={
+                    preview.blocked && !loseKey ? 'destructive' : 'default'
+                  }
                 >
                   <AlertDescription>{collision.detail}</AlertDescription>
                 </Alert>
@@ -472,11 +471,23 @@ export function MergeDialog({
 
               {preview.blocked && (
                 <Alert variant="destructive">
-                  <AlertTitle>Merge blocked</AlertTitle>
-                  <AlertDescription>
-                    The other account&apos;s secret key is held by the server
-                    and has never been exported. Sign in to that account and
-                    export its key first — merging now would destroy it.
+                  <AlertTitle>
+                    {loseKey ? 'The key will be lost' : 'Merge blocked'}
+                  </AlertTitle>
+                  <AlertDescription className="flex flex-col items-start gap-3">
+                    <span>
+                      {loseKey
+                        ? "Merging permanently deletes the other account's secret key. Its identity still moves here, but nobody can sign as it again."
+                        : "The other account's secret key is held by the server and has never been exported. Export it from that account first, or merge anyway and lose it."}
+                    </span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={loseKey ? 'outline' : 'destructive'}
+                      onClick={() => setLoseKey(v => !v)}
+                    >
+                      {loseKey ? 'Keep the key (cancel)' : 'Lose the key'}
+                    </Button>
                   </AlertDescription>
                 </Alert>
               )}
@@ -495,7 +506,7 @@ export function MergeDialog({
               >
                 Back
               </Button>
-              {preview.blocked ? (
+              {preview.blocked && !loseKey ? (
                 <Button type="button" variant="destructive" disabled>
                   Merge blocked
                 </Button>
@@ -626,60 +637,6 @@ export function MergeDialog({
                 </ResolveSection>
               )}
 
-              {conflicts.addressConflict && (
-                <ResolveSection
-                  title="Primary lightning address"
-                  description="Both accounts have a primary address — only one can stay primary."
-                >
-                  <RadioGroup
-                    aria-label="Primary lightning address"
-                    value={addressChoice}
-                    onValueChange={setAddressChoice}
-                    className="gap-1.5"
-                  >
-                    <RadioRow
-                      id="address-survivor"
-                      value={preview.survivor.primaryAddress!}
-                      label={preview.survivor.primaryAddress}
-                      hint="This account"
-                    />
-                    <RadioRow
-                      id="address-absorbed"
-                      value={preview.absorbed.primaryAddress!}
-                      label={preview.absorbed.primaryAddress}
-                      hint="Other account"
-                    />
-                  </RadioGroup>
-                </ResolveSection>
-              )}
-
-              {conflicts.walletConflict && (
-                <ResolveSection
-                  title="Default wallet"
-                  description="Both accounts have a default wallet — pick the one new payments route through."
-                >
-                  <RadioGroup
-                    aria-label="Default wallet"
-                    value={walletChoice}
-                    onValueChange={setWalletChoice}
-                    className="gap-1.5"
-                  >
-                    <RadioRow
-                      id="wallet-survivor"
-                      value={conflicts.survivorDefaultWallet!.id}
-                      label={conflicts.survivorDefaultWallet!.name}
-                      hint="This account"
-                    />
-                    <RadioRow
-                      id="wallet-absorbed"
-                      value={conflicts.absorbedDefaultWallet!.id}
-                      label={conflicts.absorbedDefaultWallet!.name}
-                      hint="Other account"
-                    />
-                  </RadioGroup>
-                </ResolveSection>
-              )}
-
               {conflicts.relaysShown && (
                 <Alert>
                   <AlertDescription>
@@ -762,20 +719,6 @@ export function MergeDialog({
                     })`}
                   />
                 )}
-                {conflicts.addressConflict && (
-                  <ReviewRow label="Primary address" value={addressChoice} />
-                )}
-                {conflicts.walletConflict && (
-                  <ReviewRow
-                    label="Default wallet"
-                    value={
-                      [
-                        conflicts.survivorDefaultWallet,
-                        conflicts.absorbedDefaultWallet
-                      ].find(w => w?.id === walletChoice)?.name ?? walletChoice
-                    }
-                  />
-                )}
                 {conflicts.relaysShown && (
                   <ReviewRow
                     label="Relays"
@@ -793,6 +736,7 @@ export function MergeDialog({
                 )}
                 , {countLabel(preview.absorbed.passkeys, 'passkey', 'passkeys')}
                 ,{' '}
+                {countLabel(preview.absorbed.emails.length, 'email', 'emails')},{' '}
                 {countLabel(
                   preview.absorbed.lightningAddresses.length,
                   'lightning address',
@@ -811,6 +755,8 @@ export function MergeDialog({
                 <AlertDescription>
                   This permanently merges the other account into this one and
                   deletes it. This cannot be undone.
+                  {loseKey &&
+                    " The other account's secret key will be deleted too."}
                 </AlertDescription>
               </Alert>
             </div>
@@ -1028,6 +974,11 @@ function MergeSideCard({ title, side }: { title: string; side: MergeSide }) {
           {side.lightningAddresses.length > 0 && (
             <li className="wrap-break-word">
               Addresses: {side.lightningAddresses.join(', ')}
+            </li>
+          )}
+          {side.emails.length > 0 && (
+            <li className="wrap-break-word">
+              Emails: {side.emails.join(', ')}
             </li>
           )}
           <li>

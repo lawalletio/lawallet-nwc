@@ -40,6 +40,10 @@ export const GET = withErrorHandling(async (request: Request) => {
         orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }]
       },
       passkeyCredentials: { orderBy: { createdAt: 'asc' } },
+      emailIdentities: {
+        select: { email: true, createdAt: true },
+        orderBy: { createdAt: 'asc' }
+      },
       managedNostrKey: { select: { exportedAt: true, ciphertext: true } }
     }
   })
@@ -76,6 +80,10 @@ export const GET = withErrorHandling(async (request: Request) => {
       custodied: i.pubkey === custodiedPubkey
     })),
     credentials: user.passkeyCredentials.map(toCredentialSummary),
+    emails: user.emailIdentities.map(e => ({
+      email: e.email,
+      createdAt: e.createdAt.toISOString()
+    })),
     hasManagedKey: !!user.managedNostrKey,
     managedKeyExported: !!user.managedNostrKey?.exportedAt
   })

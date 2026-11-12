@@ -43,6 +43,7 @@ export const claim: typeof En = {
   yourDomain: 'tu-dominio',
   dialog: {
     title: 'Nueva dirección',
+    subtitle: 'Elige tu dirección Lightning: así te van a pagar.',
     creating: 'Creando…',
     create: 'Crear',
     preparingPayment: 'Preparando el pago',

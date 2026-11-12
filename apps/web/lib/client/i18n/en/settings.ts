@@ -5,6 +5,24 @@ export const settings = {
   support: 'Support',
   dangerZone: 'Danger Zone',
   myCards: 'My Cards',
+  profile: 'Profile',
+  profileScreen: {
+    welcomeTitle: 'Set up your profile',
+    welcomeBody: 'Pick a name and a photo so people recognize you.',
+    changePhoto: 'Change photo',
+    name: 'Name',
+    namePlaceholder: 'e.g. Satoshi',
+    about: 'About',
+    aboutPlaceholder: 'A few words about you',
+    save: 'Save profile',
+    saving: 'Saving…',
+    saved: 'Profile saved',
+    saveFailed: 'Could not save your profile',
+    uploading: (pct: number) => `Uploading… ${pct}%`,
+    uploadFailed: 'Upload failed',
+    notImage: 'Please pick an image file',
+    skip: 'Skip for now'
+  },
   security: 'Security',
   remoteWallets: 'Remote wallets',
   language: 'Language',
@@ -135,6 +153,8 @@ export const settings = {
     revealSecret: 'Reveal secret key',
     passkeyKeyHint:
       'Your key is derived from your passkey and stored only on this device. Back it up to use this identity in other Nostr apps.',
+    emailKeyHint:
+      'Your key is held securely by this community and unlocked by your email link. Back it up to use this identity in other Nostr apps.',
     nsecKeyHint:
       'Your key is stored only on this device. Back it up to keep access if this device is lost.',
     device: 'Device',

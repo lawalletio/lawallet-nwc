@@ -6,7 +6,7 @@ import { getConfig } from '@/lib/config'
 import { getListenerConfig } from '@/lib/listener-config'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { ValidationError } from '@/types/server/errors'
-import { settingsBodySchema } from '@/lib/validation/schemas'
+import { emailAddressSchema, settingsBodySchema } from '@/lib/validation/schemas'
 import { validateBody } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import {
@@ -17,6 +17,9 @@ import { eventBus } from '@/lib/events/event-bus'
 import { probeLud21Support } from '@/lib/lnurl-probe'
 import { buildPublicUrl, parseEndpoint } from '@/lib/public-url-utils'
 import { ActivityEvent, logActivity } from '@/lib/activity-log'
+import { EMAIL_SECRET_KEYS, isEmailProviderType } from '@/lib/email/providers'
+import { isEmailConfigured } from '@/lib/email/send'
+import { isVaultConfigured } from '@/lib/auth/key-vault'
 
 /**
  * Settings keys that must NEVER be serialized to clients, regardless of role.
@@ -25,7 +28,12 @@ import { ActivityEvent, logActivity } from '@/lib/activity-log'
  * `payment_received` events and move funds. The UI works with presence flags
  * (`listener_secret_configured`) and write-only updates instead.
  */
-const SENSITIVE_SETTINGS_KEYS = new Set(['listener_auth_secret'])
+const SENSITIVE_SETTINGS_KEYS = new Set([
+  'listener_auth_secret',
+  // Email provider credentials (smtp_password, ses_secret_access_key,
+  // resend_api_key) — write-only; the UI reads `<key>_configured` flags.
+  ...EMAIL_SECRET_KEYS
+])
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
   // Validate authentication (JWT or NIP-98). Unauthenticated users only get public settings.
@@ -87,7 +95,12 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       social_website: settings.social_website,
       social_nostr: settings.social_nostr,
       social_email: settings.social_email,
-      gtag_id: settings.gtag_id
+      gtag_id: settings.gtag_id,
+      // Gates the "Continue with email" login form. Only advertised (key
+      // present) when it can actually work: provider + from + key vault.
+      ...(settings.email_login_enabled === 'true' && emailLoginUsable(settings)
+        ? { email_login_enabled: 'true' }
+        : {})
     })
   }
 
@@ -108,9 +121,21 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     // Presence flag only — the secret value itself is never exposed (see
     // SENSITIVE_SETTINGS_KEYS). The settings UI uses this to keep the stored
     // secret when saving unrelated listener fields.
-    listener_secret_configured: settings.listener_auth_secret ? 'true' : 'false'
+    listener_secret_configured: settings.listener_auth_secret ? 'true' : 'false',
+    ...Object.fromEntries(
+      EMAIL_SECRET_KEYS.map(key => [
+        `${key}_configured`,
+        settings[key] ? 'true' : 'false'
+      ])
+    ),
+    email_configured: isEmailConfigured(settings) ? 'true' : 'false',
+    key_vault_configured: isVaultConfigured() ? 'true' : 'false'
   })
 })
+
+function emailLoginUsable(settings: Record<string, string>): boolean {
+  return isEmailConfigured(settings) && isVaultConfigured()
+}
 
 export const POST = withErrorHandling(async (request: NextRequest) => {
   await checkRequestLimits(request, 'json')
@@ -236,6 +261,35 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     if (!effectiveUrl || !effectiveSecret) {
       throw new ValidationError(
         'Enabling the listener requires a listener URL and shared secret (set them below or via LISTENER_URL / LISTENER_AUTH_SECRET)'
+      )
+    }
+  }
+
+  if (
+    body.email_default_provider !== undefined &&
+    body.email_default_provider !== '' &&
+    !isEmailProviderType(body.email_default_provider)
+  ) {
+    throw new ValidationError('Unknown email provider')
+  }
+  if (
+    body.email_from_address !== undefined &&
+    body.email_from_address.trim() !== '' &&
+    !emailAddressSchema.safeParse(body.email_from_address).success
+  ) {
+    throw new ValidationError('"From" address must be a valid email')
+  }
+  if (body.email_login_enabled === 'true') {
+    // Effective email config after this save (posted keys over stored).
+    const merged = { ...(await getSettings()), ...body }
+    if (!isEmailConfigured(merged)) {
+      throw new ValidationError(
+        'Email login requires a configured default email provider and a "from" address'
+      )
+    }
+    if (!isVaultConfigured()) {
+      throw new ValidationError(
+        'Email login requires KEY_VAULT_SECRET (it custodies new users’ keys)'
       )
     }
   }

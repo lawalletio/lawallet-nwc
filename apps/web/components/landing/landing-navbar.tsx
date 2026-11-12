@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useAuth } from '@/components/admin/auth-context'
 import { useNostrProfile } from '@/lib/client/nostr-profile'
-import { Role } from '@/lib/auth/permissions'
 
 interface LandingNavbarProps {
   setupNeeded: boolean
@@ -19,7 +18,7 @@ export function LandingNavbar({
   onLoginClick
 }: LandingNavbarProps) {
   const router = useRouter()
-  const { status, pubkey, role } = useAuth()
+  const { status, pubkey } = useAuth()
   const { profile } = useNostrProfile(pubkey)
 
   const isAuthenticated = status === 'authenticated'
@@ -44,10 +43,6 @@ export function LandingNavbar({
         </div>
 
         <div className="flex items-center gap-3">
-          <Button variant="outline" size="sm" asChild>
-            <Link href="/wallet">Try Wallet</Link>
-          </Button>
-
           {status === 'loading' ? (
             <div className="size-8 rounded-full bg-muted/40 animate-pulse" />
           ) : isAuthenticated ? (
@@ -70,22 +65,26 @@ export function LandingNavbar({
                   </span>
                 )}
               </div>
+              <Button variant="outline" size="sm" asChild>
+                <Link href="/wallet">Wallet</Link>
+              </Button>
               <Button
                 variant="theme"
                 size="sm"
-                onClick={() =>
-                  router.push(
-                    setupNeeded || role !== Role.USER ? '/admin' : '/wallet'
-                  )
-                }
+                onClick={() => router.push('/admin')}
               >
-                {setupNeeded || role !== Role.USER ? 'Dashboard' : 'Wallet'}
+                Dashboard
               </Button>
             </>
           ) : (
-            <Button variant="theme" size="sm" onClick={onLoginClick}>
-              {setupNeeded ? 'Setup now' : 'Login'}
-            </Button>
+            <>
+              <Button variant="outline" size="sm" asChild>
+                <Link href="/wallet">Try Wallet</Link>
+              </Button>
+              <Button variant="theme" size="sm" onClick={onLoginClick}>
+                {setupNeeded ? 'Setup now' : 'Login'}
+              </Button>
+            </>
           )}
         </div>
       </div>

@@ -1,10 +1,17 @@
 import { z } from 'zod'
-import { hexPubkeySchema } from '@lawallet-nwc/shared'
+import {
+  accountEmailLinkRequestSchema,
+  accountEmailLinkVerifyResponseSchema,
+  emailLoginTokenSchema,
+  hexPubkeySchema
+} from '@lawallet-nwc/shared'
 import {
   commonErrorResponses,
   inlineJsonResponse,
   jsonResponse,
   protectedSecurity,
+  publicErrorResponses,
+  publicSecurity,
   withRole
 } from '../helpers'
 import { registry } from '../registry'
@@ -298,6 +305,103 @@ registry.registerPath({
       'The identity is the account’s primary (promote another identity ' +
         'first) or its last remaining identity.'
     ),
+    429: responses.rateLimited
+  }
+})
+
+// ── Linked emails ──────────────────────────────────────────────────────────
+
+const emailDisabled = errorResponse(
+  'Email login is disabled (or no email provider / KEY_VAULT_SECRET is configured).'
+)
+
+registry.registerPath({
+  ...withRole('USER'),
+  method: 'post',
+  path: '/api/account/emails',
+  tags: [TAG],
+  summary: 'Email a confirmation link to add an email to the account.',
+  description:
+    'Sends a single-use, 15-minute link bound to the caller’s account. ' +
+    'Opening it (`/api/account/emails/verify`) links the email, or — when ' +
+    'it already signs in to another account — returns a merge ticket. Never ' +
+    'reveals whether the email is taken. Rate limited per caller and address.',
+  operationId: 'account.emails.link',
+  security: protectedSecurity,
+  request: {
+    body: {
+      content: {
+        'application/json': { schema: accountEmailLinkRequestSchema }
+      }
+    }
+  },
+  responses: {
+    200: inlineJsonResponse('Link sent.', z.object({ ok: z.literal(true) })),
+    ...commonErrorResponses,
+    404: emailDisabled,
+    409: errorResponse('The email is already linked to this account.'),
+    429: responses.rateLimited,
+    503: errorResponse('The email provider is unavailable.')
+  }
+})
+
+registry.registerPath({
+  ...withRole('PUBLIC'),
+  method: 'post',
+  path: '/api/account/emails/verify',
+  tags: [TAG],
+  summary: 'Confirm an email-link token.',
+  description:
+    'No session needed: the token is bound to the account that requested ' +
+    'it. An unclaimed email is linked (an account without a hosted key gets ' +
+    'one, as a secondary identity, so email sign-in works). An email that ' +
+    'signs in to another account yields a merge ticket only the requesting ' +
+    'account can redeem via `/api/account/merge`.',
+  operationId: 'account.emails.verify',
+  security: publicSecurity,
+  request: {
+    body: { content: { 'application/json': { schema: emailLoginTokenSchema } } }
+  },
+  responses: {
+    200: inlineJsonResponse(
+      'Linked, or a merge ticket for the other account.',
+      accountEmailLinkVerifyResponseSchema
+    ),
+    ...publicErrorResponses,
+    401: errorResponse('The link is invalid, used, or expired.'),
+    404: emailDisabled,
+    429: responses.rateLimited
+  }
+})
+
+registry.registerPath({
+  ...withRole('USER'),
+  method: 'delete',
+  path: '/api/account/emails/{email}',
+  tags: [TAG],
+  summary: 'Remove a linked email.',
+  description:
+    'The email stops signing in to the account. Refused (409) for the last ' +
+    'email of an account whose only key is its never-exported hosted one. ' +
+    'Removing the last email drops a hosted key that only existed for email ' +
+    'sign-in.',
+  operationId: 'account.emails.delete',
+  security: protectedSecurity,
+  request: {
+    params: z.object({
+      email: z
+        .string()
+        .openapi({ description: 'The linked email (URL-encoded).' })
+    })
+  },
+  responses: {
+    200: inlineJsonResponse(
+      'Email removed.',
+      z.object({ deleted: z.literal(true) })
+    ),
+    ...commonErrorResponses,
+    404: errorResponse('Email not linked to the caller’s account.'),
+    409: errorResponse('It is the last way to sign in to this account.'),
     429: responses.rateLimited
   }
 })

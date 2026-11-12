@@ -46,7 +46,8 @@ export const POST = withErrorHandling(async (request: Request) => {
     survivorId: ticket.survivorId,
     absorbedId: ticket.absorbedId,
     mainPubkey: body.mainPubkey,
-    resolutions: body.resolutions
+    resolutions: body.resolutions,
+    discardUnexportedKey: body.discardUnexportedKey
   })
 
   return NextResponse.json(result)

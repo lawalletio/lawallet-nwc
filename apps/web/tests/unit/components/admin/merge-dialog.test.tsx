@@ -138,6 +138,7 @@ const PREVIEW: AccountMergePreviewResponse = {
       { pubkey: PK_B, isPrimary: false, label: null }
     ],
     passkeys: 1,
+    emails: [],
     lightningAddresses: ['alice@ln.host'],
     primaryAddress: 'alice',
     remoteWallets: 2,
@@ -162,6 +163,7 @@ const PREVIEW: AccountMergePreviewResponse = {
     primaryPubkey: PK_C,
     identities: [{ pubkey: PK_C, isPrimary: true, label: 'Old phone' }],
     passkeys: 2,
+    emails: [],
     lightningAddresses: ['bob@ln.host'],
     primaryAddress: 'bob',
     remoteWallets: 1,
@@ -271,7 +273,7 @@ describe('MergeDialog', () => {
     ).toBeInTheDocument()
   })
 
-  it('walks prove → preview → resolve → review → commit with picked resolutions', async () => {
+  it('walks prove → preview → resolve → review → commit', async () => {
     const user = userEvent.setup()
     vi.mocked(proveNostrKey).mockResolvedValue(TICKET_RESPONSE)
     vi.mocked(fetchMergePreview).mockResolvedValue(PREVIEW)
@@ -316,12 +318,14 @@ describe('MergeDialog', () => {
     await user.click(
       within(radioGroup('Display name')).getAllByRole('radio')[1]
     )
-    await user.click(
-      within(radioGroup('Primary lightning address')).getAllByRole('radio')[1]
-    )
-    await user.click(
-      within(radioGroup('Default wallet')).getAllByRole('radio')[1]
-    )
+    // The survivor's primary address and default wallet always stay —
+    // incoming ones join as secondary, so neither is asked about.
+    expect(
+      screen.queryByRole('radiogroup', { name: 'Primary lightning address' })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('radiogroup', { name: 'Default wallet' })
+    ).not.toBeInTheDocument()
     expect(
       screen.getByText(/Relay lists will be merged — 3 relays/)
     ).toBeInTheDocument()
@@ -331,8 +335,6 @@ describe('MergeDialog', () => {
     await screen.findByText('Review & merge')
     expect(screen.getByText('From the other account')).toBeInTheDocument()
     expect(screen.getByText('Bob (from the other account)')).toBeInTheDocument()
-    expect(screen.getByText('bob')).toBeInTheDocument()
-    expect(screen.getByText('Old wallet')).toBeInTheDocument()
     expect(screen.getByText('Merged (3 total)')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Merge accounts' }))
 
@@ -341,7 +343,7 @@ describe('MergeDialog', () => {
         'jwt-token',
         TICKET_RESPONSE.mergeTicket,
         PK_C,
-        { primaryAddressUsername: 'bob', defaultWalletId: 'w2' }
+        { discardUnexportedKey: false }
       )
     )
 
@@ -376,7 +378,7 @@ describe('MergeDialog', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
-  it('only asks about real conflicts and omits resolutions when there are none', async () => {
+  it('only asks about real conflicts', async () => {
     const user = userEvent.setup()
     vi.mocked(proveNostrKey).mockResolvedValue(TICKET_RESPONSE)
     vi.mocked(fetchMergePreview).mockResolvedValue(NO_CONFLICT_PREVIEW)
@@ -420,7 +422,7 @@ describe('MergeDialog', () => {
         'jwt-token',
         TICKET_RESPONSE.mergeTicket,
         PK_A,
-        undefined
+        { discardUnexportedKey: false }
       )
     )
     await screen.findByText('Accounts merged')
@@ -464,6 +466,50 @@ describe('MergeDialog', () => {
     expect(
       screen.getByRole('button', { name: 'mock-nostr-prove' })
     ).toBeInTheDocument()
+  })
+
+  it('"Lose the key" unblocks the merge and sends the explicit override', async () => {
+    const user = userEvent.setup()
+    vi.mocked(proveNostrKey).mockResolvedValue(TICKET_RESPONSE)
+    vi.mocked(fetchMergePreview).mockResolvedValue({
+      ...NO_CONFLICT_PREVIEW,
+      collisions: [
+        {
+          kind: 'managed-key-unexported',
+          detail: 'The other account holds an unexported managed key'
+        }
+      ],
+      blocked: true
+    })
+    vi.mocked(commitMerge).mockResolvedValue({
+      ...MERGE_RESULT,
+      mainPubkey: PK_A,
+      mergedRelays: 0
+    })
+    renderDialog()
+
+    await user.click(screen.getByRole('button', { name: 'mock-nostr-prove' }))
+    await screen.findByText('This account')
+    await user.click(screen.getByRole('button', { name: 'Lose the key' }))
+    expect(screen.getByText('The key will be lost')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Continue' }))
+    await screen.findByRole('radiogroup', { name: 'Main public identity' })
+    await user.click(screen.getByRole('button', { name: 'Continue' }))
+    await screen.findByText('Review & merge')
+    expect(
+      screen.getByText(/secret key will be deleted too/)
+    ).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Merge accounts' }))
+
+    await waitFor(() =>
+      expect(commitMerge).toHaveBeenCalledWith(
+        'jwt-token',
+        TICKET_RESPONSE.mergeTicket,
+        PK_A,
+        { discardUnexportedKey: true }
+      )
+    )
   })
 
   it('stays silent on a cancelled passkey prompt but toasts real failures', async () => {
