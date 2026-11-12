@@ -6,7 +6,10 @@ import { getConfig } from '@/lib/config'
 import { getListenerConfig } from '@/lib/listener-config'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { ValidationError } from '@/types/server/errors'
-import { emailAddressSchema, settingsBodySchema } from '@/lib/validation/schemas'
+import {
+  emailAddressSchema,
+  settingsBodySchema
+} from '@/lib/validation/schemas'
 import { validateBody } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import {
@@ -121,7 +124,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     // Presence flag only — the secret value itself is never exposed (see
     // SENSITIVE_SETTINGS_KEYS). The settings UI uses this to keep the stored
     // secret when saving unrelated listener fields.
-    listener_secret_configured: settings.listener_auth_secret ? 'true' : 'false',
+    listener_secret_configured: settings.listener_auth_secret
+      ? 'true'
+      : 'false',
     ...Object.fromEntries(
       EMAIL_SECRET_KEYS.map(key => [
         `${key}_configured`,
@@ -289,7 +294,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     }
     if (!isVaultConfigured()) {
       throw new ValidationError(
-        'Email login requires KEY_VAULT_SECRET (it custodies new users’ keys)'
+        'Email login requires KEY_VAULT_SECRET or JWT_SECRET (it custodies new users’ keys)'
       )
     }
   }

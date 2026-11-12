@@ -88,4 +88,45 @@ describe('key-vault', () => {
     envelope.write('XXXXXX', 0, 'utf8') // clobber the magic
     expect(() => decryptNsec(envelope, USER_ID)).toThrow(VaultDecryptError)
   })
+
+  describe('JWT_SECRET fallback', () => {
+    const JWT = 'jwt-secret-0123456789abcdef0123456789abcdef0123'
+    const config = (keyVault: string | undefined, jwt: string | undefined) =>
+      vi.mocked(getConfig).mockReturnValue({
+        keyVault: { secret: keyVault, enabled: !!keyVault },
+        jwt: { secret: jwt, enabled: !!jwt }
+      } as any)
+
+    it('works with only JWT_SECRET set', () => {
+      config(undefined, JWT)
+      expect(isVaultConfigured()).toBe(true)
+      const envelope = encryptNsec(PRIVKEY, USER_ID)
+      expect(decryptNsec(envelope, USER_ID)).toBe(PRIVKEY)
+    })
+
+    it('keeps decrypting fallback envelopes after KEY_VAULT_SECRET is added', () => {
+      config(undefined, JWT)
+      const old = encryptNsec(PRIVKEY, USER_ID)
+      config(ACTIVE_SECRET, JWT)
+      expect(decryptNsec(old, USER_ID)).toBe(PRIVKEY)
+      // New envelopes use KEY_VAULT_SECRET: they open without JWT_SECRET.
+      const fresh = encryptNsec(PRIVKEY, USER_ID)
+      config(ACTIVE_SECRET, undefined)
+      expect(decryptNsec(fresh, USER_ID)).toBe(PRIVKEY)
+    })
+
+    it('is domain-separated: the same string as KEY_VAULT_SECRET does not open it', () => {
+      config(undefined, JWT)
+      const envelope = encryptNsec(PRIVKEY, USER_ID)
+      config(JWT, undefined)
+      expect(() => decryptNsec(envelope, USER_ID)).toThrow(VaultDecryptError)
+    })
+
+    it('loses fallback envelopes if JWT_SECRET rotates without KEY_VAULT_SECRET', () => {
+      config(undefined, JWT)
+      const envelope = encryptNsec(PRIVKEY, USER_ID)
+      config(undefined, JWT + '-rotated')
+      expect(() => decryptNsec(envelope, USER_ID)).toThrow(VaultDecryptError)
+    })
+  })
 })

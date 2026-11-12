@@ -64,8 +64,17 @@ const PROVIDERS: Record<
         inputMode: 'numeric',
         isInvalid: v => v.trim() !== '' && !/^\d{1,5}$/.test(v.trim())
       },
-      { key: 'smtp_username', label: 'Username', placeholder: 'user@example.com' },
-      { key: 'smtp_password', label: 'Password', placeholder: '••••••••', secret: true }
+      {
+        key: 'smtp_username',
+        label: 'Username',
+        placeholder: 'user@example.com'
+      },
+      {
+        key: 'smtp_password',
+        label: 'Password',
+        placeholder: '••••••••',
+        secret: true
+      }
     ],
     configured: s => Boolean(s.smtp_host?.trim())
   },
@@ -77,9 +86,14 @@ const PROVIDERS: Record<
         key: 'ses_region',
         label: 'Region',
         placeholder: 'us-east-1',
-        isInvalid: v => v.trim() !== '' && !/^[a-z]{2}(-[a-z]+)+-\d$/.test(v.trim())
+        isInvalid: v =>
+          v.trim() !== '' && !/^[a-z]{2}(-[a-z]+)+-\d$/.test(v.trim())
       },
-      { key: 'ses_access_key_id', label: 'Access key ID', placeholder: 'AKIA…' },
+      {
+        key: 'ses_access_key_id',
+        label: 'Access key ID',
+        placeholder: 'AKIA…'
+      },
       {
         key: 'ses_secret_access_key',
         label: 'Secret access key',
@@ -90,15 +104,20 @@ const PROVIDERS: Record<
     configured: s =>
       Boolean(
         s.ses_region?.trim() &&
-          s.ses_access_key_id?.trim() &&
-          s.ses_secret_access_key_configured === 'true'
+        s.ses_access_key_id?.trim() &&
+        s.ses_secret_access_key_configured === 'true'
       )
   },
   resend: {
     label: 'Resend',
     description: 'resend.com transactional email API.',
     fields: [
-      { key: 'resend_api_key', label: 'API key', placeholder: 're_…', secret: true }
+      {
+        key: 'resend_api_key',
+        label: 'API key',
+        placeholder: 're_…',
+        secret: true
+      }
     ],
     configured: s => s.resend_api_key_configured === 'true'
   }
@@ -171,10 +190,13 @@ export function EmailSettingsSection({
         provider,
         to: testTo.trim()
       })
-      if (res.ok) toast.success(`Test email sent via ${PROVIDERS[provider].label}`)
+      if (res.ok)
+        toast.success(`Test email sent via ${PROVIDERS[provider].label}`)
       else toast.error(res.error ?? 'Failed to send test email')
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to send test email')
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to send test email'
+      )
     } finally {
       setTesting(null)
     }
@@ -198,12 +220,16 @@ export function EmailSettingsSection({
               placeholder="hello@example.com"
               value={values.email_from_address ?? ''}
               onValueChange={setValue('email_from_address')}
-              isInvalidValue={v => v.trim() !== '' && !EMAIL_PATTERN.test(v.trim())}
+              isInvalidValue={v =>
+                v.trim() !== '' && !EMAIL_PATTERN.test(v.trim())
+              }
               invalid={
                 (values.email_from_address ?? '').trim() !== '' &&
                 !EMAIL_PATTERN.test((values.email_from_address ?? '').trim())
               }
-              save={v => saveSetting({ email_from_address: v.trim().toLowerCase() })}
+              save={v =>
+                saveSetting({ email_from_address: v.trim().toLowerCase() })
+              }
             />
           </div>
           <div className="space-y-1">
@@ -275,7 +301,9 @@ export function EmailSettingsSection({
                             autoComplete={f.secret ? 'new-password' : 'off'}
                             inputMode={f.inputMode}
                             placeholder={
-                              secretSet ? '•••••••• (configured)' : f.placeholder
+                              secretSet
+                                ? '•••••••• (configured)'
+                                : f.placeholder
                             }
                             value={value}
                             onValueChange={setValue(f.key)}
@@ -307,7 +335,9 @@ export function EmailSettingsSection({
                           saveSetting({ email_default_provider: type }).catch(
                             err =>
                               toast.error(
-                                err instanceof Error ? err.message : 'Failed to save'
+                                err instanceof Error
+                                  ? err.message
+                                  : 'Failed to save'
                               )
                           )
                         }
@@ -357,7 +387,7 @@ export function EmailSettingsSection({
             )}
             {!vaultReady && (
               <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                Requires the KEY_VAULT_SECRET environment variable.
+                Requires KEY_VAULT_SECRET (or JWT_SECRET) to be set.
               </p>
             )}
           </div>

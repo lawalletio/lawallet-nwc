@@ -35,7 +35,7 @@ const envSchema = z.object({
       .min(32, 'KEY_VAULT_SECRET must be at least 32 characters long')
       .optional()
       .describe(
-        'Master secret encrypting server-custodied Nostr keys (passkey accounts). Losing it makes those keys unrecoverable.'
+        'Master secret encrypting server-custodied Nostr keys (email/passkey accounts). Optional: falls back to a key derived from JWT_SECRET — set it before ever rotating JWT_SECRET. Losing it makes those keys unrecoverable.'
       )
   ),
 

@@ -33,7 +33,7 @@ export interface SettingsData {
   email_login_enabled?: string
   /** Computed: default provider + from address configured. */
   email_configured?: string
-  /** Computed: KEY_VAULT_SECRET set (needed to custody email users' keys). */
+  /** Computed: a vault secret is set (KEY_VAULT_SECRET, or JWT_SECRET fallback). */
   key_vault_configured?: string
   /** SMTP server hostname (no protocol, e.g. `smtp.example.com`). */
   smtp_host?: string
