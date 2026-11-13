@@ -23,6 +23,8 @@ import { ActivityEvent, logActivity } from '@/lib/activity-log'
 import { EMAIL_SECRET_KEYS, isEmailProviderType } from '@/lib/email/providers'
 import { isEmailConfigured } from '@/lib/email/send'
 import { isVaultConfigured } from '@/lib/auth/key-vault'
+import { INTEGRATION_SECRET_KEYS } from '@/lib/integrations/catalog'
+import { publicIntegrationFlags } from '@/lib/integrations/server'
 
 /**
  * Settings keys that must NEVER be serialized to clients, regardless of role.
@@ -35,7 +37,10 @@ const SENSITIVE_SETTINGS_KEYS = new Set([
   'listener_auth_secret',
   // Email provider credentials (smtp_password, ses_secret_access_key,
   // resend_api_key) — write-only; the UI reads `<key>_configured` flags.
-  ...EMAIL_SECRET_KEYS
+  ...EMAIL_SECRET_KEYS,
+  // Integration API keys (bullbitcoin_api_key, wapu_api_key) — managed only
+  // through /api/integrations, which never returns them either.
+  ...INTEGRATION_SECRET_KEYS
 ])
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
@@ -99,6 +104,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       social_nostr: settings.social_nostr,
       social_email: settings.social_email,
       gtag_id: settings.gtag_id,
+      // `integration_<id>: 'true'` for each enabled + configured integration
+      // (cash-out providers, alias lookup) — the wallet + Android gate on it.
+      ...publicIntegrationFlags(settings),
       // Gates the "Continue with email" login form. Only advertised (key
       // present) when it can actually work: provider + from + key vault.
       ...(settings.email_login_enabled === 'true' && emailLoginUsable(settings)
@@ -133,6 +141,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         settings[key] ? 'true' : 'false'
       ])
     ),
+    ...publicIntegrationFlags(settings),
     email_configured: isEmailConfigured(settings) ? 'true' : 'false',
     key_vault_configured: isVaultConfigured() ? 'true' : 'false'
   })

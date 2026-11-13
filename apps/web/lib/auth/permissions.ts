@@ -42,7 +42,12 @@ export enum Permission {
    * The owner's NWC connection string is never covered by this: holding it is
    * equivalent to holding the funds.
    */
-  REMOTE_WALLETS_READ = 'remote_wallets:read'
+  REMOTE_WALLETS_READ = 'remote_wallets:read',
+  /**
+   * Configure third-party integrations (BullBitcoin, Wapu, alias lookup) and
+   * their API credentials. ADMIN-only: it is in no other role's list.
+   */
+  INTEGRATIONS_MANAGE = 'integrations:manage'
 }
 
 const ROLE_PERMISSIONS: Record<Role, Permission[]> = {

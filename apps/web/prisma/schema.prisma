@@ -298,6 +298,7 @@ model User {
   walletForwardReceipts              RemoteWalletForwardReceipt[]
   vouchers                           Voucher[]
   voucherTransfers                   VoucherTransfer[]
+  swaps                              Swap[]
   /// Who may deposit vouchers to this account. Deposits are always NIP-98
   /// signed; ALLOWLIST additionally restricts *which* signers are accepted.
   voucherDepositPolicy               VoucherDepositPolicy               @default(ANYONE)
@@ -1433,5 +1434,45 @@ model McpPayment {
 
   @@unique([walletId, paymentHash])
   @@index([grantId, createdAt])
+  @@index([userId, createdAt])
+}
+
+enum SwapStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  /// Invoice expired unpaid; no funds moved.
+  EXPIRED
+  /// Canceled by the user before paying.
+  CANCELED
+}
+
+/// A Lightning → ARS cash-out through a swap integration (BullBitcoin, Wapu).
+/// The provider order is placed with the community's admin credentials; the
+/// user pays `bolt11` from their own wallet and the provider wires the pesos.
+model Swap {
+  id             String     @id @default(cuid())
+  userId         String
+  user           User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// 'bullbitcoin' | 'wapu'
+  provider       String
+  /// Provider order id. For Wapu it is replaced by the matched fiat-transfer id.
+  externalId     String
+  /// CBU/CVU (22 digits) or bank alias.
+  destination    String
+  holderName     String?
+  amountArs      Decimal    @db.Decimal(14, 2)
+  amountSats     Int
+  bolt11         String
+  status         SwapStatus @default(PENDING)
+  providerStatus String?
+  receiptUrl     String?
+  expiresAt      DateTime?
+  /// Set once the client proves payment (preimage of `bolt11`).
+  paidAt         DateTime?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  @@unique([provider, externalId])
   @@index([userId, createdAt])
 }

@@ -65,6 +65,7 @@ function createPrismaMock(): PrismaClient {
     oAuthClient: createModelMock(),
     oAuthGrant: createModelMock(),
     mcpPayment: createModelMock(),
+    swap: createModelMock(),
     accountRecovery: createModelMock(),
     $transaction: vi.fn(fn => {
       if (typeof fn === 'function') {

@@ -54,6 +54,10 @@ export interface SettingsData {
   social_website?: string
   social_nostr?: string
   social_email?: string
+  /** 'true' when the integration is enabled + configured (public signal). */
+  integration_bullbitcoin?: string
+  integration_wapu?: string
+  integration_alias?: string
   /** Feature toggles persisted as the strings 'true' / 'false'. */
   maintenance_enabled?: string
   /** Whether non-admin users can create Lightning Addresses. Defaults to true when absent. */

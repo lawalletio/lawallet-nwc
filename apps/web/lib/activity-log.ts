@@ -58,6 +58,8 @@ export const ActivityEvent = {
   // the `spend` scope logs at WARN.
   OAUTH_GRANT_CREATED: 'user.oauth_grant_created',
   OAUTH_GRANT_REVOKED: 'user.oauth_grant_revoked',
+  // Lightning → ARS cash-out through a swap integration.
+  USER_SWAP_CREATED: 'user.swap_created',
   // ADDRESS
   ADDRESS_CREATED: 'address.created',
   ADDRESS_UPDATED: 'address.updated',

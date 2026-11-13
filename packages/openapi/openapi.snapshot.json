@@ -2795,6 +2795,54 @@
           "address"
         ],
         "description": "Recipient lightning address for a voucher transfer, plus an optional message. Irreversible once the recipient accepts."
+      },
+      "CreateSwap": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string",
+            "enum": [
+              "bullbitcoin",
+              "wapu"
+            ]
+          },
+          "amountArs": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 100000000
+          },
+          "destination": {
+            "type": "string",
+            "pattern": "^(\\d{22}|[a-zA-Z0-9.-]{6,20})$"
+          },
+          "holderName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          }
+        },
+        "required": [
+          "provider",
+          "amountArs",
+          "destination"
+        ],
+        "description": "A Lightning → ARS cash-out. `destination` is a 22-digit CBU/CVU or a bank alias; Bull Bitcoin needs a CBU/CVU (an alias is resolved through the alias integration when it is enabled)."
+      },
+      "UpdateIntegration": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "config": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "maxLength": 2048
+            }
+          }
+        },
+        "description": "Toggle an integration and/or set its fields. `config` keys are the integration’s field keys; a blank secret keeps the stored one."
       }
     },
     "parameters": {}
@@ -25511,6 +25559,1835 @@
           },
           "429": {
             "description": "Rate limit exceeded; check the Retry-After header.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/integrations": {
+      "get": {
+        "x-required-role": "ADMIN",
+        "tags": [
+          "Integrations"
+        ],
+        "summary": "List integrations and their configuration state.",
+        "description": "Secret values are never returned, only presence flags.",
+        "operationId": "integrations.list",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Every integration.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "secretsEncrypted": {
+                      "type": "boolean"
+                    },
+                    "integrations": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "enum": [
+                              "bullbitcoin",
+                              "wapu",
+                              "alias"
+                            ]
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "swap",
+                              "lookup"
+                            ]
+                          },
+                          "website": {
+                            "type": "string"
+                          },
+                          "fields": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "key": {
+                                  "type": "string"
+                                },
+                                "label": {
+                                  "type": "string"
+                                },
+                                "secret": {
+                                  "type": "boolean"
+                                },
+                                "required": {
+                                  "type": "boolean"
+                                },
+                                "defaultValue": {
+                                  "type": "string"
+                                },
+                                "placeholder": {
+                                  "type": "string"
+                                },
+                                "help": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "key",
+                                "label"
+                              ]
+                            }
+                          },
+                          "enabled": {
+                            "type": "boolean"
+                          },
+                          "configured": {
+                            "type": "boolean"
+                          },
+                          "values": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "type": "string"
+                            }
+                          },
+                          "secretsConfigured": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "type": "boolean"
+                            }
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "description",
+                          "kind",
+                          "website",
+                          "fields",
+                          "enabled",
+                          "configured",
+                          "values",
+                          "secretsConfigured"
+                        ],
+                        "description": "An integration and its admin-visible state."
+                      }
+                    }
+                  },
+                  "required": [
+                    "secretsEncrypted",
+                    "integrations"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/integrations/{id}": {
+      "put": {
+        "x-required-role": "ADMIN",
+        "tags": [
+          "Integrations"
+        ],
+        "summary": "Configure or toggle an integration.",
+        "operationId": "integrations.update",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "bullbitcoin",
+                "wapu",
+                "alias"
+              ]
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateIntegration"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Saved.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request body exceeds the configured limit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/integrations/{id}/test": {
+      "post": {
+        "x-required-role": "ADMIN",
+        "tags": [
+          "Integrations"
+        ],
+        "summary": "Check the stored credentials against the provider.",
+        "operationId": "integrations.test",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "bullbitcoin",
+                "wapu",
+                "alias"
+              ]
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Provider answer.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "detail": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "detail"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded; check the Retry-After header.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/wallet/swaps/quote": {
+      "get": {
+        "x-required-role": "USER",
+        "tags": [
+          "Cash-out"
+        ],
+        "summary": "Quote a cash-out with every available provider.",
+        "description": "Sats each enabled provider would charge to wire `amountArs` pesos. Empty when no cash-out integration is enabled.",
+        "operationId": "wallet.swaps.quote",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "required": true,
+            "name": "amountArs",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One quote per available provider.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "provider": {
+                        "type": "string",
+                        "enum": [
+                          "bullbitcoin",
+                          "wapu"
+                        ]
+                      },
+                      "sats": {
+                        "type": [
+                          "integer",
+                          "null"
+                        ]
+                      },
+                      "arsPerBtc": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "minArs": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "error": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "provider",
+                      "sats",
+                      "arsPerBtc",
+                      "minArs"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded; check the Retry-After header.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/wallet/swaps": {
+      "get": {
+        "x-required-role": "USER",
+        "tags": [
+          "Cash-out"
+        ],
+        "summary": "List the caller’s cash-outs.",
+        "operationId": "wallet.swaps.list",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            },
+            "required": false,
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 10
+            },
+            "required": false,
+            "name": "pageSize",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page, newest first. Live updates arrive as the `swaps:updated` SSE event.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "provider": {
+                            "type": "string",
+                            "enum": [
+                              "bullbitcoin",
+                              "wapu"
+                            ]
+                          },
+                          "externalId": {
+                            "type": "string",
+                            "description": "Provider order (or matched transfer) id."
+                          },
+                          "destination": {
+                            "type": "string"
+                          },
+                          "holderName": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "amountArs": {
+                            "type": "number"
+                          },
+                          "amountSats": {
+                            "type": "integer"
+                          },
+                          "bolt11": {
+                            "type": "string"
+                          },
+                          "paymentHash": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "PENDING",
+                              "COMPLETED",
+                              "FAILED",
+                              "EXPIRED",
+                              "CANCELED"
+                            ]
+                          },
+                          "providerStatus": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "receiptUrl": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "expiresAt": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "date-time"
+                          },
+                          "paidAt": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "date-time"
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "updatedAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "provider",
+                          "externalId",
+                          "destination",
+                          "holderName",
+                          "amountArs",
+                          "amountSats",
+                          "bolt11",
+                          "paymentHash",
+                          "status",
+                          "providerStatus",
+                          "receiptUrl",
+                          "expiresAt",
+                          "paidAt",
+                          "createdAt",
+                          "updatedAt"
+                        ],
+                        "description": "A Lightning → ARS cash-out order."
+                      }
+                    },
+                    "total": {
+                      "type": "integer"
+                    },
+                    "page": {
+                      "type": "integer"
+                    },
+                    "pageSize": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "total",
+                    "page",
+                    "pageSize"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "x-required-role": "USER",
+        "tags": [
+          "Cash-out"
+        ],
+        "summary": "Create a Lightning → ARS cash-out order.",
+        "description": "Places the order with the provider using the community’s credentials and returns its BOLT11. The client pays it from the user’s own wallet, then polls `GET /api/wallet/swaps/{id}` until the bank transfer settles.",
+        "operationId": "wallet.swaps.create",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSwap"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Order created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "provider": {
+                      "type": "string",
+                      "enum": [
+                        "bullbitcoin",
+                        "wapu"
+                      ]
+                    },
+                    "externalId": {
+                      "type": "string",
+                      "description": "Provider order (or matched transfer) id."
+                    },
+                    "destination": {
+                      "type": "string"
+                    },
+                    "holderName": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "amountArs": {
+                      "type": "number"
+                    },
+                    "amountSats": {
+                      "type": "integer"
+                    },
+                    "bolt11": {
+                      "type": "string"
+                    },
+                    "paymentHash": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "PENDING",
+                        "COMPLETED",
+                        "FAILED",
+                        "EXPIRED",
+                        "CANCELED"
+                      ]
+                    },
+                    "providerStatus": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "receiptUrl": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "expiresAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "paidAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "provider",
+                    "externalId",
+                    "destination",
+                    "holderName",
+                    "amountArs",
+                    "amountSats",
+                    "bolt11",
+                    "paymentHash",
+                    "status",
+                    "providerStatus",
+                    "receiptUrl",
+                    "expiresAt",
+                    "paidAt",
+                    "createdAt",
+                    "updatedAt"
+                  ],
+                  "description": "A Lightning → ARS cash-out order."
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request body exceeds the configured limit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded; check the Retry-After header.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Upstream service unavailable or maintenance mode active.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/wallet/swaps/{id}": {
+      "get": {
+        "x-required-role": "USER",
+        "tags": [
+          "Cash-out"
+        ],
+        "summary": "Get one of the caller’s cash-outs.",
+        "description": "Refreshes the status from the provider while pending (at most every 10s). Another account’s swap is reported as missing.",
+        "operationId": "wallet.swaps.get",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The swap.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "provider": {
+                      "type": "string",
+                      "enum": [
+                        "bullbitcoin",
+                        "wapu"
+                      ]
+                    },
+                    "externalId": {
+                      "type": "string",
+                      "description": "Provider order (or matched transfer) id."
+                    },
+                    "destination": {
+                      "type": "string"
+                    },
+                    "holderName": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "amountArs": {
+                      "type": "number"
+                    },
+                    "amountSats": {
+                      "type": "integer"
+                    },
+                    "bolt11": {
+                      "type": "string"
+                    },
+                    "paymentHash": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "PENDING",
+                        "COMPLETED",
+                        "FAILED",
+                        "EXPIRED",
+                        "CANCELED"
+                      ]
+                    },
+                    "providerStatus": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "receiptUrl": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "expiresAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "paidAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "provider",
+                    "externalId",
+                    "destination",
+                    "holderName",
+                    "amountArs",
+                    "amountSats",
+                    "bolt11",
+                    "paymentHash",
+                    "status",
+                    "providerStatus",
+                    "receiptUrl",
+                    "expiresAt",
+                    "paidAt",
+                    "createdAt",
+                    "updatedAt"
+                  ],
+                  "description": "A Lightning → ARS cash-out order."
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/wallet/swaps/{id}/paid": {
+      "post": {
+        "x-required-role": "USER",
+        "tags": [
+          "Cash-out"
+        ],
+        "summary": "Record that the caller paid a cash-out invoice.",
+        "description": "Proof of payment: `sha256(preimage)` must equal the invoice payment hash. Sets `paidAt`, which lets status tracking tell an unpaid order from a bank transfer in progress. Idempotent.",
+        "operationId": "wallet.swaps.paid",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "preimage": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  }
+                },
+                "required": [
+                  "preimage"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The swap.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "provider": {
+                      "type": "string",
+                      "enum": [
+                        "bullbitcoin",
+                        "wapu"
+                      ]
+                    },
+                    "externalId": {
+                      "type": "string",
+                      "description": "Provider order (or matched transfer) id."
+                    },
+                    "destination": {
+                      "type": "string"
+                    },
+                    "holderName": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "amountArs": {
+                      "type": "number"
+                    },
+                    "amountSats": {
+                      "type": "integer"
+                    },
+                    "bolt11": {
+                      "type": "string"
+                    },
+                    "paymentHash": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "PENDING",
+                        "COMPLETED",
+                        "FAILED",
+                        "EXPIRED",
+                        "CANCELED"
+                      ]
+                    },
+                    "providerStatus": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "receiptUrl": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "expiresAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "paidAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "provider",
+                    "externalId",
+                    "destination",
+                    "holderName",
+                    "amountArs",
+                    "amountSats",
+                    "bolt11",
+                    "paymentHash",
+                    "status",
+                    "providerStatus",
+                    "receiptUrl",
+                    "expiresAt",
+                    "paidAt",
+                    "createdAt",
+                    "updatedAt"
+                  ],
+                  "description": "A Lightning → ARS cash-out order."
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/wallet/swaps/{id}/cancel": {
+      "post": {
+        "x-required-role": "USER",
+        "tags": [
+          "Cash-out"
+        ],
+        "summary": "Cancel an unpaid cash-out order.",
+        "description": "Local cancel (the providers have no cancel call): the provider is checked first, and 409 is returned once the order is paid or settled. A later valid payment proof reopens the order. Idempotent.",
+        "operationId": "wallet.swaps.cancel",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The canceled swap.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "provider": {
+                      "type": "string",
+                      "enum": [
+                        "bullbitcoin",
+                        "wapu"
+                      ]
+                    },
+                    "externalId": {
+                      "type": "string",
+                      "description": "Provider order (or matched transfer) id."
+                    },
+                    "destination": {
+                      "type": "string"
+                    },
+                    "holderName": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "amountArs": {
+                      "type": "number"
+                    },
+                    "amountSats": {
+                      "type": "integer"
+                    },
+                    "bolt11": {
+                      "type": "string"
+                    },
+                    "paymentHash": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "PENDING",
+                        "COMPLETED",
+                        "FAILED",
+                        "EXPIRED",
+                        "CANCELED"
+                      ]
+                    },
+                    "providerStatus": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "receiptUrl": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "expiresAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "paidAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "provider",
+                    "externalId",
+                    "destination",
+                    "holderName",
+                    "amountArs",
+                    "amountSats",
+                    "bolt11",
+                    "paymentHash",
+                    "status",
+                    "providerStatus",
+                    "receiptUrl",
+                    "expiresAt",
+                    "paidAt",
+                    "createdAt",
+                    "updatedAt"
+                  ],
+                  "description": "A Lightning → ARS cash-out order."
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request conflicts with current resource state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/wallet/alias/{query}": {
+      "get": {
+        "x-required-role": "USER",
+        "tags": [
+          "Cash-out"
+        ],
+        "summary": "Resolve an Argentine bank alias or CBU/CVU to its owner.",
+        "description": "Proxies the Gorilla API alias integration. 404 when the integration is off or the account does not exist.",
+        "operationId": "wallet.alias.lookup",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "query",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The bank account.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "cvu": {
+                      "type": "string"
+                    },
+                    "alias": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "bank": {
+                      "type": "string"
+                    },
+                    "icon": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "owners": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "F",
+                              "J"
+                            ]
+                          },
+                          "cuit": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "cuit",
+                          "name"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "cvu",
+                    "alias",
+                    "bank",
+                    "icon",
+                    "owners"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded; check the Retry-After header.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Upstream service unavailable or maintenance mode active.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/internal/swaps/reconcile": {
+      "post": {
+        "tags": [
+          "Cash-out"
+        ],
+        "summary": "Request a cash-out swap status pass (listener cron).",
+        "description": "Internal listener-only endpoint. Refreshes every in-flight swap from its provider (Wapu / Bull Bitcoin), persists the status and pushes `swaps:updated` over SSE. The listener signs an empty JSON body with HMAC-SHA256 over `<timestamp>.<body>` and supplies x-lawallet-timestamp plus x-lawallet-signature. The body is ignored. The response is immediate (`pending` says whether any swap is still followed, so the listener can back off); the pass runs after the response. Returns 404 when no listener is configured.",
+        "operationId": "wallet.internal.swapsReconcile",
+        "security": [
+          {
+            "ListenerHmac": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reconcile pass accepted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "accepted": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "pending": {
+                      "type": "boolean"
+                    },
+                    "nextPollAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "accepted",
+                    "pending",
+                    "nextPollAt"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
             "content": {
               "application/json": {
                 "schema": {

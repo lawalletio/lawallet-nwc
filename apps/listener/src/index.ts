@@ -40,6 +40,7 @@ import {
 import { WebhookDispatcher } from './webhook'
 import { requestProxyReconcile } from './proxy-reconcile'
 import { requestZapSettlement, ZapSettleScheduler } from './zap-settle'
+import { requestSwapReconcile } from './swap-reconcile'
 import { createProcessErrorReporter } from './process-errors'
 import {
   captureException,
@@ -164,6 +165,24 @@ async function main(): Promise<void> {
           {
             fastMs: env.ZAP_SETTLE_INTERVAL_MS,
             maxMs: env.ZAP_SETTLE_MAX_INTERVAL_MS
+          }
+        )
+      : null
+
+  // Cash-out swap cron: web refreshes in-flight swaps from their provider.
+  // Ticks every SWAP_RECONCILE_INTERVAL_MS while web reports one in flight,
+  // backing off to SWAP_RECONCILE_MAX_INTERVAL_MS while none is.
+  const swapScheduler =
+    env.SWAP_RECONCILE_INTERVAL_MS > 0
+      ? new ZapSettleScheduler(
+          () =>
+            requestSwapReconcile(
+              env,
+              createLogger({ module: 'swap-reconcile' })
+            ),
+          {
+            fastMs: env.SWAP_RECONCILE_INTERVAL_MS,
+            maxMs: env.SWAP_RECONCILE_MAX_INTERVAL_MS
           }
         )
       : null
@@ -521,6 +540,7 @@ async function main(): Promise<void> {
     }, env.PROXY_RECONCILE_INTERVAL_MS)
   ]
   zapScheduler?.start()
+  swapScheduler?.start()
   if (env.CATCHUP_ENABLED && env.CATCHUP_INTERVAL_MS > 0) {
     // Safety net for gaps neither the subscribe hook nor the reconnect
     // watcher caught (e.g. silent SDK resubscribes between watcher samples).
@@ -566,6 +586,7 @@ async function main(): Promise<void> {
     void (async () => {
       for (const timer of timers) clearInterval(timer)
       zapScheduler?.stop()
+      swapScheduler?.stop()
       await new Promise<void>(resolve => server.close(() => resolve()))
       await changeListener.stop()
       await nwcPool.closeAll()

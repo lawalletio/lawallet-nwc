@@ -58,6 +58,9 @@ function getEventTypeForPath(path: string): SSEEventType | null {
   // local mutation to invalidate off — the SSE bump is the only thing that
   // makes a freshly deposited coupon appear without a reload.
   if (path.startsWith('/api/wallet/vouchers')) return 'vouchers:updated'
+  // Swap status moves on the provider's side; the server emits on every
+  // change (refresh, reconcile tick, payment proof).
+  if (path.startsWith('/api/wallet/swaps')) return 'swaps:updated'
   // `/api/card-designs` must come *before* the `/api/cards` rule because
   // `cards`.startsWith test would otherwise claim it. Designs emit their
   // own `designs:updated` bus event; wiring them to `cards:updated` meant

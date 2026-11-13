@@ -73,7 +73,9 @@ import {
   updateWalletCardSchema,
   updateWalletAddressSchema,
   userIdParam,
-  walletAddressUsernameParam
+  walletAddressUsernameParam,
+  createSwapSchema,
+  updateIntegrationSchema
 } from '@lawallet-nwc/shared'
 import { z } from 'zod'
 import { registry } from './registry'
@@ -648,5 +650,24 @@ export const SendVoucher = registry.register(
     description:
       'Recipient lightning address for a voucher transfer, plus an optional ' +
       'message. Irreversible once the recipient accepts.'
+  })
+)
+
+export const CreateSwap = registry.register(
+  'CreateSwap',
+  createSwapSchema.openapi({
+    description:
+      'A Lightning → ARS cash-out. `destination` is a 22-digit CBU/CVU or a ' +
+      'bank alias; Bull Bitcoin needs a CBU/CVU (an alias is resolved through ' +
+      'the alias integration when it is enabled).'
+  })
+)
+
+export const UpdateIntegration = registry.register(
+  'UpdateIntegration',
+  updateIntegrationSchema.openapi({
+    description:
+      'Toggle an integration and/or set its fields. `config` keys are the ' +
+      'integration’s field keys; a blank secret keeps the stored one.'
   })
 )

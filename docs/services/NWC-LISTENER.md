@@ -75,6 +75,16 @@ cadence. A web build that answers only `{ accepted: true }` (or an error)
 reads as "unknown" and keeps the fixed `ZAP_SETTLE_INTERVAL_MS` cadence, so
 mixed versions behave exactly as before.
 
+A third scheduler is the **cash-out swap cron**: it HMAC-signs
+`POST /api/internal/swaps/reconcile`, and web asks each provider (Wapu /
+Bull Bitcoin) for the status of every swap still in flight, persists it
+(paid, transfer done, expired, failed) and pushes `swaps:updated` over SSE.
+It uses the same adaptive scheduler and ack shape (`swapReconcileAckSchema`):
+every `SWAP_RECONCILE_INTERVAL_MS` (default 1 min, `0` disables) while web
+reports a swap in flight, doubling up to `SWAP_RECONCILE_MAX_INTERVAL_MS`
+(default 5 min) while none is. The 10-minute proxy tick still runs the same
+pass as a safety net for listeners that predate this timer.
+
 The proxy reconcile tick also carries web's housekeeping, since web has no
 scheduler of its own on serverless: ordinary (non-proxy) invoices still
 `PENDING` an hour past `expiresAt` are moved to `EXPIRED` in `LIMIT`ed batches

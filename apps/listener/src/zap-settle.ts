@@ -26,9 +26,23 @@ const UNKNOWN: ZapSettleOutcome = { pending: null, nextPollAt: null }
  * names no invoice. Web selects the candidates and decides what settled means;
  * it only tells us whether there is anything left to wake it for.
  */
-export async function requestZapSettlement(
+export function requestZapSettlement(
   env: ListenerEnv,
   log: Logger
+): Promise<ZapSettleOutcome> {
+  return requestBacklogTick(env, log, '/api/internal/zaps/settle', 'zap_settle')
+}
+
+/**
+ * POSTs an HMAC-signed empty body to a web "tick" endpoint and reads back its
+ * backlog answer (`pending` / `nextPollAt`). Never throws: rejections and
+ * network errors come back as "unknown", which keeps the fast cadence.
+ */
+export async function requestBacklogTick(
+  env: ListenerEnv,
+  log: Logger,
+  path: string,
+  event: string
 ): Promise<ZapSettleOutcome> {
   const raw = JSON.stringify({})
   const timestamp = String(Date.now())
@@ -37,27 +51,24 @@ export async function requestZapSettlement(
     .digest('hex')
 
   try {
-    const response = await fetch(
-      new URL('/api/internal/zaps/settle', env.WEB_ORIGIN),
-      {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'x-lawallet-timestamp': timestamp,
-          'x-lawallet-signature': `sha256=${signature}`
-        },
-        body: raw,
-        signal: AbortSignal.timeout(30_000)
-      }
-    )
+    const response = await fetch(new URL(path, env.WEB_ORIGIN), {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-lawallet-timestamp': timestamp,
+        'x-lawallet-signature': `sha256=${signature}`
+      },
+      body: raw,
+      signal: AbortSignal.timeout(30_000)
+    })
     if (!response.ok) {
       // A 404 is the expected answer from a web build that predates this
       // endpoint, so this stays a warning rather than an error.
-      log.warn({ status: response.status }, 'zap_settle.web_rejected_request')
+      log.warn({ status: response.status }, `${event}.web_rejected_request`)
       return UNKNOWN
     }
     const result = await response.json().catch(() => null)
-    log.debug({ result }, 'zap_settle.completed')
+    log.debug({ result }, `${event}.completed`)
     const ack = zapSettleAckSchema.safeParse(result)
     if (!ack.success || ack.data.pending === undefined) return UNKNOWN
     const nextPollAt = ack.data.nextPollAt
@@ -69,7 +80,7 @@ export async function requestZapSettlement(
         nextPollAt && !Number.isNaN(nextPollAt.getTime()) ? nextPollAt : null
     }
   } catch (err) {
-    log.warn({ err }, 'zap_settle.web_unreachable')
+    log.warn({ err }, `${event}.web_unreachable`)
     return UNKNOWN
   }
 }

@@ -12,6 +12,7 @@ import Image from 'next/image'
 import {
   Eye,
   EyeOff,
+  Landmark,
   LayoutDashboard,
   LogOut,
   QrCode,
@@ -129,6 +130,9 @@ export function HomeScreen() {
   // "unconnected" — receiving mints an LNCurl wallet on demand. So we surface a
   // friendly message instead of the dead-end empty state and let them receive.
   const autoCreate = settings?.lncurl_auto_create === 'true'
+  const canCashOut =
+    settings?.integration_bullbitcoin === 'true' ||
+    settings?.integration_wapu === 'true'
 
   const hasAddress = Boolean(me?.lightningAddress)
   const hasNwc = Boolean(effectiveNwc)
@@ -396,6 +400,17 @@ export function HomeScreen() {
           <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-background text-muted-foreground">
             <QrCode className="size-5" />
           </span>
+        </Link>
+      )}
+
+      {hasNwc && canCashOut && (
+        <Link
+          href="/wallet/cash-out"
+          className="mx-4 mt-4 flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground transition-colors hover:bg-accent/40"
+        >
+          <Landmark className="size-4 text-muted-foreground" />
+          <span className="flex-1">{t.cashOut.homeCta}</span>
+          <span className="text-xs text-muted-foreground">→</span>
         </Link>
       )}
 

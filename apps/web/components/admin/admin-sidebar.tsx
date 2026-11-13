@@ -13,6 +13,8 @@ import {
   Network,
   Activity,
   RadioTower,
+  Plug,
+  ArrowLeftRight,
   Settings,
   ChevronLeft,
   Nfc,
@@ -127,6 +129,13 @@ const platformItems: NavItem[] = [
     title: 'Connections',
     href: '/admin/connections',
     icon: Network
+  },
+  // Swaps — Lightning → ARS cash-out. Per-user (every user swaps from their
+  // own wallets); only listed while Bull Bitcoin or Wapu is enabled.
+  {
+    title: 'Swaps',
+    href: '/admin/swaps',
+    icon: ArrowLeftRight
   }
 ]
 
@@ -150,6 +159,14 @@ const systemItems: NavItem[] = [
     href: '/admin/listener',
     icon: RadioTower,
     permission: Permission.SETTINGS_READ
+  },
+  // Third-party integrations (cash-out providers, alias lookup) and their API
+  // keys. INTEGRATIONS_MANAGE is ADMIN-only.
+  {
+    title: 'Integrations',
+    href: '/admin/integrations',
+    icon: Plug,
+    permission: Permission.INTEGRATIONS_MANAGE
   }
 ]
 
@@ -332,10 +349,13 @@ export function AdminSidebar({ disabled = false }: { disabled?: boolean }) {
     (pluginData?.plugins ?? []).filter(p => p.enabled).map(p => p.id)
   )
 
+  const swapsEnabled =
+    settings?.integration_bullbitcoin === 'true' ||
+    settings?.integration_wapu === 'true'
   const visiblePlatform = filterByPermission([
     ...platformItems,
     ...pluginNavItems('platform', enabledPluginIds)
-  ])
+  ]).filter(item => item.href !== '/admin/swaps' || swapsEnabled)
   // The NWC Listener page only makes sense when the listener integration is
   // on — `listener_enabled` is the EFFECTIVE state computed server-side
   // (Settings DB merged over env; see lib/listener-config.ts). Toggling it in
