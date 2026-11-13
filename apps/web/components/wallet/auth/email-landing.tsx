@@ -69,8 +69,8 @@ export function EmailLanding() {
   // Read once and keep in a ref: the effect re-runs (StrictMode) after the
   // hash has already been scrubbed below.
   const tokenRef = useRef<string | null | undefined>(undefined)
-  // Where sign-in started (`ctx` in the link): `wallet` lands in the wallet,
-  // anything else on the admin dashboard.
+  // Where sign-in started: `/wallet/auth/email` continues in the wallet,
+  // `/admin/auth/email` on the dashboard.
   const contextRef = useRef<'admin' | 'wallet' | 'link'>('admin')
   // Username picked on the landing claim dialog (`claim` in the link).
   const claimRef = useRef<string | null>(null)
@@ -79,8 +79,15 @@ export function EmailLanding() {
     if (tokenRef.current === undefined) {
       const params = new URLSearchParams(window.location.hash.slice(1))
       tokenRef.current = params.get('token')
+      // The link's path is where sign-in started; `ctx=link` marks an
+      // email-confirmation link. (`ctx=wallet` is from older links.)
       const ctx = params.get('ctx')
-      if (ctx === 'wallet' || ctx === 'link') contextRef.current = ctx
+      if (ctx === 'link') contextRef.current = 'link'
+      else if (
+        ctx === 'wallet' ||
+        (!ctx && window.location.pathname.startsWith('/wallet/'))
+      )
+        contextRef.current = 'wallet'
       const claim = params.get('claim')
       if (claim && /^[a-z0-9]{1,16}$/.test(claim)) claimRef.current = claim
       // Drop the token from the address bar / history right away.

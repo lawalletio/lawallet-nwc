@@ -46,9 +46,11 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   ])
 
   // Fragment, not query: the token never reaches server logs or Referer.
-  // `ctx` rides in the link (not client storage) so it survives opening
-  // the email on another device.
-  const link = `${url}/wallet/auth/email#token=${token}${context ? `&ctx=${context}` : ''}${claimUsername ? `&claim=${claimUsername}` : ''}`
+  // The path keeps the user in the area they signed in from (`/wallet` vs
+  // `/admin`, the default) and `claim` rides along; both live in the link,
+  // not client storage, so they survive opening the email on another device.
+  const area = context === 'wallet' ? 'wallet' : 'admin'
+  const link = `${url}/${area}/auth/email#token=${token}${claimUsername ? `&claim=${claimUsername}` : ''}`
 
   await sendEmail({
     to: email,

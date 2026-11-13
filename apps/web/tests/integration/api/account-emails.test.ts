@@ -94,7 +94,7 @@ describe('POST /api/account/emails', () => {
     const mail = vi.mocked(sendEmail).mock.calls[0][0]
     expect(mail).toMatchObject({ to: 'new@example.com', template: 'link' })
     expect(mail.data!.link).toMatch(
-      /^https:\/\/wallet\.test\/wallet\/auth\/email#token=[\w-]+&ctx=link$/
+      /^https:\/\/wallet\.test\/admin\/auth\/email#token=[\w-]+&ctx=link$/
     )
     const token = mail.data!.link!.match(/token=([\w-]+)/)![1]
     expect(db.emailLoginToken.create.mock.calls[0][0].data).toMatchObject({

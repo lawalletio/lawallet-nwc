@@ -110,7 +110,7 @@ describe('POST /api/auth/email/request', () => {
     expect(mail.template).toBe('signup')
     const token = mail.data!.link!.split('#token=')[1]
     expect(mail.data!.link).toMatch(
-      /^https:\/\/wallet\.test\/wallet\/auth\/email#token=/
+      /^https:\/\/wallet\.test\/admin\/auth\/email#token=/
     )
     const stored = db.emailLoginToken.create.mock.calls[0][0].data
     expect(stored.tokenHash).toBe(sha256(token))
@@ -131,14 +131,23 @@ describe('POST /api/auth/email/request', () => {
     expect(vi.mocked(sendEmail).mock.calls[0][0].template).toBe('login')
   })
 
-  it('carries the login context in the link fragment', async () => {
+  it('links wallet sign-ins to the wallet landing', async () => {
     db.emailIdentity.findUnique.mockResolvedValue(null)
     db.emailLoginToken.create.mockResolvedValue({} as never)
     await requestRoute(
       post('/api/auth/email/request', { email: 'a@b.co', context: 'wallet' })
     )
     expect(vi.mocked(sendEmail).mock.calls[0][0].data!.link).toMatch(
-      /#token=[\w-]+&ctx=wallet$/
+      /\/wallet\/auth\/email#token=[\w-]+$/
+    )
+  })
+
+  it('links every other sign-in to the admin landing', async () => {
+    db.emailIdentity.findUnique.mockResolvedValue(null)
+    db.emailLoginToken.create.mockResolvedValue({} as never)
+    await requestRoute(post('/api/auth/email/request', { email: 'a@b.co' }))
+    expect(vi.mocked(sendEmail).mock.calls[0][0].data!.link).toMatch(
+      /\/admin\/auth\/email#token=[\w-]+$/
     )
   })
 
@@ -153,7 +162,7 @@ describe('POST /api/auth/email/request', () => {
       })
     )
     expect(vi.mocked(sendEmail).mock.calls[0][0].data!.link).toMatch(
-      /#token=[\w-]+&ctx=wallet&claim=satoshi$/
+      /\/wallet\/auth\/email#token=[\w-]+&claim=satoshi$/
     )
   })
 
