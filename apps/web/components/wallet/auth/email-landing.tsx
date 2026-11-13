@@ -25,7 +25,9 @@ import {
   verifyMagicLink
 } from '@/lib/client/email-login-api'
 import { useSettings } from '@/lib/client/hooks/use-settings'
-import { npubInitials } from '@/lib/client/format'
+import { npubInitials, truncateNpub } from '@/lib/client/format'
+import { useNostrProfile } from '@/lib/client/nostr-profile'
+import { useApi } from '@/lib/client/hooks/use-api'
 import { postAuthPath } from '@/lib/client/pending-activation'
 import { useT } from '@/lib/client/i18n'
 import { cn } from '@/lib/utils'
@@ -530,6 +532,8 @@ function LinkConfirmState({
   onConfirm: () => void
 }) {
   const t = useT().auth.emailLanding
+  const { status, pubkey } = useAuth()
+  const signedIn = status === 'authenticated' && !!pubkey
   return (
     <>
       <main className="flex flex-1 flex-col justify-center gap-6 py-8">
@@ -539,11 +543,11 @@ function LinkConfirmState({
             {t.linkEyebrow}
           </Eyebrow>
         </div>
-        <span className="animate-scale-in grid size-20 place-items-center rounded-full border border-(--theme-300) bg-linear-to-b from-(--theme-200) to-(--theme-400) text-foreground shadow-[0_0_40px_hsl(var(--primary)/0.45)]">
-          <Mail className="size-8" />
-        </span>
         <div className="space-y-3">
-          <Headline line1={t.linkTitle} line2={community} />
+          <Headline
+            line1={t.linkTitle}
+            line2={signedIn ? t.linkYourAccount : community}
+          />
           <p
             className="animate-fade-in text-base text-muted-foreground"
             style={stagger(0.3)}
@@ -551,6 +555,13 @@ function LinkConfirmState({
             {t.linkBody}
           </p>
         </div>
+        {signedIn ? (
+          <LinkAccountCard pubkey={pubkey} />
+        ) : (
+          <span className="animate-scale-in grid size-20 place-items-center rounded-full border border-(--theme-300) bg-linear-to-b from-(--theme-200) to-(--theme-400) text-foreground shadow-[0_0_40px_hsl(var(--primary)/0.45)]">
+            <Mail className="size-8" />
+          </span>
+        )}
       </main>
       <div className="animate-fade-in space-y-3" style={stagger(0.4)}>
         <Button
@@ -583,6 +594,74 @@ function LinkConfirmState({
         )}
       </div>
     </>
+  )
+}
+
+/**
+ * The signed-in account the email is about to join: its Nostr cover, avatar,
+ * name and primary lightning address, so it's clear where the email lands.
+ */
+function LinkAccountCard({ pubkey }: { pubkey: string }) {
+  const t = useT().auth.emailLanding
+  const { profile, loading } = useNostrProfile(pubkey)
+  const { data: me } = useApi<{ lightningAddress: string | null }>(
+    '/api/users/me'
+  )
+  const name = profile?.displayName || profile?.name
+  const subtitle =
+    me?.lightningAddress || profile?.nip05 || truncateNpub(pubkey)
+
+  return (
+    <div
+      className="animate-fade-in overflow-hidden rounded-3xl border bg-card shadow-[0_24px_60px_-28px_hsl(var(--primary)/0.55)]"
+      style={stagger(0.35)}
+    >
+      {/* Cover: the profile banner, or a theme glow + grid when there is none. */}
+      <div className="relative h-28 overflow-hidden bg-linear-to-br from-(--theme-200) via-(--theme-400) to-background">
+        {profile?.banner ? (
+          <img src={profile.banner} alt="" className="size-full object-cover" />
+        ) : (
+          <div
+            aria-hidden
+            className="absolute inset-0 opacity-25 [background-image:linear-gradient(to_right,currentColor_1px,transparent_1px),linear-gradient(to_bottom,currentColor_1px,transparent_1px)] [background-size:22px_22px] [mask-image:radial-gradient(ellipse_at_top,black,transparent_80%)]"
+          />
+        )}
+        <div
+          aria-hidden
+          className="absolute inset-x-0 bottom-0 h-12 bg-linear-to-t from-card to-transparent"
+        />
+        <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-background/70 px-2.5 py-1 text-[11px] font-medium text-foreground backdrop-blur">
+          <ShieldCheck className="size-3 text-primary" />
+          {t.linkSignedIn}
+        </span>
+      </div>
+
+      <div className="relative px-5 pb-5">
+        <Avatar className="-mt-10 size-20 border-4 border-card shadow-lg">
+          {profile?.picture && <AvatarImage src={profile.picture} alt="" />}
+          <AvatarFallback />
+        </Avatar>
+        <div className="mt-3 min-w-0">
+          {name ? (
+            <p className="truncate text-xl font-bold tracking-tight">{name}</p>
+          ) : loading ? (
+            <span className="block h-6 w-36 animate-pulse rounded-md bg-muted" />
+          ) : (
+            <p className="truncate text-xl font-bold tracking-tight">
+              {truncateNpub(pubkey)}
+            </p>
+          )}
+          <p className="mt-1 flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground">
+            {me?.lightningAddress ? (
+              <Zap className="size-3.5 shrink-0 text-primary" />
+            ) : (
+              <AtSign className="size-3.5 shrink-0" />
+            )}
+            <span className="truncate font-mono text-xs">{subtitle}</span>
+          </p>
+        </div>
+      </div>
+    </div>
   )
 }
 

@@ -95,6 +95,8 @@ export const auth = {
     redirectingDashboard: 'Taking you to your dashboard…',
     linkEyebrow: 'Link email',
     linkTitle: 'Add this email to',
+    linkYourAccount: 'your account',
+    linkSignedIn: 'Signed in',
     linkBody:
       "Confirm it's yours and you'll be able to sign in to your account with it.",
     linkCta: 'Confirm email',

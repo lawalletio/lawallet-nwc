@@ -94,6 +94,8 @@ export const auth: typeof En = {
     redirectingDashboard: 'Te llevamos a tu panel…',
     linkEyebrow: 'Vincular correo',
     linkTitle: 'Agrega este correo a',
+    linkYourAccount: 'tu cuenta',
+    linkSignedIn: 'Sesión iniciada',
     linkBody:
       'Confirma que es tuyo y podrás iniciar sesión en tu cuenta con él.',
     linkCta: 'Confirmar correo',
