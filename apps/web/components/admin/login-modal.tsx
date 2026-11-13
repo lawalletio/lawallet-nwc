@@ -50,6 +50,7 @@ import {
 } from '@/lib/client/nostr-signer'
 import { PasskeyLoginButton } from '@/components/shared/passkey-login-button'
 import { EmailLoginForm } from '@/components/shared/email-login-form'
+import type { EmailLoginContext } from '@/lib/validation/schemas'
 import { useSettings } from '@/lib/client/hooks/use-settings'
 import { isPasskeySupported } from '@/lib/client/passkey-api'
 import { SecretKeyReveal } from '@/components/shared/secret-key-reveal'
@@ -65,13 +66,15 @@ interface LoginModalProps {
   onSuccess?: () => void
 }
 
+type Step = LoginStep
 type BunkerConnectionStatus = 'generating' | 'waiting' | 'connecting' | 'error'
 
 /**
  * Login wizard steps. `choose` is the method picker; the rest are each
  * method's own screen. A detected extension connects straight from the picker.
  */
-type Step = 'choose' | 'email' | 'nostr' | 'nostr-create' | 'passkey'
+export type LoginStep =
+  'choose' | 'email' | 'nostr' | 'nostr-create' | 'passkey'
 
 const STEP_DESCRIPTIONS: Record<Step, string> = {
   choose: 'Choose how to sign in.',
@@ -84,9 +87,6 @@ const STEP_DESCRIPTIONS: Record<Step, string> = {
 export function LoginModal({ open, onOpenChange, onSuccess }: LoginModalProps) {
   const dismissible = !!onOpenChange
   const [bunkerBusy, setBunkerBusy] = useState(false)
-  // WebAuthn support is stable for the page's lifetime; unsupported browsers
-  // never see the Passkey method.
-  const [passkeySupported] = useState(() => isPasskeySupported())
   const initialStep: Step = 'choose'
   const [step, setStep] = useState<Step>(initialStep)
   // The email step's hint is redundant once the "check your inbox" card shows.
@@ -158,30 +158,69 @@ export function LoginModal({ open, onOpenChange, onSuccess }: LoginModalProps) {
           </DialogDescription>
         </DialogHeader>
 
-        {step === 'choose' && (
-          <ChooseMethodStep
-            passkeySupported={passkeySupported}
-            onPick={setStep}
-          />
-        )}
-        {step === 'nostr' && (
-          <NostrMethods
-            bunkerBusy={bunkerBusy}
-            onBunkerBusyChange={setBunkerBusy}
-            onCreateNew={() => setStep('nostr-create')}
-          />
-        )}
-        {step === 'email' && (
-          <EmailLoginForm
-            className="mt-2"
-            context="admin"
-            onSentChange={setEmailSent}
-          />
-        )}
-        {step === 'nostr-create' && <NostrCreateStep />}
-        {step === 'passkey' && <PasskeyTab />}
+        <LoginStepContent
+          step={step}
+          onStepChange={setStep}
+          onBunkerBusyChange={setBunkerBusy}
+          bunkerBusy={bunkerBusy}
+          onEmailSentChange={setEmailSent}
+          emailContext="admin"
+        />
       </DialogContent>
     </Dialog>
+  )
+}
+
+/**
+ * The body of one login wizard step, without the dialog chrome — shared with
+ * the landing claim dialog so both offer the same methods. Every method signs
+ * in through `useAuth().login`; callers react to the status flip.
+ */
+export function LoginStepContent({
+  step,
+  onStepChange,
+  bunkerBusy,
+  onBunkerBusyChange,
+  onEmailSentChange,
+  emailContext,
+  claimUsername
+}: {
+  step: LoginStep
+  onStepChange: (step: LoginStep) => void
+  bunkerBusy: boolean
+  onBunkerBusyChange: (busy: boolean) => void
+  onEmailSentChange?: (sent: boolean) => void
+  emailContext: EmailLoginContext
+  /** Carried in the magic link so the claim resumes after sign-in. */
+  claimUsername?: string
+}) {
+  const [passkeySupported] = useState(() => isPasskeySupported())
+  return (
+    <>
+      {step === 'choose' && (
+        <ChooseMethodStep
+          passkeySupported={passkeySupported}
+          onPick={onStepChange}
+        />
+      )}
+      {step === 'nostr' && (
+        <NostrMethods
+          bunkerBusy={bunkerBusy}
+          onBunkerBusyChange={onBunkerBusyChange}
+          onCreateNew={() => onStepChange('nostr-create')}
+        />
+      )}
+      {step === 'email' && (
+        <EmailLoginForm
+          className="mt-2"
+          context={emailContext}
+          claimUsername={claimUsername}
+          onSentChange={onEmailSentChange}
+        />
+      )}
+      {step === 'nostr-create' && <NostrCreateStep />}
+      {step === 'passkey' && <PasskeyTab />}
+    </>
   )
 }
 

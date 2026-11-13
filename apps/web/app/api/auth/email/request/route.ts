@@ -26,7 +26,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   await rateLimit(request, RateLimitPresets.sensitive)
   await assertEmailLoginEnabled()
 
-  const { email, locale, context } = await validateBody(
+  const { email, locale, context, claimUsername } = await validateBody(
     request,
     emailLoginRequestSchema
   )
@@ -48,7 +48,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   // Fragment, not query: the token never reaches server logs or Referer.
   // `ctx` rides in the link (not client storage) so it survives opening
   // the email on another device.
-  const link = `${url}/wallet/auth/email#token=${token}${context ? `&ctx=${context}` : ''}`
+  const link = `${url}/wallet/auth/email#token=${token}${context ? `&ctx=${context}` : ''}${claimUsername ? `&claim=${claimUsername}` : ''}`
 
   await sendEmail({
     to: email,

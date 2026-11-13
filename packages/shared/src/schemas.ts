@@ -1206,7 +1206,9 @@ export type EmailLoginContext = z.infer<typeof emailLoginContextSchema>
 export const emailLoginRequestSchema = z.object({
   email: emailAddressSchema,
   locale: emailLocaleSchema.optional(),
-  context: emailLoginContextSchema.optional()
+  context: emailLoginContextSchema.optional(),
+  /** Lightning address username picked before signing in; the link resumes its claim. */
+  claimUsername: walletAddressUsernameParam.shape.username.optional()
 })
 export type EmailLoginRequest = z.infer<typeof emailLoginRequestSchema>
 

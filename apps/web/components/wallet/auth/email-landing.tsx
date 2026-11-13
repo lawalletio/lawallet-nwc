@@ -73,6 +73,8 @@ export function EmailLanding() {
   // Where sign-in started (`ctx` in the link): `wallet` lands in the wallet,
   // anything else on the admin dashboard.
   const contextRef = useRef<'admin' | 'wallet' | 'link'>('admin')
+  // Username picked on the landing claim dialog (`claim` in the link).
+  const claimRef = useRef<string | null>(null)
 
   useEffect(() => {
     if (tokenRef.current === undefined) {
@@ -80,6 +82,8 @@ export function EmailLanding() {
       tokenRef.current = params.get('token')
       const ctx = params.get('ctx')
       if (ctx === 'wallet' || ctx === 'link') contextRef.current = ctx
+      const claim = params.get('claim')
+      if (claim && /^[a-z0-9]{1,16}$/.test(claim)) claimRef.current = claim
       // Drop the token from the address bar / history right away.
       window.history.replaceState(null, '', window.location.pathname)
     }
@@ -121,8 +125,9 @@ export function EmailLanding() {
       await login(createNsecSigner(secretHex), 'email', { secret: secretHex })
       // Only a brand-new signup is offered profile setup; signing in never
       // detours through it, even for a nameless account.
-      const dest =
-        contextRef.current !== 'wallet'
+      const dest = claimRef.current
+        ? `/wallet/claim-username?username=${claimRef.current}`
+        : contextRef.current !== 'wallet'
           ? '/admin'
           : isNew
             ? '/wallet/settings/profile'
@@ -190,7 +195,8 @@ export function EmailLanding() {
             subtitle={
               phase.dest === '/admin'
                 ? t.redirectingDashboard
-                : phase.dest === '/wallet'
+                : phase.dest === '/wallet' ||
+                    phase.dest.startsWith('/wallet/claim-username')
                   ? t.redirecting
                   : t.redirectingProfile
             }

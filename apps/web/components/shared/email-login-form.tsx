@@ -17,6 +17,8 @@ interface EmailLoginFormProps {
   className?: string
   /** Where the magic link should land after sign-in. */
   context?: EmailLoginContext
+  /** Username to resume claiming once the magic link signs in. */
+  claimUsername?: string
   /** Fires when the form switches to / from its "check your inbox" state. */
   onSentChange?: (sent: boolean) => void
 }
@@ -28,6 +30,7 @@ interface EmailLoginFormProps {
 export function EmailLoginForm({
   className,
   context,
+  claimUsername,
   onSentChange
 }: EmailLoginFormProps) {
   // Outside the wallet's I18nProvider (admin modal) this is English.
@@ -58,7 +61,7 @@ export function EmailLoginForm({
     setSending(true)
     setError(null)
     try {
-      await requestMagicLink(normalized, locale, context)
+      await requestMagicLink(normalized, locale, context, claimUsername)
       setSentTo(normalized)
       setCooldown(RESEND_COOLDOWN_S)
     } catch (err) {

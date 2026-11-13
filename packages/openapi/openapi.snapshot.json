@@ -3726,6 +3726,12 @@
                       "admin",
                       "wallet"
                     ]
+                  },
+                  "claimUsername": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 16,
+                    "pattern": "^[a-z0-9]+$"
                   }
                 },
                 "required": [

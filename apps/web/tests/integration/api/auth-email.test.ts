@@ -142,6 +142,31 @@ describe('POST /api/auth/email/request', () => {
     )
   })
 
+  it('carries a pending address claim in the link fragment', async () => {
+    db.emailIdentity.findUnique.mockResolvedValue(null)
+    db.emailLoginToken.create.mockResolvedValue({} as never)
+    await requestRoute(
+      post('/api/auth/email/request', {
+        email: 'a@b.co',
+        context: 'wallet',
+        claimUsername: 'satoshi'
+      })
+    )
+    expect(vi.mocked(sendEmail).mock.calls[0][0].data!.link).toMatch(
+      /#token=[\w-]+&ctx=wallet&claim=satoshi$/
+    )
+  })
+
+  it('rejects an invalid claim username', async () => {
+    const res = await requestRoute(
+      post('/api/auth/email/request', {
+        email: 'a@b.co',
+        claimUsername: 'Bad&ctx=x'
+      })
+    )
+    expect(res.status).toBe(400)
+  })
+
   it('rejects an unknown login context', async () => {
     const res = await requestRoute(
       post('/api/auth/email/request', { email: 'a@b.co', context: 'evil' })

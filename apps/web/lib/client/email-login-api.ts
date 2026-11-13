@@ -34,12 +34,14 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 export function requestMagicLink(
   email: string,
   locale?: 'en' | 'es',
-  context?: EmailLoginContext
+  context?: EmailLoginContext,
+  claimUsername?: string
 ) {
   return post<{ ok: true }>('/api/auth/email/request', {
     email,
     locale,
-    context
+    context,
+    claimUsername
   })
 }
 
