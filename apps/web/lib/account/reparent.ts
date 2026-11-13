@@ -162,6 +162,11 @@ export async function reparentAccountResources(
     where: { userId: fromId },
     data: { userId: toId }
   })
+  // Cash-outs (swaps) are payment history; they cascade on User delete.
+  await tx.swap.updateMany({
+    where: { userId: fromId },
+    data: { userId: toId }
+  })
   // Linked emails follow the account they sign in to.
   await tx.emailIdentity.updateMany({
     where: { userId: fromId },

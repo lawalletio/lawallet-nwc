@@ -6,6 +6,7 @@ import { clearAllSeenNotifications } from '@/lib/client/cache/nwc-notification-d
 import { clearAll as clearAllActivity } from '@/lib/client/cache/activity-cache'
 import { clearNwcCacheKeyMemo } from '@/lib/client/cache/key'
 import { clearContactsCache } from '@/lib/client/contacts-store'
+import { clearSwapRecipients } from '@/lib/client/swap-recipients-store'
 import { clearCurrencyPreferences } from '@/lib/client/currencies-store'
 import { clearNostrProfileCache } from '@/lib/client/cache/nostr-profile-cache'
 import { clearAllAvatars } from '@/lib/client/cache/avatar-cache'
@@ -87,6 +88,7 @@ export function clearSessionCaches(): Promise<void> {
   clearAllSeenNotifications()
   clearNwcCacheKeyMemo()
   clearContactsCache()
+  clearSwapRecipients()
   clearCurrencyPreferences()
   clearNostrProfileCache()
   clearAllAvatars()

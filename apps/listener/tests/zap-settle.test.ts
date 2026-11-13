@@ -6,6 +6,7 @@ import {
   ZapSettleScheduler,
   type ZapSettleOutcome
 } from '../src/zap-settle'
+import { requestSwapReconcile } from '../src/swap-reconcile'
 import type { ListenerEnv } from '../src/env'
 
 function env(overrides: Partial<ListenerEnv> = {}): ListenerEnv {
@@ -256,5 +257,30 @@ describe('ZapSettleScheduler', () => {
     scheduler.wake()
     await vi.advanceTimersByTimeAsync(10 * MAX)
     expect(tick).not.toHaveBeenCalled()
+  })
+})
+
+describe('swap reconcile cron', () => {
+  it('HMAC-signs an empty tick to the swaps endpoint and reads the backlog', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        Response.json({ accepted: true, pending: true, nextPollAt: null })
+      )
+    vi.stubGlobal('fetch', fetchMock)
+    const config = env()
+
+    const outcome = await requestSwapReconcile(config, logger())
+
+    const [url, init] = fetchMock.mock.calls[0] as [URL, RequestInit]
+    expect(url.toString()).toBe(
+      'https://lawallet.example/api/internal/swaps/reconcile'
+    )
+    const headers = init.headers as Record<string, string>
+    const expected = createHmac('sha256', config.LISTENER_AUTH_SECRET)
+      .update(`${headers['x-lawallet-timestamp']}.{}`)
+      .digest('hex')
+    expect(headers['x-lawallet-signature']).toBe(`sha256=${expected}`)
+    expect(outcome).toEqual({ pending: true, nextPollAt: null })
   })
 })

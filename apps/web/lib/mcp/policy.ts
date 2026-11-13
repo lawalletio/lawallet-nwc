@@ -291,6 +291,26 @@ export const OPERATION_POLICY: Record<string, OperationPolicy> = {
   'wallet.vouchers.settings.update': WRITE,
   'wallet.vouchers.send': exclude(
     'hands a voucher to another address, an irreversible transfer of value'
+  ),
+
+  // Integrations (admin) + cash-out (wallet)
+  'integrations.list': READ,
+  'integrations.update': exclude(
+    'instance control: sets third-party API credentials and switches cash-out providers on for every user'
+  ),
+  'integrations.test': exclude(
+    'uses the instance’s stored third-party credentials against the provider'
+  ),
+  'wallet.swaps.quote': READ,
+  'wallet.swaps.list': READ,
+  'wallet.swaps.get': READ,
+  'wallet.swaps.paid': WRITE,
+  'wallet.swaps.cancel': WRITE,
+  'wallet.swaps.create': exclude(
+    'places a payout of the user’s sats to a bank account; spending only goes through wallet_pay_invoice and its budget'
+  ),
+  'wallet.alias.lookup': exclude(
+    'reveals third parties’ bank account owner names and tax ids'
   )
 }
 

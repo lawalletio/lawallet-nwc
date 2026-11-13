@@ -23,6 +23,7 @@ const settleSweepMock = vi.hoisted(() => vi.fn())
 const reconcileNotificationsMock = vi.hoisted(() => vi.fn())
 const expireInvoicesMock = vi.hoisted(() => vi.fn())
 const retentionMock = vi.hoisted(() => vi.fn())
+const reconcileSwapsMock = vi.hoisted(() => vi.fn())
 
 vi.mock('next/server', async importActual => ({
   ...(await importActual<typeof import('next/server')>()),
@@ -77,6 +78,9 @@ vi.mock('@/lib/maintenance/expire-invoices', () => ({
 vi.mock('@/lib/maintenance/retention', () => ({
   runRetention: retentionMock
 }))
+vi.mock('@/lib/integrations/swaps', () => ({
+  reconcilePendingSwaps: reconcileSwapsMock
+}))
 
 import { POST } from '@/app/api/internal/lud16-proxy/reconcile/route'
 
@@ -125,6 +129,7 @@ describe('POST /api/internal/lud16-proxy/reconcile', () => {
     expect(reconcileForwardingMock).toHaveBeenCalledWith({ ids: undefined })
     expect(reconcileZapReceiptsMock).toHaveBeenCalled()
     expect(reconcileNotificationsMock).toHaveBeenCalled()
+    expect(reconcileSwapsMock).toHaveBeenCalled()
   })
 
   it('runs invoice expiry and retention on the same durable tick', async () => {

@@ -224,6 +224,14 @@ export const zapSettleAckSchema = z.object({
 })
 export type ZapSettleAck = z.infer<typeof zapSettleAckSchema>
 
+/**
+ * Web's answer to a swap reconcile tick — same shape as the zap ack:
+ * `pending` says whether any cash-out swap is still being followed, so the
+ * listener ticks fast while one is and backs off while none is.
+ */
+export const swapReconcileAckSchema = zapSettleAckSchema
+export type SwapReconcileAck = ZapSettleAck
+
 // ── POST {listener}/nwc/request — proxy NWC calls over the live pool ────────
 
 export const nwcProxyMethodSchema = z.enum([

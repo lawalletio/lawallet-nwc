@@ -43,7 +43,8 @@ const PERMISSION_LABELS: Record<Permission, string> = {
   [Permission.NTAGS_READ]: 'Read NTAG424 keys',
   [Permission.NTAGS_WRITE]: 'Write NTAG424 keys',
   [Permission.ACTIVITY_READ]: 'Read activity log',
-  [Permission.REMOTE_WALLETS_READ]: "View other users' remote wallets"
+  [Permission.REMOTE_WALLETS_READ]: "View other users' remote wallets",
+  [Permission.INTEGRATIONS_MANAGE]: 'Manage integrations & their API keys'
 }
 
 /** Permissions grouped by resource for a readable checklist. */
@@ -82,7 +83,8 @@ const PERMISSION_GROUPS: { label: string; permissions: Permission[] }[] = [
     permissions: [
       Permission.SETTINGS_READ,
       Permission.SETTINGS_WRITE,
-      Permission.ACTIVITY_READ
+      Permission.ACTIVITY_READ,
+      Permission.INTEGRATIONS_MANAGE
     ]
   }
 ]

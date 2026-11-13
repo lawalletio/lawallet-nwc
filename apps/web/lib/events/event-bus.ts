@@ -58,7 +58,10 @@ const EVENT_PERMISSION_MAP: Record<SSEEventType, Permission | null> = {
   // user may safely refetch without learning another account's wallet ids.
   'remote-wallet-forwarding:updated': null,
   'remote-wallet-notifications:updated': null,
-  'vouchers:updated': null
+  'vouchers:updated': null,
+  // Cash-out status changes; emitted with `userId` so only the owner's
+  // clients (and admins) refetch.
+  'swaps:updated': null
 }
 
 // ─── Event Bus ────────────────────────────────────────────────────────────

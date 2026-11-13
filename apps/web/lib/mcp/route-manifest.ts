@@ -90,6 +90,10 @@ export const routeManifest: Record<string, () => Promise<RouteModule>> = {
   '/api/cards/{id}/write-token': () =>
     import('@/app/api/cards/[id]/write-token/route'),
   '/api/health': () => import('@/app/api/health/route'),
+  '/api/integrations': () => import('@/app/api/integrations/route'),
+  '/api/integrations/{id}': () => import('@/app/api/integrations/[id]/route'),
+  '/api/integrations/{id}/test': () =>
+    import('@/app/api/integrations/[id]/test/route'),
   '/api/invoices': () => import('@/app/api/invoices/route'),
   '/api/invoices/{id}/claim': () =>
     import('@/app/api/invoices/[id]/claim/route'),
@@ -201,8 +205,17 @@ export const routeManifest: Record<string, () => Promise<RouteModule>> = {
     import('@/app/api/wallet/addresses/[username]/primary/route'),
   '/api/wallet/addresses/{username}/proxy-balance': () =>
     import('@/app/api/wallet/addresses/[username]/proxy-balance/route'),
+  '/api/wallet/alias/{query}': () =>
+    import('@/app/api/wallet/alias/[query]/route'),
   '/api/wallet/cards': () => import('@/app/api/wallet/cards/route'),
   '/api/wallet/cards/{id}': () => import('@/app/api/wallet/cards/[id]/route'),
+  '/api/wallet/swaps': () => import('@/app/api/wallet/swaps/route'),
+  '/api/wallet/swaps/quote': () => import('@/app/api/wallet/swaps/quote/route'),
+  '/api/wallet/swaps/{id}': () => import('@/app/api/wallet/swaps/[id]/route'),
+  '/api/wallet/swaps/{id}/cancel': () =>
+    import('@/app/api/wallet/swaps/[id]/cancel/route'),
+  '/api/wallet/swaps/{id}/paid': () =>
+    import('@/app/api/wallet/swaps/[id]/paid/route'),
   '/api/wallet/vouchers': () => import('@/app/api/wallet/vouchers/route'),
   '/api/wallet/vouchers/settings': () =>
     import('@/app/api/wallet/vouchers/settings/route'),

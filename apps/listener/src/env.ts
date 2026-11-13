@@ -116,6 +116,14 @@ const envSchema = z.object({
     'Longest gap between zap settlement ticks while web reports no open zap invoice; the tick backs off exponentially from ZAP_SETTLE_INTERVAL_MS up to this'
   ),
 
+  SWAP_RECONCILE_INTERVAL_MS: intEnv(60000, { min: 0 }).describe(
+    'How often web checks in-flight cash-out swaps with their provider (Wapu / Bull Bitcoin) and updates their status (0 disables)'
+  ),
+
+  SWAP_RECONCILE_MAX_INTERVAL_MS: intEnv(300000).describe(
+    'Longest gap between swap reconcile ticks while web reports no swap in flight; backs off exponentially from SWAP_RECONCILE_INTERVAL_MS up to this'
+  ),
+
   LOG_LEVEL: blankIsUnset(
     z
       .string()

@@ -1942,3 +1942,63 @@ export type OAuthGrantSummary = z.infer<typeof oauthGrantSummarySchema>
 export const oauthGrantListResponseSchema = z.object({
   grants: z.array(oauthGrantSummarySchema)
 })
+
+// ── Integrations ────────────────────────────────────────────────────────────
+
+export const integrationIdSchema = z.enum(['bullbitcoin', 'wapu', 'alias'])
+export type IntegrationId = z.infer<typeof integrationIdSchema>
+
+export const integrationIdParam = z.object({ id: integrationIdSchema })
+
+/**
+ * Body of `PUT /api/integrations/[id]`. `config` keys are the integration's
+ * Settings keys; a blank secret keeps the stored one.
+ */
+export const updateIntegrationSchema = z.object({
+  enabled: z.boolean().optional(),
+  config: z.record(z.string(), z.string().max(2048)).optional()
+})
+export type UpdateIntegrationRequest = z.infer<typeof updateIntegrationSchema>
+
+/** Argentine bank destination: a 22-digit CBU/CVU or a 6–20 char alias. */
+export const bankDestinationSchema = z
+  .string()
+  .trim()
+  .regex(
+    /^(\d{22}|[a-zA-Z0-9.-]{6,20})$/,
+    'Must be a 22-digit CBU/CVU or a 6–20 character alias'
+  )
+
+export const swapProviderSchema = z.enum(['bullbitcoin', 'wapu'])
+export type SwapProviderId = z.infer<typeof swapProviderSchema>
+
+export const swapQuoteQuerySchema = z.object({
+  amountArs: z.coerce.number().positive().max(100_000_000)
+})
+
+export const createSwapSchema = z.object({
+  provider: swapProviderSchema,
+  amountArs: z.number().positive().max(100_000_000),
+  destination: bankDestinationSchema,
+  holderName: z.string().trim().min(1).max(120).optional()
+})
+export type CreateSwapRequest = z.infer<typeof createSwapSchema>
+
+export const swapIdParam = z.object({
+  id: z.string().min(1, 'Swap ID is required')
+})
+
+export const aliasQueryParam = z.object({ query: bankDestinationSchema })
+
+/** Body of `POST /api/wallet/swaps/[id]/paid` — proof the invoice was paid. */
+export const swapPaidSchema = z.object({
+  preimage: z
+    .string()
+    .regex(/^[0-9a-f]{64}$/i, 'Preimage must be 32 bytes of hex')
+})
+
+/** Query of `GET /api/wallet/swaps`. */
+export const swapListQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(50).default(10)
+})

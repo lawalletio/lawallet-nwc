@@ -6,6 +6,7 @@ import { shared } from './shared'
 import { send } from './send'
 import { scan } from './scan'
 import { withdraw } from './withdraw'
+import { cashOut } from './cashOut'
 import { receive } from './receive'
 import { claim } from './claim'
 import { addresses } from './addresses'
@@ -24,6 +25,7 @@ const en = {
   send,
   scan,
   withdraw,
+  cashOut,
   receive,
   claim,
   addresses,

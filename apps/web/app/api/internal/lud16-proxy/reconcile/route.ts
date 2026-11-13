@@ -8,6 +8,7 @@ import { reconcileRemoteWalletForwarding } from '@/lib/remote-wallet-forwarding/
 import { reconcileInvoiceZapReceipts } from '@/lib/nostr/zap-receipts'
 import { settlePendingZapInvoices } from '@/lib/nostr/zap-settlement'
 import { reconcileRemoteWalletNotifications } from '@/lib/remote-wallet-notifications/reconcile'
+import { reconcilePendingSwaps } from '@/lib/integrations/swaps'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { ValidationError } from '@/types/server/errors'
 
@@ -39,6 +40,9 @@ export const POST = withErrorHandling(async (request: Request) => {
       // dedicated zap-settle timer still gets zaps settled on this tick.
       settlePendingZapInvoices(),
       reconcileRemoteWalletNotifications(),
+      // Cash-out swaps: follow the provider's bank transfer so status (and
+      // the owner's SSE refresh) moves without anyone polling.
+      reconcilePendingSwaps(),
       // Housekeeping rides the same durable tick: web has no scheduler of its
       // own on serverless. Retention throttles itself to once an hour.
       expireStaleInvoices(),
