@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { AlertTriangle, Database, RefreshCw } from 'lucide-react'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
@@ -134,6 +134,7 @@ function DatabaseUnavailableBanner({
 export function AdminLayoutShell({ children }: { children: React.ReactNode }) {
   const { status } = useAuth()
   const router = useRouter()
+  const pathname = usePathname()
   const database = useDatabaseStatus(status === 'authenticated')
   const databaseDown = !!database.error
   const handleLoginOpenChange = useCallback(
@@ -142,6 +143,10 @@ export function AdminLayoutShell({ children }: { children: React.ReactNode }) {
     },
     [router]
   )
+
+  // Auth landings (the magic link) run before there's a session and draw
+  // their own full-screen chrome — no sidebar, no login modal.
+  if (pathname?.startsWith('/admin/auth/')) return <>{children}</>
 
   // Loading state - full page skeleton
   if (status === 'loading') {

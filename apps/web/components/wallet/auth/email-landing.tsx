@@ -16,7 +16,6 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { BrandLogotype } from '@/components/ui/brand-logotype'
 import { Button } from '@/components/ui/button'
-import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import { useAuth } from '@/components/admin/auth-context'
 import { createNsecSigner } from '@/lib/client/nostr-signer'
@@ -70,16 +69,27 @@ export function EmailLanding() {
   // Read once and keep in a ref: the effect re-runs (StrictMode) after the
   // hash has already been scrubbed below.
   const tokenRef = useRef<string | null | undefined>(undefined)
-  // Where sign-in started (`ctx` in the link): `wallet` lands in the wallet,
-  // anything else on the admin dashboard.
+  // Where sign-in started: `/wallet/auth/email` continues in the wallet,
+  // `/admin/auth/email` on the dashboard.
   const contextRef = useRef<'admin' | 'wallet' | 'link'>('admin')
+  // Username picked on the landing claim dialog (`claim` in the link).
+  const claimRef = useRef<string | null>(null)
 
   useEffect(() => {
     if (tokenRef.current === undefined) {
       const params = new URLSearchParams(window.location.hash.slice(1))
       tokenRef.current = params.get('token')
+      // The link's path is where sign-in started; `ctx=link` marks an
+      // email-confirmation link. (`ctx=wallet` is from older links.)
       const ctx = params.get('ctx')
-      if (ctx === 'wallet' || ctx === 'link') contextRef.current = ctx
+      if (ctx === 'link') contextRef.current = 'link'
+      else if (
+        ctx === 'wallet' ||
+        (!ctx && window.location.pathname.startsWith('/wallet/'))
+      )
+        contextRef.current = 'wallet'
+      const claim = params.get('claim')
+      if (claim && /^[a-z0-9]{1,16}$/.test(claim)) claimRef.current = claim
       // Drop the token from the address bar / history right away.
       window.history.replaceState(null, '', window.location.pathname)
     }
@@ -121,8 +131,9 @@ export function EmailLanding() {
       await login(createNsecSigner(secretHex), 'email', { secret: secretHex })
       // Only a brand-new signup is offered profile setup; signing in never
       // detours through it, even for a nameless account.
-      const dest =
-        contextRef.current !== 'wallet'
+      const dest = claimRef.current
+        ? `/admin/addresses/register?username=${claimRef.current}`
+        : contextRef.current !== 'wallet'
           ? '/admin'
           : isNew
             ? '/wallet/settings/profile'
@@ -188,7 +199,7 @@ export function EmailLanding() {
             title={t.success}
             highlight={phase.preview.displayName}
             subtitle={
-              phase.dest === '/admin'
+              phase.dest.startsWith('/admin')
                 ? t.redirectingDashboard
                 : phase.dest === '/wallet'
                   ? t.redirecting
@@ -291,18 +302,17 @@ function Headline({ line1, line2 }: { line1: string; line2?: string | null }) {
 function LoadingState({ label }: { label: string }) {
   return (
     <main
-      className="flex flex-1 flex-col justify-center gap-6"
+      className="flex flex-1 flex-col items-center justify-center gap-4"
       aria-busy
-      aria-label={label}
     >
-      <Skeleton className="h-6 w-28 rounded-full" />
-      <Skeleton className="size-24 rounded-full" />
-      <div className="space-y-3">
-        <Skeleton className="h-9 w-48" />
-        <Skeleton className="h-9 w-64" />
+      <div
+        role="progressbar"
+        aria-label={label}
+        className="h-1 w-48 overflow-hidden rounded-full bg-card"
+      >
+        <div className="h-full w-1/3 rounded-full bg-(--theme-300) animate-progress-indeterminate" />
       </div>
-      <Skeleton className="h-4 w-56" />
-      <p className="sr-only">{label}</p>
+      <p className="text-sm text-muted-foreground">{label}</p>
     </main>
   )
 }

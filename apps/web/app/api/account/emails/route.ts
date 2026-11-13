@@ -65,7 +65,7 @@ export const POST = withErrorHandling(async (request: Request) => {
     template: 'link',
     locale,
     data: {
-      link: `${url}/wallet/auth/email#token=${token}&ctx=link`,
+      link: `${url}/admin/auth/email#token=${token}&ctx=link`,
       expiresMinutes: EMAIL_LOGIN_TTL_MINUTES
     },
     request

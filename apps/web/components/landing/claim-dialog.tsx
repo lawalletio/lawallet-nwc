@@ -14,7 +14,10 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { InputGroup, InputGroupText } from '@/components/ui/input-group'
 import { Spinner } from '@/components/ui/spinner'
-import { NostrConnectForm } from '@/components/shared/nostr-connect-form'
+import {
+  LoginStepContent,
+  type LoginStep
+} from '@/components/admin/login-modal'
 import { useAuth } from '@/components/admin/auth-context'
 import { cn } from '@/lib/utils'
 
@@ -34,6 +37,10 @@ export function ClaimDialog({ open, onOpenChange, domain }: ClaimDialogProps) {
   const [checking, setChecking] = useState(false)
   const [available, setAvailable] = useState<boolean | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Login wizard state for the connect step (same methods as the Login modal).
+  const [loginStep, setLoginStep] = useState<LoginStep>('choose')
+  const [bunkerBusy, setBunkerBusy] = useState(false)
+  const [emailSent, setEmailSent] = useState(false)
 
   const displayDomain = domain || 'domain.com'
 
@@ -83,6 +90,8 @@ export function ClaimDialog({ open, onOpenChange, domain }: ClaimDialogProps) {
     if (!nextOpen) {
       setTimeout(() => {
         setStep('username')
+        setLoginStep('choose')
+        setEmailSent(false)
         setUsername('')
         setUsernameError(null)
         setAvailable(null)
@@ -129,10 +138,26 @@ export function ClaimDialog({ open, onOpenChange, domain }: ClaimDialogProps) {
     setStep('connect')
   }
 
+  // Claim on the admin dashboard, same as after the navbar Login.
+  const claimPath = `/admin/addresses/register?username=${encodeURIComponent(username)}`
+
   function handleLoginSuccess() {
-    router.push(
-      `/wallet/claim-username?username=${encodeURIComponent(username)}`
-    )
+    router.push(claimPath)
+  }
+
+  // Every login method signs in through the auth context; claim once it flips.
+  const claimingAfterLogin = open && step === 'connect'
+  useEffect(() => {
+    if (claimingAfterLogin && status === 'authenticated') {
+      router.push(claimPath)
+    }
+  }, [claimingAfterLogin, status, router, claimPath])
+
+  function handleBack() {
+    if (loginStep === 'nostr-create') setLoginStep('nostr')
+    else if (loginStep !== 'choose') setLoginStep('choose')
+    else setStep('username')
+    setEmailSent(false)
   }
 
   return (
@@ -298,8 +323,13 @@ export function ClaimDialog({ open, onOpenChange, domain }: ClaimDialogProps) {
                   <span className="text-white">{username}</span>
                   <span className="text-white/35">@{displayDomain}</span>
                 </DialogTitle>
-                <DialogDescription className="mx-auto max-w-76 text-balance text-sm leading-relaxed text-white/45">
-                  Connect your Nostr identity to lock in this address.
+                <DialogDescription
+                  className={cn(
+                    'mx-auto max-w-76 text-balance text-sm leading-relaxed text-white/45',
+                    emailSent && 'sr-only'
+                  )}
+                >
+                  Sign in to lock in this address.
                 </DialogDescription>
               </DialogHeader>
 
@@ -307,27 +337,33 @@ export function ClaimDialog({ open, onOpenChange, domain }: ClaimDialogProps) {
                 className="claim-stagger mt-7"
                 style={{ animationDelay: '180ms' }}
               >
-                <NostrConnectForm
-                  onSuccess={handleLoginSuccess}
-                  submitLabel="Login & Claim"
-                  loadingLabel="Connecting..."
+                <LoginStepContent
+                  step={loginStep}
+                  onStepChange={setLoginStep}
+                  bunkerBusy={bunkerBusy}
+                  onBunkerBusyChange={setBunkerBusy}
+                  onEmailSentChange={setEmailSent}
+                  emailContext="admin"
+                  claimUsername={username}
                 />
               </div>
 
-              <div
-                className="claim-stagger mt-4 flex justify-center"
-                style={{ animationDelay: '250ms' }}
-              >
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="gap-1.5 rounded-full text-white/50 hover:bg-white/5 hover:text-white"
-                  onClick={() => setStep('username')}
+              {!bunkerBusy && (
+                <div
+                  className="claim-stagger mt-4 flex justify-center"
+                  style={{ animationDelay: '250ms' }}
                 >
-                  <ArrowLeft className="size-3.5" />
-                  Back
-                </Button>
-              </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="gap-1.5 rounded-full text-white/50 hover:bg-white/5 hover:text-white"
+                    onClick={handleBack}
+                  >
+                    <ArrowLeft className="size-3.5" />
+                    Back
+                  </Button>
+                </div>
+              )}
             </>
           )}
         </div>
