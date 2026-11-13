@@ -16,7 +16,6 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { BrandLogotype } from '@/components/ui/brand-logotype'
 import { Button } from '@/components/ui/button'
-import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import { useAuth } from '@/components/admin/auth-context'
 import { createNsecSigner } from '@/lib/client/nostr-signer'
@@ -126,7 +125,7 @@ export function EmailLanding() {
       // Only a brand-new signup is offered profile setup; signing in never
       // detours through it, even for a nameless account.
       const dest = claimRef.current
-        ? `/wallet/claim-username?username=${claimRef.current}`
+        ? `/admin/addresses/register?username=${claimRef.current}`
         : contextRef.current !== 'wallet'
           ? '/admin'
           : isNew
@@ -193,10 +192,9 @@ export function EmailLanding() {
             title={t.success}
             highlight={phase.preview.displayName}
             subtitle={
-              phase.dest === '/admin'
+              phase.dest.startsWith('/admin')
                 ? t.redirectingDashboard
-                : phase.dest === '/wallet' ||
-                    phase.dest.startsWith('/wallet/claim-username')
+                : phase.dest === '/wallet'
                   ? t.redirecting
                   : t.redirectingProfile
             }
@@ -297,18 +295,17 @@ function Headline({ line1, line2 }: { line1: string; line2?: string | null }) {
 function LoadingState({ label }: { label: string }) {
   return (
     <main
-      className="flex flex-1 flex-col justify-center gap-6"
+      className="flex flex-1 flex-col items-center justify-center gap-4"
       aria-busy
-      aria-label={label}
     >
-      <Skeleton className="h-6 w-28 rounded-full" />
-      <Skeleton className="size-24 rounded-full" />
-      <div className="space-y-3">
-        <Skeleton className="h-9 w-48" />
-        <Skeleton className="h-9 w-64" />
+      <div
+        role="progressbar"
+        aria-label={label}
+        className="h-1 w-48 overflow-hidden rounded-full bg-card"
+      >
+        <div className="h-full w-1/3 rounded-full bg-(--theme-300) animate-progress-indeterminate" />
       </div>
-      <Skeleton className="h-4 w-56" />
-      <p className="sr-only">{label}</p>
+      <p className="text-sm text-muted-foreground">{label}</p>
     </main>
   )
 }

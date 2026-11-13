@@ -138,21 +138,20 @@ export function ClaimDialog({ open, onOpenChange, domain }: ClaimDialogProps) {
     setStep('connect')
   }
 
+  // Claim on the admin dashboard, same as after the navbar Login.
+  const claimPath = `/admin/addresses/register?username=${encodeURIComponent(username)}`
+
   function handleLoginSuccess() {
-    router.push(
-      `/wallet/claim-username?username=${encodeURIComponent(username)}`
-    )
+    router.push(claimPath)
   }
 
   // Every login method signs in through the auth context; claim once it flips.
   const claimingAfterLogin = open && step === 'connect'
   useEffect(() => {
     if (claimingAfterLogin && status === 'authenticated') {
-      router.push(
-        `/wallet/claim-username?username=${encodeURIComponent(username)}`
-      )
+      router.push(claimPath)
     }
-  }, [claimingAfterLogin, status, router, username])
+  }, [claimingAfterLogin, status, router, claimPath])
 
   function handleBack() {
     if (loginStep === 'nostr-create') setLoginStep('nostr')
@@ -344,7 +343,7 @@ export function ClaimDialog({ open, onOpenChange, domain }: ClaimDialogProps) {
                   bunkerBusy={bunkerBusy}
                   onBunkerBusyChange={setBunkerBusy}
                   onEmailSentChange={setEmailSent}
-                  emailContext="wallet"
+                  emailContext="admin"
                   claimUsername={username}
                 />
               </div>
