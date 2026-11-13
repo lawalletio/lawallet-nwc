@@ -18,9 +18,15 @@ import { getConfig } from '@/lib/config'
  * DB id is bound as GCM additional authenticated data — moving a ciphertext
  * to another user's row fails the auth tag.
  *
- * `KEY_VAULT_SECRET` is the only key that opens these envelopes. Losing it
- * makes custodied keys unrecoverable — never delete ciphertext on a decrypt
- * failure.
+ * Master secret: `KEY_VAULT_SECRET`, or — when that is unset — `JWT_SECRET`
+ * under its own HKDF info (domain-separated from JWT signing). New envelopes
+ * use the first available; decryption tries both, so adding
+ * `KEY_VAULT_SECRET` later never strands existing keys. Losing (or, without
+ * `KEY_VAULT_SECRET`, rotating `JWT_SECRET`) makes custodied keys
+ * unrecoverable — never delete ciphertext on a decrypt failure.
+ *
+ * Not `NWC_VAULT_SECRET`: the listener holds that one and must never be able
+ * to open custodied user keys.
  */
 
 const MAGIC = Buffer.from('LWKV01', 'utf8') // 6 bytes
@@ -29,6 +35,7 @@ const IV_LEN = 12
 const TAG_LEN = 16
 const KEY_LEN = 32
 const HKDF_INFO = 'lawallet-nsec-vault-v1'
+const HKDF_INFO_JWT_FALLBACK = 'lawallet-nsec-vault-v1:jwt-secret'
 
 const PRIVKEY_HEX = /^[0-9a-f]{64}$/
 
@@ -40,21 +47,39 @@ export class VaultDecryptError extends Error {
   }
 }
 
-/** True when `KEY_VAULT_SECRET` is configured (passkey signup available). */
-export function isVaultConfigured(): boolean {
-  // Optional chaining: config mocks in route tests are partial.
-  return Boolean(getConfig()?.keyVault?.enabled)
+interface VaultSecret {
+  secret: string
+  info: string
 }
 
-function deriveKey(secret: string, salt: Buffer): Buffer {
-  return Buffer.from(hkdfSync('sha256', secret, salt, HKDF_INFO, KEY_LEN))
+/** Usable master secrets, preferred first. */
+function vaultSecrets(): VaultSecret[] {
+  // Optional chaining: config mocks in route tests are partial.
+  const config = getConfig()
+  const out: VaultSecret[] = []
+  if (config?.keyVault?.secret) {
+    out.push({ secret: config.keyVault.secret, info: HKDF_INFO })
+  }
+  if (config?.jwt?.secret) {
+    out.push({ secret: config.jwt.secret, info: HKDF_INFO_JWT_FALLBACK })
+  }
+  return out
+}
+
+/** True when a vault secret is available (KEY_VAULT_SECRET or JWT_SECRET). */
+export function isVaultConfigured(): boolean {
+  return vaultSecrets().length > 0
+}
+
+function deriveKey({ secret, info }: VaultSecret, salt: Buffer): Buffer {
+  return Buffer.from(hkdfSync('sha256', secret, salt, info, KEY_LEN))
 }
 
 /** Encrypts a 64-char hex Nostr private key under the active vault secret. */
 export function encryptNsec(privkeyHex: string, userId: string): Buffer {
-  const { secret } = getConfig().keyVault
+  const [secret] = vaultSecrets()
   if (!secret) {
-    throw new Error('KEY_VAULT_SECRET is not configured')
+    throw new Error('KEY_VAULT_SECRET (or JWT_SECRET) is not configured')
   }
   if (!PRIVKEY_HEX.test(privkeyHex)) {
     throw new Error('encryptNsec expects a 64-char lowercase hex private key')
@@ -80,9 +105,9 @@ export function encryptNsec(privkeyHex: string, userId: string): Buffer {
  *   does not authenticate it (wrong secret, tampering, or userId mismatch).
  */
 export function decryptNsec(envelope: Uint8Array, userId: string): string {
-  const { secret } = getConfig().keyVault
-  if (!secret) {
-    throw new Error('KEY_VAULT_SECRET is not configured')
+  const secrets = vaultSecrets()
+  if (secrets.length === 0) {
+    throw new Error('KEY_VAULT_SECRET (or JWT_SECRET) is not configured')
   }
 
   const buf = Buffer.from(envelope)
@@ -97,19 +122,23 @@ export function decryptNsec(envelope: Uint8Array, userId: string): string {
   const tag = buf.subarray(offset, (offset += TAG_LEN))
   const ciphertext = buf.subarray(offset)
 
-  try {
-    const decipher = createDecipheriv(
-      'aes-256-gcm',
-      deriveKey(secret, salt),
-      iv
-    )
-    decipher.setAAD(Buffer.from(userId, 'utf8'))
-    decipher.setAuthTag(tag)
-    return Buffer.concat([
-      decipher.update(ciphertext),
-      decipher.final()
-    ]).toString('hex')
-  } catch {
-    throw new VaultDecryptError()
+  // GCM authenticates, so a wrong secret fails cleanly — try each in turn.
+  for (const secret of secrets) {
+    try {
+      const decipher = createDecipheriv(
+        'aes-256-gcm',
+        deriveKey(secret, salt),
+        iv
+      )
+      decipher.setAAD(Buffer.from(userId, 'utf8'))
+      decipher.setAuthTag(tag)
+      return Buffer.concat([
+        decipher.update(ciphertext),
+        decipher.final()
+      ]).toString('hex')
+    } catch {
+      // next secret
+    }
   }
+  throw new VaultDecryptError()
 }

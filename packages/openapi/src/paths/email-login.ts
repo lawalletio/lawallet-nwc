@@ -17,7 +17,7 @@ import { errorResponse, responses } from '../responses'
 const TAG = 'Email login'
 
 const disabled = errorResponse(
-  'Email login is disabled (or no email provider / KEY_VAULT_SECRET is configured).'
+  'Email login is disabled (or no email provider / vault secret (KEY_VAULT_SECRET or JWT_SECRET) is configured).'
 )
 
 registry.registerPath({
