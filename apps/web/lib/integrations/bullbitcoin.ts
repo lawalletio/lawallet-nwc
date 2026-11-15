@@ -149,6 +149,15 @@ export async function findOrCreateRecipient(
   }
 }
 
+/** The raw Bull Bitcoin order summary (`getOrderSummary`), for receipts. */
+export async function getBullOrderSummary(
+  apiKey: string,
+  orderId: string
+): Promise<Record<string, unknown>> {
+  const d = await rpc(apiKey, '/ak/api-orders', 'getOrderSummary', { orderId })
+  return ((d.element as Json) ?? d) as Record<string, unknown>
+}
+
 export function bullBitcoinProvider(apiKey: string): SwapProvider {
   return {
     async quote(amountArs) {
@@ -206,8 +215,23 @@ export function bullBitcoinProvider(apiKey: string): SwapProvider {
         orderId: swap.externalId
       })
       const order = ((d.element as Json) ?? d) as Json
+      // orderStatus: "In progress" | "Completed" | "Payment deadline
+      // expired" | …; payinStatus says whether the sats arrived.
       const raw = String(order.orderStatus ?? 'UNKNOWN')
-      return { status: normalizeSwapStatus(raw), providerStatus: raw }
+      const paid = /complet/i.test(String(order.payinStatus ?? ''))
+      let status = normalizeSwapStatus(raw)
+      // An unpaid order Bull Bitcoin dropped moved no funds.
+      if (status === 'FAILED' && !paid) status = 'EXPIRED'
+      const deadline = order.confirmationDeadline
+      return {
+        status,
+        providerStatus: raw,
+        paid,
+        expiresAt:
+          typeof deadline === 'string' && !Number.isNaN(Date.parse(deadline))
+            ? new Date(deadline)
+            : null
+      }
     },
 
     async test() {

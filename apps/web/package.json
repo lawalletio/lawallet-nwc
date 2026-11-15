@@ -92,6 +92,7 @@
     "next-themes": "latest",
     "nodemailer": "^10.5.0",
     "nostr-tools": "latest",
+    "pdf-lib": "1.17.1",
     "pg": "^8.23.1",
     "pino": "^10.4.0",
     "qrcode.react": "latest",

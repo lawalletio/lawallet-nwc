@@ -303,11 +303,14 @@ export function SwapWizard({
                 value={query}
                 onChange={setQuery}
                 onPick={r => {
-                  // Show the saved account at once; the debounced lookup
-                  // still re-checks it against the alias API.
+                  // A saved account is already verified: use it and move on
+                  // (like Continue). The debounced lookup still re-checks it
+                  // against the alias API in the background.
                   const q = recipientQuery(r)
                   setQuery(q)
                   setLookup({ key: q, account: r })
+                  swapRecipients.remember(r)
+                  go('amount')
                 }}
                 onSubmit={continueFromAccount}
                 invalid={dest !== '' && !destValid}

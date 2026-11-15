@@ -45,6 +45,7 @@ vi.mock('@/lib/integrations/server', () => ({
 import { POST } from '@/app/api/wallet/swaps/route'
 import { GET as GetOne } from '@/app/api/wallet/swaps/[id]/route'
 import { GET as Alias } from '@/app/api/wallet/alias/[query]/route'
+import { GET as Receipt } from '@/app/api/wallet/swaps/[id]/receipt/route'
 import { authenticate } from '@/lib/auth/unified-auth'
 import { resolveAccountByPubkey } from '@/lib/auth/account'
 
@@ -102,5 +103,54 @@ describe('GET /api/wallet/alias/[query]', () => {
       createParamsPromise({ query: 'mi.alias.mp' })
     )
     expect(res.status).toBe(404)
+  })
+})
+
+describe('GET /api/wallet/swaps/[id]/receipt', () => {
+  const bull = {
+    id: 's1',
+    userId: 'user-1',
+    provider: 'bullbitcoin',
+    externalId: 'bb-1',
+    destination: '0000003100010000000001',
+    holderName: 'Ana',
+    amountArs: 50000,
+    amountSats: 44567,
+    bolt11: 'lnbc-invalid',
+    status: 'COMPLETED',
+    paidAt: new Date(),
+    createdAt: new Date(),
+    updatedAt: new Date()
+  }
+  const get = () =>
+    Receipt(
+      createNextRequest('http://localhost:3000/api/wallet/swaps/s1/receipt'),
+      createParamsPromise({ id: 's1' })
+    )
+
+  it('returns a PDF for the owner’s completed Bull Bitcoin swap', async () => {
+    vi.mocked(prismaMock.swap.findFirst).mockResolvedValue(bull as any)
+    const res = await get()
+    expect(res.status).toBe(200)
+    expect(res.headers.get('content-type')).toBe('application/pdf')
+    expect(res.headers.get('content-disposition')).toContain(
+      'comprobante-bullbitcoin-bb-1.pdf'
+    )
+    expect(prismaMock.swap.findFirst).toHaveBeenCalledWith({
+      where: { id: 's1', userId: 'user-1' }
+    })
+  })
+
+  it('409s until the transfer completes and 404s for other providers', async () => {
+    vi.mocked(prismaMock.swap.findFirst).mockResolvedValue({
+      ...bull,
+      status: 'PENDING'
+    } as any)
+    expect((await get()).status).toBe(409)
+    vi.mocked(prismaMock.swap.findFirst).mockResolvedValue({
+      ...bull,
+      provider: 'wapu'
+    } as any)
+    expect((await get()).status).toBe(404)
   })
 })

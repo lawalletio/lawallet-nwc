@@ -216,6 +216,8 @@ export const routeManifest: Record<string, () => Promise<RouteModule>> = {
     import('@/app/api/wallet/swaps/[id]/cancel/route'),
   '/api/wallet/swaps/{id}/paid': () =>
     import('@/app/api/wallet/swaps/[id]/paid/route'),
+  '/api/wallet/swaps/{id}/receipt': () =>
+    import('@/app/api/wallet/swaps/[id]/receipt/route'),
   '/api/wallet/vouchers': () => import('@/app/api/wallet/vouchers/route'),
   '/api/wallet/vouchers/settings': () =>
     import('@/app/api/wallet/vouchers/settings/route'),
