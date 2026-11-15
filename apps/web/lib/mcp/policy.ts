@@ -306,6 +306,9 @@ export const OPERATION_POLICY: Record<string, OperationPolicy> = {
   'wallet.swaps.get': READ,
   'wallet.swaps.paid': WRITE,
   'wallet.swaps.cancel': WRITE,
+  'wallet.swaps.receipt': exclude(
+    'returns a PDF document (binary), not JSON a tool can use'
+  ),
   'wallet.swaps.create': exclude(
     'places a payout of the user’s sats to a bank account; spending only goes through wallet_pay_invoice and its budget'
   ),

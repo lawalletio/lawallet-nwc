@@ -247,6 +247,49 @@ describe('Bull Bitcoin', () => {
     })
   })
 
+  // Shapes copied from real getOrderSummary responses.
+  const summary = (element: Record<string, unknown>) =>
+    server.use(
+      http.post(`${BB}/ak/api-orders`, () =>
+        HttpResponse.json({ result: { element } })
+      )
+    )
+  const order = { externalId: 'o1', amountArs: 20_000, createdAt: new Date() }
+
+  it('expires an unpaid order past its payment deadline', async () => {
+    summary({
+      orderStatus: 'Payment deadline expired',
+      payinStatus: 'Not started',
+      confirmationDeadline: '2026-11-15T00:06:35.214Z'
+    })
+    expect(await bullBitcoinProvider('k').status(order)).toEqual({
+      status: 'EXPIRED',
+      providerStatus: 'Payment deadline expired',
+      paid: false,
+      expiresAt: new Date('2026-11-15T00:06:35.214Z')
+    })
+  })
+
+  it('reports the sats as paid while the bank transfer is in progress', async () => {
+    summary({ orderStatus: 'In progress', payinStatus: 'Completed' })
+    expect(await bullBitcoinProvider('k').status(order)).toMatchObject({
+      status: 'PENDING',
+      paid: true
+    })
+  })
+
+  it('completes, and treats a dropped unpaid order as expired', async () => {
+    summary({ orderStatus: 'Completed', payinStatus: 'Completed' })
+    expect(await bullBitcoinProvider('k').status(order)).toMatchObject({
+      status: 'COMPLETED',
+      paid: true
+    })
+    summary({ orderStatus: 'Canceled', payinStatus: 'Not started' })
+    expect(await bullBitcoinProvider('k').status(order)).toMatchObject({
+      status: 'EXPIRED'
+    })
+  })
+
   it('refuses an alias (needs a CBU/CVU)', async () => {
     await expect(
       bullBitcoinProvider('k').createSell({

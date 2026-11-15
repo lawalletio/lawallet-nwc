@@ -34,6 +34,7 @@ import {
   type SwapPhase,
   type SwapProvider
 } from './swap-shared'
+import { BullReceipt } from './bull-receipt'
 
 export type TimelineStep = 'order' | 'payment' | 'transfer' | 'delivered'
 export type StepState = 'done' | 'active' | 'pending' | 'failed'
@@ -331,6 +332,8 @@ function DeliveredBody({ swap, phase }: { swap: Swap; phase: SwapPhase }) {
             </Button>
           </div>
         </div>
+      ) : swap.provider === 'bullbitcoin' ? (
+        <BullReceipt swapId={swap.id} />
       ) : (
         <p className="text-center text-xs text-muted-foreground">
           The provider didn’t send a bank receipt for this transfer.
