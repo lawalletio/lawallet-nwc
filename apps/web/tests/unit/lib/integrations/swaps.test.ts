@@ -374,16 +374,45 @@ describe('live updates', () => {
     expect(emit).not.toHaveBeenCalled()
   })
 
-  it('reconciles only recent pending swaps that are paid or not long expired', async () => {
+  it('follows every recent pending swap plus overdue unpaid ones of any age', async () => {
     vi.mocked(prismaMock.swap.findMany).mockResolvedValue([])
     await reconcilePendingSwaps()
     const where = (vi.mocked(prismaMock.swap.findMany).mock.calls[0][0] as any)
       .where
     expect(where.status).toBe('PENDING')
     expect(where.OR).toEqual([
-      { paidAt: { not: null } },
-      { expiresAt: { gte: expect.any(Date) } }
+      { createdAt: { gte: expect.any(Date) } },
+      { paidAt: null, expiresAt: { lt: expect.any(Date) } }
     ])
+  })
+
+  it('expires an unpaid order a day past its deadline when the provider is down', async () => {
+    vi.mocked(getIntegrationConfig).mockResolvedValue(on as any)
+    provider.status.mockRejectedValue(new Error('provider down'))
+    vi.mocked(prismaMock.swap.update).mockImplementation((async ({
+      data
+    }: any) => ({ ...pending, ...data })) as any)
+    const stale = {
+      ...pending,
+      paidAt: null,
+      updatedAt: new Date(Date.now() - 60_000)
+    }
+    const recent = await refreshSwap({
+      ...stale,
+      expiresAt: new Date(Date.now() - 3600_000)
+    })
+    expect(recent.status).toBe('PENDING')
+    const old = await refreshSwap({
+      ...stale,
+      expiresAt: new Date(Date.now() - 25 * 3600_000)
+    })
+    expect(old).toMatchObject({
+      status: 'EXPIRED',
+      providerStatus: 'Expired (provider unreachable)'
+    })
+    expect(emit).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'swaps:updated', userId: 'user-1' })
+    )
   })
 })
 

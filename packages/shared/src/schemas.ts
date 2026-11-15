@@ -1997,6 +1997,14 @@ export const swapPaidSchema = z.object({
     .regex(/^[0-9a-f]{64}$/i, 'Preimage must be 32 bytes of hex')
 })
 
+/**
+ * Query of `GET /api/wallet/swaps/{id}/receipt`: `full` (default) includes
+ * the Lightning side; `share` is a plain ARS transfer receipt to send on.
+ */
+export const swapReceiptQuerySchema = z.object({
+  variant: z.enum(['full', 'share']).default('full')
+})
+
 /** Query of `GET /api/wallet/swaps`. */
 export const swapListQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),

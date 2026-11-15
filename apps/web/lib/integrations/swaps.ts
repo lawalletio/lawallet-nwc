@@ -178,7 +178,7 @@ export async function refreshSwap(swap: Swap): Promise<Swap> {
   if (swap.status !== 'PENDING') return swap
   if (Date.now() - swap.updatedAt.getTime() < STATUS_REFRESH_MS) return swap
   const provider = await getSwapProvider(swap.provider as SwapProviderId)
-  if (!provider) return swap
+  if (!provider) return expireIfAbandoned(swap, 'Expired (provider disabled)')
   try {
     const next = await provider.status({
       externalId: swap.externalId,
@@ -221,11 +221,41 @@ export async function refreshSwap(swap: Swap): Promise<Swap> {
       'swap status refresh failed'
     )
     // Touch updatedAt so a dead provider isn't hammered on every poll.
-    return prisma.swap.update({
-      where: { id: swap.id },
-      data: { providerStatus: swap.providerStatus }
-    })
+    return expireIfAbandoned(swap, 'Expired (provider unreachable)', true)
   }
+}
+
+/**
+ * Past this, an unpaid order whose invoice expired is expired locally even
+ * when the provider can't confirm it: an expired BOLT11 can't be paid, and a
+ * payment made before expiry would have reached us (`/paid`) or the provider
+ * long before. A late valid preimage still reopens it (markSwapPaid).
+ */
+const ABANDON_AFTER_MS = 24 * 3600_000
+
+async function expireIfAbandoned(
+  swap: Swap,
+  providerStatus: string,
+  touch = false
+): Promise<Swap> {
+  const abandoned =
+    !swap.paidAt &&
+    !!swap.expiresAt &&
+    Date.now() - swap.expiresAt.getTime() > ABANDON_AFTER_MS
+  if (!abandoned) {
+    return touch
+      ? prisma.swap.update({
+          where: { id: swap.id },
+          data: { providerStatus: swap.providerStatus }
+        })
+      : swap
+  }
+  const expired = await prisma.swap.update({
+    where: { id: swap.id },
+    data: { status: 'EXPIRED', providerStatus }
+  })
+  emitSwapsUpdated(swap.userId)
+  return expired
 }
 
 /**
@@ -288,9 +318,11 @@ const RECONCILE_BATCH = 25
 
 /**
  * Refreshes pending swaps from their providers so status moves (and SSE
- * fires) without anyone watching. Runs on the listener's reconcile tick.
- * Unpaid orders are only checked until shortly after their invoice expires;
- * a paid one is followed for the whole window.
+ * fires) without anyone watching: the remote check records payment, delivery
+ * and failure, and flips an unpaid order past its deadline to EXPIRED. Runs
+ * on the swap cron (in-process on long-running servers, the listener's tick
+ * on serverless). Every PENDING swap in the window is followed — an overdue
+ * unpaid one gets its final check here rather than staying PENDING.
  *
  * ponytail: sequential, one provider call per swap (Wapu lists all its
  * transactions each time); batch the Wapu lookups if volume grows.
@@ -298,10 +330,10 @@ const RECONCILE_BATCH = 25
 function followedSwapsWhere(now: number) {
   return {
     status: 'PENDING' as const,
-    createdAt: { gte: new Date(now - RECONCILE_WINDOW_MS) },
     OR: [
-      { paidAt: { not: null } },
-      { expiresAt: { gte: new Date(now - 3600_000) } }
+      { createdAt: { gte: new Date(now - RECONCILE_WINDOW_MS) } },
+      // Overdue unpaid orders of any age still need their final check.
+      { paidAt: null, expiresAt: { lt: new Date(now) } }
     ]
   }
 }

@@ -41,13 +41,28 @@ provider's invoice from their **own** wallet.
    `FAILED`, `EXPIRED` or `CANCELED` (refreshed from the provider at most
    every 10s), or listen for the `swaps:updated` SSE event.
 
-**Status cron.** In-flight swaps are also refreshed without anyone watching:
-the NWC listener HMAC-signs `POST /api/internal/swaps/reconcile` every
-`SWAP_RECONCILE_INTERVAL_MS` (default 1 min) while web reports a swap in
-flight, backing off to `SWAP_RECONCILE_MAX_INTERVAL_MS` (default 5 min) while
-none is. Each pass asks the provider, records payment it saw, expires lapsed
-unpaid orders and pushes `swaps:updated`. Without a listener there is no cron;
-status then moves only while a client is watching.
+**Status cron.** In-flight swaps are refreshed without anyone watching. Each
+pass asks the provider (Wapu `my_transactions`, Bull Bitcoin
+`getOrderSummary`) and updates the local status: payment it saw (Wapu
+deposit completed / Bull Bitcoin `payinStatus: Completed`), delivered,
+failed, and **expired** — an unpaid order past its deadline (Bull Bitcoin
+gives ~5 min, `confirmationDeadline`; Wapu follows the 24 h invoice) flips to
+`EXPIRED` once the provider confirms it was never paid. Every pending swap of
+the last 3 days is followed, plus overdue unpaid ones of any age; if the
+provider stays unreachable, an unpaid order is expired locally 24 h past its
+deadline. Changes push `swaps:updated`.
+
+Two schedulers run the same pass (`reconcilePendingSwaps`):
+
+- **In-process**, every minute, on long-running servers (Docker, Umbrel,
+  Start9, `next dev`) — started from `instrumentation.ts` unless `VERCEL` is
+  set.
+- **The NWC listener** HMAC-signs `POST /api/internal/swaps/reconcile` every
+  `SWAP_RECONCILE_INTERVAL_MS` (default 1 min) while web reports a swap in
+  flight, backing off to `SWAP_RECONCILE_MAX_INTERVAL_MS` (default 5 min).
+  This is the cron on serverless.
+
+When both run, the per-swap 10 s throttle keeps provider calls from doubling.
 
 Full request/response shapes: `/api/openapi.json`, tag **Cash-out**.
 
@@ -67,6 +82,18 @@ Full request/response shapes: `/api/openapi.json`, tag **Cash-out**.
 - Pays only to 22-digit CBU/CVU. An alias works when the Gorilla API
   integration is on (it is resolved to the CVU first).
 - Each new CBU is saved as a recipient in the community's account.
+- **Receipt:** Bull Bitcoin sends none, so for a completed swap
+  `GET /api/wallet/swaps/{id}/receipt` returns a one-page Spanish PDF
+  ("Comprobante de transferencia") with Bull Bitcoin's logo, built from the
+  live `getOrderSummary`: recipient (alias lookup adds bank and CUIT),
+  amounts, rate, dates, and Bull Bitcoin's order id / number / statuses plus
+  any payout reference it returns, for verification. Its footer says it is
+  issued by LaWallet, not Bull Bitcoin. If Bull Bitcoin is unreachable it is
+  built from the stored order. `?variant=share` returns a **shareable**
+  version for the recipient: pesos only, like a regular bank transfer — no
+  sats, rate, BTC price or Lightning payment. The swap page previews either
+  (Full / Shareable), downloads it, and offers the system share sheet where
+  the browser can share files.
 
 ### Wapu
 
@@ -90,7 +117,6 @@ Fiwind session import) happens outside this repo.
 
 - Gorilla API allows 30 requests/min per IP, and every request from this
   instance shares one IP.
-- No provider webhooks: status comes from the listener cron (above) or a
-  watching client. Without a listener, an unpaid order stays `PENDING` until
-  someone opens it.
+- No provider webhooks: status comes from the cron (above) or a watching
+  client. On serverless without a listener there is no cron.
 - Sell only (Lightning → ARS). Buying and onchain are not implemented.

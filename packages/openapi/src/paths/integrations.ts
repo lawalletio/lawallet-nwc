@@ -279,6 +279,45 @@ registry.registerPath({
 registry.registerPath({
   ...withRole('USER'),
   method: 'get',
+  path: '/api/wallet/swaps/{id}/receipt',
+  tags: [WALLET_TAG],
+  summary:
+    'Download the PDF transfer receipt of a completed Bull Bitcoin swap.',
+  description:
+    'Bull Bitcoin sends no receipt of its own, so LaWallet issues a one-page ' +
+    'Spanish PDF ("Comprobante de transferencia") from the live Bull Bitcoin ' +
+    'order summary: recipient, amounts, rate, dates, and Bull Bitcoin order ' +
+    'id / number / statuses (plus any payout reference it returns) for ' +
+    'verification. The footer states it is not issued by Bull Bitcoin. 404 ' +
+    'for other providers (Wapu swaps carry `receiptUrl`); 409 until the ' +
+    'transfer completes.',
+  operationId: 'wallet.swaps.receipt',
+  security: protectedSecurity,
+  request: {
+    params: z.object({ id: z.string() }),
+    query: z.object({
+      variant: z.enum(['full', 'share']).optional().openapi({
+        description:
+          '`full` (default) includes sats, rate and the Lightning payment; `share` is a plain ARS bank-transfer receipt to send the recipient.'
+      })
+    })
+  },
+  responses: {
+    200: {
+      description: 'The receipt PDF (`attachment`).',
+      content: {
+        'application/pdf': { schema: z.string().openapi({ format: 'binary' }) }
+      }
+    },
+    ...commonErrorResponses,
+    404: responses.notFound,
+    409: responses.conflict
+  }
+})
+
+registry.registerPath({
+  ...withRole('USER'),
+  method: 'get',
   path: '/api/wallet/alias/{query}',
   tags: [WALLET_TAG],
   summary: 'Resolve an Argentine bank alias or CBU/CVU to its owner.',

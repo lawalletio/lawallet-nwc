@@ -87,6 +87,13 @@ export async function register() {
 
     throw error
   }
+
+  // Cash-out swap status cron. Only where a server process lives on;
+  // serverless (Vercel) relies on the NWC listener's swap tick instead.
+  if (!process.env.VERCEL) {
+    const { startSwapCron } = await import('@/lib/integrations/swap-cron')
+    startSwapCron()
+  }
 }
 
 export const onRequestError: Instrumentation.onRequestError = async (

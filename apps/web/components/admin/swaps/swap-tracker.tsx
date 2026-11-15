@@ -46,6 +46,7 @@ import {
   type Swap,
   type SwapPhase
 } from './swap-shared'
+import { BullReceipt } from './bull-receipt'
 import { SwapStepDialog, type TimelineStep } from './swap-step-dialog'
 import { INVOICE, WalletPicker, useSwapPayment } from './swap-pay'
 
@@ -359,6 +360,9 @@ export function SwapTracker({
               ))}
             </ol>
             {swap.receiptUrl && <BankReceipt url={swap.receiptUrl} />}
+            {swap.provider === 'bullbitcoin' && phase === 'completed' && (
+              <BullReceipt swapId={swap.id} className="order-3" />
+            )}
             <SwapStepDialog
               step={openStep}
               state={timeline.find(t => t.key === openStep)?.state ?? 'pending'}

@@ -27156,6 +27156,122 @@
         }
       }
     },
+    "/api/wallet/swaps/{id}/receipt": {
+      "get": {
+        "x-required-role": "USER",
+        "tags": [
+          "Cash-out"
+        ],
+        "summary": "Download the PDF transfer receipt of a completed Bull Bitcoin swap.",
+        "description": "Bull Bitcoin sends no receipt of its own, so LaWallet issues a one-page Spanish PDF (\"Comprobante de transferencia\") from the live Bull Bitcoin order summary: recipient, amounts, rate, dates, and Bull Bitcoin order id / number / statuses (plus any payout reference it returns) for verification. The footer states it is not issued by Bull Bitcoin. 404 for other providers (Wapu swaps carry `receiptUrl`); 409 until the transfer completes.",
+        "operationId": "wallet.swaps.receipt",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "full",
+                "share"
+              ],
+              "description": "`full` (default) includes sats, rate and the Lightning payment; `share` is a plain ARS bank-transfer receipt to send the recipient."
+            },
+            "required": false,
+            "description": "`full` (default) includes sats, rate and the Lightning payment; `share` is a plain ARS bank-transfer receipt to send the recipient.",
+            "name": "variant",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The receipt PDF (`attachment`).",
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request conflicts with current resource state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/wallet/alias/{query}": {
       "get": {
         "x-required-role": "USER",
