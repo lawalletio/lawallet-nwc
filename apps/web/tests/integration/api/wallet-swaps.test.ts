@@ -42,15 +42,32 @@ vi.mock('@/lib/integrations/server', () => ({
   }))
 }))
 
+vi.mock('@/lib/integrations/bullbitcoin', async importActual => ({
+  ...(await importActual<object>()),
+  getBullOrderSummary: vi.fn()
+}))
+vi.mock('@/lib/integrations/alias', async importActual => ({
+  ...(await importActual<object>()),
+  lookupAlias: vi.fn()
+}))
+
 import { POST } from '@/app/api/wallet/swaps/route'
 import { GET as GetOne } from '@/app/api/wallet/swaps/[id]/route'
 import { GET as Alias } from '@/app/api/wallet/alias/[query]/route'
 import { GET as Receipt } from '@/app/api/wallet/swaps/[id]/receipt/route'
 import { authenticate } from '@/lib/auth/unified-auth'
 import { resolveAccountByPubkey } from '@/lib/auth/account'
+import { getIntegrationConfig } from '@/lib/integrations/server'
+import { getBullOrderSummary } from '@/lib/integrations/bullbitcoin'
+import { lookupAlias } from '@/lib/integrations/alias'
 
 beforeEach(() => {
   resetPrismaMock()
+  vi.mocked(getIntegrationConfig).mockResolvedValue({
+    enabled: false,
+    configured: false,
+    values: {}
+  } as any)
   vi.mocked(authenticate).mockResolvedValue({
     pubkey: 'a'.repeat(64),
     role: 'USER',
@@ -152,5 +169,52 @@ describe('GET /api/wallet/swaps/[id]/receipt', () => {
       provider: 'wapu'
     } as any)
     expect((await get()).status).toBe(404)
+  })
+
+  it('uses Bull Bitcoin’s live order and the alias lookup for the shareable receipt', async () => {
+    vi.mocked(prismaMock.swap.findFirst).mockResolvedValue(bull as any)
+    vi.mocked(getIntegrationConfig).mockResolvedValue({
+      enabled: true,
+      configured: true,
+      values: { bullbitcoin_api_key: 'k', alias_api_url: 'https://alias' }
+    } as any)
+    vi.mocked(getBullOrderSummary).mockResolvedValue({
+      orderNumber: 12345,
+      completedAt: '2026-11-14T12:00:00Z'
+    })
+    vi.mocked(lookupAlias).mockResolvedValue({
+      cvu: bull.destination,
+      alias: 'ana.mp',
+      bank: 'Mercado Pago',
+      owners: [{ name: 'Ana', cuit: '20-1-1' }]
+    } as any)
+    const res = await Receipt(
+      createNextRequest(
+        'http://localhost:3000/api/wallet/swaps/s1/receipt?variant=share'
+      ),
+      createParamsPromise({ id: 's1' })
+    )
+    expect(res.status).toBe(200)
+    expect(res.headers.get('content-disposition')).toContain(
+      'filename="comprobante-12345.pdf"'
+    )
+    expect(getBullOrderSummary).toHaveBeenCalledWith('k', 'bb-1')
+    expect(lookupAlias).toHaveBeenCalledWith('https://alias', bull.destination)
+  })
+
+  it('still issues the receipt when Bull Bitcoin is unreachable', async () => {
+    vi.mocked(prismaMock.swap.findFirst).mockResolvedValue(bull as any)
+    vi.mocked(getIntegrationConfig).mockResolvedValue({
+      enabled: true,
+      configured: true,
+      values: { bullbitcoin_api_key: 'k', alias_api_url: 'https://alias' }
+    } as any)
+    vi.mocked(getBullOrderSummary).mockRejectedValue(new Error('down'))
+    vi.mocked(lookupAlias).mockRejectedValue(new Error('down'))
+    const res = await get()
+    expect(res.status).toBe(200)
+    expect(res.headers.get('content-disposition')).toContain(
+      'comprobante-bullbitcoin-bb-1.pdf'
+    )
   })
 })
