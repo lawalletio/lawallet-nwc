@@ -47,6 +47,7 @@ import {
   ChartTooltipContent,
   type ChartConfig
 } from '@/components/ui/chart'
+import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
@@ -176,6 +177,24 @@ export default function PollDashboardPage({
     }
   }
 
+  async function renameCustom(from: string, to: string) {
+    try {
+      await mutate('put', `/api/admin/polls/${id}/custom-answers`, {
+        from,
+        to
+      })
+      const merged = r?.custom.some(
+        c => c.label !== from && c.label.toLowerCase() === to.toLowerCase()
+      )
+      toast.success(merged ? `Merged into “${to}”` : `Renamed to “${to}”`)
+      await refetchResults()
+      return true
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Rename failed')
+      return false
+    }
+  }
+
   const firstLoad = !p || !r
   const topPick =
     r && r.total > 0
@@ -301,7 +320,7 @@ export default function PollDashboardPage({
           )}
         </div>
 
-        {p?.allowCustom && <CustomCard results={r} />}
+        {p?.allowCustom && <CustomCard results={r} onRename={renameCustom} />}
 
         <VotersCard
           results={r}
@@ -561,8 +580,28 @@ function ScoresCard({
   )
 }
 
-function CustomCard({ results }: { results: PollResults | null }) {
+function CustomCard({
+  results,
+  onRename
+}: {
+  results: PollResults | null
+  onRename: (from: string, to: string) => Promise<boolean>
+}) {
   const max = Math.max(1, ...(results?.custom.map(c => c.count) ?? []))
+  const [editing, setEditing] = useState<string | null>(null)
+  const [draft, setDraft] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  async function commit() {
+    const from = editing
+    const to = draft.trim()
+    if (!from || saving) return
+    if (!to || to === from) return setEditing(null)
+    setSaving(true)
+    if (await onRename(from, to)) setEditing(null)
+    setSaving(false)
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -570,7 +609,8 @@ function CustomCard({ results }: { results: PollResults | null }) {
           <MessageSquareText className="size-4" /> Custom answers
         </CardTitle>
         <CardDescription className="text-sm font-normal tracking-normal">
-          Grouped case-insensitively.
+          Grouped case-insensitively. Click an answer to rename it — rename it
+          to another answer to merge the two.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -582,23 +622,69 @@ function CustomCard({ results }: { results: PollResults | null }) {
           </p>
         ) : (
           <ul className="grid gap-2 sm:grid-cols-2">
-            {results.custom.map(c => (
-              <li
-                key={c.label}
-                className="relative flex items-center justify-between overflow-hidden rounded-md border px-3 py-2 text-sm"
-              >
-                <span
-                  className="absolute inset-y-0 left-0 bg-muted"
-                  style={{ width: `${(c.count / max) * 100}%` }}
-                />
-                <span className="relative truncate">{c.label}</span>
-                <span className="relative tabular-nums font-medium">
-                  {c.count}
-                </span>
-              </li>
-            ))}
+            {results.custom.map(c =>
+              editing === c.label ? (
+                <li key={c.label} className="flex flex-col gap-1">
+                  <Input
+                    autoFocus
+                    onFocus={e => e.currentTarget.select()}
+                    value={draft}
+                    maxLength={40}
+                    disabled={saving}
+                    aria-label={`Rename “${c.label}”`}
+                    list="poll-custom-answers"
+                    className="h-[38px]"
+                    onChange={e => setDraft(e.target.value)}
+                    onBlur={() => void commit()}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') void commit()
+                      if (e.key === 'Escape') setEditing(null)
+                    }}
+                  />
+                  <span className="px-1 text-xs text-muted-foreground">
+                    Enter to save · Esc to cancel
+                  </span>
+                </li>
+              ) : (
+                <li key={c.label}>
+                  <button
+                    type="button"
+                    title="Rename or merge"
+                    className="relative flex w-full items-center justify-between gap-2 overflow-hidden rounded-md border px-3 py-2 text-left text-sm transition-colors hover:border-foreground/30"
+                    onClick={() => {
+                      setDraft(c.label)
+                      setEditing(c.label)
+                    }}
+                  >
+                    <span
+                      className="absolute inset-y-0 left-0 bg-muted"
+                      style={{ width: `${(c.count / max) * 100}%` }}
+                    />
+                    <span className="relative flex min-w-0 flex-col">
+                      <span className="truncate">{c.label}</span>
+                      {c.merged && (
+                        <span className="truncate text-xs text-muted-foreground">
+                          merged: {c.merged.join(', ')}
+                        </span>
+                      )}
+                    </span>
+                    <span className="relative flex items-center gap-2">
+                      <Pencil className="size-3 text-muted-foreground" />
+                      <span className="tabular-nums font-medium">
+                        {c.count}
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              )
+            )}
           </ul>
         )}
+        <datalist id="poll-custom-answers">
+          {results?.custom.map(c => (
+            <option key={c.label} value={c.label} />
+          ))}
+        </datalist>
       </CardContent>
     </Card>
   )

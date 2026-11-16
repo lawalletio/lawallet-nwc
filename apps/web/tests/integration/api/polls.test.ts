@@ -52,6 +52,7 @@ import {
 } from '@/app/api/admin/polls/[id]/route'
 import { Prisma } from '@/lib/generated/prisma'
 import { GET as getResults } from '@/app/api/admin/polls/[id]/results/route'
+import { PUT as renameCustom } from '@/app/api/admin/polls/[id]/custom-answers/route'
 import { PATCH as patchVoter } from '@/app/api/admin/polls/[id]/voters/[userId]/route'
 import { authenticate, authenticateWithRole } from '@/lib/auth/unified-auth'
 
@@ -445,9 +446,7 @@ describe('admin polls', () => {
     )
     expect(body).toMatchObject({ total: 1, dismissed: 1 })
     expect(body.firstChoice[0]).toMatchObject({ choice: 'rgb', count: 1 })
-    expect(body.voters.find((v: any) => v.userId === 'u2').dismissed).toBe(
-      true
-    )
+    expect(body.voters.find((v: any) => v.userId === 'u2').dismissed).toBe(true)
   })
 
   function patchVoterReq(dismissed: unknown) {
@@ -488,5 +487,45 @@ describe('admin polls', () => {
     vi.mocked(authenticateWithRole).mockRejectedValue(new AuthorizationError())
     await assertResponse(await patchVoterReq(true), 403)
     expect(prismaMock.pollResponse.update).not.toHaveBeenCalled()
+  })
+
+  function renameReq(body: unknown) {
+    return renameCustom(
+      createNextRequest('/api/admin/polls/p1/custom-answers', {
+        method: 'PUT',
+        body
+      }) as any,
+      createParamsPromise({ id: 'p1' })
+    )
+  }
+
+  it('stores a custom-answer rename as an alias', async () => {
+    vi.mocked(authenticateWithRole).mockResolvedValue({} as any)
+    vi.mocked(prismaMock.poll.findUnique).mockResolvedValue({
+      customAliases: { 'lightining usdt': 'ln usdt' }
+    } as any)
+    const body: any = await assertResponse(
+      await renameReq({ from: 'LN USDT', to: 'Lightning USDT' }),
+      200
+    )
+    const customAliases = {
+      'lightining usdt': 'Lightning USDT',
+      'ln usdt': 'Lightning USDT'
+    }
+    expect(body).toEqual({ customAliases })
+    expect(prismaMock.poll.update).toHaveBeenCalledWith({
+      where: { id: 'p1' },
+      data: { customAliases }
+    })
+  })
+
+  it('rename: 404 unknown poll, 400 blank name, 403 non-admin', async () => {
+    vi.mocked(authenticateWithRole).mockResolvedValue({} as any)
+    vi.mocked(prismaMock.poll.findUnique).mockResolvedValue(null)
+    await assertResponse(await renameReq({ from: 'a', to: 'b' }), 404)
+    await assertResponse(await renameReq({ from: 'a', to: '   ' }), 400)
+    vi.mocked(authenticateWithRole).mockRejectedValue(new AuthorizationError())
+    await assertResponse(await renameReq({ from: 'a', to: 'b' }), 403)
+    expect(prismaMock.poll.update).not.toHaveBeenCalled()
   })
 })

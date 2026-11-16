@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import { aggregateResults, validateChoices } from '@/lib/polls'
+import {
+  aggregateResults,
+  mergeCustomAlias,
+  validateChoices
+} from '@/lib/polls'
 
 const options = [
   { id: 'tron', label: 'Tron' },
@@ -121,6 +125,31 @@ describe('aggregateResults', () => {
     ])
   })
 
+  it('renames and merges custom answers through customAliases', () => {
+    const r = aggregateResults(
+      {
+        ...ranking,
+        customAliases: { 'lightining usdt': 'Lightning USDT', ark: 'Ark' }
+      },
+      [
+        vote('a', ['custom:Lightining USDT', 'tron', 'liquid', 'rgb'], '10:00'),
+        vote('b', ['custom:lightning usdt', 'tron'], '11:00'),
+        vote('c', ['tron', 'custom:ARK'], '12:00'),
+        vote('d', ['tron', 'custom:rgb++'], '13:00')
+      ]
+    )
+    expect(r.custom).toEqual([
+      { label: 'Lightning USDT', count: 2, merged: ['lightining usdt'] },
+      { label: 'Ark', count: 1 },
+      { label: 'rgb++', count: 1 }
+    ])
+    expect(r.firstChoice).toContainEqual({
+      choice: 'custom:lightning usdt',
+      label: 'Lightning USDT',
+      count: 2
+    })
+  })
+
   it('has no scores for single choice and handles no votes', () => {
     const r = aggregateResults(single, [])
     expect(r).toMatchObject({
@@ -128,6 +157,17 @@ describe('aggregateResults', () => {
       updatedAt: null,
       scores: [],
       voters: []
+    })
+  })
+})
+
+describe('mergeCustomAlias', () => {
+  it('maps from → to and drags earlier merges along', () => {
+    const once = mergeCustomAlias({}, ' Lightining USDT ', 'LN USDT ')
+    expect(once).toEqual({ 'lightining usdt': 'LN USDT' })
+    expect(mergeCustomAlias(once, 'ln usdt', 'Lightning USDT')).toEqual({
+      'lightining usdt': 'Lightning USDT',
+      'ln usdt': 'Lightning USDT'
     })
   })
 })

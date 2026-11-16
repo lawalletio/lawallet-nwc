@@ -1493,29 +1493,32 @@ enum PollStatus {
 
 /// An admin-published preference poll users answer from their wallet.
 model Poll {
-  id          String         @id @default(cuid())
-  slug        String         @unique
-  title       String
-  description String?
-  type        PollType
+  id            String         @id @default(cuid())
+  slug          String         @unique
+  title         String
+  description   String?
+  type          PollType
   /// `[{ id, label }]` — option ids are stable; responses reference them.
-  options     Json
+  options       Json
   /// Accept one free-text `custom:<text>` entry.
-  allowCustom Boolean        @default(false)
+  allowCustom   Boolean        @default(false)
   /// false = one-time: a response is locked once submitted.
-  updatable   Boolean        @default(true)
-  status      PollStatus     @default(DRAFT)
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
-  responses   PollResponse[]
+  updatable     Boolean        @default(true)
+  /// Admin renames/merges of custom answers: `{ "<lowercased text>": "<display name>" }`.
+  /// Applied when tallying; stored responses keep what the voter typed.
+  customAliases Json           @default("{}")
+  status        PollStatus     @default(DRAFT)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  responses     PollResponse[]
 }
 
 model PollResponse {
-  id        String   @id @default(cuid())
-  pollId    String
-  poll      Poll     @relation(fields: [pollId], references: [id], onDelete: Cascade)
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id          String    @id @default(cuid())
+  pollId      String
+  poll        Poll      @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   /// Ordered `string[]` of option ids / `custom:<text>`.
   choices     Json
   /// Set when an admin discards this vote; it stays listed but is not counted.

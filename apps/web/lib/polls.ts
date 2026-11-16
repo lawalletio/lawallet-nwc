@@ -7,6 +7,28 @@ export interface PollShape {
   type: PollType
   options: PollOption[]
   allowCustom: boolean
+  /** `{ "<lowercased text>": "<display name>" }` — see `mergeCustomAlias`. */
+  customAliases?: unknown
+}
+
+/**
+ * Renames custom answer `from` to `to`. Anything already merged into `from`
+ * follows it, and if `to` matches another answer (case-insensitively) the two
+ * now tally together. Returns the new alias map; responses are untouched.
+ */
+export function mergeCustomAlias(
+  aliases: Record<string, string>,
+  from: string,
+  to: string
+): Record<string, string> {
+  const fromKey = from.trim().toLowerCase()
+  const name = to.trim()
+  const next: Record<string, string> = {}
+  for (const [key, target] of Object.entries(aliases)) {
+    next[key] = target.toLowerCase() === fromKey ? name : target
+  }
+  next[fromKey] = name
+  return next
 }
 
 export const CUSTOM_PREFIX = 'custom:'
@@ -101,7 +123,8 @@ export interface ResultsResponse {
  * Aggregates responses. `scores` is a Borda count where a response with n
  * entries gives n points to its first entry, n-1 to the second, …; options a
  * response left out earn 0 and count in `skipped`. Custom entries are tallied
- * in `custom` (lowercased + trimmed) rather than scored; a custom first pick
+ * in `custom` (lowercased + trimmed, then renamed/merged via `customAliases`)
+ * rather than scored; a custom first pick
  * shows up in `firstChoice` under its own text (`choice: "custom:<text>"`,
  * grouped case-insensitively like `custom`). Dismissed responses
  * only appear in `voters` (flagged) and count in `dismissed`.
@@ -112,7 +135,11 @@ export function aggregateResults(poll: PollShape, all: ResultsResponse[]) {
   const first = new Map<string, number>(poll.options.map(o => [o.id, 0]))
   const points = new Map<string, number>(poll.options.map(o => [o.id, 0]))
   const positions = new Map<string, number[]>()
-  const custom = new Map<string, number>()
+  const aliases = (poll.customAliases ?? {}) as Record<string, string>
+  const custom = new Map<
+    string,
+    { label: string; count: number; merged: Set<string> }
+  >()
   let updatedAt: Date | null = null
 
   for (const response of responses) {
@@ -124,12 +151,23 @@ export function aggregateResults(poll: PollShape, all: ResultsResponse[]) {
     }
     choices.forEach((entry, index) => {
       if (entry.startsWith(CUSTOM_PREFIX)) {
-        const text = entry.slice(CUSTOM_PREFIX.length).trim().toLowerCase()
-        custom.set(text, (custom.get(text) ?? 0) + 1)
+        const raw = entry.slice(CUSTOM_PREFIX.length).trim().toLowerCase()
+        const name = aliases[raw] ?? raw
+        const key = name.toLowerCase()
+        const tally = custom.get(key) ?? {
+          label: name,
+          count: 0,
+          merged: new Set<string>()
+        }
+        tally.count++
+        if (aliases[raw]) tally.label = name // the admin's spelling wins
+        if (raw !== key) tally.merged.add(raw)
+        custom.set(key, tally)
         if (index === 0) {
-          const key = CUSTOM_PREFIX + text
-          labelOf.set(key, text)
-          first.set(key, (first.get(key) ?? 0) + 1)
+          first.set(
+            CUSTOM_PREFIX + key,
+            (first.get(CUSTOM_PREFIX + key) ?? 0) + 1
+          )
         }
         return
       }
@@ -149,7 +187,10 @@ export function aggregateResults(poll: PollShape, all: ResultsResponse[]) {
     firstChoice: [...first]
       .map(([choice, count]) => ({
         choice,
-        label: labelOf.get(choice) ?? choice,
+        label:
+          labelOf.get(choice) ??
+          custom.get(choice.slice(CUSTOM_PREFIX.length))?.label ??
+          choice,
         count
       }))
       .sort(byCount),
@@ -172,8 +213,12 @@ export function aggregateResults(poll: PollShape, all: ResultsResponse[]) {
             })
             .sort((a, b) => b.points - a.points)
         : [],
-    custom: [...custom]
-      .map(([label, count]) => ({ label, count }))
+    custom: [...custom.values()]
+      .map(({ label, count, merged }) => ({
+        label,
+        count,
+        ...(merged.size ? { merged: [...merged].sort() } : {})
+      }))
       .sort(byCount),
     // Counted voters newest first, then dismissed ones (newest first).
     voters: [...all]

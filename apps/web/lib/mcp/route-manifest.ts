@@ -41,6 +41,8 @@ export const routeManifest: Record<string, () => Promise<RouteModule>> = {
     import('@/app/api/admin/listener/status/route'),
   '/api/admin/polls': () => import('@/app/api/admin/polls/route'),
   '/api/admin/polls/{id}': () => import('@/app/api/admin/polls/[id]/route'),
+  '/api/admin/polls/{id}/custom-answers': () =>
+    import('@/app/api/admin/polls/[id]/custom-answers/route'),
   '/api/admin/polls/{id}/results': () =>
     import('@/app/api/admin/polls/[id]/results/route'),
   '/api/admin/polls/{id}/voters/{userId}': () =>

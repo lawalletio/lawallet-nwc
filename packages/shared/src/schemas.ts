@@ -2100,3 +2100,9 @@ export const pollVoterParam = z.object({
 
 /** Body of `PATCH /api/admin/polls/{id}/voters/{userId}`. */
 export const dismissPollVoterSchema = z.object({ dismissed: z.boolean() })
+
+/** Body of `PUT /api/admin/polls/{id}/custom-answers` — rename/merge. */
+export const renameCustomAnswerSchema = z.object({
+  from: z.string().trim().min(1).max(40),
+  to: z.string().trim().min(1).max(40)
+})

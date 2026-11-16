@@ -9,6 +9,7 @@ import {
   pollStatusSchema,
   pollTypeSchema,
   pollVoterParam,
+  renameCustomAnswerSchema,
   updatePollSchema
 } from '@lawallet-nwc/shared'
 import {
@@ -229,7 +230,16 @@ registry.registerPath({
               .describe('Mean 1-based position among responses that ranked it.')
           })
         ),
-        custom: z.array(z.object({ label: z.string(), count: z.number() })),
+        custom: z.array(
+          z.object({
+            label: z.string(),
+            count: z.number(),
+            merged: z
+              .array(z.string())
+              .optional()
+              .describe('Other spellings an admin merged into this answer.')
+          })
+        ),
         voters: z.array(
           z.object({
             userId: z.string(),
@@ -264,6 +274,31 @@ registry.registerPath({
     200: inlineJsonResponse(
       'Updated flag.',
       z.object({ userId: z.string(), dismissed: z.boolean() })
+    ),
+    ...commonErrorResponses,
+    404: responses.notFound
+  }
+})
+
+registry.registerPath({
+  ...withRole('ADMIN'),
+  method: 'put',
+  path: '/api/admin/polls/{id}/custom-answers',
+  tags: [TAG],
+  summary: 'Rename or merge a custom answer.',
+  description:
+    'Renames custom answer `from` (case-insensitive) to `to` in the results. ' +
+    'If `to` matches another custom answer the two are tallied together; ' +
+    'answers already merged into `from` follow it. Stored responses keep ' +
+    'what each voter typed, and later responses with the same text are ' +
+    'renamed too.',
+  operationId: 'admin.polls.renameCustomAnswer',
+  security: protectedSecurity,
+  request: { params: idParam, body: json(renameCustomAnswerSchema) },
+  responses: {
+    200: inlineJsonResponse(
+      'The poll’s alias map.',
+      z.object({ customAliases: z.record(z.string(), z.string()) })
     ),
     ...commonErrorResponses,
     404: responses.notFound
