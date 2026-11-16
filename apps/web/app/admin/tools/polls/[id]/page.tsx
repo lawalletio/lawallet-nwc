@@ -48,6 +48,7 @@ import {
   ChartTooltipContent,
   type ChartConfig
 } from '@/components/ui/chart'
+import { DataTablePagination } from '@/components/admin/data-table-pagination'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
@@ -726,6 +727,8 @@ function CustomCard({
 
 type Voter = PollResults['voters'][number]
 
+const VOTERS_PAGE_SIZE = 20
+
 function VotersCard({
   results,
   colorOf,
@@ -740,6 +743,15 @@ function VotersCard({
   freeText?: boolean
 }) {
   const [busy, setBusy] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
+  const voters = results?.voters ?? []
+  const totalPages = Math.max(1, Math.ceil(voters.length / VOTERS_PAGE_SIZE))
+  // Clamp: a refetch can shrink the list under the current page.
+  const current = Math.min(page, totalPages)
+  const pageVoters = voters.slice(
+    (current - 1) * VOTERS_PAGE_SIZE,
+    current * VOTERS_PAGE_SIZE
+  )
   async function toggle(voter: Voter) {
     setBusy(voter.userId)
     try {
@@ -758,7 +770,7 @@ function VotersCard({
             : ' '}
         </CardDescription>
       </CardHeader>
-      <CardContent className="px-0 sm:px-6">
+      <CardContent className="flex flex-col gap-4 px-0 sm:px-6">
         {!results ? (
           <Skeleton className="mx-4 h-24 sm:mx-0" />
         ) : results.voters.length === 0 ? (
@@ -775,7 +787,7 @@ function VotersCard({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {results.voters.map(v => (
+              {pageVoters.map(v => (
                 <TableRow
                   key={v.userId}
                   className={cn(v.dismissed && 'text-muted-foreground')}
@@ -879,6 +891,11 @@ function VotersCard({
             </TableBody>
           </Table>
         )}
+        <DataTablePagination
+          page={current}
+          totalPages={totalPages}
+          onPageChange={setPage}
+        />
       </CardContent>
     </Card>
   )
