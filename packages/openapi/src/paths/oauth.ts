@@ -14,6 +14,8 @@ import {
   oauthClientRegistrationSchema,
   oauthErrorResponseSchema,
   oauthGrantListResponseSchema,
+  oauthGrantSummarySchema,
+  oauthGrantUpdateSchema,
   oauthRevokeRequestSchema,
   oauthTokenRequestSchema,
   oauthTokenResponseSchema
@@ -226,6 +228,37 @@ registry.registerPath({
   request: { params: idParam },
   responses: {
     200: inlineJsonResponse('Revoked.', z.object({ success: z.literal(true) })),
+    ...commonErrorResponses,
+    404: responses.notFound
+  }
+})
+
+registry.registerPath({
+  ...withRole('USER'),
+  method: 'patch',
+  path: '/api/oauth/grants/{id}',
+  tags: [TAG],
+  summary: 'Change what a connected app may do.',
+  description:
+    'Replaces the scopes, daily spend budget and wallet selection of one of ' +
+    'the caller’s working grants, under the consent screen’s rules: `spend` ' +
+    'needs `spendLimitSats`; `walletIds` lists the caller’s own wallets, or ' +
+    'null for every wallet. The app’s tokens keep working and its next MCP ' +
+    'call sees the change. Requires a full session.',
+  operationId: 'oauth.grants.update',
+  security: protectedSecurity,
+  request: {
+    params: idParam,
+    body: {
+      required: true,
+      content: { 'application/json': { schema: oauthGrantUpdateSchema } }
+    }
+  },
+  responses: {
+    200: inlineJsonResponse(
+      'The updated grant.',
+      z.object({ grant: oauthGrantSummarySchema })
+    ),
     ...commonErrorResponses,
     404: responses.notFound
   }

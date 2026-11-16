@@ -24311,6 +24311,19 @@
                     ],
                     "minimum": 1,
                     "maximum": 10000000
+                  },
+                  "walletIds": {
+                    "type": [
+                      "array",
+                      "null"
+                    ],
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    "minItems": 1,
+                    "maxItems": 100
                   }
                 },
                 "required": [
@@ -24830,6 +24843,27 @@
                               "null"
                             ]
                           },
+                          "wallets": {
+                            "type": [
+                              "array",
+                              "null"
+                            ],
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "name"
+                              ]
+                            }
+                          },
                           "createdAt": {
                             "type": "string"
                           },
@@ -24845,6 +24879,7 @@
                           "clientName",
                           "scopes",
                           "spendLimitSats",
+                          "wallets",
                           "createdAt",
                           "lastUsedAt"
                         ]
@@ -24936,6 +24971,217 @@
                   },
                   "required": [
                     "success"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "x-required-role": "USER",
+        "tags": [
+          "OAuth"
+        ],
+        "summary": "Change what a connected app may do.",
+        "description": "Replaces the scopes, daily spend budget and wallet selection of one of the caller’s working grants, under the consent screen’s rules: `spend` needs `spendLimitSats`; `walletIds` lists the caller’s own wallets, or null for every wallet. The app’s tokens keep working and its next MCP call sees the change. Requires a full session.",
+        "operationId": "oauth.grants.update",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "scopes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "read",
+                        "write",
+                        "spend"
+                      ]
+                    },
+                    "minItems": 1,
+                    "maxItems": 10
+                  },
+                  "spendLimitSats": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": 1,
+                    "maximum": 10000000
+                  },
+                  "walletIds": {
+                    "type": [
+                      "array",
+                      "null"
+                    ],
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    "minItems": 1,
+                    "maxItems": 100
+                  }
+                },
+                "required": [
+                  "scopes"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated grant.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "grant": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "clientName": {
+                          "type": "string"
+                        },
+                        "scopes": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "read",
+                              "write",
+                              "spend"
+                            ]
+                          }
+                        },
+                        "spendLimitSats": {
+                          "type": [
+                            "integer",
+                            "null"
+                          ]
+                        },
+                        "wallets": {
+                          "type": [
+                            "array",
+                            "null"
+                          ],
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "name"
+                            ]
+                          }
+                        },
+                        "createdAt": {
+                          "type": "string"
+                        },
+                        "lastUsedAt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "clientName",
+                        "scopes",
+                        "spendLimitSats",
+                        "wallets",
+                        "createdAt",
+                        "lastUsedAt"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "grant"
                   ]
                 }
               }

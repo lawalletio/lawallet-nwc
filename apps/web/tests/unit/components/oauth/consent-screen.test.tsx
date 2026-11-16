@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ApiClientError } from '@/lib/client/api-client'
+import { clearApiCache } from '@/lib/client/hooks/use-api'
 
 const mocks = vi.hoisted(() => ({
   search: new URLSearchParams(),
@@ -9,7 +10,7 @@ const mocks = vi.hoisted(() => ({
     status: 'authenticated' as 'loading' | 'authenticated' | 'unauthenticated',
     pubkey: 'a'.repeat(64),
     role: 'USER' as string | null,
-    apiClient: { post: vi.fn() },
+    apiClient: { post: vi.fn(), get: vi.fn() },
     logout: vi.fn()
   }
 }))
@@ -82,10 +83,30 @@ function answerCheck(status: number, body: unknown) {
   )
 }
 
+function wallet(id: string, name: string, isDefault = false) {
+  return {
+    id,
+    name,
+    type: 'NWC',
+    status: 'ACTIVE',
+    isDefault,
+    provider: null,
+    lncurlServerUrl: null
+  }
+}
+
+const WALLETS = [wallet('w1', 'Spending', true), wallet('w2', 'Savings')]
+
 async function renderReady() {
   const view = render(<ConsentScreen />)
   await screen.findByRole('heading', { name: 'Allow access to your account?' })
   return view
+}
+
+/** Ticks Send payments, which reveals the wallet picker, and waits for it. */
+async function enableSpend(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(scopeBox(/send payments/i))
+  await screen.findByRole('checkbox', { name: 'Savings' })
 }
 
 function scopeBox(name: RegExp) {
@@ -97,6 +118,11 @@ beforeEach(() => {
   mocks.auth.status = 'authenticated'
   mocks.auth.role = 'USER'
   mocks.auth.apiClient.post.mockReset()
+  mocks.auth.apiClient.get.mockReset()
+  mocks.auth.apiClient.get.mockImplementation(async (path: string) =>
+    path === '/api/remote-wallets' ? WALLETS : { balanceSats: 2100 }
+  )
+  clearApiCache()
   mocks.auth.logout.mockReset()
   fetchMock = vi.fn()
   vi.stubGlobal('fetch', fetchMock)
@@ -190,7 +216,8 @@ describe('ConsentScreen', () => {
     expect(
       screen.getByText('“<img src=x onerror=alert(1)>”')
     ).toBeInTheDocument()
-    expect(document.querySelector('img')).toBeNull()
+    // Rendered as text, never as markup (the wallet icons are our own <img>s).
+    expect(document.querySelector('img[src="x"]')).toBeNull()
   })
 
   it('pre-selects read and write, never spend, and locks read under write or spend', async () => {
@@ -202,9 +229,6 @@ describe('ConsentScreen', () => {
     const spend = scopeBox(/send payments/i)
     expect(read).toBeChecked()
     expect(read).toBeDisabled()
-    expect(
-      screen.getByText('Included with the options below.')
-    ).toBeInTheDocument()
     expect(write).toBeChecked()
     expect(spend).not.toBeChecked()
     expect(
@@ -222,12 +246,24 @@ describe('ConsentScreen', () => {
     await user.click(spend)
     expect(read).toBeChecked()
     expect(read).toBeDisabled()
+    // The limit starts collapsed to a summary with an Edit button.
+    expect(
+      screen.getByText(`${(10_000).toLocaleString()} sats`)
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByLabelText('Daily limit (sats)')
+    ).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Edit daily limit' }))
     expect(screen.getByLabelText('Daily limit (sats)')).toHaveValue(10_000)
     expect(
       screen.getByText(
-        `This app can send up to ${(10_000).toLocaleString()} sats every 24 hours without asking you again.`
+        `The app can send up to ${(10_000).toLocaleString()} sats every 24 hours, fees included, without asking you again.`
       )
     ).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Done' }))
+    expect(
+      screen.queryByLabelText('Daily limit (sats)')
+    ).not.toBeInTheDocument()
   })
 
   it('approves with the chosen scopes, no limit, and follows the returned redirect', async () => {
@@ -246,9 +282,64 @@ describe('ConsentScreen', () => {
     // user's choice.
     expect(mocks.auth.apiClient.post).toHaveBeenCalledWith(
       '/api/oauth/authorize',
-      { ...OAUTH_PARAMS, approve: true, scopes: ['read', 'write'] }
+      {
+        ...OAUTH_PARAMS,
+        approve: true,
+        scopes: ['read', 'write'],
+        walletIds: null
+      }
     )
     expect(screen.getByRole('status')).toHaveTextContent('Access approved')
+  })
+
+  it('offers only the primary wallet by default, and sends the wallets chosen', async () => {
+    const user = userEvent.setup()
+    mocks.auth.apiClient.post.mockResolvedValue({ redirectTo: CODE_REDIRECT })
+    await renderReady()
+    // Without payments there is nothing to choose.
+    expect(
+      screen.queryByRole('checkbox', { name: 'Spending' })
+    ).not.toBeInTheDocument()
+    await enableSpend(user)
+
+    const spending = screen.getByRole('checkbox', { name: 'Spending' })
+    const savings = screen.getByRole('checkbox', { name: 'Savings' })
+    expect(spending).toBeChecked()
+    expect(savings).not.toBeChecked()
+
+    // No wallet selected: nothing to approve.
+    await user.click(spending)
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeDisabled()
+    expect(screen.getByText('Select at least one wallet.')).toBeInTheDocument()
+
+    await user.click(savings)
+    await user.click(screen.getByRole('button', { name: 'Approve' }))
+    await waitFor(() =>
+      expect(mocks.auth.apiClient.post).toHaveBeenCalledWith(
+        '/api/oauth/authorize',
+        expect.objectContaining({ walletIds: ['w2'] })
+      )
+    )
+  })
+
+  it('sends null for every wallet, including ones added later', async () => {
+    const user = userEvent.setup()
+    mocks.auth.apiClient.post.mockResolvedValue({ redirectTo: CODE_REDIRECT })
+    await renderReady()
+    await enableSpend(user)
+
+    await user.click(screen.getByRole('radio', { name: /all wallets/i }))
+    // Nothing to pick: the list is hidden.
+    expect(
+      screen.queryByRole('checkbox', { name: 'Savings' })
+    ).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Approve' }))
+    await waitFor(() =>
+      expect(mocks.auth.apiClient.post).toHaveBeenCalledWith(
+        '/api/oauth/authorize',
+        expect.objectContaining({ walletIds: null })
+      )
+    )
   })
 
   it('sends the daily limit only with spend, and only a valid one', async () => {
@@ -259,10 +350,13 @@ describe('ConsentScreen', () => {
     await user.click(scopeBox(/create and change addresses/i))
     await user.click(scopeBox(/send payments/i))
     const approve = screen.getByRole('button', { name: 'Approve' })
+    await user.click(screen.getByRole('button', { name: 'Edit daily limit' }))
     const limit = screen.getByLabelText('Daily limit (sats)')
 
     await user.clear(limit)
     expect(approve).toBeDisabled()
+    // An invalid limit keeps the editor open.
+    expect(screen.getByRole('button', { name: 'Done' })).toBeDisabled()
     await user.type(limit, '0')
     expect(approve).toBeDisabled()
     await user.clear(limit)
@@ -281,7 +375,8 @@ describe('ConsentScreen', () => {
         ...OAUTH_PARAMS,
         approve: true,
         scopes: ['read', 'spend'],
-        spendLimitSats: 5000
+        spendLimitSats: 5000,
+        walletIds: ['w1']
       }
     )
   })

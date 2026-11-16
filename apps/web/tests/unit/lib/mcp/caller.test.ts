@@ -70,7 +70,8 @@ describe('resolveCaller — OAuth access tokens', () => {
       userId: 'user1',
       pubkey: PUBKEY,
       scopes: ['read', 'write', 'spend'],
-      spendLimitSats: 5000
+      spendLimitSats: 5000,
+      walletIds: ['w1']
     })
     vi.mocked(resolveRole).mockResolvedValue(Role.OPERATOR)
   })
@@ -91,7 +92,8 @@ describe('resolveCaller — OAuth access tokens', () => {
     expect(caller.grant).toEqual({
       id: 'grant1',
       clientName: 'Claude',
-      spendLimitSats: 5000
+      spendLimitSats: 5000,
+      walletIds: ['w1']
     })
     expect(caller.apiUrl).toBe('https://wallet.example')
 

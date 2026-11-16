@@ -34,6 +34,11 @@ import { getPrimaryRemoteWalletForUser } from '@/lib/wallet/primary-wallet'
 import { parseLightningAddress } from '@/lib/wallet/resolve-payment-route'
 import { NotFoundError } from '@/types/server/errors'
 import { recordWalletBalance } from '@/lib/wallet/last-balance'
+import {
+  canUseWallet,
+  firstAllowedWallet,
+  walletNotFound
+} from '@/lib/mcp/wallet-access'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 /** Sanity cap on amount arguments; the grant budget is the real spend limit. */
@@ -115,7 +120,9 @@ function requireAccount(caller: McpCaller): string {
 
 /**
  * The caller's wallet: the one named by `walletId`, else the account's
- * primary wallet. Another account's wallet reads exactly like a missing one.
+ * primary wallet — or, when the connection was not given that one, the first
+ * wallet it was given. Another account's wallet, and one this connection was
+ * not given, read exactly like a missing one.
  */
 async function resolveWallet(
   caller: McpCaller,
@@ -124,19 +131,21 @@ async function resolveWallet(
   const userId = requireAccount(caller)
   let wallet: RemoteWallet | null
   if (walletId) {
+    if (!canUseWallet(caller, walletId)) throw walletNotFound(walletId)
     try {
       wallet = await loadOwnedRemoteWallet(walletId, userId)
     } catch (err) {
       if (!(err instanceof NotFoundError)) throw err
-      throw new McpToolError(
-        `Wallet ${walletId} not found. Call list_wallets to see this account's wallets.`
-      )
+      throw walletNotFound(walletId)
     }
   } else {
     wallet = await getPrimaryRemoteWalletForUser(userId)
+    if (wallet && !canUseWallet(caller, wallet.id)) {
+      wallet = await firstAllowedWallet(caller, userId)
+    }
     if (!wallet || wallet.userId !== userId) {
       throw new McpToolError(
-        'No walletId was given and this account has no primary wallet. Call list_wallets and pass a walletId.'
+        'No walletId was given and this connection has no primary wallet to use. Call list_wallets and pass a walletId.'
       )
     }
   }

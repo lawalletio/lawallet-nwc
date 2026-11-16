@@ -25,6 +25,10 @@ import { dispatchOperation } from '@/lib/mcp/dispatch'
 import { redactSecrets } from '@/lib/mcp/redact'
 import { instanceTools } from '@/lib/mcp/instance-tools'
 import { walletTools } from '@/lib/mcp/wallet-tools'
+import {
+  guardWalletOperation,
+  scopeWalletResult
+} from '@/lib/mcp/wallet-access'
 
 /** Longest tool-result text sent back; Claude Code caps results near 25k tokens. */
 export const MAX_RESULT_CHARS = 80_000
@@ -117,8 +121,11 @@ async function runOperation(
   args: Record<string, unknown>,
   caller: McpCaller
 ) {
+  guardWalletOperation(op, args, caller)
   const { status, body } = await dispatchOperation(op, args, caller)
-  if (status < 400) return { value: body, isError: false }
+  if (status < 400) {
+    return { value: await scopeWalletResult(op, body, caller), isError: false }
+  }
   // The body is the API's already-sanitized error envelope. `status` goes
   // last: an LNURL error body carries its own `status: "ERROR"`, which must
   // not hide the HTTP status.

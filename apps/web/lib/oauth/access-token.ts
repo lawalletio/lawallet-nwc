@@ -20,6 +20,8 @@ export interface OAuthAccessContext {
   scopes: OAuthScope[]
   /** Rolling-24h spend budget in sats; null unless `spend` was granted. */
   spendLimitSats: number | null
+  /** Wallets the client may use; null for every wallet of the account. */
+  walletIds: string[] | null
 }
 
 /** `lastUsedAt` is informational: one write a minute per grant is plenty. */
@@ -74,6 +76,8 @@ export async function verifyAccessToken(
           userId: true,
           scopes: true,
           spendLimitSats: true,
+          allWallets: true,
+          walletIds: true,
           resource: true,
           accessExpiresAt: true,
           revokedAt: true,
@@ -112,6 +116,8 @@ export async function verifyAccessToken(
     userId: grant.userId,
     pubkey: grant.user.pubkey,
     scopes,
-    spendLimitSats: scopes.includes('spend') ? grant.spendLimitSats : null
+    spendLimitSats: scopes.includes('spend') ? grant.spendLimitSats : null,
+    // Fail closed: a restricted grant with no stored list reaches no wallet.
+    walletIds: grant.allWallets ? null : (grant.walletIds ?? [])
   }
 }

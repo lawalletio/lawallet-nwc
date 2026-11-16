@@ -1864,6 +1864,16 @@ export const oauthAuthorizeContextSchema = z.object({
 })
 export type OAuthAuthorizeContext = z.infer<typeof oauthAuthorizeContextSchema>
 
+/**
+ * Wallets a grant may use: the ids of the caller's own wallets, or null /
+ * absent for every wallet, including ones added later.
+ */
+export const oauthWalletIdsSchema = z
+  .array(z.string().min(1).max(128))
+  .min(1, 'Select at least one wallet')
+  .max(100)
+  .nullish()
+
 /** The consent screen's answer: the authorization request plus the decision. */
 export const oauthAuthorizeDecisionSchema = oauthAuthorizeQuerySchema.extend({
   approve: z.boolean(),
@@ -1875,7 +1885,8 @@ export const oauthAuthorizeDecisionSchema = oauthAuthorizeQuerySchema.extend({
     .int()
     .min(1)
     .max(OAUTH_MAX_SPEND_LIMIT_SATS)
-    .nullish()
+    .nullish(),
+  walletIds: oauthWalletIdsSchema
 })
 
 export const oauthAuthorizeDecisionResponseSchema = z.object({
@@ -1934,6 +1945,8 @@ export const oauthGrantSummarySchema = z.object({
   clientName: z.string(),
   scopes: z.array(oauthScopeSchema),
   spendLimitSats: z.number().int().nullable(),
+  /** Null: every wallet of the account. Otherwise the selected ones that still exist. */
+  wallets: z.array(z.object({ id: z.string(), name: z.string() })).nullable(),
   createdAt: z.string(),
   lastUsedAt: z.string().nullable()
 })
@@ -1942,6 +1955,23 @@ export type OAuthGrantSummary = z.infer<typeof oauthGrantSummarySchema>
 export const oauthGrantListResponseSchema = z.object({
   grants: z.array(oauthGrantSummarySchema)
 })
+
+/**
+ * `PATCH /api/oauth/grants/{id}` — changes what a connected app may do. Same
+ * rules as the consent screen: `spend` needs a budget; `walletIds: null`
+ * means every wallet.
+ */
+export const oauthGrantUpdateSchema = z.object({
+  scopes: z.array(oauthScopeSchema).min(1).max(10),
+  spendLimitSats: z
+    .number()
+    .int()
+    .min(1)
+    .max(OAUTH_MAX_SPEND_LIMIT_SATS)
+    .nullish(),
+  walletIds: oauthWalletIdsSchema
+})
+export type OAuthGrantUpdate = z.infer<typeof oauthGrantUpdateSchema>
 
 // ── Integrations ────────────────────────────────────────────────────────────
 

@@ -24,6 +24,12 @@ export interface McpCaller {
     id: string
     clientName: string
     spendLimitSats: number | null
+    /**
+     * Wallets the user let this client use; null for every wallet. Wallet
+     * tools and `/api/remote-wallets` operations treat any other wallet as
+     * missing — see `lib/mcp/wallet-access.ts`.
+     */
+    walletIds: string[] | null
   } | null
   /**
    * `Authorization` header to present to REST handlers when a tool is served

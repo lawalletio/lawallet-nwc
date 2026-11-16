@@ -113,7 +113,8 @@ async function oauthCaller(
     grant: {
       id: grant.grantId,
       clientName: grant.clientName,
-      spendLimitSats: grant.spendLimitSats
+      spendLimitSats: grant.spendLimitSats,
+      walletIds: grant.walletIds
     },
     authorization: `Bearer ${internalSessionToken(grant.userId, grant.pubkey, role)}`,
     apiUrl,

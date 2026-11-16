@@ -1385,6 +1385,12 @@ model OAuthGrant {
   resource         String
   /// Rolling 24h spend budget in sats. Null unless `spend` was granted.
   spendLimitSats   Int?
+  /// True: every wallet of the account, including ones added later (grants
+  /// made before wallet selection existed). False: only `walletIds`.
+  allWallets       Boolean      @default(true)
+  /// RemoteWallet ids the client may use when `allWallets` is false. Not a
+  /// relation: a deleted wallet simply stops matching.
+  walletIds        String[]     @default([])
   codeHash         String?      @unique
   codeChallenge    String?
   redirectUri      String?

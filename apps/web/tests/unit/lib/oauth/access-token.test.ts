@@ -40,6 +40,8 @@ function seedGrant(overrides: Record<string, unknown> = {}) {
     scopes: ['read', 'write'],
     resource: RESOURCE,
     spendLimitSats: null,
+    allWallets: true,
+    walletIds: [],
     accessTokenHash: hashCredential(TOKEN),
     accessExpiresAt: new Date(Date.now() + 60_000),
     revokedAt: null,
@@ -75,8 +77,18 @@ describe('verifyAccessToken', () => {
       userId: 'user_1',
       pubkey: PUBKEY,
       scopes: ['read', 'write'],
-      spendLimitSats: null
+      spendLimitSats: null,
+      walletIds: null
     })
+  })
+
+  it('carries the selected wallets, and fails closed when none are stored', async () => {
+    seedGrant({ allWallets: false, walletIds: ['w1'] })
+    expect((await verifyAccessToken(TOKEN, RESOURCE)).walletIds).toEqual(['w1'])
+
+    // A restricted row without a list reaches no wallet, never every wallet.
+    store.grants[0].walletIds = null
+    expect((await verifyAccessToken(TOKEN, RESOURCE)).walletIds).toEqual([])
   })
 
   it('carries the spend budget only alongside the spend scope', async () => {

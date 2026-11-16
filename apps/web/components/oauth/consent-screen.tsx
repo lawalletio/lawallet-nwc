@@ -7,24 +7,26 @@ import {
   CircleCheck,
   Globe,
   LogIn,
-  ShieldAlert
+  RefreshCw
 } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Badge } from '@/components/ui/badge'
 import { BrandLogotype } from '@/components/ui/brand-logotype'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { CheckboxCard } from '@/components/ui/checkbox-card'
-import { Fieldset, FieldsetLegend } from '@/components/ui/field'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Spinner } from '@/components/ui/spinner'
 import { useAuth } from '@/components/admin/auth-context'
 import { LoginModal } from '@/components/admin/login-modal'
 import { Role } from '@/lib/auth/permissions'
 import { npubInitials, truncateNpub } from '@/lib/client/format'
 import { useNostrProfile } from '@/lib/client/nostr-profile'
+import { useRemoteWallets } from '@/lib/client/hooks/use-remote-wallets'
+import {
+  WalletAccessPicker,
+  defaultWalletSelection,
+  walletSelectionValid,
+  type WalletSelection
+} from '@/components/oauth/wallet-access-picker'
 import {
   checkAuthorizeRequest,
   submitAuthorizeDecision,
@@ -37,22 +39,12 @@ import {
   type OAuthScope
 } from '@/lib/oauth/constants'
 import { cn } from '@/lib/utils'
-
-const SCOPE_COPY: Record<OAuthScope, { label: string; detail: string }> = {
-  read: {
-    label: 'View balances, addresses, cards and activity',
-    detail: "Read-only: it can't change anything."
-  },
-  write: {
-    label: 'Create and change addresses, invoices and wallet settings',
-    detail:
-      'Includes choosing which of your own wallets receives payments. It cannot send funds.'
-  },
-  spend: {
-    label: 'Send payments from your wallets',
-    detail: 'Moves your funds, up to a daily limit you set.'
-  }
-}
+import { ScopeOptions } from '@/components/oauth/scope-options'
+import {
+  SpendLimitField,
+  parseSpendLimit,
+  spendLimitValid
+} from '@/components/oauth/spend-limit-field'
 
 const SWITCH_ACCOUNT_CONFIRM =
   'Sign out to use a different account? If you signed in with a secret key, make sure you have a copy: it is removed from this browser.'
@@ -124,7 +116,7 @@ export function ConsentScreen() {
   }
 
   return (
-    <ConsentCard>
+    <ConsentCard wide={check?.ok === true && status === 'authenticated'}>
       {content}
       <LoginModal
         open={loginOpen && status === 'unauthenticated'}
@@ -143,11 +135,23 @@ export function ConsentFallback() {
   )
 }
 
-function ConsentCard({ children }: { children: ReactNode }) {
+function ConsentCard({
+  children,
+  wide = false
+}: {
+  children: ReactNode
+  /** The consent form spreads to two columns where the screen allows. */
+  wide?: boolean
+}) {
   return (
     <main className="flex flex-1 flex-col px-4 py-8">
       {/* my-auto centres the card without clipping it on short screens */}
-      <Card className="mx-auto my-auto flex w-full max-w-md flex-col gap-5 bg-card p-6">
+      <Card
+        className={cn(
+          'mx-auto my-auto flex w-full max-w-md flex-col gap-5 bg-card p-6 transition-[max-width]',
+          wide && 'lg:max-w-4xl lg:p-8'
+        )}
+      >
         <div className="flex justify-center">
           <BrandLogotype width={128} height={28} className="h-7" />
         </div>
@@ -314,6 +318,16 @@ function ConsentForm({
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState<'approved' | 'denied' | null>(null)
   const headingRef = useRef<HTMLHeadingElement>(null)
+  const walletList = useRemoteWallets()
+  const wallets = walletList.data ?? []
+  const walletsReady = walletList.data !== null && walletList.data !== undefined
+  // Undefined until the user touches the picker: the default follows the
+  // wallet list once it loads (the primary wallet only).
+  const [walletChoice, setWalletChoice] = useState<WalletSelection | undefined>(
+    undefined
+  )
+  const walletSelection =
+    walletChoice === undefined ? defaultWalletSelection(wallets) : walletChoice
 
   // After signing in the login dialog's opener is gone, so focus would fall
   // back to <body>; land it on the question instead.
@@ -331,9 +345,13 @@ function ConsentForm({
     scope => selected.includes(scope) || (scope === 'read' && readLocked)
   )
   const spend = chosen.includes('spend')
-  const limit = /^\d+$/.test(limitText) ? Number(limitText) : NaN
-  const limitValid = limit >= 1 && limit <= details.maxSpendLimitSats
-  const canApprove = chosen.length > 0 && (!spend || limitValid)
+  const limit = parseSpendLimit(limitText)
+  const limitValid = spendLimitValid(limitText, details.maxSpendLimitSats)
+  const canApprove =
+    chosen.length > 0 &&
+    // Wallets are chosen only for sending payments.
+    (!spend ||
+      (limitValid && walletsReady && walletSelectionValid(walletSelection)))
   const busy = pending !== null
 
   function toggle(scope: OAuthScope, checked: boolean) {
@@ -353,7 +371,10 @@ function ConsentForm({
           ? {
               approve,
               scopes: chosen,
-              ...(spend ? { spendLimitSats: limit } : {})
+              ...(spend ? { spendLimitSats: limit } : {}),
+              // Without spend the connection reads and invoices on every
+              // wallet; the picker only narrows where payments can come from.
+              walletIds: spend ? walletSelection : null
             }
           : { approve, scopes: [] }
       )
@@ -400,89 +421,72 @@ function ConsentForm({
       >
         Allow access to your account?
       </h1>
-      <AppIdentity details={details} />
-      <AccountRow onSwitch={onSwitchAccount} disabled={busy} />
 
-      <Fieldset className="gap-2">
-        <FieldsetLegend className="mb-2 text-sm">
-          It will be able to
-        </FieldsetLegend>
-        {visible.map(scope => {
-          const locked = scope === 'read' && readLocked
-          return (
-            <CheckboxCard
-              key={scope}
-              checked={chosen.includes(scope)}
-              onCheckedChange={checked => toggle(scope, checked)}
-              disabled={busy || locked}
-              title={
-                <span className="flex flex-wrap items-center gap-2">
-                  {SCOPE_COPY[scope].label}
-                  {scope === 'spend' && (
-                    <Badge
-                      variant="outline"
-                      className="gap-1 border-destructive/50 text-destructive"
-                    >
-                      <ShieldAlert className="size-3" />
-                      Sensitive
-                    </Badge>
-                  )}
-                </span>
-              }
-              description={
-                locked
-                  ? 'Included with the options below.'
-                  : SCOPE_COPY[scope].detail
-              }
-              className={cn(
-                scope === 'spend' &&
-                  spend &&
-                  'border-destructive/60 bg-destructive/5'
-              )}
-            />
-          )
-        })}
-      </Fieldset>
-
-      {spend && (
-        <div className="flex flex-col gap-2 rounded-lg border border-destructive/40 p-3">
-          <Label htmlFor="spend-limit">Daily limit (sats)</Label>
-          <Input
-            id="spend-limit"
-            type="number"
-            inputMode="numeric"
-            min={1}
-            max={details.maxSpendLimitSats}
-            step={1}
-            required
-            value={limitText}
-            onChange={e => setLimitText(e.target.value)}
-            disabled={busy}
-            aria-invalid={!limitValid}
-            aria-describedby="spend-limit-hint"
-          />
-          <p
-            id="spend-limit-hint"
-            aria-live="polite"
-            className={cn(
-              'text-xs',
-              limitValid ? 'text-muted-foreground' : 'text-destructive'
-            )}
-          >
-            {limitValid
-              ? `This app can send up to ${limit.toLocaleString()} sats every 24 hours without asking you again.`
-              : `Enter a whole number of sats from 1 to ${details.maxSpendLimitSats.toLocaleString()}.`}
+      {/* One column on phones and tablets; side by side where there is room:
+          who is asking and as whom | what it may do and with which wallets. */}
+      <div className="grid gap-5 lg:grid-cols-2 lg:gap-8">
+        <div className="flex min-w-0 flex-col gap-5">
+          <AppIdentity details={details} />
+          <AccountRow onSwitch={onSwitchAccount} disabled={busy} />
+          <p className="text-xs text-muted-foreground">
+            The app will act on this LaWallet instance as you
+            {role && role !== Role.USER
+              ? `, with your ${role.toLowerCase()} permissions`
+              : ''}
+            . You can revoke access at any time under Connected apps.
           </p>
         </div>
-      )}
 
-      <p className="text-xs text-muted-foreground">
-        The app will act on this LaWallet instance as you
-        {role && role !== Role.USER
-          ? `, with your ${role.toLowerCase()} permissions`
-          : ''}
-        . You can revoke access at any time under Connected apps.
-      </p>
+        <div className="flex min-w-0 flex-col gap-5">
+          <ScopeOptions
+            legend="It will be able to"
+            scopes={visible}
+            chosen={chosen}
+            readLocked={readLocked}
+            disabled={busy}
+            onToggle={toggle}
+          />
+
+          {spend && (
+            <SpendLimitField
+              id="spend-limit"
+              value={limitText}
+              onChange={setLimitText}
+              max={details.maxSpendLimitSats}
+              disabled={busy}
+            />
+          )}
+
+          {!spend ? null : walletList.error ? (
+            <Alert variant="destructive">
+              <AlertTriangle className="size-4" />
+              <AlertTitle>Couldn&apos;t load your wallets</AlertTitle>
+              <AlertDescription className="flex flex-col items-start gap-2">
+                <span className="wrap-break-word">
+                  {walletList.error.message}
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void walletList.refetch()}
+                >
+                  <RefreshCw className="size-3.5" />
+                  Retry
+                </Button>
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <WalletAccessPicker
+              wallets={wallets}
+              loading={!walletsReady}
+              value={walletSelection}
+              onChange={setWalletChoice}
+              disabled={busy}
+            />
+          )}
+        </div>
+      </div>
 
       {error && (
         <Alert variant="destructive">
@@ -494,7 +498,7 @@ function ConsentForm({
         </Alert>
       )}
 
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2 lg:ml-auto lg:w-1/2 lg:pl-4">
         {chosen.length === 0 && (
           <p className="text-center text-xs text-muted-foreground">
             Select at least one option to approve.

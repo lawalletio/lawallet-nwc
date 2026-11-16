@@ -99,7 +99,8 @@ function approve(
     codeChallenge: CHALLENGE,
     resource: RESOURCE,
     scopes,
-    spendLimitSats
+    spendLimitSats,
+    wallets: { allWallets: true, walletIds: [] }
   })
 }
 

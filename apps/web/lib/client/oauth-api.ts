@@ -21,8 +21,18 @@ export interface OAuthGrantSummary {
   clientName: string
   scopes: OAuthScope[]
   spendLimitSats: number | null
+  /** Null: every wallet. Otherwise the selected wallets that still exist. */
+  wallets: { id: string; name: string }[] | null
   createdAt: string
   lastUsedAt: string | null
+}
+
+/** Body of `PATCH /api/oauth/grants/{id}`. */
+export interface OAuthGrantUpdate {
+  scopes: OAuthScope[]
+  spendLimitSats?: number
+  /** Null for every wallet, including ones added later. */
+  walletIds: string[] | null
 }
 
 export type AuthorizeRequestCheck =
@@ -82,7 +92,12 @@ const OAUTH_PARAMS = [
 export function submitAuthorizeDecision(
   apiClient: ApiClient,
   search: URLSearchParams,
-  decision: { approve: boolean; scopes: OAuthScope[]; spendLimitSats?: number }
+  decision: {
+    approve: boolean
+    scopes: OAuthScope[]
+    spendLimitSats?: number
+    walletIds?: string[] | null
+  }
 ) {
   const params: Record<string, string> = {}
   for (const key of OAUTH_PARAMS) {
