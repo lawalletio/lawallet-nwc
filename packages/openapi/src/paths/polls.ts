@@ -78,8 +78,10 @@ registry.registerPath({
   summary: 'Submit your poll response.',
   description:
     'Each entry is an option id or `custom:<text>` (1–40 chars, only when ' +
-    '`allowCustom`). RANKING: every option id exactly once plus at most one ' +
-    'custom entry, in preference order. SINGLE_CHOICE: exactly one entry. ' +
+    '`allowCustom`). RANKING: an ordered subset of option ids (at least one ' +
+    'entry, no duplicates) plus at most one custom entry, in preference ' +
+    'order; options left out count as skipped. SINGLE_CHOICE: exactly one ' +
+    'entry. ' +
     '409 `POLL_LOCKED` when a one-time poll was already answered, 409 ' +
     '`POLL_CLOSED` when the poll is not open.',
   operationId: 'polls.respond',
@@ -211,7 +213,14 @@ registry.registerPath({
             choice: z.string(),
             label: z.string(),
             points: z.number(),
-            avgPosition: z.number().nullable()
+            skipped: z
+              .number()
+              .int()
+              .describe('Responses that left this option out.'),
+            avgPosition: z
+              .number()
+              .nullable()
+              .describe('Mean 1-based position among responses that ranked it.')
           })
         ),
         custom: z.array(z.object({ label: z.string(), count: z.number() })),

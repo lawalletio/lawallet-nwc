@@ -429,7 +429,8 @@ function ScoresCard({
         <CardTitle className="text-base">Ranking score</CardTitle>
         <CardDescription className="text-sm font-normal tracking-normal">
           Borda count — with n entries, first place earns n points, last earns
-          1. Avg position: 1 is best.
+          1; skipped options earn 0. Avg position (1 is best) counts only the
+          responses that ranked it.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -441,7 +442,7 @@ function ScoresCard({
           <ChartContainer
             config={config}
             className="aspect-auto w-full"
-            style={{ height: Math.max(200, results.scores.length * 44) }}
+            style={{ height: Math.max(200, results.scores.length * 48) }}
           >
             <BarChart
               data={results.scores}
@@ -456,7 +457,30 @@ function ScoresCard({
                 tickLine={false}
                 axisLine={false}
                 width={112}
-                tick={{ fontSize: 12 }}
+                tick={({ x, y, payload, index }) => {
+                  const skipped = results.scores[index]?.skipped ?? 0
+                  return (
+                    <text x={x} y={y} textAnchor="end" fontSize={12}>
+                      <tspan
+                        x={x}
+                        dy={skipped ? -2 : 4}
+                        className="fill-foreground"
+                      >
+                        {payload.value}
+                      </tspan>
+                      {skipped > 0 && (
+                        <tspan
+                          x={x}
+                          dy={14}
+                          fontSize={11}
+                          className="fill-muted-foreground"
+                        >
+                          skipped by {skipped}
+                        </tspan>
+                      )}
+                    </text>
+                  )
+                }}
               />
               <ChartTooltip
                 cursor={{ fill: 'var(--muted)', opacity: 0.3 }}
@@ -471,6 +495,11 @@ function ScoresCard({
                         <span className="text-muted-foreground">
                           avg position #{item.payload.avgPosition ?? '—'}
                         </span>
+                        {item.payload.skipped > 0 && (
+                          <span className="text-muted-foreground">
+                            skipped by {item.payload.skipped}
+                          </span>
+                        )}
                       </div>
                     )}
                   />

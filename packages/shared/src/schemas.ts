@@ -2085,8 +2085,8 @@ export const pollSlugParam = z.object({ slug: z.string().min(1).max(64) })
 
 /**
  * Body of `PUT /api/polls/{slug}/response`. Each entry is an option id or
- * `custom:<text>`; the per-poll rules (full ranking, single pick, custom
- * allowed) are enforced by the route against the poll itself.
+ * `custom:<text>`; the per-poll rules (ranking subset without duplicates,
+ * single pick, custom allowed) are enforced by the route against the poll itself.
  */
 export const pollResponseBodySchema = z.object({
   choices: z.array(z.string().min(1).max(100)).min(1).max(21)

@@ -43,8 +43,9 @@ export function serializePoll(poll: {
 
 /**
  * Validates a response against the poll and returns it normalised (custom
- * text trimmed). RANKING: every option id exactly once, plus at most one
- * custom entry anywhere in the order. SINGLE_CHOICE: exactly one entry.
+ * text trimmed). RANKING: an ordered subset of option ids (left-out options
+ * are skipped), no duplicates, plus at most one custom entry anywhere in the
+ * order. SINGLE_CHOICE: exactly one entry. Both need at least one entry.
  */
 export function validateChoices(poll: PollShape, choices: string[]): string[] {
   const optionIds = new Set(poll.options.map(o => o.id))
@@ -77,12 +78,11 @@ export function validateChoices(poll: PollShape, choices: string[]): string[] {
     return entry
   })
 
-  if (poll.type === 'SINGLE_CHOICE') {
-    if (normalised.length !== 1) {
-      throw new ValidationError('Pick exactly one answer')
-    }
-  } else if (seen.size !== optionIds.size) {
-    throw new ValidationError('Rank every option exactly once')
+  if (poll.type === 'SINGLE_CHOICE' && normalised.length !== 1) {
+    throw new ValidationError('Pick exactly one answer')
+  }
+  if (normalised.length === 0) {
+    throw new ValidationError('Rank at least one option')
   }
   return normalised
 }
@@ -99,8 +99,9 @@ const CUSTOM_KEY = 'custom'
 
 /**
  * Aggregates responses. `scores` is a Borda count where a response with n
- * entries gives n points to its first entry, n-1 to the second, …; custom
- * entries are tallied in `custom` (lowercased + trimmed) rather than scored.
+ * entries gives n points to its first entry, n-1 to the second, …; options a
+ * response left out earn 0 and count in `skipped`. Custom entries are tallied
+ * in `custom` (lowercased + trimmed) rather than scored.
  */
 export function aggregateResults(
   poll: PollShape,
@@ -155,6 +156,7 @@ export function aggregateResults(
                 choice: o.id,
                 label: o.label,
                 points: points.get(o.id) ?? 0,
+                skipped: responses.length - p.length,
                 avgPosition: p.length
                   ? Math.round(
                       (p.reduce((a, b) => a + b, 0) / p.length) * 100

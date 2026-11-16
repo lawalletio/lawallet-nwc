@@ -16,8 +16,13 @@ describe('validateChoices', () => {
     ).toEqual(['liquid', 'custom:Lightning', 'tron', 'rgb'])
   })
 
+  it('accepts a ranked subset (left-out options are skipped)', () => {
+    expect(validateChoices(ranking, ['rgb', 'tron'])).toEqual(['rgb', 'tron'])
+    expect(validateChoices(ranking, ['custom:Ark'])).toEqual(['custom:Ark'])
+  })
+
   it.each([
-    [['tron', 'liquid'], /every option/],
+    [[], /at least one/],
     [['tron', 'liquid', 'rgb', 'tron'], /twice/],
     [['tron', 'liquid', 'nope'], /Unknown/],
     [['tron', 'liquid', 'rgb', 'custom:a', 'custom:b'], /one custom/],
@@ -76,6 +81,22 @@ describe('aggregateResults', () => {
     expect(r.voters.map(v => v.userId)).toEqual(['b', 'a', 'c'])
     expect(r.voters[1].lightningAddress).toBe('a@x.com')
     expect(r.voters[0]).not.toHaveProperty('lightningAddress')
+  })
+
+  it('scores skipped options 0 and counts them in skipped', () => {
+    const r = aggregateResults(ranking, [
+      vote('a', ['liquid', 'tron', 'rgb'], '10:00'),
+      vote('b', ['rgb', 'liquid'], '11:00'),
+      vote('c', ['liquid'], '12:00')
+    ])
+    // liquid: 3 + 1 + 1 = 5; rgb: 1 + 2 = 3; tron: 2
+    expect(
+      r.scores.map(s => [s.choice, s.points, s.skipped, s.avgPosition])
+    ).toEqual([
+      ['liquid', 5, 0, 1.33], // (1 + 2 + 1) / 3
+      ['rgb', 3, 1, 2], // (3 + 1) / 2
+      ['tron', 2, 2, 2] // ranked once, at #2
+    ])
   })
 
   it('has no scores for single choice and handles no votes', () => {

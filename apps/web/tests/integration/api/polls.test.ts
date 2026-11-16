@@ -211,11 +211,24 @@ describe('PUT /api/polls/[slug]/response', () => {
     expect(body.error.code).toBe('POLL_CLOSED')
   })
 
-  it('rejects an incomplete ranking with 400', async () => {
+  it('accepts a ranking that skips options', async () => {
     vi.mocked(prismaMock.poll.findUnique).mockResolvedValue(poll() as any)
-    await assertResponse(await put(['rgb']), 400)
-    expect(prismaMock.pollResponse.upsert).not.toHaveBeenCalled()
+    vi.mocked(prismaMock.pollResponse.upsert).mockResolvedValue({
+      choices: ['rgb'],
+      updatedAt: now
+    } as any)
+    const body: any = await assertResponse(await put(['rgb']), 200)
+    expect(body.response.choices).toEqual(['rgb'])
   })
+
+  it.each([[[]], [['rgb', 'rgb']], [['nope']]])(
+    'rejects %j with 400',
+    async choices => {
+      vi.mocked(prismaMock.poll.findUnique).mockResolvedValue(poll() as any)
+      await assertResponse(await put(choices), 400)
+      expect(prismaMock.pollResponse.upsert).not.toHaveBeenCalled()
+    }
+  )
 })
 
 describe('admin polls', () => {

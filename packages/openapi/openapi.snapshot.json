@@ -27875,7 +27875,7 @@
           "Polls"
         ],
         "summary": "Submit your poll response.",
-        "description": "Each entry is an option id or `custom:<text>` (1–40 chars, only when `allowCustom`). RANKING: every option id exactly once plus at most one custom entry, in preference order. SINGLE_CHOICE: exactly one entry. 409 `POLL_LOCKED` when a one-time poll was already answered, 409 `POLL_CLOSED` when the poll is not open.",
+        "description": "Each entry is an option id or `custom:<text>` (1–40 chars, only when `allowCustom`). RANKING: an ordered subset of option ids (at least one entry, no duplicates) plus at most one custom entry, in preference order; options left out count as skipped. SINGLE_CHOICE: exactly one entry. 409 `POLL_LOCKED` when a one-time poll was already answered, 409 `POLL_CLOSED` when the poll is not open.",
         "operationId": "polls.respond",
         "security": [
           {
@@ -29066,17 +29066,23 @@
                           "points": {
                             "type": "number"
                           },
+                          "skipped": {
+                            "type": "integer",
+                            "description": "Responses that left this option out."
+                          },
                           "avgPosition": {
                             "type": [
                               "number",
                               "null"
-                            ]
+                            ],
+                            "description": "Mean 1-based position among responses that ranked it."
                           }
                         },
                         "required": [
                           "choice",
                           "label",
                           "points",
+                          "skipped",
                           "avgPosition"
                         ]
                       }
