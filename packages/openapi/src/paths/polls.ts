@@ -197,7 +197,8 @@ registry.registerPath({
   description:
     '`scores` (RANKING only) is a Borda count: a response with n entries ' +
     'gives n points to its first entry, n-1 to the next, …. Custom answers ' +
-    'are tallied lowercased and trimmed. Dismissed responses are listed in ' +
+    'are tallied lowercased and trimmed; a custom first pick appears in ' +
+    '`firstChoice` as `custom:<text>` labelled with its text. Dismissed responses are listed in ' +
     '`voters` with `dismissed: true` but left out of every tally; ' +
     '`dismissed` counts them.',
   operationId: 'admin.polls.results',

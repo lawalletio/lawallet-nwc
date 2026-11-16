@@ -97,13 +97,13 @@ export interface ResultsResponse {
   dismissed?: boolean
 }
 
-const CUSTOM_KEY = 'custom'
-
 /**
  * Aggregates responses. `scores` is a Borda count where a response with n
  * entries gives n points to its first entry, n-1 to the second, …; options a
  * response left out earn 0 and count in `skipped`. Custom entries are tallied
- * in `custom` (lowercased + trimmed) rather than scored. Dismissed responses
+ * in `custom` (lowercased + trimmed) rather than scored; a custom first pick
+ * shows up in `firstChoice` under its own text (`choice: "custom:<text>"`,
+ * grouped case-insensitively like `custom`). Dismissed responses
  * only appear in `voters` (flagged) and count in `dismissed`.
  */
 export function aggregateResults(poll: PollShape, all: ResultsResponse[]) {
@@ -126,7 +126,11 @@ export function aggregateResults(poll: PollShape, all: ResultsResponse[]) {
       if (entry.startsWith(CUSTOM_PREFIX)) {
         const text = entry.slice(CUSTOM_PREFIX.length).trim().toLowerCase()
         custom.set(text, (custom.get(text) ?? 0) + 1)
-        if (index === 0) first.set(CUSTOM_KEY, (first.get(CUSTOM_KEY) ?? 0) + 1)
+        if (index === 0) {
+          const key = CUSTOM_PREFIX + text
+          labelOf.set(key, text)
+          first.set(key, (first.get(key) ?? 0) + 1)
+        }
         return
       }
       if (!labelOf.has(entry)) return // option removed since — ignore
@@ -145,7 +149,7 @@ export function aggregateResults(poll: PollShape, all: ResultsResponse[]) {
     firstChoice: [...first]
       .map(([choice, count]) => ({
         choice,
-        label: labelOf.get(choice) ?? 'Custom',
+        label: labelOf.get(choice) ?? choice,
         count
       }))
       .sort(byCount),

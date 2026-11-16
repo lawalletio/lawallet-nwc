@@ -66,8 +66,8 @@ describe('aggregateResults', () => {
       count: 2
     })
     expect(r.firstChoice).toContainEqual({
-      choice: 'custom',
-      label: 'Custom',
+      choice: 'custom:usdt on ln',
+      label: 'usdt on ln',
       count: 1
     })
     // liquid: 3 + 4 + 1 = 8; tron: 2 + 2 + 3 = 7; rgb: 1 + 3 + 2 = 6

@@ -525,7 +525,13 @@ function ScoresCard({
                   />
                 }
               />
-              <Bar dataKey="points" radius={[0, 4, 4, 0]}>
+              <Bar
+                dataKey="points"
+                radius={[0, 4, 4, 0]}
+                // Update animations stall (bars + labels vanish) when results
+                // change; same recharts issue as the donut above.
+                isAnimationActive={false}
+              >
                 {results.scores.map(s => (
                   <Cell key={s.choice} fill={colorOf(s.choice)} />
                 ))}
