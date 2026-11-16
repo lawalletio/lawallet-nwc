@@ -39,6 +39,8 @@ export const routeManifest: Record<string, () => Promise<RouteModule>> = {
     import('@/app/api/admin/backup/import/route'),
   '/api/admin/listener/status': () =>
     import('@/app/api/admin/listener/status/route'),
+  '/api/admin/tools/invoice': () =>
+    import('@/app/api/admin/tools/invoice/route'),
   '/api/auth/email/preview': () => import('@/app/api/auth/email/preview/route'),
   '/api/auth/email/request': () => import('@/app/api/auth/email/request/route'),
   '/api/auth/email/verify': () => import('@/app/api/auth/email/verify/route'),

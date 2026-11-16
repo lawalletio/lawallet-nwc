@@ -265,6 +265,7 @@ export const OPERATION_POLICY: Record<string, OperationPolicy> = {
   // Activity
   'activity.list': READ,
   'admin.listener.status': READ,
+  'admin.tools.invoiceLookup': READ,
 
   // LUD-16 proxy
   'lud16Proxy.config.get': READ,

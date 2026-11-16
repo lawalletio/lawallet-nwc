@@ -1,5 +1,11 @@
 import { z } from 'zod'
-import { commonErrorResponses, inlineJsonResponse, withRole } from '../helpers'
+import { invoiceLookupQuerySchema } from '@lawallet-nwc/shared'
+import {
+  commonErrorResponses,
+  inlineJsonResponse,
+  protectedSecurity,
+  withRole
+} from '../helpers'
 import { registry } from '../registry'
 import { NIP98 } from '../security'
 
@@ -40,6 +46,42 @@ registry.registerPath({
     200: inlineJsonResponse(
       'Admin assigned.',
       z.object({ success: z.literal(true) })
+    ),
+    ...commonErrorResponses
+  }
+})
+
+registry.registerPath({
+  ...withRole('VIEWER'),
+  method: 'get',
+  path: '/api/admin/tools/invoice',
+  tags: [TAG],
+  summary: 'Look up a Lightning invoice.',
+  description:
+    'Verifies and decodes a bolt11 invoice, then resolves the local rows tied ' +
+    'to its payment hash: an invoice minted here (owner, receiving wallet, ' +
+    'status, preimage), card payments of it, and swaps paying it. For an ' +
+    'invoice not minted here, `node` carries the payee node from Amboss. ' +
+    'Requires `users:read`.',
+  operationId: 'admin.tools.invoiceLookup',
+  security: protectedSecurity,
+  request: { query: invoiceLookupQuerySchema },
+  responses: {
+    200: inlineJsonResponse(
+      'Decoded invoice and lookup results.',
+      z
+        .object({
+          invoice: z.string(),
+          decoded: z.object({}).passthrough(),
+          isLocal: z.boolean(),
+          local: z.object({
+            invoice: z.object({}).passthrough().nullable(),
+            cardPayments: z.array(z.object({}).passthrough()),
+            swaps: z.array(z.object({}).passthrough())
+          }),
+          node: z.object({}).passthrough().nullable()
+        })
+        .passthrough()
     ),
     ...commonErrorResponses
   }

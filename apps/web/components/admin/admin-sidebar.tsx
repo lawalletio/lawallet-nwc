@@ -14,6 +14,7 @@ import {
   Activity,
   RadioTower,
   Plug,
+  Wrench,
   ArrowLeftRight,
   Settings,
   ChevronLeft,
@@ -167,6 +168,14 @@ const systemItems: NavItem[] = [
     href: '/admin/integrations',
     icon: Plug,
     permission: Permission.INTEGRATIONS_MANAGE
+  },
+  // Operator utilities (invoice lookup, …). Tools read other users' data, so
+  // the page is gated like the Users list.
+  {
+    title: 'Tools',
+    href: '/admin/tools',
+    icon: Wrench,
+    permission: Permission.USERS_READ
   }
 ]
 
