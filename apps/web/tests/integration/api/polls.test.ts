@@ -635,3 +635,90 @@ describe('admin polls', () => {
     await assertResponse(await put(['tron']), 400)
   })
 })
+
+describe('poll routes — edge cases', () => {
+  beforeEach(() => {
+    vi.mocked(authenticateWithRole).mockResolvedValue({} as any)
+  })
+
+  it('GET answers response: null before the caller has voted', async () => {
+    vi.mocked(prismaMock.poll.findUnique).mockResolvedValue({
+      ...poll({ description: 'Pick your stack' }),
+      responses: []
+    } as any)
+    const body: any = await assertResponse(
+      await getPoll(
+        createNextRequest('/api/polls/usdt-tech') as any,
+        createParamsPromise({ slug: 'usdt-tech' })
+      ),
+      200
+    )
+    expect(body.response).toBeNull()
+    expect(body.poll.description).toBe('Pick your stack')
+  })
+
+  it('lists a poll without responses with lastResponseAt null', async () => {
+    vi.mocked(prismaMock.poll.findMany).mockResolvedValue([
+      { ...poll(), _count: { responses: 0 }, responses: [] }
+    ] as any)
+    const list: any = await assertResponse(
+      await listPolls(createNextRequest('/api/admin/polls') as any),
+      200
+    )
+    expect(list[0]).toMatchObject({ responseCount: 0, lastResponseAt: null })
+  })
+
+  it('404s results for an unknown poll', async () => {
+    vi.mocked(prismaMock.poll.findUnique).mockResolvedValue(null)
+    await assertResponse(
+      await getResults(
+        createNextRequest('/api/admin/polls/nope/results') as any,
+        createParamsPromise({ id: 'nope' })
+      ),
+      404
+    )
+  })
+
+  it('allows restating the same type on a poll with responses', async () => {
+    vi.mocked(prismaMock.poll.findUnique).mockResolvedValue({
+      ...poll(),
+      _count: { responses: 3 }
+    } as any)
+    vi.mocked(prismaMock.poll.update).mockResolvedValue(
+      poll({ title: 'Renamed' }) as any
+    )
+    await assertResponse(
+      await patchPoll(
+        createNextRequest('/api/admin/polls/p1', {
+          method: 'PATCH',
+          body: { type: 'RANKING', title: 'Renamed' }
+        }) as any,
+        createParamsPromise({ id: 'p1' })
+      ),
+      200
+    )
+  })
+
+  it('top voters skips users deleted between queries', async () => {
+    vi.mocked(prismaMock.pollResponse.groupBy as any).mockResolvedValue([
+      { userId: 'gone', _count: { _all: 2 }, _max: { updatedAt: now } },
+      { userId: 'u1', _count: { _all: 1 }, _max: { updatedAt: null } }
+    ])
+    vi.mocked(prismaMock.user.count).mockResolvedValue(2)
+    vi.mocked(prismaMock.user.findMany).mockResolvedValue([
+      { id: 'u1', pubkey, pollsDismissedAt: null, lightningAddresses: [] }
+    ] as any)
+    const body: any = await assertResponse(
+      await listVoters(createNextRequest('/api/admin/polls/voters') as any),
+      200
+    )
+    expect(body.items).toEqual([
+      {
+        userId: 'u1',
+        npub: expect.stringMatching(/^npub1/),
+        responseCount: 1,
+        lastVoteAt: null
+      }
+    ])
+  })
+})

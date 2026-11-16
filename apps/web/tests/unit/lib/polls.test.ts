@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   aggregateResults,
   mergeCustomAlias,
+  serializePoll,
   validateChoices
 } from '@/lib/polls'
 
@@ -57,6 +58,7 @@ describe('validateChoices — TEXT', () => {
 
   it.each([
     [['custom:a', 'custom:b'], /one custom/],
+    [[], /Send one answer/],
     [['tron'], /Unknown/],
     [[`custom:${'x'.repeat(281)}`], /1–280/],
     [['custom:   '], /1–280/]
@@ -170,6 +172,19 @@ describe('aggregateResults', () => {
     })
   })
 
+  it('ignores removed options and malformed choices', () => {
+    const r = aggregateResults(ranking, [
+      vote('a', ['gone', 'tron'], '10:00'),
+      { ...vote('b', [], '10:01'), choices: 'not-an-array' }
+    ])
+    expect(r.total).toBe(2)
+    expect(r.firstChoice.every(f => f.count === 0)).toBe(true)
+    expect(r.scores.find(s => s.choice === 'tron')).toMatchObject({
+      points: 1,
+      skipped: 1
+    })
+  })
+
   it('has no scores for single choice and handles no votes', () => {
     const r = aggregateResults(single, [])
     expect(r).toMatchObject({
@@ -189,5 +204,36 @@ describe('mergeCustomAlias', () => {
       'lightining usdt': 'Lightning USDT',
       'ln usdt': 'Lightning USDT'
     })
+  })
+
+  it('leaves unrelated aliases alone', () => {
+    expect(mergeCustomAlias({ ark: 'Ark' }, 'rgb', 'RGB')).toEqual({
+      ark: 'Ark',
+      rgb: 'RGB'
+    })
+  })
+})
+
+describe('serializePoll', () => {
+  const row = {
+    id: 'p',
+    slug: 'p',
+    title: 'P',
+    type: 'TEXT' as const,
+    options: [],
+    allowCustom: false,
+    updatable: true,
+    status: 'OPEN' as const,
+    createdAt: new Date(0),
+    updatedAt: new Date(0)
+  }
+  it('includes description only when set', () => {
+    expect(serializePoll({ ...row, description: 'Why?' })).toHaveProperty(
+      'description',
+      'Why?'
+    )
+    expect(serializePoll({ ...row, description: null })).not.toHaveProperty(
+      'description'
+    )
   })
 })

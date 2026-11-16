@@ -176,8 +176,8 @@ export function aggregateResults(poll: PollShape, all: ResultsResponse[]) {
         return
       }
       if (!labelOf.has(entry)) return // option removed since — ignore
-      if (index === 0) first.set(entry, (first.get(entry) ?? 0) + 1)
-      points.set(entry, (points.get(entry) ?? 0) + choices.length - index)
+      if (index === 0) first.set(entry, first.get(entry)! + 1)
+      points.set(entry, points.get(entry)! + choices.length - index) // seeded per option above
       positions.set(entry, [...(positions.get(entry) ?? []), index + 1])
     })
   }
@@ -193,8 +193,7 @@ export function aggregateResults(poll: PollShape, all: ResultsResponse[]) {
         choice,
         label:
           labelOf.get(choice) ??
-          custom.get(choice.slice(CUSTOM_PREFIX.length))?.label ??
-          choice,
+          custom.get(choice.slice(CUSTOM_PREFIX.length))!.label,
         count
       }))
       .sort(byCount),
@@ -206,7 +205,7 @@ export function aggregateResults(poll: PollShape, all: ResultsResponse[]) {
               return {
                 choice: o.id,
                 label: o.label,
-                points: points.get(o.id) ?? 0,
+                points: points.get(o.id)!,
                 skipped: responses.length - p.length,
                 avgPosition: p.length
                   ? Math.round(
