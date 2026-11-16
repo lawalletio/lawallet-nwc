@@ -1,7 +1,16 @@
 'use client'
 
 import React, { useEffect, useRef, useState } from 'react'
-import { ArrowDown, ArrowUp, Lock, Plus, X } from 'lucide-react'
+import {
+  ArrowDown,
+  ArrowUp,
+  CircleDot,
+  ListOrdered,
+  Lock,
+  MessageSquareText,
+  Plus,
+  X
+} from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
@@ -14,9 +23,9 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { NativeSelect } from '@/components/ui/native-select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { useMutation } from '@/lib/client/hooks/use-api'
 
 export interface AdminPoll {
@@ -40,6 +49,27 @@ export const POLL_TYPE_LABEL: Record<AdminPoll['type'], string> = {
   SINGLE_CHOICE: 'Multiple choice',
   TEXT: 'Free text'
 }
+
+const POLL_TYPES = [
+  {
+    value: 'RANKING',
+    icon: ListOrdered,
+    label: 'Ranking',
+    hint: 'Order the options'
+  },
+  {
+    value: 'SINGLE_CHOICE',
+    icon: CircleDot,
+    label: 'Multiple choice',
+    hint: 'Pick one'
+  },
+  {
+    value: 'TEXT',
+    icon: MessageSquareText,
+    label: 'Free text',
+    hint: 'Answer a question'
+  }
+] as const
 
 const slugify = (text: string) =>
   text
@@ -221,17 +251,33 @@ export function PollFormDialog({
           </div>
 
           <div className="flex flex-col gap-2">
-            <Label htmlFor="poll-type">Type</Label>
-            <NativeSelect
+            <Label id="poll-type-label">Type</Label>
+            <ToggleGroup
               id="poll-type"
+              type="single"
+              variant="outline"
               value={type}
               disabled={frozen}
-              onChange={e => setType(e.target.value as AdminPoll['type'])}
+              aria-labelledby="poll-type-label"
+              onValueChange={value => {
+                if (value) setType(value as AdminPoll['type'])
+              }}
+              className="grid grid-cols-3 items-stretch gap-2"
             >
-              <option value="RANKING">Ranking — order the options</option>
-              <option value="SINGLE_CHOICE">Multiple choice — pick one</option>
-              <option value="TEXT">Free text — answer a question</option>
-            </NativeSelect>
+              {POLL_TYPES.map(({ value, icon: Icon, label, hint }) => (
+                <ToggleGroupItem
+                  key={value}
+                  value={value}
+                  className="flex aspect-[4/3] h-auto w-full min-w-0 flex-col whitespace-normal [&_svg]:size-5 items-center justify-center gap-1.5 rounded-lg px-2 py-3 text-center data-[state=on]:border-foreground/60 data-[state=on]:bg-accent"
+                >
+                  <Icon />
+                  <span className="text-sm font-medium">{label}</span>
+                  <span className="text-xs font-normal leading-tight text-muted-foreground">
+                    {hint}
+                  </span>
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
           </div>
 
           {!isText && (
