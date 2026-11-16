@@ -93,7 +93,8 @@ function grant(scopes: string[], spendLimitSats: number | null = null) {
     userId: user.id,
     pubkey: PUBKEY,
     scopes: scopes as never,
-    spendLimitSats
+    spendLimitSats,
+    walletIds: null
   })
 }
 

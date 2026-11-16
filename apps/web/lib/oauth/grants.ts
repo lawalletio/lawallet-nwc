@@ -7,7 +7,10 @@ import {
   NotFoundError,
   ValidationError
 } from '@/types/server/errors'
-import type { OAuthGrantSummary } from '@/lib/validation/schemas'
+import type {
+  OAuthGrantSummary,
+  OAuthGrantUpdate
+} from '@/lib/validation/schemas'
 import {
   ACCESS_TOKEN_PREFIX,
   ACCESS_TOKEN_TTL_SECONDS,
@@ -15,6 +18,7 @@ import {
   AUTH_CODE_TTL_SECONDS,
   REFRESH_TOKEN_PREFIX,
   REFRESH_TOKEN_TTL_SECONDS,
+  OAUTH_SCOPES,
   isOAuthScope,
   withImpliedScopes,
   type OAuthScope
@@ -92,6 +96,50 @@ export function resolveApproval(
   return { scopes, spendLimitSats }
 }
 
+/** Which wallets a grant reaches. */
+export interface WalletAccess {
+  /** True: every wallet of the account, including ones added later. */
+  allWallets: boolean
+  /** The selected wallets when `allWallets` is false, else empty. */
+  walletIds: string[]
+}
+
+/**
+ * Turns a wallet selection into a grant's wallet access. Null or undefined
+ * means every wallet. Ids must name the account's own live wallets; a foreign
+ * id reads exactly like a missing one.
+ *
+ * @throws {ValidationError} For an empty selection or an unknown wallet.
+ */
+export async function resolveWalletAccess(
+  userId: string,
+  walletIds: string[] | null | undefined
+): Promise<WalletAccess> {
+  if (walletIds == null) return { allWallets: true, walletIds: [] }
+  const unique = [...new Set(walletIds)]
+  if (!unique.length) {
+    throw new ValidationError('Select at least one wallet')
+  }
+  const owned = await prisma.remoteWallet.findMany({
+    where: {
+      id: { in: unique },
+      userId,
+      status: { notIn: ['REVOKED', 'DEAD'] }
+    },
+    select: { id: true }
+  })
+  if (owned.length !== unique.length) {
+    throw new ValidationError('One of the selected wallets was not found')
+  }
+  return { allWallets: false, walletIds: unique }
+}
+
+function describeWallets(access: WalletAccess): string {
+  if (access.allWallets) return 'all wallets'
+  const n = access.walletIds.length
+  return `${n} wallet${n === 1 ? '' : 's'}`
+}
+
 /**
  * Records an approval as a grant holding a single-use authorization code.
  * The account's earlier grant for the same client is replaced only once this
@@ -108,6 +156,7 @@ export async function createAuthorizationGrant(input: {
   resource: string
   scopes: OAuthScope[]
   spendLimitSats: number | null
+  wallets: WalletAccess
 }): Promise<string> {
   const code = generateCredential(AUTH_CODE_PREFIX)
   const now = new Date()
@@ -118,6 +167,8 @@ export async function createAuthorizationGrant(input: {
       scopes: input.scopes,
       resource: input.resource,
       spendLimitSats: input.spendLimitSats,
+      allWallets: input.wallets.allWallets,
+      walletIds: input.wallets.walletIds,
       codeHash: hashCredential(code),
       codeChallenge: input.codeChallenge,
       redirectUri: input.redirectUri,
@@ -133,14 +184,15 @@ export async function createAuthorizationGrant(input: {
     level: spend ? 'WARN' : 'INFO',
     message: `Authorized "${input.client.name}" (${input.scopes.join(', ')}${
       spend ? `, up to ${input.spendLimitSats} sats per 24h` : ''
-    })`,
+    }; ${describeWallets(input.wallets)})`,
     userId: input.userId,
     metadata: {
       grantId: grant.id,
       clientId: input.client.id,
       clientName: input.client.name,
       scopes: input.scopes,
-      spendLimitSats: input.spendLimitSats
+      spendLimitSats: input.spendLimitSats,
+      walletIds: input.wallets.allWallets ? null : input.wallets.walletIds
     }
   })
 
@@ -442,19 +494,110 @@ export async function listActiveGrants(
       id: true,
       scopes: true,
       spendLimitSats: true,
+      allWallets: true,
+      walletIds: true,
       createdAt: true,
       lastUsedAt: true,
       client: { select: { name: true } }
     }
   })
+
+  // One query names every selected wallet; deleted or archived ones drop out.
+  const ids = [
+    ...new Set(grants.flatMap(g => (g.allWallets ? [] : g.walletIds)))
+  ]
+  const names = new Map(
+    ids.length
+      ? (
+          await prisma.remoteWallet.findMany({
+            where: {
+              id: { in: ids },
+              userId,
+              status: { notIn: ['REVOKED', 'DEAD'] }
+            },
+            select: { id: true, name: true }
+          })
+        ).map(wallet => [wallet.id, wallet.name])
+      : []
+  )
+
   return grants.map(grant => ({
     id: grant.id,
     clientName: grant.client.name,
     scopes: grant.scopes.filter(isOAuthScope),
     spendLimitSats: grant.spendLimitSats,
+    wallets: grant.allWallets
+      ? null
+      : grant.walletIds.flatMap(id => {
+          const name = names.get(id)
+          return name === undefined ? [] : [{ id, name }]
+        }),
     createdAt: grant.createdAt.toISOString(),
     lastUsedAt: grant.lastUsedAt?.toISOString() ?? null
   }))
+}
+
+/**
+ * Changes what one of the account's working grants may do: scopes, budget
+ * and wallets, under the consent screen's rules. Every scope is offered here
+ * — it is the account owner's own decision, made in a full session. Tokens
+ * keep working; the next MCP call sees the new permissions.
+ *
+ * @throws {NotFoundError} When the grant is not the account's or no longer
+ *   works.
+ * @throws {ValidationError} When the update breaks the consent rules.
+ */
+export async function updateUserGrant(
+  grantId: string,
+  userId: string,
+  update: OAuthGrantUpdate
+): Promise<OAuthGrantSummary> {
+  const grant = await prisma.oAuthGrant.findFirst({
+    where: {
+      id: grantId,
+      userId,
+      codeUsedAt: { not: null },
+      revokedAt: null,
+      refreshExpiresAt: { gt: new Date() }
+    },
+    select: GRANT_LOG_SELECT
+  })
+  if (!grant) throw new NotFoundError('Authorization not found')
+
+  const { scopes, spendLimitSats } = resolveApproval(
+    update.scopes,
+    update.spendLimitSats,
+    [...OAUTH_SCOPES]
+  )
+  const wallets = await resolveWalletAccess(userId, update.walletIds)
+  const { count } = await prisma.oAuthGrant.updateMany({
+    where: { id: grant.id, revokedAt: null },
+    data: { scopes, spendLimitSats, ...wallets }
+  })
+  if (count === 0) throw new NotFoundError('Authorization not found')
+
+  const spend = scopes.includes('spend')
+  logActivity.fireAndForget({
+    category: 'USER',
+    event: ActivityEvent.OAUTH_GRANT_UPDATED,
+    level: spend ? 'WARN' : 'INFO',
+    message: `Changed "${grant.client.name}" access (${scopes.join(', ')}${
+      spend ? `, up to ${spendLimitSats} sats per 24h` : ''
+    }; ${describeWallets(wallets)})`,
+    userId,
+    metadata: {
+      grantId: grant.id,
+      clientId: grant.clientId,
+      clientName: grant.client.name,
+      scopes,
+      spendLimitSats,
+      walletIds: wallets.allWallets ? null : wallets.walletIds
+    }
+  })
+
+  const summary = (await listActiveGrants(userId)).find(g => g.id === grant.id)
+  if (!summary) throw new NotFoundError('Authorization not found')
+  return summary
 }
 
 /**

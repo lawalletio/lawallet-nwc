@@ -113,6 +113,7 @@ describe.skipIf(!runDatabaseTests)('OAuth grants against PostgreSQL', () => {
       codeChallenge: createHash('sha256').update(verifier).digest('base64url'),
       resource: RESOURCE,
       scopes,
+      wallets: { allWallets: true, walletIds: [] },
       spendLimitSats: options.spendLimitSats ?? null
     })
     const exchange = () =>

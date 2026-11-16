@@ -91,6 +91,8 @@ export function installFakeOAuthStore(): FakeOAuthStore {
       id: `grant_${++seq}`,
       createdAt: new Date(Date.now() + seq),
       spendLimitSats: null,
+      allWallets: true,
+      walletIds: [],
       codeHash: null,
       codeChallenge: null,
       redirectUri: null,

@@ -1,7 +1,14 @@
 'use client'
 
 import { useEffect, useState, useSyncExternalStore } from 'react'
-import { Bot, ExternalLink, RefreshCw } from 'lucide-react'
+import {
+  Bot,
+  ExternalLink,
+  Layers,
+  RefreshCw,
+  SlidersHorizontal,
+  Wallet
+} from 'lucide-react'
 import { toast } from 'sonner'
 import {
   AlertDialog,
@@ -22,6 +29,7 @@ import { useApi, useMutation } from '@/lib/client/hooks/use-api'
 import { formatDateTime, formatRelativeTime } from '@/lib/client/format'
 import { GRANTS_PATH, type OAuthGrantSummary } from '@/lib/client/oauth-api'
 import { MCP_PATH } from '@/lib/oauth/constants'
+import { ManageAppDialog } from '@/components/oauth/manage-app-dialog'
 
 export const MCP_DOCS_URL = 'https://docs.lawallet.io/docs/guides/mcp'
 
@@ -61,6 +69,7 @@ export function ConnectedApps() {
   }>(status === 'authenticated' ? GRANTS_PATH : null)
   const revoke = useMutation<undefined, { success: true }>([GRANTS_PATH])
   const [target, setTarget] = useState<OAuthGrantSummary | null>(null)
+  const [managing, setManaging] = useState<OAuthGrantSummary | null>(null)
   // Tokens are bound to the canonical MCP URL (from the `endpoint` setting),
   // which can differ from the host this page was opened on, and claude.ai
   // refuses a connector whose URL differs from it. Until the metadata answers,
@@ -219,6 +228,10 @@ export function ConnectedApps() {
                       )
                     )}
                   </div>
+                  {/* Wallets only narrow where payments come from. */}
+                  {grant.scopes.includes('spend') && (
+                    <WalletAccessSummary wallets={grant.wallets} />
+                  )}
                   <p className="text-xs text-muted-foreground">
                     Connected <DateText value={grant.createdAt} />
                     {' · '}
@@ -232,21 +245,41 @@ export function ConnectedApps() {
                   </p>
                 </div>
               </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="shrink-0 text-destructive hover:text-destructive"
-                onClick={() => setTarget(grant)}
-                disabled={revoke.loading}
-                aria-label={`Revoke access for ${grant.clientName}`}
-              >
-                Revoke
-              </Button>
+              <div className="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setManaging(grant)}
+                  disabled={revoke.loading}
+                  aria-label={`Manage access for ${grant.clientName}`}
+                >
+                  <SlidersHorizontal className="size-3.5" />
+                  Manage
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-destructive hover:text-destructive"
+                  onClick={() => setTarget(grant)}
+                  disabled={revoke.loading}
+                  aria-label={`Revoke access for ${grant.clientName}`}
+                >
+                  Revoke
+                </Button>
+              </div>
             </div>
           ))
         )}
       </div>
+
+      <ManageAppDialog
+        grant={managing}
+        onOpenChange={open => {
+          if (!open) setManaging(null)
+        }}
+      />
 
       <AlertDialog
         open={!!target}
@@ -274,6 +307,41 @@ export function ConnectedApps() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  )
+}
+
+/** Which wallets a connection reaches, as a compact line under its scopes. */
+function WalletAccessSummary({
+  wallets
+}: {
+  wallets: OAuthGrantSummary['wallets']
+}) {
+  if (wallets === null) {
+    return (
+      <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <Layers className="size-3.5 shrink-0" />
+        All wallets
+      </p>
+    )
+  }
+  if (wallets.length === 0) {
+    return (
+      <p className="flex items-center gap-1.5 text-xs text-destructive">
+        <Wallet className="size-3.5 shrink-0" />
+        No wallets: the ones it had were removed
+      </p>
+    )
+  }
+  return (
+    <div className="flex flex-wrap items-center gap-1">
+      <Wallet className="size-3.5 shrink-0 text-muted-foreground" />
+      <span className="sr-only">Wallets:</span>
+      {wallets.map(wallet => (
+        <Badge key={wallet.id} variant="outline" className="font-normal">
+          {wallet.name}
+        </Badge>
+      ))}
     </div>
   )
 }

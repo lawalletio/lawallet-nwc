@@ -95,7 +95,12 @@ function caller(
   }
 }
 
-const oauthGrant = { id: 'g1', clientName: 'Claude', spendLimitSats: 5000 }
+const oauthGrant = {
+  id: 'g1',
+  clientName: 'Claude',
+  spendLimitSats: 5000,
+  walletIds: null
+}
 const anonymous = caller(null)
 const reader = caller(Role.USER, ['read'], {
   ...oauthGrant,

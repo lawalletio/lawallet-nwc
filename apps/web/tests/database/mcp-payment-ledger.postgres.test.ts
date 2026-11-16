@@ -222,7 +222,12 @@ describe.skipIf(!runDatabaseTests)(
       const caller: McpCaller = {
         user: { pubkey, userId, role: Role.USER },
         scopes: new Set(['read', 'write', 'spend']),
-        grant: { id: grant.id, clientName: client.name, spendLimitSats },
+        grant: {
+          id: grant.id,
+          clientName: client.name,
+          spendLimitSats,
+          walletIds: null
+        },
         authorization: null,
         apiUrl: 'https://wallet.example',
         request: new Request('https://wallet.example/api/mcp', {

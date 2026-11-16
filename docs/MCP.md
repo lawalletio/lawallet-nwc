@@ -450,6 +450,14 @@ approve. The page shows:
 - **Signed in as** — the account the app will act as, with **Switch account**.
 - **It will be able to** — the permissions the app asked for, as checkboxes.
 - **Daily limit (sats)** — shown when **Send payments** is ticked.
+- **Wallets it can use** — **Only selected** (the default, with just your
+  primary wallet ticked) or **All wallets**, which also covers wallets you add
+  later. Each wallet shows its type, primary/LNCurl tags and live balance.
+  Every other wallet is invisible to the app: `list_wallets` leaves it out,
+  and the wallet tools and `/api/remote-wallets/{id}` operations answer as if
+  it did not exist. With no `walletId`, tools use your primary wallet if the
+  app was given it, else the oldest active wallet it was given. A wallet the
+  app creates itself (`remoteWallets.createLncurl`) is added to its selection.
 - A reminder that the app acts as you, with your role's permissions if you are
   not a regular member, and that access can be revoked under Connected apps.
 - **Approve** and **Deny**. Deny sends the app an `access_denied` answer.
@@ -843,11 +851,14 @@ only covers OAuth connections; payments are recorded per connection.
   agents to treat it as data, but a model can still be misled. That is why
   `spend` is off by default and always capped, and why `wallet_pay_invoice` is
   marked destructive: keep your client's confirmation on for it.
-- **Revocation.** Revoke any app at once under Connected apps. Connections
-  unused for 30 days expire on their own.
+- **Revocation and changes.** Revoke any app at once under Connected apps, or
+  open **Manage** to change its permissions, daily limit and wallets
+  (`PATCH /api/oauth/grants/{id}`) without reconnecting it — the app's next
+  call sees the change. Connections unused for 30 days expire on their own.
 - **Audit trail.** The activity log (Admin → Activity) records
   `user.oauth_grant_created` (at warning level when `spend` is granted, with the
-  limit), `user.oauth_grant_revoked` (by the user, by the app, when a newer
+  limit), `user.oauth_grant_updated` (a change made under Manage, same
+  levels), `user.oauth_grant_revoked` (by the user, by the app, when a newer
   approval of the same app replaces it, or because an authorization code was
   replayed), `nwc.mcp_payment_sent` (at warning level
   when the outcome is unknown) and `nwc.mcp_payment_failed`. Operations run

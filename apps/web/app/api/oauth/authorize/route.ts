@@ -30,7 +30,8 @@ import {
 import {
   authenticateSession,
   createAuthorizationGrant,
-  resolveApproval
+  resolveApproval,
+  resolveWalletAccess
 } from '@/lib/oauth/grants'
 
 export const dynamic = 'force-dynamic'
@@ -100,6 +101,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   )
   const account = await resolveAccountByPubkey(auth.pubkey)
   const userId = account?.id ?? (await createNewUser(auth.pubkey)).id
+  const wallets = await resolveWalletAccess(userId, body.walletIds)
 
   const code = await createAuthorizationGrant({
     userId,
@@ -108,7 +110,8 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     codeChallenge: authorization.codeChallenge,
     resource: authorization.resource,
     scopes,
-    spendLimitSats
+    spendLimitSats,
+    wallets
   })
   return redirectTo({ code })
 })

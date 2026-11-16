@@ -57,6 +57,7 @@ export const ActivityEvent = {
   // OAuth grants handed to MCP clients (Claude, ChatGPT, …). A grant carrying
   // the `spend` scope logs at WARN.
   OAUTH_GRANT_CREATED: 'user.oauth_grant_created',
+  OAUTH_GRANT_UPDATED: 'user.oauth_grant_updated',
   OAUTH_GRANT_REVOKED: 'user.oauth_grant_revoked',
   // Lightning → ARS cash-out through a swap integration.
   USER_SWAP_CREATED: 'user.swap_created',

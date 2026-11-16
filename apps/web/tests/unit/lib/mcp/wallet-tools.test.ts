@@ -75,7 +75,12 @@ const driver = {
 
 function makeCaller({
   scopes = ['read', 'write', 'spend'],
-  grant = { id: GRANT_ID, clientName: 'Claude', spendLimitSats: 1000 },
+  grant = {
+    id: GRANT_ID,
+    clientName: 'Claude',
+    spendLimitSats: 1000,
+    walletIds: null
+  },
   userId = USER_ID
 }: {
   scopes?: OAuthScope[]
@@ -386,6 +391,69 @@ describe('wallet resolution', () => {
     expect(prismaMock.lightningAddress.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({ where: { userId: USER_ID, isPrimary: true } })
     )
+  })
+
+  describe('on a connection limited to some wallets', () => {
+    const limited = (walletIds: string[]) =>
+      makeCaller({
+        grant: {
+          id: GRANT_ID,
+          clientName: 'Claude',
+          spendLimitSats: 1000,
+          walletIds
+        }
+      })
+
+    it('reports a wallet it was not given exactly like a missing one', async () => {
+      const error = await toolError(
+        call('wallet_get_balance', { walletId: WALLET_ID }, limited(['other']))
+      )
+      expect(error.message).toBe(
+        `Wallet ${WALLET_ID} not found. Call list_wallets to see the wallets this connection can use.`
+      )
+      expect(prismaMock.remoteWallet.findUnique).not.toHaveBeenCalled()
+      expect(mocks.driverForWallet).not.toHaveBeenCalled()
+    })
+
+    it('uses a wallet it was given', async () => {
+      driver.getBalance.mockResolvedValue({ balanceSats: 3 })
+      await expect(
+        call(
+          'wallet_get_balance',
+          { walletId: WALLET_ID },
+          limited([WALLET_ID])
+        )
+      ).resolves.toMatchObject({ walletId: WALLET_ID, balanceSats: 3 })
+    })
+
+    it('falls back from a primary wallet it was not given to the first one it was', async () => {
+      driver.getBalance.mockResolvedValue({ balanceSats: 8 })
+      vi.mocked(prismaMock.remoteWallet.findFirst).mockResolvedValue(
+        walletRow({ id: 'wallet-2', name: 'Side' }) as never
+      )
+
+      await expect(
+        call('wallet_get_balance', {}, limited(['wallet-2']))
+      ).resolves.toEqual({
+        walletId: 'wallet-2',
+        walletName: 'Side',
+        balanceSats: 8
+      })
+      expect(prismaMock.remoteWallet.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: { in: ['wallet-2'] }, userId: USER_ID, status: 'ACTIVE' }
+        })
+      )
+    })
+
+    it('asks for list_wallets when none of its wallets is usable', async () => {
+      vi.mocked(prismaMock.remoteWallet.findFirst).mockResolvedValue(null)
+      const error = await toolError(
+        call('wallet_get_balance', {}, limited(['wallet-2']))
+      )
+      expect(error.message).toMatch(/list_wallets/)
+      expect(mocks.driverForWallet).not.toHaveBeenCalled()
+    })
   })
 
   it('asks for list_wallets when the account has no primary wallet', async () => {
@@ -737,7 +805,12 @@ describe('wallet_pay_invoice preconditions', () => {
     [
       'a grant without a spend limit',
       makeCaller({
-        grant: { id: GRANT_ID, clientName: 'Claude', spendLimitSats: null }
+        grant: {
+          id: GRANT_ID,
+          clientName: 'Claude',
+          spendLimitSats: null,
+          walletIds: null
+        }
       }),
       /no daily spend limit/
     ],
@@ -1728,7 +1801,12 @@ describe('wallet_list_payments', () => {
       {},
       makeCaller({
         scopes: ['read'],
-        grant: { id: GRANT_ID, clientName: 'Claude', spendLimitSats: null }
+        grant: {
+          id: GRANT_ID,
+          clientName: 'Claude',
+          spendLimitSats: null,
+          walletIds: null
+        }
       })
     )
 

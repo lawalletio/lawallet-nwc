@@ -334,6 +334,44 @@ describe('POST /api/oauth/authorize', () => {
     )
   })
 
+  it('gives every wallet when none is selected', async () => {
+    await decide({ ...REQUEST, approve: true, scopes: ['read'] })
+    expect(store.grants[0]).toMatchObject({ allWallets: true, walletIds: [] })
+  })
+
+  it('stores the selected wallets after checking they are the caller’s', async () => {
+    vi.mocked(prismaMock.remoteWallet.findMany).mockResolvedValue([
+      { id: 'w1' }
+    ] as never)
+    await decide({
+      ...REQUEST,
+      approve: true,
+      scopes: ['read'],
+      walletIds: ['w1']
+    })
+    expect(store.grants[0]).toMatchObject({
+      allWallets: false,
+      walletIds: ['w1']
+    })
+    expect(prismaMock.remoteWallet.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: { in: ['w1'] }, userId: 'user_1' })
+      })
+    )
+  })
+
+  it('refuses a wallet that is not the caller’s and creates nothing', async () => {
+    vi.mocked(prismaMock.remoteWallet.findMany).mockResolvedValue([])
+    const res = await decide({
+      ...REQUEST,
+      approve: true,
+      scopes: ['read'],
+      walletIds: ['someone_else']
+    })
+    expect(res.status).toBe(400)
+    expect(store.grants).toHaveLength(0)
+  })
+
   it('adds read to write and to spend', async () => {
     await decide({ ...REQUEST, approve: true, scopes: ['write'] })
     expect(store.grants[0].scopes).toEqual(['read', 'write'])

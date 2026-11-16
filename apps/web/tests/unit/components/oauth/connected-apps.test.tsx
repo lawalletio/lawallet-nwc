@@ -32,6 +32,7 @@ const GRANTS = [
     clientName: 'Claude',
     scopes: ['read', 'write'],
     spendLimitSats: null,
+    wallets: null,
     createdAt: new Date(Date.now() - 48 * HOUR).toISOString(),
     lastUsedAt: new Date(Date.now() - 2 * HOUR).toISOString()
   },
@@ -40,6 +41,7 @@ const GRANTS = [
     clientName: 'Cursor',
     scopes: ['read', 'spend'],
     spendLimitSats: 5000,
+    wallets: [{ id: 'w1', name: 'Spending' }],
     createdAt: new Date(Date.now() - 24 * HOUR).toISOString(),
     lastUsedAt: null
   }
@@ -86,6 +88,9 @@ describe('ConnectedApps', () => {
     expect(
       screen.getByText(`Spend · ${(5000).toLocaleString()} sats/day`)
     ).toBeInTheDocument()
+    // Wallets are listed only for apps that can send payments.
+    expect(screen.queryByText('All wallets')).not.toBeInTheDocument()
+    expect(screen.getByText('Spending')).toBeInTheDocument()
     expect(screen.getByText(/Last used/)).toHaveTextContent(
       'Connected 2d ago · Last used 2h ago'
     )
