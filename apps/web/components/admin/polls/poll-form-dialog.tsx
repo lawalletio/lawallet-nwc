@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { ArrowDown, ArrowUp, Lock, Plus, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -83,8 +83,13 @@ export function PollFormDialog({
   // Type and option ids are frozen server-side once anyone answered.
   const frozen = !!poll && poll.responseCount > 0
 
+  // Seed the form when the dialog opens — not on every new `poll` object,
+  // since the dashboard refetches it every 10 s and would wipe live edits.
+  const wasOpen = useRef(false)
   useEffect(() => {
-    if (!open) return
+    const opened = open && !wasOpen.current
+    wasOpen.current = open
+    if (!opened) return
     setTitle(poll?.title ?? '')
     setSlug(poll?.slug ?? '')
     setSlugTouched(!!poll)
