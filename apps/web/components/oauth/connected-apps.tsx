@@ -28,6 +28,28 @@ export const MCP_DOCS_URL = 'https://docs.lawallet.io/docs/guides/mcp'
 const noSubscription = () => () => {}
 
 /**
+ * Ready-to-paste client configs with the canonical URL baked in, so nobody
+ * hand-edits a URL into a config file. `--scope user`: the default `local`
+ * scope only applies in the directory the command ran in.
+ */
+export function clientSnippets(mcpUrl: string) {
+  return [
+    {
+      label: 'Claude Code command',
+      value: `claude mcp add --transport http --scope user lawallet ${mcpUrl}`
+    },
+    {
+      label: 'Cursor and other mcp.json clients',
+      value: JSON.stringify(
+        { mcpServers: { lawallet: { type: 'http', url: mcpUrl } } },
+        null,
+        2
+      )
+    }
+  ]
+}
+
+/**
  * Apps (AI assistants over MCP) the signed-in user has authorized, with
  * revoke, plus this instance's MCP URL so they can connect one. Mounted in
  * the wallet Security screen and the admin Account Settings page.
@@ -110,6 +132,28 @@ export function ConnectedApps() {
           assistant use your account. You choose what each app may do when you
           connect it.
         </p>
+        <details className="group text-xs text-muted-foreground">
+          <summary className="cursor-pointer select-none hover:text-foreground">
+            Setup for Claude Code, Cursor and other clients
+          </summary>
+          <div className="mt-2 flex flex-col gap-2">
+            {clientSnippets(mcpUrl).map(snippet => (
+              <div key={snippet.label} className="flex flex-col gap-1">
+                <span>{snippet.label}</span>
+                <div className="flex items-start gap-2 rounded-lg bg-background py-1 pl-3 pr-1">
+                  <pre className="min-w-0 flex-1 overflow-x-auto py-1.5 font-mono text-xs text-foreground">
+                    {snippet.value}
+                  </pre>
+                  <CopyButton value={snippet.value} label={snippet.label} />
+                </div>
+              </div>
+            ))}
+            <p>
+              Then sign in when the client asks (in Claude Code: run{' '}
+              <code>/mcp</code> and pick <code>lawallet</code>).
+            </p>
+          </div>
+        </details>
       </div>
 
       <div className="flex flex-col rounded-2xl bg-card">

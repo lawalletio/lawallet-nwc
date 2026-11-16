@@ -164,11 +164,15 @@ The consent page shows these requests as coming from `claude.ai`.
 
 ### Claude Code
 
-Add the server (run in any directory):
+Add the server for every project (Connected apps has this command with the
+URL filled in):
 
 ```bash
-claude mcp add --transport http lawallet https://<instance>/api/mcp
+claude mcp add --transport http --scope user lawallet https://<instance>/api/mcp
 ```
+
+Without `--scope user`, Claude Code uses the `local` scope: the server only
+exists in the directory you ran the command in.
 
 Sign in with OAuth, either inside a Claude Code session — run `/mcp`, pick
 `lawallet`, and a browser opens the consent page — or from the shell:
@@ -216,6 +220,21 @@ Gotchas:
   OAuth: renew the token or remove the header.
 - Tools appear as `mcp__lawallet__<tool>`, for example
   `mcp__lawallet__wallet_get_balance`.
+- **Check which URL is in use** with `claude mcp get lawallet`: it prints the
+  URL, the scope it comes from and the connection status. A `local` entry
+  overrides a `project` one, which overrides a `user` one, so an old entry in
+  another scope can shadow the one you just added.
+- **Switching instances** (for example from a dev tunnel to
+  `https://beta.lawallet.io/api/mcp`): remove the old entry from its scope,
+  add the new one, then sign in again — tokens are bound to the URL they were
+  issued for.
+
+  ```bash
+  claude mcp remove lawallet --scope user
+  claude mcp add --transport http --scope user lawallet https://<instance>/api/mcp
+  claude mcp login lawallet
+  ```
+
 - Newer Claude Code versions first try the 2026-07-28 protocol revision and
   fall back to the older handshake otherwise. The instance serves both. If you
   suspect negotiation is the problem, `MCP_PROTOCOL_NEGOTIATION=legacy` turns
@@ -875,6 +894,26 @@ The `error_description` in the 401 body says why:
   may be dropping the `Authorization` header, or the URL redirects to another
   host. (`Only Bearer tokens are accepted here` means a header arrived with
   another scheme, such as a NIP-98 `Nostr` header.)
+
+### 502, 503 or "Error POSTing to endpoint" before any sign-in
+
+The client never reached the instance: the configured URL points at a host
+that is down — typically a stale tunnel or a stopped dev server (a Cloudflare
+tunnel answers `502 Bad gateway` with `origin_bad_gateway`). The instance
+itself is not involved, so its logs show nothing.
+
+1. See which URL the client uses (`claude mcp get lawallet` in Claude Code,
+   `mcp.json` in Cursor, the connector's URL in Claude or ChatGPT).
+2. Check that URL answers:
+
+   ```bash
+   curl -s https://<instance>/api/mcp/public \
+     -H 'Content-Type: application/json' \
+     -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"get_instance_info","arguments":{}}}'
+   ```
+
+   A healthy instance returns its `mcpUrl`. Point the client at that URL (see
+   _Switching instances_ under [Claude Code](#claude-code)) and sign in again.
 
 ### Wrong instance URL
 

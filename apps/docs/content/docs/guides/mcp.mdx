@@ -124,11 +124,15 @@ Good to know:
 
 ### Claude Code
 
-Add the server:
+Add the server for every project (**Connected apps** has this command with
+your URL filled in):
 
 ```bash
-claude mcp add --transport http lawallet https://<instance>/api/mcp
+claude mcp add --transport http --scope user lawallet https://<instance>/api/mcp
 ```
+
+Without `--scope user` the server only exists in the directory you ran the
+command in.
 
 Then sign in: inside a Claude Code session run `/mcp` and pick `lawallet` (a
 browser opens your instance's consent page), or from the shell:
@@ -165,6 +169,17 @@ Good to know:
   remove `headers`.
 - Tools appear as `mcp__lawallet__<tool>`, for example
   `mcp__lawallet__wallet_get_balance`.
+- `claude mcp get lawallet` shows the URL in use and which scope it comes
+  from. A `local` or `project` entry overrides your `user` one.
+- **Switching instances** (or fixing a stale URL): remove the old entry, add
+  the new one, then sign in again — tokens only work for the URL they were
+  issued for.
+
+  ```bash
+  claude mcp remove lawallet --scope user
+  claude mcp add --transport http --scope user lawallet https://<instance>/api/mcp
+  claude mcp login lawallet
+  ```
 
 ### ChatGPT
 
@@ -500,6 +515,13 @@ revoked, replaced by a newer approval, unused for 30 days, or the instance's
 `endpoint` setting changed. Connect the app again. With a static token, the
 token expired or belongs to another instance, or it is a device token, which
 is refused: use OAuth or a session token.
+
+**502, 503 or "Error POSTing to endpoint" before any sign-in.** The client
+never reached the instance: its configured URL points at a host that is down,
+typically an old tunnel or a stopped dev server (a Cloudflare tunnel answers
+`502 Bad gateway`). Check which URL the client uses (`claude mcp get lawallet`
+in Claude Code), replace it with the one from Connected apps, and sign in
+again.
 
 **"Wrong instance URL" or "resource does not match".** The URL given to the
 client differs from the canonical one — `http` versus `https`, `www` versus
