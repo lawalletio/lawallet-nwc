@@ -388,6 +388,12 @@ describe('admin polls', () => {
           choices: ['rgb', 'tron'],
           updatedAt: now,
           user: { pubkey, lightningAddresses: [{ username: 'alice' }] }
+        },
+        {
+          userId: 'u2',
+          choices: ['rgb'], // skipped tron
+          updatedAt: now,
+          user: { pubkey, lightningAddresses: [] }
         }
       ]
     } as any)
@@ -396,9 +402,14 @@ describe('admin polls', () => {
       createParamsPromise({ id: 'p1' })
     )
     const body: any = await assertResponse(res, 200)
-    expect(body.total).toBe(1)
-    expect(body.firstChoice[0]).toMatchObject({ choice: 'rgb', count: 1 })
-    expect(body.voters[0]).toMatchObject({
+    expect(body.total).toBe(2)
+    expect(body.firstChoice[0]).toMatchObject({ choice: 'rgb', count: 2 })
+    // rgb: 2 + 1 = 3; tron: 1 + 0 (skipped by u2)
+    expect(body.scores).toEqual([
+      { choice: 'rgb', label: 'RGB', points: 3, skipped: 0, avgPosition: 1 },
+      { choice: 'tron', label: 'Tron', points: 1, skipped: 1, avgPosition: 2 }
+    ])
+    expect(body.voters.find((v: any) => v.userId === 'u1')).toMatchObject({
       lightningAddress: 'alice@example.com',
       npub: expect.stringMatching(/^npub1/)
     })
