@@ -7,6 +7,7 @@ vi.mock('@/lib/logger', () => ({
 }))
 
 import { Role } from '@/lib/auth/permissions'
+import { logger } from '@/lib/logger'
 import { McpToolError, type McpCaller } from '@/lib/mcp/types'
 import type { CatalogOperation } from '@/lib/mcp/catalog'
 import {
@@ -136,5 +137,51 @@ describe('hideWalletRefs (via scopeWalletResult)', () => {
     ])
     // The REST body itself is left untouched.
     expect(body[1].remoteWalletId).toBe('w2')
+  })
+})
+
+describe('edge cases', () => {
+  it('refuses a wallet operation without an id', () => {
+    expect(() =>
+      guardWalletOperation(
+        op('GET', '/api/remote-wallets/{id}'),
+        {},
+        caller(['w1'])
+      )
+    ).toThrow(McpToolError)
+  })
+
+  it('passes through bodies of an unexpected shape', async () => {
+    const c = caller(['w1'])
+    await expect(
+      scopeWalletResult(op('GET', '/api/remote-wallets'), { error: 'x' }, c)
+    ).resolves.toEqual({ error: 'x' })
+    await expect(
+      scopeWalletResult(
+        op('GET', '/api/remote-wallets/forwarding-map'),
+        { actions: 'nope' },
+        c
+      )
+    ).resolves.toEqual({ actions: 'nope' })
+    await expect(
+      scopeWalletResult(op('GET', '/api/wallet/addresses'), 'text', c)
+    ).resolves.toBe('text')
+  })
+
+  it('keeps a created wallet usable in this request even if saving fails', async () => {
+    const c = caller(['w1'])
+    vi.mocked(prismaMock.oAuthGrant.updateMany).mockRejectedValue(
+      new Error('db down')
+    )
+    await scopeWalletResult(
+      op('POST', '/api/remote-wallets/lncurl'),
+      { id: 'new' },
+      c
+    )
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.anything(),
+      'mcp.wallet_access_add_failed'
+    )
+    expect(canUseWallet(c, 'new')).toBe(true)
   })
 })

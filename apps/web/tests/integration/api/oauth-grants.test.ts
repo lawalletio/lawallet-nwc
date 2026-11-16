@@ -315,6 +315,22 @@ describe('PATCH /api/oauth/grants/[id]', () => {
     expect(store.grants[0].scopes).toEqual(['read', 'write'])
   })
 
+  it('answers 404 for a caller without an account', async () => {
+    vi.mocked(prismaMock.nostrIdentity.findUnique).mockResolvedValue(null)
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(null)
+    store.grants.push(grantRow('g1'))
+    expect((await update('g1', { scopes: ['read'] })).status).toBe(404)
+  })
+
+  it('answers 404 when the grant is revoked while saving', async () => {
+    store.grants.push(grantRow('g1'))
+    vi.mocked(prismaMock.oAuthGrant.updateMany).mockResolvedValueOnce({
+      count: 0
+    } as never)
+    expect((await update('g1', { scopes: ['read'] })).status).toBe(404)
+    expect(logActivity.fireAndForget).not.toHaveBeenCalled()
+  })
+
   it('refuses device tokens', async () => {
     store.grants.push(grantRow('g1'))
     signIn({ scopes: ['cards:read'] })
