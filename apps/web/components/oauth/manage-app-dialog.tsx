@@ -1,11 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { ShieldAlert } from 'lucide-react'
 import { toast } from 'sonner'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { CheckboxCard } from '@/components/ui/checkbox-card'
 import {
   Dialog,
   DialogContent,
@@ -14,7 +11,6 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog'
-import { Fieldset, FieldsetLegend } from '@/components/ui/field'
 import { Spinner } from '@/components/ui/spinner'
 import { useMutation } from '@/lib/client/hooks/use-api'
 import { useRemoteWallets } from '@/lib/client/hooks/use-remote-wallets'
@@ -30,7 +26,7 @@ import {
   type OAuthScope
 } from '@/lib/oauth/constants'
 import { cn } from '@/lib/utils'
-import { SCOPE_COPY } from '@/components/oauth/scope-copy'
+import { ScopeOptions } from '@/components/oauth/scope-options'
 import {
   SpendLimitField,
   parseSpendLimit,
@@ -144,42 +140,14 @@ function ManageAppForm({
       {/* Side by side where there is room: what it may do | which wallets. */}
       <div className={cn('grid gap-4', spend && 'lg:grid-cols-2 lg:gap-8')}>
         <div className="flex min-w-0 flex-col gap-4">
-          <Fieldset className="gap-2">
-            <FieldsetLegend className="mb-2 text-sm">
-              Permissions
-            </FieldsetLegend>
-            {OAUTH_SCOPES.map(scope => {
-              const locked = scope === 'read' && readLocked
-              return (
-                <CheckboxCard
-                  key={scope}
-                  checked={chosen.includes(scope)}
-                  onCheckedChange={checked => toggle(scope, checked)}
-                  disabled={save.loading || locked}
-                  title={
-                    <span className="flex flex-wrap items-center gap-2">
-                      {SCOPE_COPY[scope].label}
-                      {scope === 'spend' && (
-                        <Badge
-                          variant="outline"
-                          className="gap-1 border-destructive/50 text-destructive"
-                        >
-                          <ShieldAlert className="size-3" />
-                          Sensitive
-                        </Badge>
-                      )}
-                    </span>
-                  }
-                  description={locked ? undefined : SCOPE_COPY[scope].detail}
-                  className={cn(
-                    scope === 'spend' &&
-                      spend &&
-                      'border-destructive/60 bg-destructive/5'
-                  )}
-                />
-              )
-            })}
-          </Fieldset>
+          <ScopeOptions
+            legend="Permissions"
+            scopes={OAUTH_SCOPES}
+            chosen={chosen}
+            readLocked={readLocked}
+            disabled={save.loading}
+            onToggle={toggle}
+          />
 
           {spend && (
             <SpendLimitField

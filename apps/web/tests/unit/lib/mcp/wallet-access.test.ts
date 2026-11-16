@@ -113,3 +113,28 @@ describe('scopeWalletResult', () => {
     expect(canUseWallet(c, 'new')).toBe(true)
   })
 })
+
+describe('hideWalletRefs (via scopeWalletResult)', () => {
+  it('drops references to wallets not given, on any route, at any depth', async () => {
+    const body = [
+      { username: 'a', remoteWalletId: 'w1', remoteWalletName: 'Main' },
+      { username: 'b', remoteWalletId: 'w2', remoteWalletName: 'Hidden' },
+      { username: 'c', nested: { remoteWalletId: 'w2' } },
+      { username: 'd', remoteWalletId: null }
+    ]
+    await expect(
+      scopeWalletResult(
+        op('GET', '/api/wallet/addresses'),
+        body,
+        caller(['w1'])
+      )
+    ).resolves.toEqual([
+      { username: 'a', remoteWalletId: 'w1', remoteWalletName: 'Main' },
+      { username: 'b', remoteWalletId: null, remoteWalletName: null },
+      { username: 'c', nested: { remoteWalletId: null } },
+      { username: 'd', remoteWalletId: null }
+    ])
+    // The REST body itself is left untouched.
+    expect(body[1].remoteWalletId).toBe('w2')
+  })
+})

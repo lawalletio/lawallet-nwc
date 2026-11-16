@@ -92,7 +92,35 @@ export async function scopeWalletResult(
       .catch(err => logger.warn({ err }, 'mcp.wallet_access_add_failed'))
     grant.walletIds = [...grant.walletIds, body.id]
   }
-  return body
+  // Any other result that points at a wallet (addresses, cards…): drop the
+  // reference to one the connection was not given.
+  return hideWalletRefs(body, allowed)
+}
+
+/** Fields REST results use to point at a RemoteWallet, and its display name. */
+const WALLET_REF = 'remoteWalletId'
+const WALLET_NAME = 'remoteWalletName'
+
+/**
+ * Deep copy of `value` where every `remoteWalletId` the connection may not
+ * use (and its `remoteWalletName`) reads null, as if nothing were bound.
+ * Generic on purpose, so new routes are covered without a special case here.
+ */
+export function hideWalletRefs(
+  value: unknown,
+  allowed: (id: unknown) => boolean
+): unknown {
+  if (Array.isArray(value)) return value.map(v => hideWalletRefs(v, allowed))
+  if (!isRecord(value)) return value
+  const out: Record<string, unknown> = {}
+  for (const [key, v] of Object.entries(value)) {
+    out[key] = hideWalletRefs(v, allowed)
+  }
+  if (typeof out[WALLET_REF] === 'string' && !allowed(out[WALLET_REF])) {
+    out[WALLET_REF] = null
+    if (WALLET_NAME in out) out[WALLET_NAME] = null
+  }
+  return out
 }
 
 /**

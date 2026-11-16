@@ -450,14 +450,18 @@ approve. The page shows:
 - **Signed in as** — the account the app will act as, with **Switch account**.
 - **It will be able to** — the permissions the app asked for, as checkboxes.
 - **Daily limit (sats)** — shown when **Send payments** is ticked.
-- **Wallets it can use** — **Only selected** (the default, with just your
-  primary wallet ticked) or **All wallets**, which also covers wallets you add
-  later. Each wallet shows its type, primary/LNCurl tags and live balance.
-  Every other wallet is invisible to the app: `list_wallets` leaves it out,
-  and the wallet tools and `/api/remote-wallets/{id}` operations answer as if
-  it did not exist. With no `walletId`, tools use your primary wallet if the
-  app was given it, else the oldest active wallet it was given. A wallet the
-  app creates itself (`remoteWallets.createLncurl`) is added to its selection.
+- **Wallets it can use** — shown once **Send payments** is ticked: **Only
+  selected** (the default, with just your primary wallet ticked) or **All
+  wallets**, which also covers wallets you add later. Each wallet shows its
+  NWC/LNCurl icon and live balance. Without `spend` the app gets every wallet
+  (the server ignores a selection), since wallets only narrow where payments
+  come from. Every wallet left out is invisible to the app: `list_wallets`
+  omits it, wallet tools and `/api/remote-wallets/{id}` operations answer as if
+  it did not exist, and any `remoteWalletId` pointing at it in other results
+  (addresses, cards) reads `null`. With no `walletId`, tools use your primary
+  wallet if the app was given it, else the oldest active wallet it was given.
+  A wallet the app creates itself (`remoteWallets.createLncurl`) is added to
+  its selection.
 - A reminder that the app acts as you, with your role's permissions if you are
   not a regular member, and that access can be revoked under Connected apps.
 - **Approve** and **Deny**. Deny sends the app an `access_denied` answer.

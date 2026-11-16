@@ -346,7 +346,8 @@ describe('POST /api/oauth/authorize', () => {
     await decide({
       ...REQUEST,
       approve: true,
-      scopes: ['read'],
+      scopes: ['read', 'spend'],
+      spendLimitSats: 1000,
       walletIds: ['w1']
     })
     expect(store.grants[0]).toMatchObject({
@@ -365,10 +366,37 @@ describe('POST /api/oauth/authorize', () => {
     const res = await decide({
       ...REQUEST,
       approve: true,
-      scopes: ['read'],
+      scopes: ['read', 'spend'],
+      spendLimitSats: 1000,
       walletIds: ['someone_else']
     })
     expect(res.status).toBe(400)
+    expect(store.grants).toHaveLength(0)
+  })
+
+  it('ignores a wallet selection without spend: wallets only narrow payments', async () => {
+    await decide({
+      ...REQUEST,
+      approve: true,
+      scopes: ['read', 'write'],
+      walletIds: ['w1']
+    })
+    expect(store.grants[0]).toMatchObject({ allWallets: true, walletIds: [] })
+    expect(prismaMock.remoteWallet.findMany).not.toHaveBeenCalled()
+  })
+
+  it('refuses wallets for a first-time pubkey before creating its account', async () => {
+    vi.mocked(prismaMock.nostrIdentity.findUnique).mockResolvedValue(null)
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(null)
+    const res = await decide({
+      ...REQUEST,
+      approve: true,
+      scopes: ['spend'],
+      spendLimitSats: 1000,
+      walletIds: ['w1']
+    })
+    expect(res.status).toBe(400)
+    expect(createNewUser).not.toHaveBeenCalled()
     expect(store.grants).toHaveLength(0)
   })
 

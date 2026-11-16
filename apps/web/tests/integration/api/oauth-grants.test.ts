@@ -290,8 +290,13 @@ describe('PATCH /api/oauth/grants/[id]', () => {
     const before = { ...store.grants[0] }
 
     expect(
-      (await update('g1', { scopes: ['read'], walletIds: ['someone_else'] }))
-        .status
+      (
+        await update('g1', {
+          scopes: ['spend'],
+          spendLimitSats: 100,
+          walletIds: ['someone_else']
+        })
+      ).status
     ).toBe(400)
     expect((await update('g1', { scopes: ['spend'] })).status).toBe(400)
     expect(

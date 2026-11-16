@@ -117,6 +117,7 @@ export async function verifyAccessToken(
     pubkey: grant.user.pubkey,
     scopes,
     spendLimitSats: scopes.includes('spend') ? grant.spendLimitSats : null,
-    walletIds: grant.allWallets ? null : grant.walletIds
+    // Fail closed: a restricted grant with no stored list reaches no wallet.
+    walletIds: grant.allWallets ? null : (grant.walletIds ?? [])
   }
 }

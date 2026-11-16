@@ -106,19 +106,28 @@ export interface WalletAccess {
 
 /**
  * Turns a wallet selection into a grant's wallet access. Null or undefined
- * means every wallet. Ids must name the account's own live wallets; a foreign
- * id reads exactly like a missing one.
+ * means every wallet, and so does any grant without `spend`: wallets are
+ * chosen only to narrow where payments can come from. Ids must name the
+ * account's own live wallets; a foreign id reads exactly like a missing one.
  *
+ * @param userId - The account, or null when the pubkey has none yet (it then
+ *   owns no wallet, so any selection is invalid).
  * @throws {ValidationError} For an empty selection or an unknown wallet.
  */
 export async function resolveWalletAccess(
-  userId: string,
-  walletIds: string[] | null | undefined
+  userId: string | null,
+  walletIds: string[] | null | undefined,
+  scopes: OAuthScope[]
 ): Promise<WalletAccess> {
-  if (walletIds == null) return { allWallets: true, walletIds: [] }
+  if (walletIds == null || !scopes.includes('spend')) {
+    return { allWallets: true, walletIds: [] }
+  }
   const unique = [...new Set(walletIds)]
   if (!unique.length) {
     throw new ValidationError('Select at least one wallet')
+  }
+  if (!userId) {
+    throw new ValidationError('One of the selected wallets was not found')
   }
   const owned = await prisma.remoteWallet.findMany({
     where: {
@@ -478,11 +487,14 @@ export async function revokeToken(token: string): Promise<void> {
 
 /** The account's working grants (code exchanged, not revoked, not expired). */
 export async function listActiveGrants(
-  userId: string
+  userId: string,
+  /** Only this grant (still required to be the account's and working). */
+  grantId?: string
 ): Promise<OAuthGrantSummary[]> {
   const grants = await prisma.oAuthGrant.findMany({
     where: {
       userId,
+      ...(grantId ? { id: grantId } : {}),
       codeUsedAt: { not: null },
       revokedAt: null,
       refreshExpiresAt: { gt: new Date() }
@@ -569,7 +581,7 @@ export async function updateUserGrant(
     update.spendLimitSats,
     [...OAUTH_SCOPES]
   )
-  const wallets = await resolveWalletAccess(userId, update.walletIds)
+  const wallets = await resolveWalletAccess(userId, update.walletIds, scopes)
   const { count } = await prisma.oAuthGrant.updateMany({
     where: { id: grant.id, revokedAt: null },
     data: { scopes, spendLimitSats, ...wallets }
@@ -595,7 +607,7 @@ export async function updateUserGrant(
     }
   })
 
-  const summary = (await listActiveGrants(userId)).find(g => g.id === grant.id)
+  const [summary] = await listActiveGrants(userId, grant.id)
   if (!summary) throw new NotFoundError('Authorization not found')
   return summary
 }
