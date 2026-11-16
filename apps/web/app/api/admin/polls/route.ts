@@ -18,8 +18,10 @@ export const GET = withErrorHandling(async (request: Request) => {
   const polls = await prisma.poll.findMany({
     orderBy: { createdAt: 'desc' },
     include: {
-      _count: { select: { responses: true } },
+      // Dismissed votes don't count; the freeze check in [id] still sees them.
+      _count: { select: { responses: { where: { dismissedAt: null } } } },
       responses: {
+        where: { dismissedAt: null },
         orderBy: { updatedAt: 'desc' },
         take: 1,
         select: { updatedAt: true }

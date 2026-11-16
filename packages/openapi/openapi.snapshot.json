@@ -28991,7 +28991,7 @@
           "Polls"
         ],
         "summary": "Poll results.",
-        "description": "`scores` (RANKING only) is a Borda count: a response with n entries gives n points to its first entry, n-1 to the next, …. Custom answers are tallied lowercased and trimmed.",
+        "description": "`scores` (RANKING only) is a Borda count: a response with n entries gives n points to its first entry, n-1 to the next, …. Custom answers are tallied lowercased and trimmed. Dismissed responses are listed in `voters` with `dismissed: true` but left out of every tally; `dismissed` counts them.",
         "operationId": "admin.polls.results",
         "security": [
           {
@@ -29021,6 +29021,9 @@
                   "type": "object",
                   "properties": {
                     "total": {
+                      "type": "integer"
+                    },
+                    "dismissed": {
                       "type": "integer"
                     },
                     "updatedAt": {
@@ -29128,6 +29131,12 @@
                           "updatedAt": {
                             "type": "string",
                             "format": "date-time"
+                          },
+                          "dismissed": {
+                            "type": "boolean",
+                            "enum": [
+                              true
+                            ]
                           }
                         },
                         "required": [
@@ -29141,11 +29150,142 @@
                   },
                   "required": [
                     "total",
+                    "dismissed",
                     "updatedAt",
                     "firstChoice",
                     "scores",
                     "custom",
                     "voters"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/polls/{id}/voters/{userId}": {
+      "patch": {
+        "x-required-role": "ADMIN",
+        "tags": [
+          "Polls"
+        ],
+        "summary": "Dismiss or restore a voter.",
+        "description": "A dismissed response stays listed but no longer counts in the results. It stays dismissed if the user answers again; send `dismissed: false` to restore it.",
+        "operationId": "admin.polls.dismissVoter",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "userId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "dismissed": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "dismissed"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated flag.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "userId": {
+                      "type": "string"
+                    },
+                    "dismissed": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "userId",
+                    "dismissed"
                   ]
                 }
               }

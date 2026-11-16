@@ -186,6 +186,7 @@ export const OPERATION_POLICY: Record<string, OperationPolicy> = {
   'admin.polls.update': WRITE,
   'admin.polls.delete': WRITE,
   'admin.polls.results': READ,
+  'admin.polls.dismissVoter': WRITE,
   'users.me.currencyPrefs.set': WRITE,
   'users.me.cardRecovery.set': exclude(
     'account-security change: decides whether a lost card can take over this account'

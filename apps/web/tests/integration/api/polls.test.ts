@@ -52,6 +52,7 @@ import {
 } from '@/app/api/admin/polls/[id]/route'
 import { Prisma } from '@/lib/generated/prisma'
 import { GET as getResults } from '@/app/api/admin/polls/[id]/results/route'
+import { PATCH as patchVoter } from '@/app/api/admin/polls/[id]/voters/[userId]/route'
 import { authenticate, authenticateWithRole } from '@/lib/auth/unified-auth'
 
 const pubkey = 'a'.repeat(64)
@@ -401,5 +402,80 @@ describe('admin polls', () => {
       lightningAddress: 'alice@example.com',
       npub: expect.stringMatching(/^npub1/)
     })
+  })
+
+  it('dismisses a voter: listed, flagged, not counted', async () => {
+    vi.mocked(authenticateWithRole).mockResolvedValue({} as any)
+    vi.mocked(prismaMock.poll.findUnique).mockResolvedValue({
+      ...poll(),
+      responses: [
+        {
+          userId: 'u1',
+          choices: ['rgb', 'tron'],
+          updatedAt: now,
+          dismissedAt: null,
+          user: { pubkey, lightningAddresses: [] }
+        },
+        {
+          userId: 'u2',
+          choices: ['tron', 'rgb'],
+          updatedAt: now,
+          dismissedAt: now,
+          user: { pubkey, lightningAddresses: [] }
+        }
+      ]
+    } as any)
+    const body: any = await assertResponse(
+      await getResults(
+        createNextRequest('/api/admin/polls/p1/results') as any,
+        createParamsPromise({ id: 'p1' })
+      ),
+      200
+    )
+    expect(body).toMatchObject({ total: 1, dismissed: 1 })
+    expect(body.firstChoice[0]).toMatchObject({ choice: 'rgb', count: 1 })
+    expect(body.voters.find((v: any) => v.userId === 'u2').dismissed).toBe(
+      true
+    )
+  })
+
+  function patchVoterReq(dismissed: unknown) {
+    return patchVoter(
+      createNextRequest('/api/admin/polls/p1/voters/u1', {
+        method: 'PATCH',
+        body: { dismissed }
+      }) as any,
+      createParamsPromise({ id: 'p1', userId: 'u1' })
+    )
+  }
+
+  it('flags a response as dismissed without bumping updatedAt', async () => {
+    vi.mocked(authenticateWithRole).mockResolvedValue({} as any)
+    vi.mocked(prismaMock.pollResponse.findUnique).mockResolvedValue({
+      updatedAt: now
+    } as any)
+    const body: any = await assertResponse(await patchVoterReq(true), 200)
+    expect(body).toEqual({ userId: 'u1', dismissed: true })
+    expect(prismaMock.pollResponse.update).toHaveBeenCalledWith({
+      where: { pollId_userId: { pollId: 'p1', userId: 'u1' } },
+      data: { dismissedAt: expect.any(Date), updatedAt: now }
+    })
+
+    await assertResponse(await patchVoterReq(false), 200)
+    expect(prismaMock.pollResponse.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: { dismissedAt: null, updatedAt: now }
+      })
+    )
+  })
+
+  it('404s an unknown voter, 400s a bad body, 403s non-admins', async () => {
+    vi.mocked(authenticateWithRole).mockResolvedValue({} as any)
+    vi.mocked(prismaMock.pollResponse.findUnique).mockResolvedValue(null)
+    await assertResponse(await patchVoterReq(true), 404)
+    await assertResponse(await patchVoterReq('yes'), 400)
+    vi.mocked(authenticateWithRole).mockRejectedValue(new AuthorizationError())
+    await assertResponse(await patchVoterReq(true), 403)
+    expect(prismaMock.pollResponse.update).not.toHaveBeenCalled()
   })
 })

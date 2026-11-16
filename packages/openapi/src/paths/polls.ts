@@ -1,12 +1,14 @@
 import { z } from 'zod'
 import {
   createPollSchema,
+  dismissPollVoterSchema,
   idParam,
   pollOptionSchema,
   pollResponseBodySchema,
   pollSlugParam,
   pollStatusSchema,
   pollTypeSchema,
+  pollVoterParam,
   updatePollSchema
 } from '@lawallet-nwc/shared'
 import {
@@ -195,7 +197,9 @@ registry.registerPath({
   description:
     '`scores` (RANKING only) is a Borda count: a response with n entries ' +
     'gives n points to its first entry, n-1 to the next, …. Custom answers ' +
-    'are tallied lowercased and trimmed.',
+    'are tallied lowercased and trimmed. Dismissed responses are listed in ' +
+    '`voters` with `dismissed: true` but left out of every tally; ' +
+    '`dismissed` counts them.',
   operationId: 'admin.polls.results',
   security: protectedSecurity,
   request: { params: idParam },
@@ -204,6 +208,7 @@ registry.registerPath({
       'Aggregated results and voters.',
       z.object({
         total: z.number().int(),
+        dismissed: z.number().int(),
         updatedAt: z.string().datetime().nullable(),
         firstChoice: z.array(
           z.object({ choice: z.string(), label: z.string(), count: z.number() })
@@ -230,10 +235,34 @@ registry.registerPath({
             lightningAddress: z.string().optional(),
             npub: z.string(),
             choices: z.array(z.string()),
-            updatedAt: z.string().datetime()
+            updatedAt: z.string().datetime(),
+            dismissed: z.literal(true).optional()
           })
         )
       })
+    ),
+    ...commonErrorResponses,
+    404: responses.notFound
+  }
+})
+
+registry.registerPath({
+  ...withRole('ADMIN'),
+  method: 'patch',
+  path: '/api/admin/polls/{id}/voters/{userId}',
+  tags: [TAG],
+  summary: 'Dismiss or restore a voter.',
+  description:
+    'A dismissed response stays listed but no longer counts in the results. ' +
+    'It stays dismissed if the user answers again; send `dismissed: false` ' +
+    'to restore it.',
+  operationId: 'admin.polls.dismissVoter',
+  security: protectedSecurity,
+  request: { params: pollVoterParam, body: json(dismissPollVoterSchema) },
+  responses: {
+    200: inlineJsonResponse(
+      'Updated flag.',
+      z.object({ userId: z.string(), dismissed: z.boolean() })
     ),
     ...commonErrorResponses,
     404: responses.notFound

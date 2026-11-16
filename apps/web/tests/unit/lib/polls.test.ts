@@ -99,6 +99,27 @@ describe('aggregateResults', () => {
     ])
   })
 
+  it('lists dismissed voters but leaves them out of every tally', () => {
+    const r = aggregateResults(ranking, [
+      vote('a', ['liquid'], '10:00'),
+      { ...vote('b', ['tron', 'custom:spam'], '11:00'), dismissed: true }
+    ])
+    expect(r).toMatchObject({
+      total: 1,
+      dismissed: 1,
+      updatedAt: at('10:00').toISOString(),
+      custom: []
+    })
+    expect(r.scores.find(s => s.choice === 'tron')).toMatchObject({
+      points: 0,
+      skipped: 1
+    })
+    expect(r.voters.map(v => [v.userId, v.dismissed])).toEqual([
+      ['b', true],
+      ['a', undefined]
+    ])
+  })
+
   it('has no scores for single choice and handles no votes', () => {
     const r = aggregateResults(single, [])
     expect(r).toMatchObject({

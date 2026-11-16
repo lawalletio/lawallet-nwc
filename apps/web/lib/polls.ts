@@ -93,6 +93,8 @@ export interface ResultsResponse {
   updatedAt: Date
   lightningAddress?: string | null
   npub: string
+  /** Discarded by an admin: listed in `voters`, left out of every tally. */
+  dismissed?: boolean
 }
 
 const CUSTOM_KEY = 'custom'
@@ -101,12 +103,11 @@ const CUSTOM_KEY = 'custom'
  * Aggregates responses. `scores` is a Borda count where a response with n
  * entries gives n points to its first entry, n-1 to the second, …; options a
  * response left out earn 0 and count in `skipped`. Custom entries are tallied
- * in `custom` (lowercased + trimmed) rather than scored.
+ * in `custom` (lowercased + trimmed) rather than scored. Dismissed responses
+ * only appear in `voters` (flagged) and count in `dismissed`.
  */
-export function aggregateResults(
-  poll: PollShape,
-  responses: ResultsResponse[]
-) {
+export function aggregateResults(poll: PollShape, all: ResultsResponse[]) {
+  const responses = all.filter(r => !r.dismissed)
   const labelOf = new Map(poll.options.map(o => [o.id, o.label]))
   const first = new Map<string, number>(poll.options.map(o => [o.id, 0]))
   const points = new Map<string, number>(poll.options.map(o => [o.id, 0]))
@@ -139,6 +140,7 @@ export function aggregateResults(
 
   return {
     total: responses.length,
+    dismissed: all.length - responses.length,
     updatedAt: updatedAt?.toISOString() ?? null,
     firstChoice: [...first]
       .map(([choice, count]) => ({
@@ -169,14 +171,15 @@ export function aggregateResults(
     custom: [...custom]
       .map(([label, count]) => ({ label, count }))
       .sort(byCount),
-    voters: [...responses]
+    voters: [...all]
       .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
       .map(r => ({
         userId: r.userId,
         ...(r.lightningAddress ? { lightningAddress: r.lightningAddress } : {}),
         npub: r.npub,
         choices: r.choices as string[],
-        updatedAt: r.updatedAt.toISOString()
+        updatedAt: r.updatedAt.toISOString(),
+        ...(r.dismissed ? { dismissed: true } : {})
       }))
   }
 }

@@ -2092,3 +2092,11 @@ export const pollResponseBodySchema = z.object({
   choices: z.array(z.string().min(1).max(100)).min(1).max(21)
 })
 export type PollResponseBody = z.infer<typeof pollResponseBodySchema>
+
+export const pollVoterParam = z.object({
+  id: z.string().min(1),
+  userId: z.string().min(1)
+})
+
+/** Body of `PATCH /api/admin/polls/{id}/voters/{userId}`. */
+export const dismissPollVoterSchema = z.object({ dismissed: z.boolean() })

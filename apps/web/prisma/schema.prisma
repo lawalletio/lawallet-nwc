@@ -1517,9 +1517,11 @@ model PollResponse {
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   /// Ordered `string[]` of option ids / `custom:<text>`.
-  choices   Json
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  choices     Json
+  /// Set when an admin discards this vote; it stays listed but is not counted.
+  dismissedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@unique([pollId, userId])
   @@index([userId])

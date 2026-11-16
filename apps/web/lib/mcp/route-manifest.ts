@@ -43,6 +43,8 @@ export const routeManifest: Record<string, () => Promise<RouteModule>> = {
   '/api/admin/polls/{id}': () => import('@/app/api/admin/polls/[id]/route'),
   '/api/admin/polls/{id}/results': () =>
     import('@/app/api/admin/polls/[id]/results/route'),
+  '/api/admin/polls/{id}/voters/{userId}': () =>
+    import('@/app/api/admin/polls/[id]/voters/[userId]/route'),
   '/api/admin/tools/invoice': () =>
     import('@/app/api/admin/tools/invoice/route'),
   '/api/auth/email/preview': () => import('@/app/api/auth/email/preview/route'),

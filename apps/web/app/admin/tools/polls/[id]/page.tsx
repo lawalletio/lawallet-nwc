@@ -9,7 +9,9 @@ import {
   MessageSquareText,
   Pencil,
   Play,
-  Square
+  Square,
+  Undo2,
+  UserX
 } from 'lucide-react'
 import {
   Bar,
@@ -161,6 +163,19 @@ export default function PollDashboardPage({
     }
   }
 
+  async function toggleDismiss(voter: { userId: string; dismissed?: boolean }) {
+    const dismissed = !voter.dismissed
+    try {
+      await mutate('patch', `/api/admin/polls/${id}/voters/${voter.userId}`, {
+        dismissed
+      })
+      toast.success(dismissed ? 'Vote dismissed' : 'Vote restored')
+      await refetchResults()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Update failed')
+    }
+  }
+
   const firstLoad = !p || !r
   const topPick =
     r && r.total > 0
@@ -288,7 +303,12 @@ export default function PollDashboardPage({
 
         {p?.allowCustom && <CustomCard results={r} />}
 
-        <VotersCard results={r} colorOf={colorOf} labelOf={labelOf} />
+        <VotersCard
+          results={r}
+          colorOf={colorOf}
+          labelOf={labelOf}
+          onToggleDismiss={toggleDismiss}
+        />
       </div>
 
       <PollFormDialog
@@ -447,7 +467,7 @@ function ScoresCard({
             <BarChart
               data={results.scores}
               layout="vertical"
-              margin={{ left: 0, right: 84, top: 4, bottom: 4 }}
+              margin={{ left: 0, right: 96, top: 4, bottom: 4 }}
               barCategoryGap={8}
             >
               <XAxis type="number" hide />
@@ -456,7 +476,7 @@ function ScoresCard({
                 dataKey="label"
                 tickLine={false}
                 axisLine={false}
-                width={112}
+                width={136}
                 tick={({ x, y, payload, index }) => {
                   const skipped = results.scores[index]?.skipped ?? 0
                   return (
@@ -578,21 +598,36 @@ function CustomCard({ results }: { results: PollResults | null }) {
   )
 }
 
+type Voter = PollResults['voters'][number]
+
 function VotersCard({
   results,
   colorOf,
-  labelOf
+  labelOf,
+  onToggleDismiss
 }: {
   results: PollResults | null
   colorOf: (choice: string) => string
   labelOf: Map<string, string>
+  onToggleDismiss: (voter: Voter) => Promise<void>
 }) {
+  const [busy, setBusy] = useState<string | null>(null)
+  async function toggle(voter: Voter) {
+    setBusy(voter.userId)
+    try {
+      await onToggleDismiss(voter)
+    } finally {
+      setBusy(null)
+    }
+  }
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-base">Voters</CardTitle>
         <CardDescription className="text-sm font-normal tracking-normal">
-          {results ? `${results.total} responses, newest first.` : ' '}
+          {results
+            ? `${results.total} counted${results.dismissed ? `, ${results.dismissed} dismissed` : ''} — newest first.`
+            : ' '}
         </CardDescription>
       </CardHeader>
       <CardContent className="px-0 sm:px-6">
@@ -609,11 +644,17 @@ function VotersCard({
                 <TableHead>Voter</TableHead>
                 <TableHead>Choices</TableHead>
                 <TableHead className="text-right">Updated</TableHead>
+                <TableHead className="w-10">
+                  <span className="sr-only">Actions</span>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {results.voters.map(v => (
-                <TableRow key={v.userId}>
+                <TableRow
+                  key={v.userId}
+                  className={cn(v.dismissed && 'text-muted-foreground')}
+                >
                   <TableCell className="min-w-[150px] max-w-[220px]">
                     <Link
                       href={`/admin/users/${v.userId}`}
@@ -627,10 +668,20 @@ function VotersCard({
                           {truncateNpub(v.npub)}
                         </span>
                       )}
+                      {v.dismissed && (
+                        <span className="text-xs font-medium text-muted-foreground">
+                          Dismissed · not counted
+                        </span>
+                      )}
                     </Link>
                   </TableCell>
                   <TableCell>
-                    <ol className="flex min-w-[240px] flex-wrap gap-1.5">
+                    <ol
+                      className={cn(
+                        'flex min-w-[240px] flex-wrap gap-1.5',
+                        v.dismissed && 'line-through opacity-50'
+                      )}
+                    >
                       {v.choices.map((choice, index) => {
                         const custom = choice.startsWith(CUSTOM_PREFIX)
                         return (
@@ -663,6 +714,27 @@ function VotersCard({
                     title={formatDateTime(v.updatedAt)}
                   >
                     {formatRelativeTime(v.updatedAt)}
+                  </TableCell>
+                  <TableCell className="pl-0">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-8"
+                      disabled={busy === v.userId}
+                      aria-label={v.dismissed ? 'Restore vote' : 'Dismiss vote'}
+                      title={
+                        v.dismissed
+                          ? 'Restore — count this vote again'
+                          : 'Dismiss — stop counting this vote'
+                      }
+                      onClick={() => void toggle(v)}
+                    >
+                      {v.dismissed ? (
+                        <Undo2 className="size-4" />
+                      ) : (
+                        <UserX className="size-4" />
+                      )}
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))}
