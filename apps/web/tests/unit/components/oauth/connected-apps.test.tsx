@@ -109,6 +109,17 @@ describe('ConnectedApps', () => {
     expect(await screen.findByText(CANONICAL_MCP_URL)).toBeInTheDocument()
     expect(fetchMock).toHaveBeenCalledWith(METADATA_PATH)
     expect(screen.queryByText(originMcpUrl())).not.toBeInTheDocument()
+    // Client snippets carry the canonical URL too.
+    expect(
+      screen.getByText(
+        `claude mcp add --transport http --scope user lawallet ${CANONICAL_MCP_URL}`
+      )
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(content =>
+        content.includes(`"url": "${CANONICAL_MCP_URL}"`)
+      )
+    ).toBeInTheDocument()
   })
 
   it.each([
