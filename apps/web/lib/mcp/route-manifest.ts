@@ -39,6 +39,10 @@ export const routeManifest: Record<string, () => Promise<RouteModule>> = {
     import('@/app/api/admin/backup/import/route'),
   '/api/admin/listener/status': () =>
     import('@/app/api/admin/listener/status/route'),
+  '/api/admin/polls': () => import('@/app/api/admin/polls/route'),
+  '/api/admin/polls/{id}': () => import('@/app/api/admin/polls/[id]/route'),
+  '/api/admin/polls/{id}/results': () =>
+    import('@/app/api/admin/polls/[id]/results/route'),
   '/api/admin/tools/invoice': () =>
     import('@/app/api/admin/tools/invoice/route'),
   '/api/auth/email/preview': () => import('@/app/api/auth/email/preview/route'),
@@ -120,6 +124,9 @@ export const routeManifest: Record<string, () => Promise<RouteModule>> = {
   '/api/openapi.json': () => import('@/app/api/openapi.json/route'),
   '/api/plugins': () => import('@/app/api/plugins/route'),
   '/api/plugins/{plugin}': () => import('@/app/api/plugins/[plugin]/route'),
+  '/api/polls/{slug}': () => import('@/app/api/polls/[slug]/route'),
+  '/api/polls/{slug}/response': () =>
+    import('@/app/api/polls/[slug]/response/route'),
   '/api/remote-connections/{externalDeviceKey}': () =>
     import('@/app/api/remote-connections/[externalDeviceKey]/route'),
   '/api/remote-connections/{externalDeviceKey}/cards': () =>

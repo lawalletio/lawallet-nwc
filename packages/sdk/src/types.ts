@@ -50,6 +50,27 @@ export interface CurrentUser {
   currencyPrefs: CurrencyPrefs | null
 }
 
+export interface Poll {
+  id: string
+  slug: string
+  title: string
+  description?: string
+  type: 'RANKING' | 'SINGLE_CHOICE'
+  options: { id: string; label: string }[]
+  allowCustom: boolean
+  /** false = one-time: answering locks the response. */
+  updatable: boolean
+  status: 'DRAFT' | 'OPEN' | 'CLOSED'
+  createdAt: string
+  updatedAt: string
+}
+
+/** Ordered option ids, plus at most one `custom:<text>` entry. */
+export interface PollResponse {
+  choices: string[]
+  updatedAt: string
+}
+
 export type WalletAddressMode = 'IDLE' | 'ALIAS' | 'PROXY_ALIAS' | 'CUSTOM_NWC'
 export type EffectiveNwcMode = 'NONE' | 'RECEIVE' | 'SEND_RECEIVE'
 
