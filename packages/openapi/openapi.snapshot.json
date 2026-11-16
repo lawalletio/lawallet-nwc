@@ -15126,6 +15126,152 @@
         }
       }
     },
+    "/api/admin/tools/invoice": {
+      "get": {
+        "x-required-role": "VIEWER",
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Look up a Lightning invoice.",
+        "description": "Verifies and decodes a bolt11 invoice, then resolves the local rows tied to its payment hash: an invoice minted here (owner, receiving wallet, status, preimage), card payments of it, and swaps paying it. For an invoice not minted here, `node` carries the payee node from Amboss. Requires `users:read`.",
+        "operationId": "admin.tools.invoiceLookup",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8192
+            },
+            "required": true,
+            "name": "invoice",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Decoded invoice and lookup results.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "invoice": {
+                      "type": "string"
+                    },
+                    "decoded": {
+                      "type": "object",
+                      "properties": {},
+                      "additionalProperties": {}
+                    },
+                    "isLocal": {
+                      "type": "boolean"
+                    },
+                    "local": {
+                      "type": "object",
+                      "properties": {
+                        "invoice": {
+                          "type": [
+                            "object",
+                            "null"
+                          ],
+                          "properties": {},
+                          "additionalProperties": {}
+                        },
+                        "cardPayments": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {},
+                            "additionalProperties": {}
+                          }
+                        },
+                        "swaps": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {},
+                            "additionalProperties": {}
+                          }
+                        }
+                      },
+                      "required": [
+                        "invoice",
+                        "cardPayments",
+                        "swaps"
+                      ]
+                    },
+                    "node": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {},
+                      "additionalProperties": {}
+                    }
+                  },
+                  "required": [
+                    "invoice",
+                    "decoded",
+                    "isLocal",
+                    "local",
+                    "node"
+                  ],
+                  "additionalProperties": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/setup/status": {
       "get": {
         "x-required-role": "PUBLIC",

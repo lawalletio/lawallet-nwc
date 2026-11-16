@@ -2010,3 +2010,10 @@ export const swapListQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(50).default(10)
 })
+
+// ── Admin tools ─────────────────────────────────────────────────────────────
+
+/** Query of `GET /api/admin/tools/invoice` — a bolt11, optionally `lightning:`-prefixed. */
+export const invoiceLookupQuerySchema = z.object({
+  invoice: z.string().trim().min(1, 'Invoice is required').max(8192)
+})
