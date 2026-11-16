@@ -45,6 +45,26 @@ describe('validateChoices', () => {
   })
 })
 
+describe('validateChoices — TEXT', () => {
+  const text = { type: 'TEXT' as const, options: [], allowCustom: false }
+
+  it('takes one trimmed custom:<text> answer up to 280 chars', () => {
+    expect(validateChoices(text, ['custom:  More stablecoins '])).toEqual([
+      'custom:More stablecoins'
+    ])
+    expect(validateChoices(text, [`custom:${'x'.repeat(280)}`])).toHaveLength(1)
+  })
+
+  it.each([
+    [['custom:a', 'custom:b'], /one custom/],
+    [['tron'], /Unknown/],
+    [[`custom:${'x'.repeat(281)}`], /1–280/],
+    [['custom:   '], /1–280/]
+  ])('rejects %j', (choices, message) => {
+    expect(() => validateChoices(text, choices)).toThrow(message)
+  })
+})
+
 describe('aggregateResults', () => {
   const at = (s: string) => new Date(`2026-11-16T${s}:00Z`)
   const vote = (userId: string, choices: string[], t: string) => ({

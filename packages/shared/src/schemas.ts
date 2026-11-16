@@ -2020,7 +2020,12 @@ export const invoiceLookupQuerySchema = z.object({
 
 // ── Polls ───────────────────────────────────────────────────────────────────
 
-export const pollTypeSchema = z.enum(['RANKING', 'SINGLE_CHOICE'])
+/**
+ * RANKING: order the options. SINGLE_CHOICE: pick one (plus an optional
+ * write-in when `allowCustom`). TEXT: a question answered in free text — no
+ * options; the answer is a single `custom:<text>` entry.
+ */
+export const pollTypeSchema = z.enum(['RANKING', 'SINGLE_CHOICE', 'TEXT'])
 export const pollStatusSchema = z.enum(['DRAFT', 'OPEN', 'CLOSED'])
 
 const pollSlugSchema = z
@@ -2050,7 +2055,6 @@ export type PollOption = z.infer<typeof pollOptionSchema>
 
 const pollOptionsSchema = z
   .array(pollOptionSchema)
-  .min(2, 'A poll needs at least 2 options')
   .max(20)
   .refine(
     options => new Set(options.map(o => o.id)).size === options.length,
@@ -2068,13 +2072,30 @@ const pollFields = {
   status: pollStatusSchema
 }
 
+/** Why a type/options pair is invalid, or null: TEXT has none, others ≥ 2. */
+export function pollShapeError(
+  type: z.infer<typeof pollTypeSchema>,
+  options: unknown[]
+): string | null {
+  if (type === 'TEXT') {
+    return options.length ? 'A free-text question has no options' : null
+  }
+  return options.length < 2 ? 'A poll needs at least 2 options' : null
+}
+
 /** Body of `POST /api/admin/polls`. */
-export const createPollSchema = z.object({
-  ...pollFields,
-  allowCustom: pollFields.allowCustom.default(false),
-  updatable: pollFields.updatable.default(true),
-  status: pollFields.status.default('DRAFT')
-})
+export const createPollSchema = z
+  .object({
+    ...pollFields,
+    options: pollOptionsSchema.default([]),
+    allowCustom: pollFields.allowCustom.default(false),
+    updatable: pollFields.updatable.default(true),
+    status: pollFields.status.default('DRAFT')
+  })
+  .superRefine((poll, ctx) => {
+    const message = pollShapeError(poll.type, poll.options)
+    if (message) ctx.addIssue({ code: 'custom', path: ['options'], message })
+  })
 export type CreatePollRequest = z.infer<typeof createPollSchema>
 
 /** Body of `PATCH /api/admin/polls/{id}` — any subset of the poll fields. */
@@ -2089,7 +2110,7 @@ export const pollSlugParam = z.object({ slug: z.string().min(1).max(64) })
  * single pick, custom allowed) are enforced by the route against the poll itself.
  */
 export const pollResponseBodySchema = z.object({
-  choices: z.array(z.string().min(1).max(100)).min(1).max(21)
+  choices: z.array(z.string().min(1).max(300)).min(1).max(21)
 })
 export type PollResponseBody = z.infer<typeof pollResponseBodySchema>
 
@@ -2103,6 +2124,6 @@ export const dismissPollVoterSchema = z.object({ dismissed: z.boolean() })
 
 /** Body of `PUT /api/admin/polls/{id}/custom-answers` — rename/merge. */
 export const renameCustomAnswerSchema = z.object({
-  from: z.string().trim().min(1).max(40),
-  to: z.string().trim().min(1).max(40)
+  from: z.string().trim().min(1).max(280),
+  to: z.string().trim().min(1).max(280)
 })

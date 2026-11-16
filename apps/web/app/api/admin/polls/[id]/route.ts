@@ -7,10 +7,15 @@ import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { validateBody, validateParams } from '@/lib/validation/middleware'
 import {
   idParam,
+  pollShapeError,
   updatePollSchema,
   type PollOption
 } from '@/lib/validation/schemas'
-import { ConflictError, NotFoundError } from '@/types/server/errors'
+import {
+  ConflictError,
+  NotFoundError,
+  ValidationError
+} from '@/types/server/errors'
 import { serializePoll } from '@/lib/polls'
 
 export const dynamic = 'force-dynamic'
@@ -49,6 +54,12 @@ export const PATCH = withErrorHandling(async (request: Request, ctx: Ctx) => {
   const { id } = validateParams(await ctx.params, idParam)
   const data = await validateBody(request, updatePollSchema)
   const poll = await loadPoll(id)
+
+  const shapeError = pollShapeError(
+    data.type ?? poll.type,
+    data.options ?? (poll.options as PollOption[])
+  )
+  if (shapeError) throw new ValidationError(shapeError)
 
   if (poll._count.responses > 0) {
     const ids = (options: PollOption[]) =>

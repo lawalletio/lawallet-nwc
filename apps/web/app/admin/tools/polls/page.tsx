@@ -19,6 +19,7 @@ import { toast } from 'sonner'
 import { AdminTopbar } from '@/components/admin/admin-topbar'
 import { useAuth } from '@/components/admin/auth-context'
 import {
+  POLL_TYPE_LABEL,
   PollFormDialog,
   type AdminPoll
 } from '@/components/admin/polls/poll-form-dialog'
@@ -154,10 +155,9 @@ export default function PollsPage() {
                   <code>{poll.slug}</code>
                   <span className="inline-flex items-center gap-1">
                     <ListOrdered className="size-3" />
-                    {poll.type === 'RANKING'
-                      ? 'Ranking'
-                      : 'Single choice'} · {poll.options.length} options
-                    {poll.allowCustom && ' + custom'}
+                    {POLL_TYPE_LABEL[poll.type]}
+                    {poll.type !== 'TEXT' &&
+                      ` · ${poll.options.length} options${poll.allowCustom ? ' + custom' : ''}`}
                   </span>
                 </div>
               </Link>

@@ -24,7 +24,7 @@ export interface AdminPoll {
   slug: string
   title: string
   description?: string
-  type: 'RANKING' | 'SINGLE_CHOICE'
+  type: 'RANKING' | 'SINGLE_CHOICE' | 'TEXT'
   options: { id: string; label: string }[]
   allowCustom: boolean
   updatable: boolean
@@ -33,6 +33,12 @@ export interface AdminPoll {
   updatedAt: string
   responseCount: number
   lastResponseAt?: string | null
+}
+
+export const POLL_TYPE_LABEL: Record<AdminPoll['type'], string> = {
+  RANKING: 'Ranking',
+  SINGLE_CHOICE: 'Multiple choice',
+  TEXT: 'Free text'
 }
 
 const slugify = (text: string) =>
@@ -82,6 +88,7 @@ export function PollFormDialog({
 
   // Type and option ids are frozen server-side once anyone answered.
   const frozen = !!poll && poll.responseCount > 0
+  const isText = type === 'TEXT'
 
   // Seed the form when the dialog opens — not on every new `poll` object,
   // since the dashboard refetches it every 10 s and would wipe live edits.
@@ -128,8 +135,8 @@ export function PollFormDialog({
       slug,
       description: description.trim() || null,
       type,
-      options: rows.map(({ id, label }) => ({ id, label })),
-      allowCustom,
+      options: isText ? [] : rows.map(({ id, label }) => ({ id, label })),
+      allowCustom: isText ? false : allowCustom,
       updatable,
       ...(status ? { status } : {})
     }
@@ -151,9 +158,10 @@ export function PollFormDialog({
   const valid =
     title.trim() &&
     slug &&
-    rows.length >= 2 &&
-    rows.every(r => r.id && r.label.trim()) &&
-    new Set(rows.map(r => r.id)).size === rows.length
+    (isText ||
+      (rows.length >= 2 &&
+        rows.every(r => r.id && r.label.trim()) &&
+        new Set(rows.map(r => r.id)).size === rows.length))
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -203,7 +211,11 @@ export function PollFormDialog({
               value={description}
               maxLength={500}
               rows={2}
-              placeholder="Optional context shown above the options."
+              placeholder={
+                isText
+                  ? 'The question, if the title is not enough.'
+                  : 'Optional context shown above the options.'
+              }
               onChange={e => setDescription(e.target.value)}
             />
           </div>
@@ -216,120 +228,129 @@ export function PollFormDialog({
               disabled={frozen}
               onChange={e => setType(e.target.value as AdminPoll['type'])}
             >
-              <option value="RANKING">Ranking — order every option</option>
-              <option value="SINGLE_CHOICE">Single choice — pick one</option>
+              <option value="RANKING">Ranking — order the options</option>
+              <option value="SINGLE_CHOICE">Multiple choice — pick one</option>
+              <option value="TEXT">Free text — answer a question</option>
             </NativeSelect>
           </div>
 
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center justify-between">
-              <Label>Options</Label>
-              {frozen && (
-                <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <Lock className="size-3" /> Ids locked — poll has responses
-                </span>
-              )}
-            </div>
-            <ol className="flex flex-col gap-2">
-              {rows.map((row, index) => (
-                <li
-                  key={row.key}
-                  className="flex items-center gap-2 rounded-lg border bg-muted/30 p-2"
-                >
-                  <span className="w-5 text-center text-xs tabular-nums text-muted-foreground">
-                    {index + 1}
+          {!isText && (
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <Label>Options</Label>
+                {frozen && (
+                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <Lock className="size-3" /> Ids locked — poll has responses
                   </span>
-                  <div className="flex min-w-0 flex-1 flex-col gap-1">
-                    <Input
-                      value={row.label}
-                      maxLength={80}
-                      placeholder="Label"
-                      aria-label={`Option ${index + 1} label`}
-                      className="h-8"
-                      onChange={e =>
-                        updateRow(row.key, { label: e.target.value })
-                      }
-                    />
-                    <Input
-                      value={row.id}
-                      placeholder="option-id"
-                      aria-label={`Option ${index + 1} id`}
-                      disabled={frozen}
-                      className="h-7 font-mono text-xs text-muted-foreground"
-                      onChange={e =>
-                        updateRow(row.key, {
-                          id: slugify(e.target.value),
-                          idTouched: true
-                        })
-                      }
-                    />
-                  </div>
-                  <div className="flex flex-col">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="size-7"
-                      aria-label="Move up"
-                      disabled={index === 0}
-                      onClick={() => move(index, -1)}
-                    >
-                      <ArrowUp className="size-3.5" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="size-7"
-                      aria-label="Move down"
-                      disabled={index === rows.length - 1}
-                      onClick={() => move(index, 1)}
-                    >
-                      <ArrowDown className="size-3.5" />
-                    </Button>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="size-8"
-                    aria-label="Remove option"
-                    disabled={frozen || rows.length <= 2}
-                    onClick={() =>
-                      setRows(current => current.filter(r => r.key !== row.key))
-                    }
+                )}
+              </div>
+              <ol className="flex flex-col gap-2">
+                {rows.map((row, index) => (
+                  <li
+                    key={row.key}
+                    className="flex items-center gap-2 rounded-lg border bg-muted/30 p-2"
                   >
-                    <X className="size-4" />
-                  </Button>
-                </li>
-              ))}
-            </ol>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="self-start"
-              disabled={frozen || rows.length >= 20}
-              onClick={() => setRows(current => [...current, blankRow()])}
-            >
-              <Plus className="size-4" /> Add option
-            </Button>
-          </div>
+                    <span className="w-5 text-center text-xs tabular-nums text-muted-foreground">
+                      {index + 1}
+                    </span>
+                    <div className="flex min-w-0 flex-1 flex-col gap-1">
+                      <Input
+                        value={row.label}
+                        maxLength={80}
+                        placeholder="Label"
+                        aria-label={`Option ${index + 1} label`}
+                        className="h-8"
+                        onChange={e =>
+                          updateRow(row.key, { label: e.target.value })
+                        }
+                      />
+                      <Input
+                        value={row.id}
+                        placeholder="option-id"
+                        aria-label={`Option ${index + 1} id`}
+                        disabled={frozen}
+                        className="h-7 font-mono text-xs text-muted-foreground"
+                        onChange={e =>
+                          updateRow(row.key, {
+                            id: slugify(e.target.value),
+                            idTouched: true
+                          })
+                        }
+                      />
+                    </div>
+                    <div className="flex flex-col">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-7"
+                        aria-label="Move up"
+                        disabled={index === 0}
+                        onClick={() => move(index, -1)}
+                      >
+                        <ArrowUp className="size-3.5" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-7"
+                        aria-label="Move down"
+                        disabled={index === rows.length - 1}
+                        onClick={() => move(index, 1)}
+                      >
+                        <ArrowDown className="size-3.5" />
+                      </Button>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-8"
+                      aria-label="Remove option"
+                      disabled={frozen || rows.length <= 2}
+                      onClick={() =>
+                        setRows(current =>
+                          current.filter(r => r.key !== row.key)
+                        )
+                      }
+                    >
+                      <X className="size-4" />
+                    </Button>
+                  </li>
+                ))}
+              </ol>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="self-start"
+                disabled={frozen || rows.length >= 20}
+                onClick={() => setRows(current => [...current, blankRow()])}
+              >
+                <Plus className="size-4" /> Add option
+              </Button>
+            </div>
+          )}
 
           <div className="flex flex-col gap-3 rounded-lg border p-3">
-            <div className="flex items-center justify-between gap-4">
-              <span className="flex flex-col">
-                <Label htmlFor="poll-allow-custom">Allow a custom answer</Label>
-                <span className="text-xs text-muted-foreground">
-                  Users may add one free-text entry (up to 40 characters).
+            {!isText && (
+              <div className="flex items-center justify-between gap-4">
+                <span className="flex flex-col">
+                  <Label htmlFor="poll-allow-custom">
+                    Allow a custom answer
+                  </Label>
+                  <span className="text-xs text-muted-foreground">
+                    Users may add one free-text entry (up to 40 characters).
+                  </span>
                 </span>
-              </span>
-              <Switch
-                id="poll-allow-custom"
-                checked={allowCustom}
-                onCheckedChange={setAllowCustom}
-              />
-            </div>
+                <Switch
+                  id="poll-allow-custom"
+                  checked={allowCustom}
+                  onCheckedChange={setAllowCustom}
+                />
+              </div>
+            )}
             <div className="flex items-center justify-between gap-4">
               <span className="flex flex-col">
                 <Label htmlFor="poll-updatable">Updatable</Label>

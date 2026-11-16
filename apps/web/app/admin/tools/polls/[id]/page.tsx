@@ -29,6 +29,7 @@ import { AdminTopbar } from '@/components/admin/admin-topbar'
 import { useAuth } from '@/components/admin/auth-context'
 import { StatCard } from '@/components/admin/stat-card'
 import {
+  POLL_TYPE_LABEL,
   PollFormDialog,
   type AdminPoll
 } from '@/components/admin/polls/poll-form-dialog'
@@ -196,11 +197,14 @@ export default function PollDashboardPage({
   }
 
   const firstLoad = !p || !r
+  const isText = p?.type === 'TEXT'
   const topPick =
     r && r.total > 0
       ? p?.type === 'RANKING'
         ? r.scores[0]?.label
-        : r.firstChoice[0]?.label
+        : isText
+          ? r.custom[0]?.label
+          : r.firstChoice[0]?.label
       : undefined
 
   return (
@@ -252,8 +256,9 @@ export default function PollDashboardPage({
               <PollStatusBadge status={p.status} />
               <code>/api/polls/{p.slug}</code>
               <span>
-                {p.type === 'RANKING' ? 'Ranking' : 'Single choice'} ·{' '}
-                {p.options.length} options{p.allowCustom && ' + custom'}
+                {POLL_TYPE_LABEL[p.type]}
+                {!isText &&
+                  ` · ${p.options.length} options${p.allowCustom ? ' + custom' : ''}`}
               </span>
               {!p.updatable && (
                 <span className="inline-flex items-center gap-1">
@@ -289,20 +294,32 @@ export default function PollDashboardPage({
             loading={firstLoad}
           />
           <StatCard
-            title="Top pick"
+            title={isText ? 'Top answer' : 'Top pick'}
             value={topPick ?? '—'}
             description={
               p?.type === 'RANKING'
                 ? 'Highest Borda score'
-                : 'Most first choices'
+                : isText
+                  ? 'Most common answer'
+                  : 'Most first choices'
             }
             loading={firstLoad}
           />
           <StatCard
-            title="Custom answers"
-            titleMobile="Custom"
-            value={r?.custom.reduce((sum, c) => sum + c.count, 0)}
-            description={r ? `${r.custom.length} distinct` : undefined}
+            title={isText ? 'Distinct answers' : 'Custom answers'}
+            titleMobile={isText ? 'Distinct' : 'Custom'}
+            value={
+              isText
+                ? r?.custom.length
+                : r?.custom.reduce((sum, c) => sum + c.count, 0)
+            }
+            description={
+              r
+                ? isText
+                  ? 'After grouping and merges'
+                  : `${r.custom.length} distinct`
+                : undefined
+            }
             loading={firstLoad}
           />
         </div>
@@ -314,19 +331,22 @@ export default function PollDashboardPage({
               'lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]'
           )}
         >
-          <FirstChoiceCard results={r} colorOf={colorOf} />
+          {!isText && <FirstChoiceCard results={r} colorOf={colorOf} />}
           {p?.type === 'RANKING' && (
             <ScoresCard results={r} colorOf={colorOf} />
           )}
         </div>
 
-        {p?.allowCustom && <CustomCard results={r} onRename={renameCustom} />}
+        {(p?.allowCustom || isText) && (
+          <CustomCard results={r} onRename={renameCustom} freeText={isText} />
+        )}
 
         <VotersCard
           results={r}
           colorOf={colorOf}
           labelOf={labelOf}
           onToggleDismiss={toggleDismiss}
+          freeText={isText}
         />
       </div>
 
@@ -582,10 +602,13 @@ function ScoresCard({
 
 function CustomCard({
   results,
-  onRename
+  onRename,
+  freeText
 }: {
   results: PollResults | null
   onRename: (from: string, to: string) => Promise<boolean>
+  /** TEXT poll: these are the answers themselves — longer, one per row. */
+  freeText?: boolean
 }) {
   const max = Math.max(1, ...(results?.custom.map(c => c.count) ?? []))
   const [editing, setEditing] = useState<string | null>(null)
@@ -606,7 +629,8 @@ function CustomCard({
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
-          <MessageSquareText className="size-4" /> Custom answers
+          <MessageSquareText className="size-4" />{' '}
+          {freeText ? 'Answers' : 'Custom answers'}
         </CardTitle>
         <CardDescription className="text-sm font-normal tracking-normal">
           Grouped case-insensitively. Click an answer to rename it — rename it
@@ -618,10 +642,12 @@ function CustomCard({
           <Skeleton className="h-16" />
         ) : results.custom.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            Nobody wrote in their own answer yet.
+            {freeText
+              ? 'No answers yet.'
+              : 'Nobody wrote in their own answer yet.'}
           </p>
         ) : (
-          <ul className="grid gap-2 sm:grid-cols-2">
+          <ul className={cn('grid gap-2', !freeText && 'sm:grid-cols-2')}>
             {results.custom.map(c =>
               editing === c.label ? (
                 <li key={c.label} className="flex flex-col gap-1">
@@ -629,7 +655,7 @@ function CustomCard({
                     autoFocus
                     onFocus={e => e.currentTarget.select()}
                     value={draft}
-                    maxLength={40}
+                    maxLength={freeText ? 280 : 40}
                     disabled={saving}
                     aria-label={`Rename “${c.label}”`}
                     list="poll-custom-answers"
@@ -661,7 +687,13 @@ function CustomCard({
                       style={{ width: `${(c.count / max) * 100}%` }}
                     />
                     <span className="relative flex min-w-0 flex-col">
-                      <span className="truncate">{c.label}</span>
+                      <span
+                        className={cn(
+                          freeText ? 'line-clamp-3 break-words' : 'truncate'
+                        )}
+                      >
+                        {c.label}
+                      </span>
                       {c.merged && (
                         <span className="truncate text-xs text-muted-foreground">
                           merged: {c.merged.join(', ')}
@@ -696,12 +728,14 @@ function VotersCard({
   results,
   colorOf,
   labelOf,
-  onToggleDismiss
+  onToggleDismiss,
+  freeText
 }: {
   results: PollResults | null
   colorOf: (choice: string) => string
   labelOf: Map<string, string>
   onToggleDismiss: (voter: Voter) => Promise<void>
+  freeText?: boolean
 }) {
   const [busy, setBusy] = useState<string | null>(null)
   async function toggle(voter: Voter) {
@@ -734,7 +768,7 @@ function VotersCard({
             <TableHeader>
               <TableRow>
                 <TableHead>Voter</TableHead>
-                <TableHead>Choices</TableHead>
+                <TableHead>{freeText ? 'Answer' : 'Choices'}</TableHead>
                 <TableHead className="text-right">Updated</TableHead>
               </TableRow>
             </TableHeader>
@@ -788,38 +822,49 @@ function VotersCard({
                     </div>
                   </TableCell>
                   <TableCell>
-                    <ol
-                      className={cn(
-                        'flex min-w-[240px] flex-wrap gap-1.5',
-                        v.dismissed && 'line-through opacity-50'
-                      )}
-                    >
-                      {v.choices.map((choice, index) => {
-                        const custom = choice.startsWith(CUSTOM_PREFIX)
-                        return (
-                          <li
-                            key={choice}
-                            className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border bg-background py-0.5 pl-0.5 pr-2 text-xs"
-                          >
-                            <span
-                              className="flex size-4 items-center justify-center rounded-full text-[10px] font-semibold text-white"
-                              style={{
-                                backgroundColor: colorOf(
-                                  custom ? CUSTOM : choice
-                                )
-                              }}
+                    {freeText ? (
+                      <p
+                        className={cn(
+                          'min-w-[240px] max-w-prose whitespace-pre-wrap break-words text-sm',
+                          v.dismissed && 'line-through opacity-50'
+                        )}
+                      >
+                        {v.choices[0]?.slice(CUSTOM_PREFIX.length)}
+                      </p>
+                    ) : (
+                      <ol
+                        className={cn(
+                          'flex min-w-[240px] flex-wrap gap-1.5',
+                          v.dismissed && 'line-through opacity-50'
+                        )}
+                      >
+                        {v.choices.map((choice, index) => {
+                          const custom = choice.startsWith(CUSTOM_PREFIX)
+                          return (
+                            <li
+                              key={choice}
+                              className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border bg-background py-0.5 pl-0.5 pr-2 text-xs"
                             >
-                              {index + 1}
-                            </span>
-                            <span className={cn(custom && 'italic')}>
-                              {custom
-                                ? choice.slice(CUSTOM_PREFIX.length)
-                                : (labelOf.get(choice) ?? choice)}
-                            </span>
-                          </li>
-                        )
-                      })}
-                    </ol>
+                              <span
+                                className="flex size-4 items-center justify-center rounded-full text-[10px] font-semibold text-white"
+                                style={{
+                                  backgroundColor: colorOf(
+                                    custom ? CUSTOM : choice
+                                  )
+                                }}
+                              >
+                                {index + 1}
+                              </span>
+                              <span className={cn(custom && 'italic')}>
+                                {custom
+                                  ? choice.slice(CUSTOM_PREFIX.length)
+                                  : (labelOf.get(choice) ?? choice)}
+                              </span>
+                            </li>
+                          )
+                        })}
+                      </ol>
+                    )}
                   </TableCell>
                   <TableCell
                     className="whitespace-nowrap text-right text-xs text-muted-foreground"

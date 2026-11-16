@@ -84,7 +84,8 @@ registry.registerPath({
     '`allowCustom`). RANKING: an ordered subset of option ids (at least one ' +
     'entry, no duplicates) plus at most one custom entry, in preference ' +
     'order; options left out count as skipped. SINGLE_CHOICE: exactly one ' +
-    'entry. ' +
+    'entry. TEXT (a free-text question, no options): exactly one ' +
+    '`custom:<text>` entry of 1–280 chars, regardless of `allowCustom`. ' +
     '409 `POLL_LOCKED` when a one-time poll was already answered, 409 ' +
     '`POLL_CLOSED` when the poll is not open.',
   operationId: 'polls.respond',

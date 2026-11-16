@@ -55,7 +55,8 @@ export interface Poll {
   slug: string
   title: string
   description?: string
-  type: 'RANKING' | 'SINGLE_CHOICE'
+  /** TEXT = free-text question: answer with one `custom:<text>` entry. */
+  type: 'RANKING' | 'SINGLE_CHOICE' | 'TEXT'
   options: { id: string; label: string }[]
   allowCustom: boolean
   /** false = one-time: answering locks the response. */

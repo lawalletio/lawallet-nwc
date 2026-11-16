@@ -1479,10 +1479,12 @@ model Swap {
 }
 
 enum PollType {
-  /// Order every option (plus an optional custom entry).
+  /// Order a subset of the options (plus an optional custom entry).
   RANKING
   /// Pick exactly one entry.
   SINGLE_CHOICE
+  /// Free-text question: one `custom:<text>` answer, no options.
+  TEXT
 }
 
 enum PollStatus {

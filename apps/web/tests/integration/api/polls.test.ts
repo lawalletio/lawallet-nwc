@@ -528,4 +528,63 @@ describe('admin polls', () => {
     await assertResponse(await renameReq({ from: 'a', to: 'b' }), 403)
     expect(prismaMock.poll.update).not.toHaveBeenCalled()
   })
+
+  it('creates a TEXT poll without options and rejects options on it', async () => {
+    vi.mocked(authenticateWithRole).mockResolvedValue({} as any)
+    vi.mocked(prismaMock.poll.create).mockResolvedValue(
+      poll({ type: 'TEXT', options: [] }) as any
+    )
+    const create = (body: unknown) =>
+      createPoll(
+        createNextRequest('/api/admin/polls', { method: 'POST', body }) as any
+      )
+    const base = { slug: 'ask', title: 'What next?', type: 'TEXT' }
+    await assertResponse(await create(base), 201)
+    expect(prismaMock.poll.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ type: 'TEXT', options: [] })
+    })
+    await assertResponse(
+      await create({ ...base, options: [{ id: 'a', label: 'A' }] }),
+      400
+    )
+    await assertResponse(await create({ ...base, type: 'RANKING' }), 400)
+  })
+
+  it('PATCH rejects switching to TEXT while options remain', async () => {
+    vi.mocked(authenticateWithRole).mockResolvedValue({} as any)
+    vi.mocked(prismaMock.poll.findUnique).mockResolvedValue({
+      ...poll(),
+      _count: { responses: 0 }
+    } as any)
+    const patch = (body: unknown) =>
+      patchPoll(
+        createNextRequest('/api/admin/polls/p1', {
+          method: 'PATCH',
+          body
+        }) as any,
+        createParamsPromise({ id: 'p1' })
+      )
+    await assertResponse(await patch({ type: 'TEXT' }), 400)
+    vi.mocked(prismaMock.poll.update).mockResolvedValue(
+      poll({ type: 'TEXT', options: [] }) as any
+    )
+    await assertResponse(await patch({ type: 'TEXT', options: [] }), 200)
+  })
+
+  it('answers a TEXT poll with one custom:<text>', async () => {
+    vi.mocked(authenticate).mockResolvedValue({
+      role: Role.USER,
+      pubkey,
+      method: 'jwt'
+    } as any)
+    vi.mocked(prismaMock.poll.findUnique).mockResolvedValue(
+      poll({ type: 'TEXT', options: [], allowCustom: false }) as any
+    )
+    vi.mocked(prismaMock.pollResponse.upsert).mockResolvedValue({
+      choices: ['custom:More stablecoins'],
+      updatedAt: now
+    } as any)
+    await assertResponse(await put(['custom: More stablecoins ']), 200)
+    await assertResponse(await put(['tron']), 400)
+  })
 })

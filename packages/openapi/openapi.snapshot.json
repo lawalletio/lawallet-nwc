@@ -27721,7 +27721,8 @@
                           "type": "string",
                           "enum": [
                             "RANKING",
-                            "SINGLE_CHOICE"
+                            "SINGLE_CHOICE",
+                            "TEXT"
                           ]
                         },
                         "options": {
@@ -27875,7 +27876,7 @@
           "Polls"
         ],
         "summary": "Submit your poll response.",
-        "description": "Each entry is an option id or `custom:<text>` (1–40 chars, only when `allowCustom`). RANKING: an ordered subset of option ids (at least one entry, no duplicates) plus at most one custom entry, in preference order; options left out count as skipped. SINGLE_CHOICE: exactly one entry. 409 `POLL_LOCKED` when a one-time poll was already answered, 409 `POLL_CLOSED` when the poll is not open.",
+        "description": "Each entry is an option id or `custom:<text>` (1–40 chars, only when `allowCustom`). RANKING: an ordered subset of option ids (at least one entry, no duplicates) plus at most one custom entry, in preference order; options left out count as skipped. SINGLE_CHOICE: exactly one entry. TEXT (a free-text question, no options): exactly one `custom:<text>` entry of 1–280 chars, regardless of `allowCustom`. 409 `POLL_LOCKED` when a one-time poll was already answered, 409 `POLL_CLOSED` when the poll is not open.",
         "operationId": "polls.respond",
         "security": [
           {
@@ -27908,7 +27909,7 @@
                     "items": {
                       "type": "string",
                       "minLength": 1,
-                      "maxLength": 100
+                      "maxLength": 300
                     },
                     "minItems": 1,
                     "maxItems": 21
@@ -28061,7 +28062,8 @@
                         "type": "string",
                         "enum": [
                           "RANKING",
-                          "SINGLE_CHOICE"
+                          "SINGLE_CHOICE",
+                          "TEXT"
                         ]
                       },
                       "options": {
@@ -28225,7 +28227,8 @@
                     "type": "string",
                     "enum": [
                       "RANKING",
-                      "SINGLE_CHOICE"
+                      "SINGLE_CHOICE",
+                      "TEXT"
                     ]
                   },
                   "options": {
@@ -28250,8 +28253,8 @@
                         "label"
                       ]
                     },
-                    "minItems": 2,
-                    "maxItems": 20
+                    "maxItems": 20,
+                    "default": []
                   },
                   "allowCustom": {
                     "type": "boolean",
@@ -28274,8 +28277,7 @@
                 "required": [
                   "slug",
                   "title",
-                  "type",
-                  "options"
+                  "type"
                 ]
               }
             }
@@ -28305,7 +28307,8 @@
                       "type": "string",
                       "enum": [
                         "RANKING",
-                        "SINGLE_CHOICE"
+                        "SINGLE_CHOICE",
+                        "TEXT"
                       ]
                     },
                     "options": {
@@ -28487,7 +28490,8 @@
                       "type": "string",
                       "enum": [
                         "RANKING",
-                        "SINGLE_CHOICE"
+                        "SINGLE_CHOICE",
+                        "TEXT"
                       ]
                     },
                     "options": {
@@ -28672,7 +28676,8 @@
                     "type": "string",
                     "enum": [
                       "RANKING",
-                      "SINGLE_CHOICE"
+                      "SINGLE_CHOICE",
+                      "TEXT"
                     ]
                   },
                   "options": {
@@ -28697,7 +28702,6 @@
                         "label"
                       ]
                     },
-                    "minItems": 2,
                     "maxItems": 20
                   },
                   "allowCustom": {
@@ -28743,7 +28747,8 @@
                       "type": "string",
                       "enum": [
                         "RANKING",
-                        "SINGLE_CHOICE"
+                        "SINGLE_CHOICE",
+                        "TEXT"
                       ]
                     },
                     "options": {
@@ -29388,12 +29393,12 @@
                   "from": {
                     "type": "string",
                     "minLength": 1,
-                    "maxLength": 40
+                    "maxLength": 280
                   },
                   "to": {
                     "type": "string",
                     "minLength": 1,
-                    "maxLength": 40
+                    "maxLength": 280
                   }
                 },
                 "required": [

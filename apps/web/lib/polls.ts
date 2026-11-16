@@ -1,7 +1,7 @@
 import type { PollOption } from '@/lib/validation/schemas'
 import { ValidationError } from '@/types/server/errors'
 
-export type PollType = 'RANKING' | 'SINGLE_CHOICE'
+export type PollType = 'RANKING' | 'SINGLE_CHOICE' | 'TEXT'
 
 export interface PollShape {
   type: PollType
@@ -33,6 +33,8 @@ export function mergeCustomAlias(
 
 export const CUSTOM_PREFIX = 'custom:'
 const CUSTOM_MAX = 40
+/** TEXT polls take a longer free-form answer than a write-in option. */
+const TEXT_MAX = 280
 
 /** The public poll JSON (`{ id, slug, …, createdAt, updatedAt }`). */
 export function serializePoll(poll: {
@@ -67,7 +69,8 @@ export function serializePoll(poll: {
  * Validates a response against the poll and returns it normalised (custom
  * text trimmed). RANKING: an ordered subset of option ids (left-out options
  * are skipped), no duplicates, plus at most one custom entry anywhere in the
- * order. SINGLE_CHOICE: exactly one entry. Both need at least one entry.
+ * order. SINGLE_CHOICE: exactly one entry. TEXT: exactly one `custom:<text>`
+ * (up to 280 chars; there are no options). All need at least one entry.
  */
 export function validateChoices(poll: PollShape, choices: string[]): string[] {
   const optionIds = new Set(poll.options.map(o => o.id))
@@ -76,14 +79,13 @@ export function validateChoices(poll: PollShape, choices: string[]): string[] {
 
   const normalised = choices.map(entry => {
     if (entry.startsWith(CUSTOM_PREFIX)) {
-      if (!poll.allowCustom) {
+      if (!poll.allowCustom && poll.type !== 'TEXT') {
         throw new ValidationError('This poll does not accept custom answers')
       }
+      const max = poll.type === 'TEXT' ? TEXT_MAX : CUSTOM_MAX
       const text = entry.slice(CUSTOM_PREFIX.length).trim()
-      if (text.length < 1 || text.length > CUSTOM_MAX) {
-        throw new ValidationError(
-          `Custom answers must be 1–${CUSTOM_MAX} characters`
-        )
+      if (text.length < 1 || text.length > max) {
+        throw new ValidationError(`Custom answers must be 1–${max} characters`)
       }
       if (++customs > 1) {
         throw new ValidationError('Only one custom answer is allowed')
@@ -100,8 +102,10 @@ export function validateChoices(poll: PollShape, choices: string[]): string[] {
     return entry
   })
 
-  if (poll.type === 'SINGLE_CHOICE' && normalised.length !== 1) {
-    throw new ValidationError('Pick exactly one answer')
+  if (poll.type !== 'RANKING' && normalised.length !== 1) {
+    throw new ValidationError(
+      poll.type === 'TEXT' ? 'Send one answer' : 'Pick exactly one answer'
+    )
   }
   if (normalised.length === 0) {
     throw new ValidationError('Rank at least one option')
