@@ -15,34 +15,21 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 /**
- * PATCH /api/admin/polls/{id}/voters/{userId} — dismiss (or restore) a vote.
- * Dismissed responses stay listed but drop out of every tally.
+ * PATCH /api/admin/polls/voters/{userId} — dismiss (or restore) a voter in
+ * every poll. Their responses stay listed but drop out of every tally.
  */
 export const PATCH = withErrorHandling(
-  async (
-    request: Request,
-    ctx: { params: Promise<{ id: string; userId: string }> }
-  ) => {
+  async (request: Request, ctx: { params: Promise<{ userId: string }> }) => {
     await checkRequestLimits(request, 'json')
     await authenticateWithRole(request, Role.ADMIN)
-    const { id, userId } = validateParams(await ctx.params, pollVoterParam)
+    const { userId } = validateParams(await ctx.params, pollVoterParam)
     const { dismissed } = await validateBody(request, dismissPollVoterSchema)
 
-    const where = { pollId_userId: { pollId: id, userId } }
-    const response = await prisma.pollResponse.findUnique({
-      where,
-      select: { updatedAt: true }
+    const { count } = await prisma.user.updateMany({
+      where: { id: userId },
+      data: { pollsDismissedAt: dismissed ? new Date() : null }
     })
-    if (!response) throw new NotFoundError('Response not found')
-
-    await prisma.pollResponse.update({
-      where,
-      // Keep updatedAt: dismissing is not the voter answering again.
-      data: {
-        dismissedAt: dismissed ? new Date() : null,
-        updatedAt: response.updatedAt
-      }
-    })
+    if (!count) throw new NotFoundError('User not found')
     return NextResponse.json({ userId, dismissed })
   }
 )

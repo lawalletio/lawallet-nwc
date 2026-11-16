@@ -168,10 +168,12 @@ export default function PollDashboardPage({
   async function toggleDismiss(voter: { userId: string; dismissed?: boolean }) {
     const dismissed = !voter.dismissed
     try {
-      await mutate('patch', `/api/admin/polls/${id}/voters/${voter.userId}`, {
+      await mutate('patch', `/api/admin/polls/voters/${voter.userId}`, {
         dismissed
       })
-      toast.success(dismissed ? 'Vote dismissed' : 'Vote restored')
+      toast.success(
+        dismissed ? 'Voter dismissed from all polls' : 'Voter restored'
+      )
       await refetchResults()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Update failed')
@@ -794,7 +796,7 @@ function VotersCard({
                         )}
                         {v.dismissed && (
                           <span className="text-xs font-medium text-muted-foreground">
-                            Dismissed · not counted
+                            Dismissed · not counted in any poll
                           </span>
                         )}
                       </Link>
@@ -804,12 +806,12 @@ function VotersCard({
                         className="size-7 shrink-0"
                         disabled={busy === v.userId}
                         aria-label={
-                          v.dismissed ? 'Restore vote' : 'Dismiss vote'
+                          v.dismissed ? 'Restore voter' : 'Dismiss voter'
                         }
                         title={
                           v.dismissed
-                            ? 'Restore — count this vote again'
-                            : 'Dismiss — stop counting this vote'
+                            ? 'Restore — count this voter in every poll again'
+                            : 'Dismiss — stop counting this voter in every poll'
                         }
                         onClick={() => void toggle(v)}
                       >

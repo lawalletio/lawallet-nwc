@@ -29,10 +29,10 @@ export const GET = withErrorHandling(
               userId: true,
               choices: true,
               updatedAt: true,
-              dismissedAt: true,
               user: {
                 select: {
                   pubkey: true,
+                  pollsDismissedAt: true,
                   lightningAddresses: {
                     where: { isPrimary: true },
                     take: 1,
@@ -59,7 +59,7 @@ export const GET = withErrorHandling(
             updatedAt: r.updatedAt,
             npub: nip19.npubEncode(r.user.pubkey),
             lightningAddress: username ? `${username}@${domain}` : null,
-            dismissed: !!r.dismissedAt
+            dismissed: !!r.user.pollsDismissedAt
           }
         })
       )

@@ -186,6 +186,7 @@ export const OPERATION_POLICY: Record<string, OperationPolicy> = {
   'admin.polls.update': WRITE,
   'admin.polls.delete': WRITE,
   'admin.polls.results': READ,
+  'admin.polls.voters': READ,
   'admin.polls.dismissVoter': WRITE,
   'admin.polls.renameCustomAnswer': WRITE,
   'users.me.currencyPrefs.set': WRITE,

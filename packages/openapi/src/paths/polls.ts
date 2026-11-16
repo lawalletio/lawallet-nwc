@@ -9,6 +9,7 @@ import {
   pollStatusSchema,
   pollTypeSchema,
   pollVoterParam,
+  pollVotersQuerySchema,
   renameCustomAnswerSchema,
   updatePollSchema
 } from '@lawallet-nwc/shared'
@@ -201,7 +202,8 @@ registry.registerPath({
     'gives n points to its first entry, n-1 to the next, …. Custom answers ' +
     'are tallied lowercased and trimmed; a custom first pick appears in ' +
     '`firstChoice` as `custom:<text>` labelled with its text. Dismissed responses are listed in ' +
-    '`voters` with `dismissed: true` but left out of every tally; ' +
+    '`voters` with `dismissed: true` (dismissal is per user, across all ' +
+    'polls) but left out of every tally; ' +
     '`dismissed` counts them.',
   operationId: 'admin.polls.results',
   security: protectedSecurity,
@@ -260,14 +262,49 @@ registry.registerPath({
 
 registry.registerPath({
   ...withRole('ADMIN'),
-  method: 'patch',
-  path: '/api/admin/polls/{id}/voters/{userId}',
+  method: 'get',
+  path: '/api/admin/polls/voters',
   tags: [TAG],
-  summary: 'Dismiss or restore a voter.',
+  summary: 'Most active poll voters.',
   description:
-    'A dismissed response stays listed but no longer counts in the results. ' +
-    'It stays dismissed if the user answers again; send `dismissed: false` ' +
-    'to restore it.',
+    'Users ranked by how many polls they answered (ties: most recent vote), ' +
+    'paginated. Dismissed voters are included with `dismissed: true`.',
+  operationId: 'admin.polls.voters',
+  security: protectedSecurity,
+  request: { query: pollVotersQuerySchema },
+  responses: {
+    200: inlineJsonResponse(
+      'A page of voters.',
+      z.object({
+        items: z.array(
+          z.object({
+            userId: z.string(),
+            lightningAddress: z.string().optional(),
+            npub: z.string(),
+            responseCount: z.number().int(),
+            lastVoteAt: z.string().datetime().nullable(),
+            dismissed: z.literal(true).optional()
+          })
+        ),
+        total: z.number().int(),
+        page: z.number().int(),
+        pageSize: z.number().int()
+      })
+    ),
+    ...commonErrorResponses
+  }
+})
+
+registry.registerPath({
+  ...withRole('ADMIN'),
+  method: 'patch',
+  path: '/api/admin/polls/voters/{userId}',
+  tags: [TAG],
+  summary: 'Dismiss or restore a voter in every poll.',
+  description:
+    'A dismissed user’s responses stay listed but no longer count in any ' +
+    'poll’s results, including answers they give later. Send ' +
+    '`dismissed: false` to restore them.',
   operationId: 'admin.polls.dismissVoter',
   security: protectedSecurity,
   request: { params: pollVoterParam, body: json(dismissPollVoterSchema) },

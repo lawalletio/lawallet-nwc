@@ -28996,7 +28996,7 @@
           "Polls"
         ],
         "summary": "Poll results.",
-        "description": "`scores` (RANKING only) is a Borda count: a response with n entries gives n points to its first entry, n-1 to the next, …. Custom answers are tallied lowercased and trimmed; a custom first pick appears in `firstChoice` as `custom:<text>` labelled with its text. Dismissed responses are listed in `voters` with `dismissed: true` but left out of every tally; `dismissed` counts them.",
+        "description": "`scores` (RANKING only) is a Borda count: a response with n entries gives n points to its first entry, n-1 to the next, …. Custom answers are tallied lowercased and trimmed; a custom first pick appears in `firstChoice` as `custom:<text>` labelled with its text. Dismissed responses are listed in `voters` with `dismissed: true` (dismissal is per user, across all polls) but left out of every tally; `dismissed` counts them.",
         "operationId": "admin.polls.results",
         "security": [
           {
@@ -29226,15 +29226,15 @@
         }
       }
     },
-    "/api/admin/polls/{id}/voters/{userId}": {
-      "patch": {
+    "/api/admin/polls/voters": {
+      "get": {
         "x-required-role": "ADMIN",
         "tags": [
           "Polls"
         ],
-        "summary": "Dismiss or restore a voter.",
-        "description": "A dismissed response stays listed but no longer counts in the results. It stays dismissed if the user answers again; send `dismissed: false` to restore it.",
-        "operationId": "admin.polls.dismissVoter",
+        "summary": "Most active poll voters.",
+        "description": "Users ranked by how many polls they answered (ties: most recent vote), paginated. Dismissed voters are included with `dismissed: true`.",
+        "operationId": "admin.polls.voters",
         "security": [
           {
             "BearerJWT": []
@@ -29246,13 +29246,154 @@
         "parameters": [
           {
             "schema": {
-              "type": "string",
-              "minLength": 1
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
             },
-            "required": true,
-            "name": "id",
-            "in": "path"
+            "required": false,
+            "name": "page",
+            "in": "query"
           },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 10
+            },
+            "required": false,
+            "name": "pageSize",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of voters.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "userId": {
+                            "type": "string"
+                          },
+                          "lightningAddress": {
+                            "type": "string"
+                          },
+                          "npub": {
+                            "type": "string"
+                          },
+                          "responseCount": {
+                            "type": "integer"
+                          },
+                          "lastVoteAt": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "date-time"
+                          },
+                          "dismissed": {
+                            "type": "boolean",
+                            "enum": [
+                              true
+                            ]
+                          }
+                        },
+                        "required": [
+                          "userId",
+                          "npub",
+                          "responseCount",
+                          "lastVoteAt"
+                        ]
+                      }
+                    },
+                    "total": {
+                      "type": "integer"
+                    },
+                    "page": {
+                      "type": "integer"
+                    },
+                    "pageSize": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "total",
+                    "page",
+                    "pageSize"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/polls/voters/{userId}": {
+      "patch": {
+        "x-required-role": "ADMIN",
+        "tags": [
+          "Polls"
+        ],
+        "summary": "Dismiss or restore a voter in every poll.",
+        "description": "A dismissed user’s responses stay listed but no longer count in any poll’s results, including answers they give later. Send `dismissed: false` to restore them.",
+        "operationId": "admin.polls.dismissVoter",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "parameters": [
           {
             "schema": {
               "type": "string",

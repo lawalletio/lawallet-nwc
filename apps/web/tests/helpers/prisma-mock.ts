@@ -17,7 +17,8 @@ function createModelMock() {
     deleteMany: vi.fn(),
     upsert: vi.fn(),
     count: vi.fn(),
-    aggregate: vi.fn()
+    aggregate: vi.fn(),
+    groupBy: vi.fn()
   }
 }
 

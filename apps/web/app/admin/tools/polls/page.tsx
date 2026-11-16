@@ -24,6 +24,7 @@ import {
   type AdminPoll
 } from '@/components/admin/polls/poll-form-dialog'
 import { PollStatusBadge } from '@/components/admin/polls/poll-status-badge'
+import { TopVotersCard } from '@/components/admin/polls/top-voters-card'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -213,6 +214,15 @@ export default function PollsPage() {
             </CardContent>
           </Card>
         ))}
+
+        {allowed && !!data?.length && (
+          <div className="mt-6">
+            <TopVotersCard
+              pollCount={data.length}
+              onChange={() => void refetch()}
+            />
+          </div>
+        )}
       </div>
 
       <PollFormDialog

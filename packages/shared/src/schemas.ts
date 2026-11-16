@@ -2114,13 +2114,16 @@ export const pollResponseBodySchema = z.object({
 })
 export type PollResponseBody = z.infer<typeof pollResponseBodySchema>
 
-export const pollVoterParam = z.object({
-  id: z.string().min(1),
-  userId: z.string().min(1)
-})
+export const pollVoterParam = z.object({ userId: z.string().min(1) })
 
-/** Body of `PATCH /api/admin/polls/{id}/voters/{userId}`. */
+/** Body of `PATCH /api/admin/polls/voters/{userId}` — applies to every poll. */
 export const dismissPollVoterSchema = z.object({ dismissed: z.boolean() })
+
+/** Query of `GET /api/admin/polls/voters`. */
+export const pollVotersQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(50).default(10)
+})
 
 /** Body of `PUT /api/admin/polls/{id}/custom-answers` — rename/merge. */
 export const renameCustomAnswerSchema = z.object({

@@ -40,13 +40,14 @@ export const routeManifest: Record<string, () => Promise<RouteModule>> = {
   '/api/admin/listener/status': () =>
     import('@/app/api/admin/listener/status/route'),
   '/api/admin/polls': () => import('@/app/api/admin/polls/route'),
+  '/api/admin/polls/voters': () => import('@/app/api/admin/polls/voters/route'),
+  '/api/admin/polls/voters/{userId}': () =>
+    import('@/app/api/admin/polls/voters/[userId]/route'),
   '/api/admin/polls/{id}': () => import('@/app/api/admin/polls/[id]/route'),
   '/api/admin/polls/{id}/custom-answers': () =>
     import('@/app/api/admin/polls/[id]/custom-answers/route'),
   '/api/admin/polls/{id}/results': () =>
     import('@/app/api/admin/polls/[id]/results/route'),
-  '/api/admin/polls/{id}/voters/{userId}': () =>
-    import('@/app/api/admin/polls/[id]/voters/[userId]/route'),
   '/api/admin/tools/invoice': () =>
     import('@/app/api/admin/tools/invoice/route'),
   '/api/auth/email/preview': () => import('@/app/api/auth/email/preview/route'),

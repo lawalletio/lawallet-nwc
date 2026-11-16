@@ -8,6 +8,8 @@ import { validateBody } from '@/lib/validation/middleware'
 import { createPollSchema } from '@/lib/validation/schemas'
 import { serializePoll } from '@/lib/polls'
 
+const counted = { user: { pollsDismissedAt: null } }
+
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
@@ -18,10 +20,10 @@ export const GET = withErrorHandling(async (request: Request) => {
   const polls = await prisma.poll.findMany({
     orderBy: { createdAt: 'desc' },
     include: {
-      // Dismissed votes don't count; the freeze check in [id] still sees them.
-      _count: { select: { responses: { where: { dismissedAt: null } } } },
+      // Dismissed voters don't count; the freeze check in [id] still sees them.
+      _count: { select: { responses: { where: counted } } },
       responses: {
-        where: { dismissedAt: null },
+        where: counted,
         orderBy: { updatedAt: 'desc' },
         take: 1,
         select: { updatedAt: true }
