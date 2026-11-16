@@ -176,7 +176,10 @@ export default function UsersPage() {
 function UserRow({ user, onClick }: { user: AdminUser; onClick: () => void }) {
   const { profile } = useNostrProfile(user.pubkey)
   const displayName =
-    profile?.displayName || profile?.name || truncateNpub(user.pubkey)
+    profile?.displayName ||
+    profile?.name ||
+    user.primaryAddress ||
+    truncateNpub(user.pubkey)
   const fallback = npubInitials(user.pubkey)
 
   return (
