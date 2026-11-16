@@ -17,7 +17,8 @@ function createModelMock() {
     deleteMany: vi.fn(),
     upsert: vi.fn(),
     count: vi.fn(),
-    aggregate: vi.fn()
+    aggregate: vi.fn(),
+    groupBy: vi.fn()
   }
 }
 
@@ -66,6 +67,8 @@ function createPrismaMock(): PrismaClient {
     oAuthGrant: createModelMock(),
     mcpPayment: createModelMock(),
     swap: createModelMock(),
+    poll: createModelMock(),
+    pollResponse: createModelMock(),
     accountRecovery: createModelMock(),
     $transaction: vi.fn(fn => {
       if (typeof fn === 'function') {
@@ -132,6 +135,9 @@ export function resetPrismaMock() {
     'oAuthClient',
     'oAuthGrant',
     'mcpPayment',
+    'swap',
+    'poll',
+    'pollResponse',
     'accountRecovery'
   ] as const
   for (const model of models) {

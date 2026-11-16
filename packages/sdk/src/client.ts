@@ -21,6 +21,8 @@ import type {
   Lud06Response,
   JwtToken,
   Nip05Response,
+  Poll,
+  PollResponse,
   ProvisionAddressInput,
   ProvisionedAddress,
   PublicInstanceSettings,
@@ -177,6 +179,26 @@ export class LaWalletClient {
       currencyPrefs: CurrencyPrefs
     ): Promise<{ currencyPrefs: CurrencyPrefs }> =>
       this.http.put('/api/users/me/currency-prefs', { currencyPrefs })
+  }
+
+  readonly polls = {
+    /** A published poll and the caller's response (null until answered). */
+    get: (
+      slug: string
+    ): Promise<{ poll: Poll; response: PollResponse | null }> =>
+      this.http.get(`/api/polls/${encodeURIComponent(slug)}`),
+
+    /**
+     * Submits the caller's answer. Throws `LaWalletError` with status 409 and
+     * code `POLL_LOCKED` (one-time poll already answered) or `POLL_CLOSED`.
+     */
+    respond: (
+      slug: string,
+      choices: string[]
+    ): Promise<{ response: PollResponse }> =>
+      this.http.put(`/api/polls/${encodeURIComponent(slug)}/response`, {
+        choices
+      })
   }
 
   readonly addresses = {

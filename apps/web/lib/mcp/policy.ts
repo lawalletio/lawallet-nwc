@@ -178,6 +178,17 @@ export const OPERATION_POLICY: Record<string, OperationPolicy> = {
   // Users
   'users.list': READ,
   'users.me': READ,
+  'polls.get': READ,
+  'polls.respond': WRITE,
+  'admin.polls.list': READ,
+  'admin.polls.create': WRITE,
+  'admin.polls.get': READ,
+  'admin.polls.update': WRITE,
+  'admin.polls.delete': WRITE,
+  'admin.polls.results': READ,
+  'admin.polls.voters': READ,
+  'admin.polls.dismissVoter': WRITE,
+  'admin.polls.renameCustomAnswer': WRITE,
   'users.me.currencyPrefs.set': WRITE,
   'users.me.cardRecovery.set': exclude(
     'account-security change: decides whether a lost card can take over this account'

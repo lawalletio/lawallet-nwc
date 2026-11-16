@@ -127,6 +127,11 @@ function buildDocument(): OpenAPIObject {
         description: 'Card lifecycle: create, list, scan, write, OTC.'
       },
       {
+        name: 'Polls',
+        description:
+          'Admin-published preference polls users rank or pick from their wallet.'
+      },
+      {
         name: 'Card Designs',
         description: 'Visual templates assigned to cards.'
       },
