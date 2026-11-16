@@ -114,9 +114,10 @@ describe('aggregateResults', () => {
       points: 0,
       skipped: 1
     })
+    // b is newer but dismissed, so it sinks below a
     expect(r.voters.map(v => [v.userId, v.dismissed])).toEqual([
-      ['b', true],
-      ['a', undefined]
+      ['a', undefined],
+      ['b', true]
     ])
   })
 

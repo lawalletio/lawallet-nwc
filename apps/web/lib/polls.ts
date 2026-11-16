@@ -171,8 +171,13 @@ export function aggregateResults(poll: PollShape, all: ResultsResponse[]) {
     custom: [...custom]
       .map(([label, count]) => ({ label, count }))
       .sort(byCount),
+    // Counted voters newest first, then dismissed ones (newest first).
     voters: [...all]
-      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
+      .sort(
+        (a, b) =>
+          Number(!!a.dismissed) - Number(!!b.dismissed) ||
+          b.updatedAt.getTime() - a.updatedAt.getTime()
+      )
       .map(r => ({
         userId: r.userId,
         ...(r.lightningAddress ? { lightningAddress: r.lightningAddress } : {}),

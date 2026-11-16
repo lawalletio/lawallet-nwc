@@ -626,7 +626,7 @@ function VotersCard({
         <CardTitle className="text-base">Voters</CardTitle>
         <CardDescription className="text-sm font-normal tracking-normal">
           {results
-            ? `${results.total} counted${results.dismissed ? `, ${results.dismissed} dismissed` : ''} — newest first.`
+            ? `${results.total} counted${results.dismissed ? `, ${results.dismissed} dismissed` : ''} — newest first${results.dismissed ? ', dismissed last' : ''}.`
             : ' '}
         </CardDescription>
       </CardHeader>
@@ -644,9 +644,6 @@ function VotersCard({
                 <TableHead>Voter</TableHead>
                 <TableHead>Choices</TableHead>
                 <TableHead className="text-right">Updated</TableHead>
-                <TableHead className="w-10">
-                  <span className="sr-only">Actions</span>
-                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -655,25 +652,48 @@ function VotersCard({
                   key={v.userId}
                   className={cn(v.dismissed && 'text-muted-foreground')}
                 >
-                  <TableCell className="min-w-[150px] max-w-[220px]">
-                    <Link
-                      href={`/admin/users/${v.userId}`}
-                      className="flex flex-col hover:underline"
-                    >
-                      <span className="truncate font-medium">
-                        {v.lightningAddress ?? truncateNpub(v.npub)}
-                      </span>
-                      {v.lightningAddress && (
-                        <span className="truncate font-mono text-xs text-muted-foreground">
-                          {truncateNpub(v.npub)}
+                  <TableCell className="min-w-[180px] max-w-[260px]">
+                    <div className="flex items-start gap-1">
+                      <Link
+                        href={`/admin/users/${v.userId}`}
+                        className="flex min-w-0 flex-col hover:underline"
+                      >
+                        <span className="truncate font-medium">
+                          {v.lightningAddress ?? truncateNpub(v.npub)}
                         </span>
-                      )}
-                      {v.dismissed && (
-                        <span className="text-xs font-medium text-muted-foreground">
-                          Dismissed · not counted
-                        </span>
-                      )}
-                    </Link>
+                        {v.lightningAddress && (
+                          <span className="truncate font-mono text-xs text-muted-foreground">
+                            {truncateNpub(v.npub)}
+                          </span>
+                        )}
+                        {v.dismissed && (
+                          <span className="text-xs font-medium text-muted-foreground">
+                            Dismissed · not counted
+                          </span>
+                        )}
+                      </Link>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-7 shrink-0"
+                        disabled={busy === v.userId}
+                        aria-label={
+                          v.dismissed ? 'Restore vote' : 'Dismiss vote'
+                        }
+                        title={
+                          v.dismissed
+                            ? 'Restore — count this vote again'
+                            : 'Dismiss — stop counting this vote'
+                        }
+                        onClick={() => void toggle(v)}
+                      >
+                        {v.dismissed ? (
+                          <Undo2 className="size-4" />
+                        ) : (
+                          <UserX className="size-4" />
+                        )}
+                      </Button>
+                    </div>
                   </TableCell>
                   <TableCell>
                     <ol
@@ -714,27 +734,6 @@ function VotersCard({
                     title={formatDateTime(v.updatedAt)}
                   >
                     {formatRelativeTime(v.updatedAt)}
-                  </TableCell>
-                  <TableCell className="pl-0">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="size-8"
-                      disabled={busy === v.userId}
-                      aria-label={v.dismissed ? 'Restore vote' : 'Dismiss vote'}
-                      title={
-                        v.dismissed
-                          ? 'Restore — count this vote again'
-                          : 'Dismiss — stop counting this vote'
-                      }
-                      onClick={() => void toggle(v)}
-                    >
-                      {v.dismissed ? (
-                        <Undo2 className="size-4" />
-                      ) : (
-                        <UserX className="size-4" />
-                      )}
-                    </Button>
                   </TableCell>
                 </TableRow>
               ))}
