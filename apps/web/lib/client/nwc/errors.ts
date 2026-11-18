@@ -17,9 +17,11 @@ export function nwcErrorKind(err: unknown): NwcErrorKind | null {
     err instanceof Error ? err.message : String(err ?? '')
   ).toLowerCase()
 
-  // Relay unreachable — publish to every relay failed, or the pool gave up.
+  // Relay unreachable — publish to every relay failed (or none acked it, the
+  // SDK 9 "publish timeout:"), or the pool gave up.
   if (
     msg.includes('failed to publish') ||
+    msg.includes('publish timeout') ||
     msg.includes('all promises were rejected') ||
     msg.includes('failed to connect to any relay') ||
     msg.includes('connection to relay')

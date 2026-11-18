@@ -436,9 +436,11 @@ describe('GET /api/users/me', () => {
           remoteWalletId: 'wallet-custom',
           // The address's *own* bound wallet — must win over the default.
           remoteWallet: {
+            id: 'wallet-custom',
             type: 'NWC',
             config: { connectionString: addressConnUri, mode: 'RECEIVE' },
-            status: 'ACTIVE'
+            status: 'ACTIVE',
+            updatedAt: new Date()
           }
         }
       ],
@@ -452,6 +454,9 @@ describe('GET /api/users/me', () => {
 
     expect(body.primaryAddressMode).toBe('CUSTOM_NWC')
     expect(body.effectiveNwcString).toBe(addressConnUri)
+    // The primary wallet comes from the row already loaded, not a re-read.
+    expect(body.nwcString).toBe(addressConnUri)
+    expect(prismaMock.lightningAddress.findFirst).not.toHaveBeenCalled()
   })
 
   it('returns the replacement when the primary LNCurl wallet is DEAD', async () => {

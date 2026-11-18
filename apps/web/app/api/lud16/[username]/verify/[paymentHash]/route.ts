@@ -52,68 +52,37 @@ export const GET = withErrorHandling(
         return NextResponse.json(error, { status: 400 })
       }
 
-      // Find the stored invoice. We need to confirm the payment hash actually
-      // belongs to the lightning address being queried — pull the user's
-      // addresses scoped to the matching username (cheap by-PK lookup).
+      // Ownership is part of the WHERE (a hash belonging to another account,
+      // or to an address this user doesn't hold, simply isn't found), and only
+      // the invoice's own columns load: this is one statement. Most polls stop
+      // at paid / expired / throttled, so the wallet, address and proxy rows
+      // (one round-trip per nesting level in Prisma 7) load only when needed.
       const invoice = await prisma.invoice.findUnique({
-        where: { paymentHash },
-        // Exactly what this handler and `settleInvoiceFromWallet` read.
+        where: {
+          paymentHash,
+          user: { lightningAddresses: { some: { username } } }
+        },
         select: {
           id: true,
           bolt11: true,
-          paymentHash: true,
-          amountSats: true,
-          description: true,
-          purpose: true,
           status: true,
           preimage: true,
-          metadata: true,
-          userId: true,
           expiresAt: true,
-          paidAt: true,
-          createdAt: true,
-          zapRequest: true,
-          proxyPayment: { select: { id: true } },
-          remoteWallet: {
-            select: { id: true, type: true, config: true, status: true }
-          },
-          user: {
-            select: {
-              lightningAddresses: {
-                where: { username },
-                select: {
-                  username: true,
-                  mode: true,
-                  redirect: true,
-                  remoteWallet: {
-                    select: { id: true, type: true, config: true, status: true }
-                  }
-                },
-                take: 1
-              }
-            }
-          }
+          zapRequest: true
         }
       })
 
-      if (!invoice || !invoice.user) {
+      if (!invoice) {
         throw new NotFoundError('Invoice not found')
-      }
-
-      // Ensure the payment hash belongs to this username (prevent cross-user
-      // lookups). The include filters on `username`, so a hash belonging to
-      // someone else comes back with no address at all.
-      const address = invoice.user.lightningAddresses[0]
-      if (!address || address.username !== username) {
-        throw new NotFoundError('Invoice not found for this username')
       }
 
       // The authenticated listener can confirm settlement even when a wallet
       // notification omits the optional preimage. LUD-21's preimage is nullable,
       // so the persisted source status remains authoritative in either case.
       if (invoice.status === 'PAID') {
-        if (!invoice.proxyPayment && invoice.zapRequest) {
-          after(() => publishInvoiceZapReceipt(invoice.id))
+        if (invoice.zapRequest) {
+          const { proxyPayment } = await loadSettlable(invoice.id, username)
+          if (!proxyPayment) after(() => publishInvoiceZapReceipt(invoice.id))
         }
         const response: LUD21VerifySuccess = {
           status: 'OK',
@@ -149,9 +118,10 @@ export const GET = withErrorHandling(
       // the answer means subsequent polls skip the NWC round-trip. Lookup and
       // settlement are shared with the NIP-57 sweep so the two can't disagree
       // about what counts as paid.
-      const settlement = await settleInvoiceFromWallet(invoice, {
+      const settlable = await loadSettlable(invoice.id, username)
+      const settlement = await settleInvoiceFromWallet(settlable, {
         source: 'lud21_verify',
-        address,
+        address: settlable.user?.lightningAddresses[0] ?? null,
         schedule: task => after(task)
       })
 
@@ -177,3 +147,48 @@ export const GET = withErrorHandling(
   ),
   { headers: PUBLIC_READ_CORS_HEADERS }
 )
+
+/** Everything `settleInvoiceFromWallet` reads, plus the address it may route by. */
+async function loadSettlable(id: string, username: string) {
+  const invoice = await prisma.invoice.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      bolt11: true,
+      paymentHash: true,
+      amountSats: true,
+      description: true,
+      purpose: true,
+      status: true,
+      preimage: true,
+      metadata: true,
+      userId: true,
+      expiresAt: true,
+      paidAt: true,
+      createdAt: true,
+      zapRequest: true,
+      proxyPayment: { select: { id: true } },
+      remoteWallet: {
+        select: { id: true, type: true, config: true, status: true }
+      },
+      user: {
+        select: {
+          lightningAddresses: {
+            where: { username },
+            select: {
+              mode: true,
+              redirect: true,
+              remoteWallet: {
+                select: { id: true, type: true, config: true, status: true }
+              }
+            },
+            take: 1
+          }
+        }
+      }
+    }
+  })
+  // Only if the row vanished (account deleted) since the first read.
+  if (!invoice) throw new NotFoundError('Invoice not found')
+  return invoice
+}

@@ -7,8 +7,8 @@ import { resolveAccountByPubkey } from '@/lib/auth/account'
 import { resolveAddressDomain } from '@/lib/public-url'
 import { resolveWalletRoute } from '@/lib/wallet/resolve-payment-route'
 import {
-  getAddresslessNwcWalletForUser,
-  getPrimaryRemoteWalletForUser
+  derivePrimaryWallet,
+  getAddresslessNwcWalletForUser
 } from '@/lib/wallet/primary-wallet'
 import { decryptRemoteWalletConfig } from '@/lib/wallet/remote-wallet-vault'
 import { reviveDeadCourtesyWallet } from '@/lib/wallet/lncurl-wallet'
@@ -54,13 +54,20 @@ export const GET = withErrorHandling(async (request: Request) => {
   // `domain=lacrypta.ar` — so `resolveAddressDomain` reads the address
   // domain directly rather than `resolvePublicEndpoint`, which mixes the
   // two concerns.
-  const addressDomain = await resolveAddressDomain(request)
-
+  //
   // A courtesy LNCurl wallet the provider already destroyed must be replaced
   // before send or receive read this connection string. Non-LNCurl wallets
   // are left alone. `reviveDeadCourtesyWallet` re-points the primary address
   // at the replacement, so mirror that onto the row already in hand.
-  const revived = await reviveDeadCourtesyWallet(user.id)
+  //
+  // The transfer notice is set when a card recovery moved this account's
+  // resources to another account; the wallet shows it until dismissed.
+  // These three reads are independent, so they share one round-trip window.
+  const [addressDomain, revived, transferNotice] = await Promise.all([
+    resolveAddressDomain(request),
+    reviveDeadCourtesyWallet(user.id),
+    getAccountTransferNotice(user.id)
+  ])
   let primaryAddress = user.lightningAddresses[0]
   if (revived && primaryAddress) {
     primaryAddress = {
@@ -99,10 +106,12 @@ export const GET = withErrorHandling(async (request: Request) => {
   // that link, but is no longer the source of truth. An account with no
   // address yet uses its ACTIVE NWC wallet (the courtesy LNCurl one), so it
   // can receive before claiming a name and the wallet UI stops minting more.
+  // `primaryAddress` already carries its wallet (same `isPrimary` row the
+  // include loaded, or the stray just promoted), so no second lookup.
   const primaryWallet =
     revived ??
     (primaryAddress
-      ? await getPrimaryRemoteWalletForUser(user.id)
+      ? derivePrimaryWallet(primaryAddress)
       : await getAddresslessNwcWalletForUser(user.id))
   const primaryWalletConfig = primaryWallet
     ? decryptRemoteWalletConfig(
@@ -139,9 +148,6 @@ export const GET = withErrorHandling(async (request: Request) => {
       })()
     : null
 
-  // Set when a card recovery moved this account's resources to another
-  // account; the wallet shows a notice until the owner dismisses it.
-  const transferNotice = await getAccountTransferNotice(user.id)
   const accountTransfer = transferNotice
     ? {
         ...transferNotice,

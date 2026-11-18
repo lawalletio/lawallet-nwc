@@ -105,7 +105,6 @@ export function QrDisplay({
             className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-full border-[3px] border-white bg-white shadow-md"
             style={{ width: overlaySize, height: overlaySize }}
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={centerImage}
               alt=""

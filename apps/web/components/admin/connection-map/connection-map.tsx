@@ -518,9 +518,11 @@ function ConnectionMapInner() {
           // (background, edge default colors, MiniMap, etc.) to dark-mode
           // values. Our `connection-map.css` further tunes the Controls
           // panel to match the admin palette.
-          colorMode="dark"
+          forceColorMode="dark"
           fitView
-          fitViewOptions={{ padding: 0.2, maxZoom: 1 }}
+          // xyflow 13: bare numbers are pixels. The old legacy-unit 0.2
+          // grew the bounds by 20% (~10% per side).
+          fitViewOptions={{ padding: '10%', maxZoom: 1 }}
           // Layout stays fixed (positions are deterministic) but handles
           // are interactive so users can connect / rebind / disconnect LA
           // edges. Card handles opt out via `isConnectable={false}` in

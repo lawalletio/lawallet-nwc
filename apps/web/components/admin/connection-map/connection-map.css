@@ -4,7 +4,7 @@
  *
  * Without these, the Controls fall back to xyflow's light-mode defaults
  * (white buttons, black icons), which read as a foreign tile glued onto
- * our dark canvas. xyflow's own `colorMode="dark"` flips a few palette
+ * our dark canvas. xyflow's own `forceColorMode="dark"` flips a few palette
  * variables but its grey is a different shade than the admin theme, so
  * we map the relevant rules onto the same HSL tokens shadcn uses
  * elsewhere in the app.

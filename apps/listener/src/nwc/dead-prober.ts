@@ -1,4 +1,9 @@
-import { Nip47Error, Nip47TimeoutError } from '@getalby/sdk'
+import {
+  Nip47Error,
+  Nip47PublishError,
+  Nip47PublishTimeoutError,
+  Nip47TimeoutError
+} from '@getalby/sdk'
 import type { NWCClient } from '@getalby/sdk'
 import type pg from 'pg'
 import type { Logger } from 'pino'
@@ -447,6 +452,14 @@ export class DeadWalletProber {
       .getInfo()
       .then(() => 'alive' as const)
       .catch((err: unknown) => {
+        // A relay that refused or never acked the request means the wallet
+        // never saw it: neither a reply nor evidence of death. Checked first —
+        // since @getalby/sdk 9 the publish timeout is a Nip47TimeoutError.
+        if (
+          err instanceof Nip47PublishTimeoutError ||
+          err instanceof Nip47PublishError
+        )
+          return 'inconclusive' as const
         // Check the no-reply timeout BEFORE the general Nip47Error (it's a
         // subclass). A wallet that replies with any NIP-47 error is alive.
         if (err instanceof Nip47TimeoutError) return 'timeout' as const

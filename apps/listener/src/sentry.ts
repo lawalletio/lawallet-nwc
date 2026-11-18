@@ -74,6 +74,13 @@ export function initSentry(env: ListenerEnv): void {
     environment: env.SENTRY_ENVIRONMENT ?? process.env.NODE_ENV ?? 'production',
     release: env.SENTRY_RELEASE,
     tracesSampler: sampleTrace,
+    // Every call this daemon makes to web starts from a timer or a relay event,
+    // never inside a request worth linking — and outside a span the SDK
+    // propagates the ONE trace id created at boot. That stitched every tick,
+    // webhook and sweep since the last restart into a single trace (31k+ spans).
+    // Inbound web → listener linking is unaffected (that's continuation, not
+    // propagation).
+    tracePropagationTargets: [],
     // pino → Sentry Logs (v11 has no `enableLogs` gate; the integration is the
     // switch). Logs only: warn/error are NOT turned into error events — the
     // pool logs every retry at warn and reports to Sentry itself, throttled.
@@ -133,7 +140,9 @@ const TRANSPORT_FAILURES: [kind: string, pattern: RegExp][] = [
   ['relay_connect', /^Failed to connect to (\S+)/],
   ['no_info_event', /no info event \(kind 13194\)/],
   ['reply_timeout', /^reply timeout:/],
-  ['publish_failed', /^failed to publish:/]
+  ['publish_failed', /^failed to publish:/],
+  // @getalby/sdk 9: a relay that never acks within 5s.
+  ['publish_timeout', /^publish timeout:/]
 ]
 
 /** Sentry fingerprint for a known transport failure, or null for anything else. */

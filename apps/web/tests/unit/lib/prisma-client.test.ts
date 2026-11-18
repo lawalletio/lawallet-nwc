@@ -68,7 +68,8 @@ describe('lib/prisma pool', () => {
       connectionString: 'postgresql://x@h/db',
       max: 3,
       connectionTimeoutMillis: 5000,
-      idleTimeoutMillis: 10000
+      idleTimeoutMillis: 60000,
+      keepAlive: true
     })
   })
 

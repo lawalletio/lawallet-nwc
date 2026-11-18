@@ -162,11 +162,12 @@ export async function findCourtesyReviveTarget(userId: string): Promise<{
   previousWalletId: string
   serverUrl: string | undefined
 } | null> {
-  const settings = await getSettings([
-    'lncurl_enabled',
-    'lncurl_auto_recreate',
-    'lncurl_server_url'
-  ])
+  // Hot (15s) snapshot: this runs on every /users/me and LUD-16 lookup, and
+  // a toggle taking a few seconds to apply is fine.
+  const settings = await getSettings(
+    ['lncurl_enabled', 'lncurl_auto_recreate', 'lncurl_server_url'],
+    { cache: 'hot' }
+  )
   if (
     settings.lncurl_enabled !== 'true' ||
     settings.lncurl_auto_recreate !== 'true'

@@ -13,15 +13,21 @@ const log = createLogger({ module: 'prisma' })
 /**
  * Serverless instances each hold their own pool, so a small `max` keeps a
  * burst of cold starts from exhausting Postgres connections; long-lived
- * servers can afford more. Idle connections are closed quickly so a frozen
- * lambda doesn't pin them, and a stuck connect fails fast instead of hanging.
+ * servers can afford more. A stuck connect fails fast instead of hanging.
+ *
+ * Idle connections live 60s: at 10s the 15s balance poll and the listener's
+ * 20s tick reconnected almost every time (~22ms `pg.connect`, on 54–85% of
+ * LUD-21 verify / zap-settle / LUD-16 requests per Sentry traces). On Vercel
+ * `DATABASE_URL` is Neon's `-pooler` host, so a frozen instance pinning ≤3
+ * client sockets for a minute costs PgBouncer nothing.
  */
 export function poolConfig(env = getEnv(false)) {
   return {
     connectionString: env.DATABASE_URL,
     max: env.DATABASE_POOL_MAX ?? (process.env.VERCEL ? 3 : 10),
     connectionTimeoutMillis: 5_000,
-    idleTimeoutMillis: 10_000
+    idleTimeoutMillis: 60_000,
+    keepAlive: true
   }
 }
 

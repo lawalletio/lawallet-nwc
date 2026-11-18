@@ -300,8 +300,7 @@ describe('resolveProfiles', () => {
       precacheImages
     })
 
-    expect(prismaMock.$transaction).toHaveBeenCalledTimes(1)
-    expect(vi.mocked(prismaMock.$transaction).mock.calls[0][0]).toHaveLength(3)
+    expect(prismaMock.$transaction).not.toHaveBeenCalled()
     expect(prismaMock.nostrProfileCache.upsert).toHaveBeenCalledTimes(3)
     expect(prismaMock.nostrProfileCache.upsert).toHaveBeenCalledWith({
       where: { npub: NPUB_A },
@@ -366,8 +365,7 @@ describe('resolveProfiles', () => {
 
     expect(profiles).toEqual([])
     expect(precacheImages).not.toHaveBeenCalled()
-    expect(prismaMock.$transaction).toHaveBeenCalledTimes(1)
-    expect(vi.mocked(prismaMock.$transaction).mock.calls[0][0]).toHaveLength(2)
+    expect(prismaMock.nostrProfileCache.upsert).toHaveBeenCalledTimes(2)
     for (const [npub, pubkey] of [
       [NPUB_A, PUBKEY_A],
       [NPUB_B, PUBKEY_B]
@@ -390,9 +388,9 @@ describe('resolveProfiles', () => {
       { pubkey: PUBKEY_A }
     ] as any)
     vi.mocked(prismaMock.nostrProfileCache.findMany).mockResolvedValue([])
-    vi.mocked(prismaMock.$transaction)
-      .mockRejectedValueOnce(new Error('db down'))
-      .mockResolvedValueOnce([] as any)
+    vi.mocked(prismaMock.nostrProfileCache.upsert).mockRejectedValueOnce(
+      new Error('db down')
+    )
     const relayFetcher = vi
       .fn()
       .mockResolvedValue([kind0(PUBKEY_A, 100, { name: 'alice' })])
@@ -406,7 +404,7 @@ describe('resolveProfiles', () => {
 
     expect(profiles).toEqual([])
     expect(precacheImages).not.toHaveBeenCalled()
-    expect(prismaMock.$transaction).toHaveBeenCalledTimes(2)
+    expect(prismaMock.nostrProfileCache.upsert).toHaveBeenCalledTimes(2)
     expect(prismaMock.nostrProfileCache.upsert).toHaveBeenLastCalledWith(
       expect.objectContaining({
         where: { npub: NPUB_A },
@@ -414,7 +412,7 @@ describe('resolveProfiles', () => {
       })
     )
   })
-  it('commits a large batch in chunks so no transaction outruns its timeout', async () => {
+  it('writes a large batch in bounded concurrent chunks, never one transaction', async () => {
     const pubkeys = Array.from({ length: 120 }, (_, i) =>
       i.toString(16).padStart(64, '0')
     )
@@ -423,13 +421,25 @@ describe('resolveProfiles', () => {
     )
     vi.mocked(prismaMock.nostrProfileCache.findMany).mockResolvedValue([])
     const relayFetcher = vi.fn().mockResolvedValue([])
+    // Lazy like a real PrismaPromise: the query only runs once awaited.
+    let started = 0
+    let inFlight = 0
+    let peak = 0
+    vi.mocked(prismaMock.nostrProfileCache.upsert).mockImplementation((() => ({
+      then(resolve: (v: unknown) => unknown, reject: (e: unknown) => unknown) {
+        started++
+        peak = Math.max(peak, ++inFlight)
+        return new Promise(r => setTimeout(r, 0))
+          .then(() => inFlight--)
+          .then(resolve, reject)
+      }
+    })) as any)
 
     await resolveProfiles(pubkeys, { now: NOW, relayFetcher })
 
-    const sizes = vi
-      .mocked(prismaMock.$transaction)
-      .mock.calls.map(([writes]) => (writes as unknown as unknown[]).length)
-    expect(sizes).toEqual([50, 50, 20])
+    expect(prismaMock.$transaction).not.toHaveBeenCalled()
+    expect(started).toBe(120)
+    expect(peak).toBe(50)
   })
 
   it('resolves instead of throwing when recording the failure also fails', async () => {
@@ -437,8 +447,8 @@ describe('resolveProfiles', () => {
       { pubkey: PUBKEY_A }
     ] as any)
     vi.mocked(prismaMock.nostrProfileCache.findMany).mockResolvedValue([])
-    vi.mocked(prismaMock.$transaction).mockRejectedValue(
-      new Error('expired transaction')
+    vi.mocked(prismaMock.nostrProfileCache.upsert).mockRejectedValue(
+      new Error('db down')
     )
     const relayFetcher = vi
       .fn()
