@@ -123,14 +123,60 @@ describe('Wapu quote', () => {
   })
 })
 
+describe('Wapu createSell', () => {
+  it('keeps the tentative deadline, which /funding omits', async () => {
+    server.use(
+      http.post(`${WAPU}/transactions/direct-fiat/tentatives`, () =>
+        HttpResponse.json({
+          tentative_id: 't-1',
+          status: 'CREATED',
+          expires_at: '2026-11-17T19:21:08Z'
+        })
+      ),
+      http.post(`${WAPU}/transactions/direct-fiat/tentatives/t-1/funding`, () =>
+        HttpResponse.json({
+          funding_transaction_id: 'dep-1',
+          lightning_pr: 'lnbc1',
+          total_amount_sats: 9393,
+          status: 'FUNDING_ISSUED'
+        })
+      )
+    )
+    const order = await wapuProvider('k').createSell({
+      amountArs: 10_000,
+      destination: CBU
+    })
+    expect(order.externalId).toBe('dep-1')
+    expect(order.expiresAt?.toISOString()).toBe('2026-11-17T19:21:08.000Z')
+  })
+})
+
 describe('Wapu status (order deposit)', () => {
   const swap = {
     externalId: 'dep-1',
     amountArs: 50_000,
     createdAt: new Date('2026-11-13T04:49:59Z')
   }
-  const deposit = (status: string, expires_at: string | null = null) =>
+  const deposit = (
+    status: string,
+    expires_at: string | null = null,
+    tentativeExpiry?: string
+  ) =>
     server.use(
+      http.get(`${WAPU}/transactions/direct-fiat/tentatives`, () =>
+        HttpResponse.json({
+          tentatives: tentativeExpiry
+            ? [
+                {
+                  tentative_id: 't-1',
+                  status: 'FUNDING_ISSUED',
+                  funding_transaction_id: 'dep-1',
+                  expires_at: tentativeExpiry
+                }
+              ]
+            : []
+        })
+      ),
       http.get(`${WAPU}/transactions/my_transactions`, () =>
         HttpResponse.json([
           {
@@ -159,6 +205,14 @@ describe('Wapu status (order deposit)', () => {
     const s = await wapuProvider('k').status(swap)
     expect(s).toMatchObject({ status: 'PENDING' })
     expect(s.expiresAt?.toISOString()).toBe('2026-11-13T05:19:59.000Z')
+  })
+
+  it('takes the order (tentative) deadline over the invoice’s (UTC)', async () => {
+    // Real order: 15-min tentative, deposit left Pending with no expiry.
+    deposit('Pending', null, '2026-11-13T05:04:59Z')
+    const s = await wapuProvider('k').status(swap)
+    expect(s).toMatchObject({ status: 'PENDING' })
+    expect(s.expiresAt?.toISOString()).toBe('2026-11-13T05:04:59.000Z')
   })
 
   it('expires an unpaid deposit Wapu dropped', async () => {

@@ -104,10 +104,14 @@ async function quote(apiKey: string, amountArs: number) {
   }
 }
 
-/** Wapu timestamps are "YYYY-MM-DD HH:mm:ss" in Argentina time. */
+/**
+ * Wapu timestamps: transactions use naive "YYYY-MM-DD HH:mm:ss" in Argentina
+ * time; tentatives use ISO 8601 UTC ("…Z").
+ */
 export function artToMs(s: unknown): number | null {
   if (typeof s !== 'string' || !s) return null
-  const t = Date.parse(`${s.replace(' ', 'T')}-03:00`)
+  const iso = s.replace(' ', 'T')
+  const t = Date.parse(/(Z|[+-]\d\d:?\d\d)$/i.test(iso) ? iso : `${iso}-03:00`)
   return Number.isNaN(t) ? null : t
 }
 
@@ -178,6 +182,26 @@ async function listTransactions(apiKey: string): Promise<WapuTx[]> {
   }))
 }
 
+/**
+ * The order (tentative) behind a funding deposit. Its `expires_at` is the
+ * real payment deadline (~15 min) — the invoice itself lives far longer, and
+ * Wapu leaves the deposit's own `expires_at` null and the status at
+ * FUNDING_ISSUED after the deadline passes.
+ */
+async function findTentative(
+  apiKey: string,
+  fundingId: string
+): Promise<Json | undefined> {
+  // ponytail: Wapu has no lookup by funding id; this lists every tentative.
+  const d = (await wapuFetch(
+    apiKey,
+    '/transactions/direct-fiat/tentatives'
+  )) as Json
+  return ((d.tentatives as Json[]) ?? []).find(
+    t => t.funding_transaction_id === fundingId
+  )
+}
+
 export function wapuProvider(
   apiKey: string,
   /** Fiat-transfer ids already matched to other swaps. */
@@ -232,18 +256,19 @@ export function wapuProvider(
         amountSats:
           num(pick(funding, ['funding_amount_sat', 'total_amount_taken'])) ?? 0,
         providerStatus: pick<string>(funding, ['status']) ?? 'Pending',
-        // Wapu's own deadline when it sends one; createSwap keeps the
-        // earlier of this and the invoice expiry.
-        expiresAt: artToDate(
-          pick(funding, ['expires_at', 'expiration_date', 'expires'])
-        )
+        // Wapu's order deadline (on the tentative; /funding omits it);
+        // createSwap keeps the earlier of this and the invoice expiry.
+        expiresAt:
+          artToDate(pick(funding, ['expires_at', 'expiration_date'])) ??
+          artToDate(tentative.expires_at)
       }
     },
 
     async status(swap) {
-      const [txs, taken] = await Promise.all([
+      const [txs, taken, tentative] = await Promise.all([
         listTransactions(apiKey),
-        takenIds()
+        takenIds(),
+        findTentative(apiKey, swap.externalId)
       ])
       const match = matchFiatTransfer(txs, swap, taken)
       if (match) {
@@ -260,7 +285,8 @@ export function wapuProvider(
       const deposit = txs.find(
         t => t.transactionId === swap.externalId && /deposit/i.test(t.type)
       )
-      const expiresAt = artToDate(deposit?.expiresAt)
+      const expiresAt =
+        artToDate(tentative?.expires_at) ?? artToDate(deposit?.expiresAt)
       const state = deposit && normalizeSwapStatus(deposit.status)
       if (state === 'COMPLETED') {
         return {
