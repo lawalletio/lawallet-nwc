@@ -990,3 +990,55 @@
     stroke-dashoffset: 0;
   }
 }
+
+/* Staggered row entrance for tables and lists: each direct child fades in
+   30ms after the previous one (capped at the 11th). `TableBody` has it built
+   in; add `stagger-in` to a list container for the same effect. Rows that
+   stay mounted across refetches don't replay it. In the components layer so
+   a row's own `animate-*` utility still wins. */
+@layer components {
+  .stagger-in > * {
+    animation: stagger-in 150ms ease both;
+    animation-delay: 300ms;
+  }
+  .stagger-in > :nth-child(1) {
+    animation-delay: 0ms;
+  }
+  .stagger-in > :nth-child(2) {
+    animation-delay: 30ms;
+  }
+  .stagger-in > :nth-child(3) {
+    animation-delay: 60ms;
+  }
+  .stagger-in > :nth-child(4) {
+    animation-delay: 90ms;
+  }
+  .stagger-in > :nth-child(5) {
+    animation-delay: 120ms;
+  }
+  .stagger-in > :nth-child(6) {
+    animation-delay: 150ms;
+  }
+  .stagger-in > :nth-child(7) {
+    animation-delay: 180ms;
+  }
+  .stagger-in > :nth-child(8) {
+    animation-delay: 210ms;
+  }
+  .stagger-in > :nth-child(9) {
+    animation-delay: 240ms;
+  }
+  .stagger-in > :nth-child(10) {
+    animation-delay: 270ms;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .stagger-in > * {
+      animation: none;
+    }
+  }
+}
+@keyframes stagger-in {
+  from {
+    opacity: 0;
+  }
+}

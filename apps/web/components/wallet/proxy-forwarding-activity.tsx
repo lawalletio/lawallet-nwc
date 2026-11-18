@@ -124,7 +124,7 @@ export function ProxyForwardingActivity({
             </div>
           </div>
         ) : (
-          <div className="divide-y divide-border/60">
+          <div className="stagger-in divide-y divide-border/60">
             {proxyInvoices.map(invoice => (
               <ProxyPaymentActivity key={invoice.id} invoice={invoice} />
             ))}

@@ -81,7 +81,7 @@ export function AddressInvoicesCard({ username }: AddressInvoicesCardProps) {
             <span>{t.empty}</span>
           </div>
         ) : (
-          <ul className="divide-y divide-border/60">
+          <ul className="stagger-in divide-y divide-border/60">
             {invoices.map(inv => (
               <InvoiceRow
                 key={inv.id}
