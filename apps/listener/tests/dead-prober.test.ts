@@ -17,6 +17,8 @@ vi.mock('@getalby/sdk', () => {
   }
   class Nip47WalletError extends Nip47Error {}
   class Nip47TimeoutError extends Nip47Error {}
+  class Nip47PublishError extends Nip47Error {}
+  class Nip47PublishTimeoutError extends Nip47TimeoutError {}
 
   class NWCClient {
     relayUrls = ['wss://relay.test']
@@ -40,10 +42,22 @@ vi.mock('@getalby/sdk', () => {
     close() {}
   }
 
-  return { NWCClient, Nip47Error, Nip47WalletError, Nip47TimeoutError }
+  return {
+    NWCClient,
+    Nip47Error,
+    Nip47WalletError,
+    Nip47TimeoutError,
+    Nip47PublishError,
+    Nip47PublishTimeoutError
+  }
 })
 
-import { Nip47Error, Nip47TimeoutError } from '@getalby/sdk'
+import {
+  Nip47Error,
+  Nip47PublishError,
+  Nip47PublishTimeoutError,
+  Nip47TimeoutError
+} from '@getalby/sdk'
 import type { NWCClient } from '@getalby/sdk'
 import type pg from 'pg'
 import type { NwcWalletDeadOutcome } from '@lawallet-nwc/shared'
@@ -326,6 +340,31 @@ describe('DeadWalletProber.evaluate', () => {
     expect(dispatcher.sendWalletDead).toHaveBeenCalledTimes(2)
     expect(metrics.walletsDeclaredDead).toBe(0)
   })
+
+  it.each([
+    [
+      'publish timeout',
+      () => new Nip47PublishTimeoutError('publish timeout: x', 'INTERNAL')
+    ],
+    [
+      'publish refused',
+      () => new Nip47PublishError('failed to publish: x', 'OTHER')
+    ]
+  ])(
+    'a relay %s is inconclusive: no death report, no proof of life',
+    async (_label, makeErr) => {
+      control.getInfo.mockRejectedValue(makeErr())
+      const dispatcher = archivingDispatcher()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const client = { getInfo: () => control.getInfo() } as any
+      const pool = fakePool({ candidates: [candidate(client)] })
+      const prober = makeProber(pool, dispatcher)
+
+      await prober.evaluate()
+      expect(dispatcher.sendWalletDead).not.toHaveBeenCalled()
+      expect(pool.markResponsive).not.toHaveBeenCalled()
+    }
+  )
 
   it('does not treat a transport error as death (inconclusive)', async () => {
     control.getInfo.mockRejectedValue(new Error('websocket closed'))

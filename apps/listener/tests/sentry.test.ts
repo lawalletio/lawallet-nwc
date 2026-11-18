@@ -35,7 +35,8 @@ describe('transportFailureFingerprint', () => {
     [
       'failed to publish: AggregateError: All promises were rejected',
       ['nwc-transport', 'publish_failed']
-    ]
+    ],
+    ['publish timeout: abc123', ['nwc-transport', 'publish_timeout']]
   ])('classifies %s as a transport failure', (message, fingerprint) => {
     expect(transportFailureFingerprint(new Error(message))).toEqual(fingerprint)
     // Process-level rejections can arrive as bare strings.
@@ -111,6 +112,12 @@ describe('sampleTrace', () => {
     expect(
       sampleTrace({ name: 'POST /nwc/request', inheritOrSampleWith: () => 1 })
     ).toBe(1)
+  })
+
+  it('never propagates its boot-time trace id onto calls to web', () => {
+    initSentry({ SENTRY_DSN: 'https://k@o.ingest.sentry.io/1' } as ListenerEnv)
+    const options = vi.mocked(Sentry.init).mock.calls.at(-1)![0]!
+    expect(options.tracePropagationTargets).toEqual([])
   })
 })
 
