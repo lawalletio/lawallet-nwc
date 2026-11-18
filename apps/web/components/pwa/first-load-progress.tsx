@@ -76,7 +76,6 @@ export function FirstLoadProgressProvider({
       setArmed(true)
       setVisible(true)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const finish = useCallback(() => {

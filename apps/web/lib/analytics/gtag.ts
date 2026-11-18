@@ -26,7 +26,6 @@ function sanitize(params: EventParams | undefined): EventParams | undefined {
     if (value === undefined) continue
     if (looksLikePII(value)) {
       if (process.env.NODE_ENV !== 'production') {
-        // eslint-disable-next-line no-console
         console.warn(`[analytics] dropped PII-shaped value for param "${key}"`)
       }
       continue

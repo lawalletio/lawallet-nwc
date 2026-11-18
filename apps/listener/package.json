@@ -18,9 +18,9 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@getalby/sdk": "^8.1.1",
+    "@getalby/sdk": "^9.0.0",
     "@lawallet-nwc/shared": "workspace:*",
-    "@sentry/node": "^11.8.0",
+    "@sentry/node": "^11.13.0",
     "light-bolt11-decoder": "^3.2.0",
     "pg": "^8.23.1",
     "pino": "^10.4.0",
@@ -30,10 +30,10 @@
   "devDependencies": {
     "@types/node": "^24.19.2",
     "@types/pg": "^8.23.1",
-    "prettier": "^3.9.10",
+    "prettier": "^3.10.1",
     "tsup": "^9.0.0",
     "tsx": "^4.23.15",
     "typescript": "^6.0.3",
-    "vitest": "^5.0.5"
+    "vitest": "^5.1.0"
   }
 }

@@ -44,7 +44,6 @@ export function BrandLogotype({
   }
 
   return (
-    // eslint-disable-next-line @next/next/no-img-element
     <img
       src={logotype}
       alt={alt}

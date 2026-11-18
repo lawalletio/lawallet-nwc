@@ -25,13 +25,13 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "nostr-tools": "^2.25.2"
+    "nostr-tools": "^2.26.1"
   },
   "devDependencies": {
-    "msw": "^3.0.3",
+    "msw": "^3.0.6",
     "tsup": "^9.0.0",
     "typescript": "^6.0.3",
-    "vitest": "^5.0.5"
+    "vitest": "^5.1.0"
   },
   "keywords": [
     "lawallet",

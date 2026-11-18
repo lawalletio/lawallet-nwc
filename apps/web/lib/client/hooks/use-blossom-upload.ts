@@ -232,7 +232,6 @@ export function useBlossomUpload() {
         }
 
         if (failures.length > 0) {
-          // eslint-disable-next-line no-console
           console.warn(
             '[blossom] partial upload failure on',
             failures.length,

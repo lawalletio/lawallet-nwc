@@ -43,7 +43,6 @@ export function Nip98Modal({
     if (typeof window === 'undefined' || !(window as { nostr?: unknown }).nostr)
       return
     void connect()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Esc to close
