@@ -89,14 +89,19 @@ describe('settlePendingZapInvoices', () => {
       zapRequestJson: { not: null },
       // The proxy pipeline owns its own settlement + forwarding state machine.
       proxyPayment: null,
-      // Without the minting wallet there's nothing safe to ask.
-      remoteWalletId: { not: null }
+      // Without the minting wallet there's nothing safe to ask, and a
+      // non-ACTIVE one is never dialed.
+      remoteWallet: { status: 'ACTIVE' }
     })
     expect(where.expiresAt).toEqual({ gt: expect.any(Date) })
     expect(where.OR).toEqual([
       { settlementNextPollAt: null },
       { settlementNextPollAt: { lte: expect.any(Date) } }
     ])
+    // Fresh zaps first: old long shots must not starve a just-paid one.
+    expect(
+      vi.mocked(prismaMock.invoice.findMany).mock.calls[0][0]?.orderBy
+    ).toEqual({ settlementNextPollAt: { sort: 'asc', nulls: 'first' } })
   })
 
   it('settles a paid invoice and counts it', async () => {
@@ -157,10 +162,13 @@ describe('settlePendingZapInvoices', () => {
     expect(settleMock).not.toHaveBeenCalled()
   })
 
-  it('keeps polling the rest of the batch when one invoice fails', async () => {
+  it('keeps polling the rest of the batch when one wallet fails', async () => {
     vi.mocked(prismaMock.invoice.findMany).mockResolvedValue([
       dueInvoice({ id: 'invoice-1' }),
-      dueInvoice({ id: 'invoice-2' })
+      dueInvoice({
+        id: 'invoice-2',
+        remoteWallet: { ...dueInvoice().remoteWallet, id: 'wallet-2' }
+      })
     ] as never)
     settleMock
       .mockResolvedValueOnce({ outcome: 'unavailable' })
@@ -172,6 +180,34 @@ describe('settlePendingZapInvoices', () => {
 
     await expect(settlePendingZapInvoices()).resolves.toBe(1)
     expect(settleMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('probes a wallet once: a silent wallet costs one lookup, not one per invoice', async () => {
+    vi.mocked(prismaMock.invoice.findMany).mockResolvedValue([
+      dueInvoice({ id: 'invoice-1' }),
+      dueInvoice({ id: 'invoice-2' }),
+      dueInvoice({ id: 'invoice-3' })
+    ] as never)
+    settleMock.mockResolvedValue({ outcome: 'unavailable' })
+
+    await expect(settlePendingZapInvoices()).resolves.toBe(0)
+
+    expect(settleMock).toHaveBeenCalledTimes(1)
+    // Every row is still claimed, so the skipped ones back off too instead of
+    // staying due and re-waking the sweep on the next tick.
+    expect(prismaMock.invoice.updateMany).toHaveBeenCalledTimes(3)
+  })
+
+  it('looks up the rest of a wallet that answered its probe', async () => {
+    vi.mocked(prismaMock.invoice.findMany).mockResolvedValue([
+      dueInvoice({ id: 'invoice-1' }),
+      dueInvoice({ id: 'invoice-2' }),
+      dueInvoice({ id: 'invoice-3' })
+    ] as never)
+    settleMock.mockResolvedValueOnce({ outcome: 'pending' })
+
+    await expect(settlePendingZapInvoices()).resolves.toBe(2)
+    expect(settleMock).toHaveBeenCalledTimes(3)
   })
 })
 
@@ -202,7 +238,7 @@ describe('getZapSettlementBacklog', () => {
       status: 'PENDING',
       zapRequestJson: { not: null },
       proxyPayment: null,
-      remoteWalletId: { not: null }
+      remoteWallet: { status: 'ACTIVE' }
     })
     expect(args?.orderBy).toEqual({
       settlementNextPollAt: { sort: 'asc', nulls: 'first' }
@@ -243,13 +279,25 @@ describe('getZapSettlementBacklog', () => {
 describe('nextPollDelayMs', () => {
   it('polls tightly at first, then backs off as the odds drop', () => {
     // A zap is normally paid within seconds, so the first minute is cheap and
-    // fast; a long-unpaid invoice trickles until it expires.
+    // fast; a long-unpaid invoice doubles out to an hourly trickle.
     expect(nextPollDelayMs(0)).toBe(15_000)
     expect(nextPollDelayMs(4)).toBe(15_000)
     expect(nextPollDelayMs(5)).toBe(60_000)
     expect(nextPollDelayMs(11)).toBe(60_000)
     expect(nextPollDelayMs(12)).toBe(300_000)
-    expect(nextPollDelayMs(500)).toBe(300_000)
+    expect(nextPollDelayMs(13)).toBe(600_000)
+    expect(nextPollDelayMs(15)).toBe(2_400_000)
+    expect(nextPollDelayMs(16)).toBe(3_600_000)
+    expect(nextPollDelayMs(500)).toBe(3_600_000)
+    expect(nextPollDelayMs(5_000)).toBe(3_600_000)
+  })
+
+  it('costs a bounded number of lookups over a 24h invoice', () => {
+    let elapsed = 0
+    let polls = 0
+    while (elapsed < 24 * 60 * 60_000) elapsed += nextPollDelayMs(polls++)
+    // Was ~290 with a flat 5-minute tail.
+    expect(polls).toBeLessThan(45)
   })
 
   it('never returns a non-positive delay (which would spin the sweep)', () => {

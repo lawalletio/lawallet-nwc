@@ -216,7 +216,7 @@ async function refreshProfiles(
       fetched.push(profile)
     }
 
-    await commitInChunks(db, writes)
+    await commitInChunks(writes)
 
     const precache = options.precacheImages ?? precacheProfileImages
     for (const profile of fetched) {
@@ -229,7 +229,6 @@ async function refreshProfiles(
     // The backoff marker is best-effort: if the DB is what failed, recording
     // the failure must not turn a profile lookup into a 500.
     await commitInChunks(
-      db,
       toFetch.map(key =>
         fetchFailureWrite(db, key, attemptAt, errorMessage(err))
       )
@@ -240,13 +239,17 @@ async function refreshProfiles(
 
 const WRITE_CHUNK = 50
 
-// Cache rows need no cross-row atomicity, so each chunk commits on its own.
+// Cache rows need no cross-row atomicity, so no transaction: a batch
+// `$transaction` sends its statements one at a time under a 5s timer, which a
+// remote database outran (LAWALLET-WEB-Y, ~115ms × 45 upserts). Each upsert is
+// a single atomic statement; a chunk runs concurrently across the pool, and the
+// chunk cap keeps a 200-pubkey refresh from queueing past the pool's acquire
+// timeout.
 async function commitInChunks(
-  db: typeof prisma,
   writes: Prisma.PrismaPromise<unknown>[]
 ): Promise<void> {
   for (let i = 0; i < writes.length; i += WRITE_CHUNK) {
-    await db.$transaction(writes.slice(i, i + WRITE_CHUNK))
+    await Promise.all(writes.slice(i, i + WRITE_CHUNK))
   }
 }
 

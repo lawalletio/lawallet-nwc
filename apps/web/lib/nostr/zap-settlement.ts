@@ -1,5 +1,8 @@
 import type { Prisma } from '@/lib/generated/prisma'
-import { settleInvoiceFromWallet } from '@/lib/invoices/settle-from-wallet'
+import {
+  settleInvoiceFromWallet,
+  type SettlementOutcome
+} from '@/lib/invoices/settle-from-wallet'
 import { logger } from '@/lib/logger'
 import { getZapReceiptCapability } from '@/lib/nostr/zap-receipts'
 import { prisma } from '@/lib/prisma'
@@ -30,13 +33,16 @@ const EXPIRY_GRACE_MS = 2 * 60 * 1000
 
 /**
  * Zaps are normally paid within seconds, so poll tightly at first and back off
- * as the odds drop. An unpaid invoice therefore costs a handful of lookups in
- * its first minute, then a trickle until it expires.
+ * as the odds drop. Past the first ~8 minutes an unpaid zap is a long shot, so
+ * the delay doubles from 5 minutes to an hourly trickle: bolt11 expiry is the
+ * wallet's choice and often 24h, and a flat 5-minute tail cost ~290 lookups per
+ * abandoned zap (~90k `lookup_invoice`/week in production, most of them 9s
+ * timeouts against wallets that never answer).
  */
 export function nextPollDelayMs(attempts: number): number {
   if (attempts < 5) return 15_000
   if (attempts < 12) return 60_000
-  return 5 * 60_000
+  return Math.min(5 * 60_000 * 2 ** (attempts - 12), 60 * 60_000)
 }
 
 /** @returns how many invoices this run moved to PAID. */
@@ -76,8 +82,15 @@ export async function sweepDueZapInvoices(now = new Date()): Promise<number> {
   const due = await findDueZapInvoices(now)
   if (due.length === 0) return 0
 
-  const results = await Promise.all(due.map(invoice => pollOne(invoice, now)))
-  const settled = results.filter(Boolean).length
+  const byWallet = new Map<string, DueInvoice[]>()
+  for (const invoice of due) {
+    const key = invoice.remoteWallet?.id ?? invoice.id
+    byWallet.set(key, [...(byWallet.get(key) ?? []), invoice])
+  }
+  const results = await Promise.all(
+    [...byWallet.values()].map(invoices => pollWallet(invoices, now))
+  )
+  const settled = results.reduce((sum, n) => sum + n, 0)
   logger.info(
     { candidates: due.length, settled },
     'nip57.zap_settlement_sweep_completed'
@@ -95,8 +108,10 @@ function openZapInvoiceWhere(now: Date): Prisma.InvoiceWhereInput {
     // Without the minting wallet there is nothing safe to ask: the address
     // may since have been rebound, and polling a different wallet would be
     // asking about an invoice it never issued. Those rows still settle
-    // through the payer's LUD-21 verify poll, which knows the address.
-    remoteWalletId: { not: null },
+    // through the payer's LUD-21 verify poll, which knows the address. A
+    // non-ACTIVE wallet is never dialed either, so its rows aren't due (and
+    // don't keep the listener's tick awake) until it is restored.
+    remoteWallet: { status: 'ACTIVE' },
     expiresAt: { gt: new Date(now.getTime() - EXPIRY_GRACE_MS) }
   }
 }
@@ -116,14 +131,39 @@ function findDueZapInvoices(now: Date) {
       },
       proxyPayment: { select: { id: true } }
     },
-    orderBy: { createdAt: 'asc' },
+    // Never-polled (newest, likeliest to be paid) first, then most overdue —
+    // a backlog of old long shots must not starve a zap paid just now.
+    orderBy: { settlementNextPollAt: { sort: 'asc', nulls: 'first' } },
     take: SWEEP_BATCH_SIZE
   })
 }
 
 type DueInvoice = Awaited<ReturnType<typeof findDueZapInvoices>>[number]
 
-async function pollOne(invoice: DueInvoice, now: Date): Promise<boolean> {
+/**
+ * Polls one wallet's due invoices. Every row is claimed (so its backoff
+ * advances), but the lookups probe first: a wallet that can't answer one
+ * `lookup_invoice` won't answer the rest this sweep, and each silent lookup
+ * holds a listener slot for its full timeout.
+ * @returns how many invoices settled.
+ */
+async function pollWallet(invoices: DueInvoice[], now: Date): Promise<number> {
+  const claimed: DueInvoice[] = []
+  await Promise.all(
+    invoices.map(async invoice => {
+      if (await claim(invoice, now)) claimed.push(invoice)
+    })
+  )
+  if (claimed.length === 0) return 0
+
+  const [probe, ...rest] = claimed
+  const first = await lookup(probe)
+  if (first === 'unavailable') return 0
+  const others = await Promise.all(rest.map(lookup))
+  return [first, ...others].filter(outcome => outcome === 'settled').length
+}
+
+async function claim(invoice: DueInvoice, now: Date): Promise<boolean> {
   // Claim the invoice by pushing its next poll forward. Postgres re-evaluates
   // the predicate after taking the row lock, so of two concurrent sweeps
   // exactly one sees `count === 1` — no separate lease column needed.
@@ -143,12 +183,14 @@ async function pollOne(invoice: DueInvoice, now: Date): Promise<boolean> {
       settlementPollAttempts: { increment: 1 }
     }
   })
-  if (claimed.count === 0) return false
+  return claimed.count === 1
+}
 
+async function lookup(invoice: DueInvoice): Promise<SettlementOutcome> {
   // Awaited rather than deferred: this already runs in the background, and the
   // receipt publish is the whole point of the sweep.
   const settlement = await settleInvoiceFromWallet(invoice, {
     source: 'zap_settlement_sweep'
   })
-  return settlement.outcome === 'settled'
+  return settlement.outcome
 }

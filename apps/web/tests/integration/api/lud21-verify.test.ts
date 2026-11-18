@@ -201,37 +201,44 @@ describe('GET /api/lud16/[username]/verify/[paymentHash]', () => {
     expect(res.status).toBe(404)
   })
 
-  it('returns 404 when username does not match invoice owner', async () => {
-    vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue({
-      ...baseInvoice,
-      user: { ...baseInvoice.user, lightningAddresses: [{ username: 'bob' }] }
-    } as any)
+  it('scopes the lookup to the queried address (cross-account hash → 404)', async () => {
+    // Ownership lives in the WHERE: a hash owned by another account, or by a
+    // user without this address, comes back as no row at all.
+    vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue(null)
 
-    const req = createNextRequest(`/api/lud16/alice/verify/${VALID_HASH}`)
+    const req = createNextRequest(`/api/lud16/Alice/verify/${VALID_HASH}`)
     const res = await GET(
       req,
-      createParamsPromise({ username: 'alice', paymentHash: VALID_HASH })
+      createParamsPromise({ username: 'Alice', paymentHash: VALID_HASH })
     )
 
     expect(res.status).toBe(404)
+    expect(prismaMock.invoice.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          paymentHash: VALID_HASH,
+          user: { lightningAddresses: { some: { username: 'alice' } } }
+        }
+      })
+    )
+    expect(lookupInvoiceMock).not.toHaveBeenCalled()
   })
 
-  it('returns 404 when the hash belongs to a user without that address', async () => {
-    // The include filters on `username`, so this is the shape a real
-    // cross-account probe produces: the invoice exists, the address does not.
+  it('answers a settled poll with a single query', async () => {
     vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue({
       ...baseInvoice,
-      user: { id: 'user-1', lightningAddresses: [] }
+      status: 'PAID',
+      preimage: 'b'.repeat(64),
+      zapRequest: null
     } as any)
 
     const req = createNextRequest(`/api/lud16/alice/verify/${VALID_HASH}`)
-    const res = await GET(
+    await GET(
       req,
       createParamsPromise({ username: 'alice', paymentHash: VALID_HASH })
     )
 
-    expect(res.status).toBe(404)
-    expect(lookupInvoiceMock).not.toHaveBeenCalled()
+    expect(prismaMock.invoice.findUnique).toHaveBeenCalledTimes(1)
   })
 
   it('returns cached preimage when invoice already PAID', async () => {
