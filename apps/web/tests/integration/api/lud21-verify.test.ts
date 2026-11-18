@@ -286,6 +286,65 @@ describe('GET /api/lud16/[username]/verify/[paymentHash]', () => {
     expect(publishZapReceiptMock).toHaveBeenCalledWith(baseInvoice.id)
   })
 
+  it('leaves a paid proxy zap to the proxy reconciler (no receipt here)', async () => {
+    vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue({
+      ...baseInvoice,
+      status: 'PAID',
+      preimage: 'b'.repeat(64),
+      zapRequest: { kind: 9734 },
+      proxyPayment: { id: 'proxy-1' }
+    } as any)
+
+    const req = createNextRequest(`/api/lud16/alice/verify/${VALID_HASH}`)
+    await assertResponse(
+      await GET(
+        req,
+        createParamsPromise({ username: 'alice', paymentHash: VALID_HASH })
+      ),
+      200
+    )
+
+    expect(publishZapReceiptMock).not.toHaveBeenCalled()
+  })
+
+  it('404s when the invoice vanishes between the poll read and the lookup read', async () => {
+    vi.mocked(prismaMock.invoice.findUnique)
+      .mockResolvedValueOnce(baseInvoice as any)
+      .mockResolvedValueOnce(null)
+
+    const req = createNextRequest(`/api/lud16/alice/verify/${VALID_HASH}`)
+    const res = await GET(
+      req,
+      createParamsPromise({ username: 'alice', paymentHash: VALID_HASH })
+    )
+
+    expect(res.status).toBe(404)
+    expect(lookupInvoiceMock).not.toHaveBeenCalled()
+  })
+
+  it('still settles through the bound wallet when the owner row is gone', async () => {
+    vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue({
+      ...baseInvoice,
+      user: null
+    } as any)
+    lookupInvoiceMock.mockResolvedValue({
+      state: 'settled',
+      preimage: 'c'.repeat(64),
+      settled_at: 1_700_000_000
+    })
+
+    const req = createNextRequest(`/api/lud16/alice/verify/${VALID_HASH}`)
+    const body: any = await assertResponse(
+      await GET(
+        req,
+        createParamsPromise({ username: 'alice', paymentHash: VALID_HASH })
+      ),
+      200
+    )
+
+    expect(body.settled).toBe(true)
+  })
+
   it('does not attempt a receipt for an already-paid ordinary invoice', async () => {
     vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue({
       ...baseInvoice,

@@ -198,6 +198,19 @@ describe('settlePendingZapInvoices', () => {
     expect(prismaMock.invoice.updateMany).toHaveBeenCalledTimes(3)
   })
 
+  it('polls a wallet-less row on its own, never grouped with others', async () => {
+    vi.mocked(prismaMock.invoice.findMany).mockResolvedValue([
+      dueInvoice({ id: 'invoice-1', remoteWallet: null }),
+      dueInvoice({ id: 'invoice-2', remoteWallet: null })
+    ] as never)
+    settleMock.mockResolvedValue({ outcome: 'unavailable' })
+
+    await settlePendingZapInvoices()
+
+    // Each is its own probe, so one failing can't skip the other.
+    expect(settleMock).toHaveBeenCalledTimes(2)
+  })
+
   it('looks up the rest of a wallet that answered its probe', async () => {
     vi.mocked(prismaMock.invoice.findMany).mockResolvedValue([
       dueInvoice({ id: 'invoice-1' }),
