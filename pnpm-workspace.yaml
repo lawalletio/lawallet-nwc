@@ -185,10 +185,16 @@ overrides:
 # apps/web > bolt11 > secp256k1, and production code only *decodes* invoices
 # (lib/invoice-utils.ts) — bolt11 signing happens solely in test fixtures with
 # throwaway keys. Drop this ignore once elliptic ships a fix.
+#
+# GHSA-fc5q-39xc-vjpf (high, picomatch <=4.0.7 extglob ReDoS): WITHDRAWN by
+# GitHub as not a security issue (micromatch/picomatch#235), but npm's audit
+# feed still lists it with no patched version (4.0.7, already pinned above, is
+# the latest). Drop this ignore once npm drops the advisory.
 auditConfig:
   ignoreGhsas:
     - GHSA-vfj7-8cjw-p6xm
     - GHSA-848j-6mx2-7j84
+    - GHSA-fc5q-39xc-vjpf
 
 minimumReleaseAgeExclude:
   - autoprefixer@10.5.6
