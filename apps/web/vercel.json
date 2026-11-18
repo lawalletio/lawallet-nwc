@@ -3,7 +3,7 @@
   "framework": "nextjs",
   "regions": ["iad1"],
   "installCommand": "cd ../.. && pnpm install --frozen-lockfile",
-  "buildCommand": "if [ \"$VERCEL_ENV\" = production ] && [ -n \"$DATABASE_URL\" ]; then n=0; until pnpm exec prisma migrate deploy; do n=$((n+1)); [ $n -ge 5 ] && exit 1; sleep 10; done; else echo skip-migrate; fi && next build",
+  "buildCommand": "if [ \"$VERCEL_ENV\" = production ] && [ -n \"$DATABASE_URL\" ]; then n=0; until pnpm exec prisma migrate deploy; do n=$((n+1)); [ $n -ge 5 ] && exit 1; sleep 10; done; else echo skip-migrate; fi && prisma generate && next build",
   "git": {
     "deploymentEnabled": {
       "main": true
