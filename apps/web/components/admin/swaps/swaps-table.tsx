@@ -101,17 +101,13 @@ export function SwapsTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map((swap, i) => {
+            {rows.map(swap => {
               const phase = swapPhase(swap)
               return (
                 <TableRow
                   key={swap.id}
                   onClick={() => onOpen(swap.id)}
-                  className="cursor-pointer animate-in fade-in"
-                  style={{
-                    animationDelay: `${i * 30}ms`,
-                    animationFillMode: 'both'
-                  }}
+                  className="cursor-pointer"
                 >
                   <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
                     <span title={formatDateTime(swap.createdAt)}>
@@ -151,9 +147,9 @@ export function SwapsTable({
       </div>
 
       {/* Mobile: cards. */}
-      <ul className="divide-y overflow-hidden rounded-xl border md:hidden">
+      <ul className="stagger-in divide-y overflow-hidden rounded-xl border md:hidden">
         {rows.map(swap => (
-          <li key={swap.id} className="animate-in fade-in">
+          <li key={swap.id}>
             <button
               type="button"
               onClick={() => onOpen(swap.id)}

@@ -288,7 +288,7 @@ function Body({
           <h2 className="px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
             {group.label}
           </h2>
-          <div className="flex flex-col rounded-xl bg-card/40">
+          <div className="stagger-in flex flex-col rounded-xl bg-card/40">
             {group.items.map((tx, i) => (
               <div
                 key={tx.paymentHash || `${tx.createdAt}-${i}`}
