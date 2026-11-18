@@ -164,7 +164,11 @@ export function WalletPicker({
                     Remote wallets
                   </SelectLabel>
                   {payable.map(w => (
-                    <SelectItem key={w.id} value={w.id}>
+                    <SelectItem
+                      key={w.id}
+                      value={w.id}
+                      className="[&>span:last-child]:flex-1"
+                    >
                       <span className="flex items-center gap-2">
                         <Wallet className="size-4 text-muted-foreground" />
                         {w.name}
@@ -173,6 +177,7 @@ export function WalletPicker({
                             Primary
                           </span>
                         )}
+                        <WalletBalance id={w.id} />
                       </span>
                     </SelectItem>
                   ))}
@@ -227,6 +232,23 @@ export function WalletPicker({
       )}
       {method === INVOICE && bolt11 && <InvoiceQr bolt11={bolt11} />}
     </div>
+  )
+}
+
+/**
+ * Right-aligned balance inside a dropdown row. Hidden in the trigger (which
+ * clones the item text) — the selected wallet's balance already shows below.
+ */
+function WalletBalance({ id }: { id: string }) {
+  const { data } = useRemoteWalletBalance(id)
+  return (
+    <span className="ml-auto hidden pl-4 text-xs tabular-nums text-muted-foreground in-[[role=option]]:inline">
+      {data == null
+        ? '…'
+        : data.reachable === false
+          ? 'Unreachable'
+          : formatSats(data.balanceSats)}
+    </span>
   )
 }
 
