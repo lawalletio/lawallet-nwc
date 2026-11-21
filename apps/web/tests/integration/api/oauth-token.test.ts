@@ -410,6 +410,35 @@ describe('POST /api/oauth/token — refresh_token', () => {
     await expect(
       verifyAccessToken(first.access_token, RESOURCE)
     ).rejects.toThrow()
+  })
+
+  it('replays a just-rotated refresh token, then lets it die', async () => {
+    const first = await connect()
+    const second = await (await token(refreshBody(first.refresh_token))).json()
+
+    // Another process sharing the old token refreshes inside the grace
+    // window: it gets the very same pair, and nothing is rotated again.
+    const replay = await token(refreshBody(first.refresh_token))
+    expect(replay.status).toBe(200)
+    const replayed = await replay.json()
+    expect(replayed.access_token).toBe(second.access_token)
+    expect(replayed.refresh_token).toBe(second.refresh_token)
+    expect(replayed.expires_in).toBeGreaterThan(3500)
+    await expect(
+      verifyAccessToken(second.access_token, RESOURCE)
+    ).resolves.toBeTruthy()
+
+    grant().previousRefreshGraceEndsAt = new Date(Date.now() - 1)
+    await expectOAuthError(
+      await token(refreshBody(first.refresh_token)),
+      'invalid_grant'
+    )
+  })
+
+  it('kills a refresh token two rotations back', async () => {
+    const first = await connect()
+    const second = await (await token(refreshBody(first.refresh_token))).json()
+    expect((await token(refreshBody(second.refresh_token))).status).toBe(200)
     await expectOAuthError(
       await token(refreshBody(first.refresh_token)),
       'invalid_grant'
@@ -474,13 +503,18 @@ describe('POST /api/oauth/token — refresh_token', () => {
     )
   })
 
-  it('lets a refresh token be used once even under concurrency', async () => {
+  it('gives concurrent refreshes of one token the same pair', async () => {
     const { refresh_token } = await connect()
-    const results = await Promise.all([
-      token(refreshBody(refresh_token)),
-      token(refreshBody(refresh_token))
-    ])
-    expect(results.map(r => r.status).sort()).toEqual([200, 400])
+    const results = await Promise.all(
+      Array.from({ length: 5 }, () => token(refreshBody(refresh_token)))
+    )
+    expect(results.map(r => r.status)).toEqual([200, 200, 200, 200, 200])
+    const bodies = await Promise.all(results.map(r => r.json()))
+    expect(new Set(bodies.map(b => b.refresh_token)).size).toBe(1)
+    expect(new Set(bodies.map(b => b.access_token)).size).toBe(1)
+    await expect(
+      verifyAccessToken(bodies[0].access_token, RESOURCE)
+    ).resolves.toBeTruthy()
   })
 })
 

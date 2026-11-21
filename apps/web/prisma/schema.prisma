@@ -1405,6 +1405,14 @@ model OAuthGrant {
   accessExpiresAt  DateTime?
   refreshTokenHash String?      @unique
   refreshExpiresAt DateTime?
+  /// The refresh token that was rotated away last. Presenting it again inside
+  /// the grace window replays the same rotation instead of failing, so
+  /// clients that share one token and refresh together all converge.
+  previousRefreshTokenHash   String?   @unique
+  previousRefreshGraceEndsAt DateTime?
+  /// Server-only HMAC key that derives each rotation's token pair from the
+  /// presented refresh token. Never leaves the database.
+  rotationKey      String?
   revokedAt        DateTime?
   lastUsedAt       DateTime?
   createdAt        DateTime     @default(now())

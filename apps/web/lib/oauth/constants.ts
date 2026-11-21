@@ -55,6 +55,12 @@ export const AUTH_CODE_TTL_SECONDS = 5 * 60
 export const ACCESS_TOKEN_TTL_SECONDS = 60 * 60
 /** Sliding: every refresh rotates the token and restarts this window. */
 export const REFRESH_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60
+/**
+ * How long a just-rotated refresh token still replays its rotation. Covers
+ * clients whose processes share one token and all refresh at its expiry
+ * (Claude Code runs one MCP client per session).
+ */
+export const REFRESH_TOKEN_GRACE_SECONDS = 2 * 60
 
 // Prefixes make the credential kind obvious in logs and to secret scanners,
 // and let the MCP endpoint tell an OAuth token from a session JWT at a glance.
