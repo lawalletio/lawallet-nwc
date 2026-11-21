@@ -1,4 +1,4 @@
-import { createHash, randomBytes, timingSafeEqual } from 'crypto'
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'crypto'
 import { prisma } from '@/lib/prisma'
 import { ActivityEvent, logActivity } from '@/lib/activity-log'
 import { authenticate, type AuthResult } from '@/lib/auth/unified-auth'
@@ -16,6 +16,7 @@ import {
   ACCESS_TOKEN_TTL_SECONDS,
   AUTH_CODE_PREFIX,
   AUTH_CODE_TTL_SECONDS,
+  REFRESH_TOKEN_GRACE_SECONDS,
   REFRESH_TOKEN_PREFIX,
   REFRESH_TOKEN_TTL_SECONDS,
   OAUTH_SCOPES,
@@ -289,10 +290,35 @@ function invalidTarget(resource: string): OAuthError {
   )
 }
 
+/**
+ * The token pair a refresh token rotates into. Derived with the grant's
+ * server-only `rotationKey`, so every concurrent refresh of one token yields
+ * the same pair; without a key (the code exchange) it is random.
+ */
+function tokenPair(rotation?: { key: string; from: string }) {
+  if (!rotation) {
+    return {
+      accessToken: generateCredential(ACCESS_TOKEN_PREFIX),
+      refreshToken: generateCredential(REFRESH_TOKEN_PREFIX)
+    }
+  }
+  const derive = (kind: string) =>
+    createHmac('sha256', rotation.key)
+      .update(`${kind}:${rotation.from}`)
+      .digest('base64url')
+  return {
+    accessToken: `${ACCESS_TOKEN_PREFIX}${derive('access')}`,
+    refreshToken: `${REFRESH_TOKEN_PREFIX}${derive('refresh')}`
+  }
+}
+
 /** A fresh access/refresh pair and the columns that store it. */
-function rotateTokens(now: Date, scopes: string[]) {
-  const accessToken = generateCredential(ACCESS_TOKEN_PREFIX)
-  const refreshToken = generateCredential(REFRESH_TOKEN_PREFIX)
+function rotateTokens(
+  now: Date,
+  scopes: string[],
+  rotation?: { key: string; from: string }
+) {
+  const { accessToken, refreshToken } = tokenPair(rotation)
   return {
     data: {
       accessTokenHash: hashCredential(accessToken),
@@ -374,7 +400,11 @@ export async function exchangeAuthorizationCode(params: {
   const tokens = rotateTokens(now, grant.scopes)
   const { count } = await prisma.oAuthGrant.updateMany({
     where: { id: grant.id, codeUsedAt: null, revokedAt: null },
-    data: { codeUsedAt: now, ...tokens.data }
+    data: {
+      codeUsedAt: now,
+      rotationKey: randomBytes(32).toString('base64url'),
+      ...tokens.data
+    }
   })
   if (count !== 1) {
     // A concurrent exchange of the same code won the race: this is a replay.
@@ -415,14 +445,29 @@ async function replaceEarlierGrants(grant: GrantForLog, now: Date) {
   })
 }
 
+const REFRESH_SELECT = {
+  clientId: true,
+  id: true,
+  scopes: true,
+  resource: true,
+  accessExpiresAt: true,
+  refreshTokenHash: true,
+  refreshExpiresAt: true,
+  previousRefreshTokenHash: true,
+  previousRefreshGraceEndsAt: true,
+  rotationKey: true,
+  revokedAt: true
+} as const
+
 /**
  * `grant_type=refresh_token`. Rotates both tokens with an update keyed on the
- * presented refresh token, so each one works exactly once even under
- * concurrency; the old access token stops working too.
+ * presented refresh token; the old access token stops working.
  *
- * ponytail: no grace window for a lost refresh response — the client must
- * re-authorize. Keep the previous refresh hash for a few seconds if a client
- * turns out to race its own refreshes.
+ * Rotation is idempotent for {@link REFRESH_TOKEN_GRACE_SECONDS}: the new pair
+ * is derived from the presented token, so a client whose processes share one
+ * token and refresh together (or that lost a refresh response) gets the same
+ * pair back instead of `invalid_grant`. After the window the old token is
+ * dead, as with plain rotation.
  *
  * @throws {OAuthError} `invalid_client`, `invalid_grant` or `invalid_target`.
  */
@@ -434,16 +479,14 @@ export async function refreshAccessToken(params: {
   await requireClient(params.client_id)
 
   const refreshTokenHash = hashCredential(params.refresh_token)
-  const grant = await prisma.oAuthGrant.findUnique({
-    where: { refreshTokenHash },
-    select: {
-      clientId: true,
-      id: true,
-      scopes: true,
-      resource: true,
-      refreshExpiresAt: true,
-      revokedAt: true
-    }
+  const grant = await prisma.oAuthGrant.findFirst({
+    where: {
+      OR: [
+        { refreshTokenHash },
+        { previousRefreshTokenHash: refreshTokenHash }
+      ]
+    },
+    select: REFRESH_SELECT
   })
   const now = new Date()
   if (
@@ -461,13 +504,54 @@ export async function refreshAccessToken(params: {
     throw invalidTarget(grant.resource)
   }
 
-  const tokens = rotateTokens(now, grant.scopes)
-  const { count } = await prisma.oAuthGrant.updateMany({
-    where: { id: grant.id, refreshTokenHash, revokedAt: null },
-    data: tokens.data
+  // Grants from before idempotent rotation get their key on first refresh.
+  const key = grant.rotationKey ?? randomBytes(32).toString('base64url')
+  const tokens = rotateTokens(now, grant.scopes, {
+    key,
+    from: params.refresh_token
   })
-  if (count !== 1) throw invalidGrant('Refresh token was already used')
-  return tokens.response
+
+  if (grant.refreshTokenHash === refreshTokenHash) {
+    const { count } = await prisma.oAuthGrant.updateMany({
+      where: { id: grant.id, refreshTokenHash, revokedAt: null },
+      data: {
+        ...tokens.data,
+        previousRefreshTokenHash: refreshTokenHash,
+        previousRefreshGraceEndsAt: new Date(
+          now.getTime() + REFRESH_TOKEN_GRACE_SECONDS * 1000
+        ),
+        rotationKey: key
+      }
+    })
+    if (count === 1) return tokens.response
+    // A concurrent refresh of the same token rotated first: replay it.
+  }
+
+  const current =
+    grant.refreshTokenHash === refreshTokenHash
+      ? await prisma.oAuthGrant.findUnique({
+          where: { id: grant.id },
+          select: REFRESH_SELECT
+        })
+      : grant
+  if (
+    !current ||
+    current.revokedAt ||
+    current.previousRefreshTokenHash !== refreshTokenHash ||
+    !current.previousRefreshGraceEndsAt ||
+    current.previousRefreshGraceEndsAt <= now ||
+    current.refreshTokenHash !== tokens.data.refreshTokenHash ||
+    !current.accessExpiresAt
+  ) {
+    throw invalidGrant('Refresh token was already used')
+  }
+  return {
+    ...tokens.response,
+    expires_in: Math.max(
+      0,
+      Math.floor((current.accessExpiresAt.getTime() - now.getTime()) / 1000)
+    )
+  }
 }
 
 /**

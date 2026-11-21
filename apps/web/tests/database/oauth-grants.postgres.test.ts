@@ -211,7 +211,7 @@ describe.skipIf(!runDatabaseTests)('OAuth grants against PostgreSQL', () => {
     ).rejects.toMatchObject({ code: 'invalid_grant' })
   })
 
-  it('rotates a refresh token once when it is presented twice at the same moment', async () => {
+  it('rotates a refresh token once and replays it to simultaneous refreshes', async () => {
     const { clientId, tokens } = await connect()
     const refresh = () =>
       oauth.refreshAccessToken({
@@ -220,9 +220,11 @@ describe.skipIf(!runDatabaseTests)('OAuth grants against PostgreSQL', () => {
         resource: RESOURCE
       })
 
-    const { winner, losers } = await oneWinner([refresh(), refresh()])
+    const results = await Promise.all([refresh(), refresh(), refresh()])
 
-    expect(losers).toMatchObject([{ code: 'invalid_grant' }])
+    expect(new Set(results.map(r => r.refresh_token)).size).toBe(1)
+    expect(new Set(results.map(r => r.access_token)).size).toBe(1)
+    const [winner] = results
     await expect(
       oauth.verifyAccessToken(tokens.access_token, RESOURCE)
     ).rejects.toThrow('Unknown access token')
@@ -232,7 +234,8 @@ describe.skipIf(!runDatabaseTests)('OAuth grants against PostgreSQL', () => {
     expect(await grantOf(clientId)).toMatchObject({
       revokedAt: null,
       accessTokenHash: sha256(winner.access_token),
-      refreshTokenHash: sha256(winner.refresh_token)
+      refreshTokenHash: sha256(winner.refresh_token),
+      previousRefreshTokenHash: sha256(tokens.refresh_token)
     })
   })
 
