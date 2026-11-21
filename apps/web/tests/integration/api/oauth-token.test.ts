@@ -435,6 +435,19 @@ describe('POST /api/oauth/token — refresh_token', () => {
     )
   })
 
+  it('keys a grant from before idempotent rotation on its first refresh', async () => {
+    const first = await connect()
+    grant().rotationKey = null
+    const res = await token(refreshBody(first.refresh_token))
+    expect(res.status).toBe(200)
+    const second = await res.json()
+    expect(grant().rotationKey).toEqual(expect.any(String))
+    const replayed = await (
+      await token(refreshBody(first.refresh_token))
+    ).json()
+    expect(replayed.refresh_token).toBe(second.refresh_token)
+  })
+
   it('kills a refresh token two rotations back', async () => {
     const first = await connect()
     const second = await (await token(refreshBody(first.refresh_token))).json()
