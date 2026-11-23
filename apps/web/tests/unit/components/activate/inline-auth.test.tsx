@@ -108,7 +108,8 @@ describe('InlineAuth', () => {
     await waitFor(() => expect(onAuthStart).toHaveBeenCalledTimes(1))
     expect(registerPasskeyAccount).toHaveBeenCalledTimes(1)
     expect(mocks.login).toHaveBeenCalledWith(expect.anything(), 'passkey', {
-      secret: SECRET_HEX
+      secret: SECRET_HEX,
+      persistence: 'memory'
     })
   })
 
