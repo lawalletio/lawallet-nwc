@@ -84,6 +84,15 @@ describe('captureForwardingReceipt', () => {
     })
   })
 
+  it('skips the locked transaction for a wallet with no forwarding rule', async () => {
+    vi.mocked(
+      prismaMock.remoteWalletReceiveAction.findUnique
+    ).mockResolvedValue(null)
+
+    await expect(captureForwardingReceipt(event)).resolves.toBeNull()
+    expect(prismaMock.$transaction).not.toHaveBeenCalled()
+  })
+
   it('does not capture while paused', async () => {
     vi.mocked(
       prismaMock.remoteWalletReceiveAction.findUnique

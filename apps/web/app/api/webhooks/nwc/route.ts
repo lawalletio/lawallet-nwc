@@ -138,17 +138,21 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   switch (event.type) {
     case 'payment_received':
       {
-        notificationDeliveryIds.push(
-          ...(await enqueueRemoteWalletNotificationEvent({
+        // Independent writes keyed on different tables, each idempotent per
+        // event (eventKey / payment hash), so a failure still 5xx's for a
+        // listener retry exactly as when they ran one after another.
+        const [deliveryIds, receiptId, id] = await Promise.all([
+          enqueueRemoteWalletNotificationEvent({
             walletId: event.walletId,
             action: 'RECEIVED',
             eventKey: event.eventKey,
             payload: event
-          }))
-        )
-        const receiptId = await captureForwardingReceipt(event)
+          }),
+          captureForwardingReceipt(event),
+          handlePaymentReceived(event)
+        ])
+        notificationDeliveryIds.push(...deliveryIds)
         if (receiptId) forwardingReceiptIds.push(receiptId)
-        const id = await handlePaymentReceived(event)
         if (id) settlementIds.push(id)
       }
       break

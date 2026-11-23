@@ -483,6 +483,17 @@ export async function setReceiveActionEnabled(
 export async function captureForwardingReceipt(
   event: CapturedPayment
 ): Promise<string | null> {
+  // Every received payment lands here, and most wallets forward nothing: one
+  // indexed read spares them the transaction, the advisory lock and the
+  // 4-level read below. Enabling races are harmless — a rule enabled after
+  // this read has an `enabledAt` later than the payment, which is skipped
+  // inside the lock anyway.
+  const rule = await prisma.remoteWalletReceiveAction.findUnique({
+    where: { remoteWalletId: event.walletId },
+    select: { enabled: true }
+  })
+  if (!rule?.enabled) return null
+
   const receiptId = await prisma.$transaction(async tx => {
     await tx.$executeRaw`
       SELECT pg_advisory_xact_lock(hashtextextended(${event.walletId}, 0))
