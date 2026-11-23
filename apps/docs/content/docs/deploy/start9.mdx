@@ -144,6 +144,10 @@ New tunables such as `ZAP_SETTLE_MAX_INTERVAL_MS` (listener) and
 `DATA_RETENTION_DAYS` (web) are optional and fall back to their defaults, so
 the package needs no change to pick them up.
 
+API rate limiting runs in memory, which is exact for the package's single web
+instance. The optional `UPSTASH_REDIS_*` variables only matter when several
+instances share traffic (Vercel, Netlify), so the package leaves them unset.
+
 For the full env-var reference (used when self-hosting outside StartOS), see
 [`apps/web/.env.example`](https://github.com/lawalletio/lawallet-nwc/blob/main/apps/web/.env.example).
 

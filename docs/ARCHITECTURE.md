@@ -444,7 +444,9 @@ All environment variables are validated at startup via Zod schema in `lib/config
 | `LOG_PRETTY`                   |          | Human-readable logs (dev)                                                |
 | `RATE_LIMIT_WINDOW_MS`         |          | Rate limit window (default: 60000)                                       |
 | `RATE_LIMIT_MAX_REQUESTS`      |          | Max requests per window                                                  |
-| `RATE_LIMIT_MAX_AUTHENTICATED` |          | Max for authenticated users                                              |
+| `RATE_LIMIT_MAX_REQUESTS_AUTH` |          | Max for authenticated users                                              |
+| `UPSTASH_REDIS_URL`            |          | Upstash REST URL; with the token, shares rate-limit counters             |
+| `UPSTASH_REDIS_TOKEN`          |          | Upstash REST token (falls back to in-memory on error or timeout)         |
 | `REQUEST_MAX_BODY_SIZE`        |          | Max body in bytes                                                        |
 
 ### Cached Config Object
