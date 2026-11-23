@@ -144,11 +144,14 @@ class UpstashError extends Error {
 }
 
 /**
- * Shared fixed-window limiter over Upstash's REST `/multi-exec` endpoint, so
- * every serverless instance counts against one counter. `PEXPIRE … NX` only
- * arms the TTL on the request that opened the window; running the three
- * commands as one transaction keeps PTTL from seeing the key expire after
- * the INCR.
+ * Shared fixed-window limiter over Upstash's REST `/pipeline` endpoint, so
+ * every serverless instance counts against one counter.
+ *
+ * Windows are aligned to the epoch and the window index is part of the key,
+ * so the reset time is computed locally and each check costs two billed
+ * commands (INCR + PEXPIREAT) — no PTTL round-trip and no MULTI/EXEC
+ * overhead (Upstash bills a transaction as N + 2). PEXPIREAT is absolute, so
+ * re-sending it on every hit never extends the window.
  *
  * @throws On HTTP failure, a per-command error, or the timeout — the caller
  * falls back to in-memory.
@@ -159,16 +162,20 @@ async function checkRateLimitUpstash(
   maxRequests: number,
   upstash: { url: string; token: string }
 ): Promise<RateLimitResult> {
-  const res = await fetch(`${upstash.url.replace(/\/+$/, '')}/multi-exec`, {
+  const window = Math.floor(Date.now() / windowMs)
+  const resetMs = (window + 1) * windowMs
+  const windowKey = `${key}:${window}`
+
+  const res = await fetch(`${upstash.url.replace(/\/+$/, '')}/pipeline`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${upstash.token}`,
       'Content-Type': 'application/json'
     },
     body: JSON.stringify([
-      ['INCR', key],
-      ['PEXPIRE', key, String(windowMs), 'NX'],
-      ['PTTL', key]
+      ['INCR', windowKey],
+      // A second of slack so a slow request can't recreate an expired key.
+      ['PEXPIREAT', windowKey, String(resetMs + 1000)]
     ]),
     signal: AbortSignal.timeout(UPSTASH_TIMEOUT_MS),
     cache: 'no-store'
@@ -182,9 +189,6 @@ async function checkRateLimitUpstash(
 
   const count = Number(replies[0]?.result)
   if (!Number.isFinite(count)) throw new UpstashError('Upstash: bad INCR reply')
-  const pttl = Number(replies[2]?.result)
-  // -1/-2 (no TTL / key gone) should not happen after PEXPIRE; assume a fresh window.
-  const resetMs = Date.now() + (pttl > 0 ? pttl : windowMs)
 
   return {
     success: count <= maxRequests,
