@@ -1,0 +1,36 @@
+{
+  "headline": ["Email.", "Swaps.", "Faster."],
+  "tagline": "Sign in with an email, cash out to pesos.",
+  "cards": [
+    {
+      "dot": "green",
+      "title": "Email login",
+      "text": "Magic links over SMTP, SES or Resend"
+    },
+    {
+      "dot": "yellow",
+      "title": "Sats → ARS",
+      "text": "Swap to a CBU or alias via Bull Bitcoin or Wapu"
+    },
+    {
+      "dot": "red",
+      "title": "MCP wallets",
+      "text": "Limit each connected app to chosen wallets"
+    },
+    {
+      "dot": "yellow",
+      "title": "Offline mode",
+      "text": "The wallet opens instantly from its last session"
+    },
+    {
+      "dot": "green",
+      "title": "−35% JS",
+      "text": "Fewer DB round-trips, lighter first loads"
+    },
+    {
+      "dot": "red",
+      "title": "Polls + Tools",
+      "text": "Admin polls and a Lightning invoice lookup"
+    }
+  ]
+}
