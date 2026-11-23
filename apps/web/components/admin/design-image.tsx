@@ -66,6 +66,8 @@ export function DesignImage({
         <img
           src={src}
           alt={alt}
+          loading="lazy"
+          decoding="async"
           onLoad={() => setLoaded(true)}
           onError={() => setErrored(true)}
           className={cn(

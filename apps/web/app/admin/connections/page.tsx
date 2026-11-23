@@ -1,11 +1,35 @@
 'use client'
 
 import React from 'react'
+import dynamic from 'next/dynamic'
 import { AdminTopbar } from '@/components/admin/admin-topbar'
-import { ConnectionMap } from '@/components/admin/connection-map/connection-map'
-import { ConnectionMapMobile } from '@/components/admin/connection-map/mobile/connection-map-mobile'
 import { useIsBelowWidth } from '@/components/ui/use-mobile'
 import { Spinner } from '@/components/ui/spinner'
+
+function MapSpinner() {
+  return (
+    <div className="flex h-full items-center justify-center">
+      <Spinner size={24} className="text-muted-foreground" />
+    </div>
+  )
+}
+
+// Split per layout so phones never download xyflow and desktops never
+// download the tab view.
+const ConnectionMap = dynamic(
+  () =>
+    import('@/components/admin/connection-map/connection-map').then(
+      m => m.ConnectionMap
+    ),
+  { ssr: false, loading: MapSpinner }
+)
+const ConnectionMapMobile = dynamic(
+  () =>
+    import('@/components/admin/connection-map/mobile/connection-map-mobile').then(
+      m => m.ConnectionMapMobile
+    ),
+  { ssr: false, loading: MapSpinner }
+)
 
 /**
  * `/admin/connections` — the Connection Map (#235 desktop canvas, #236
@@ -29,9 +53,7 @@ export default function ConnectionsPage() {
       <AdminTopbar title="Connection Map" />
       <div className="flex-1 min-h-0">
         {belowLg === undefined ? (
-          <div className="flex h-full items-center justify-center">
-            <Spinner size={24} className="text-muted-foreground" />
-          </div>
+          <MapSpinner />
         ) : belowLg ? (
           <ConnectionMapMobile />
         ) : (

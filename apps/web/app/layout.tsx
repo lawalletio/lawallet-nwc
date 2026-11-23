@@ -7,7 +7,9 @@ import { DevBanner } from '@/components/dev-banner'
 import { themeBootScript } from '@/lib/client/theme-presets'
 import './globals.css'
 
-const inter = Inter({ subsets: ['latin'] })
+// `variable` feeds Tailwind's `--font-sans` (and preflight's html font), so
+// `font-sans` and anything outside <body> resolve to Inter too.
+const inter = Inter({ subsets: ['latin'], variable: '--font-sans' })
 
 export const metadata: Metadata = {
   title: 'LaWallet NWC',
@@ -25,7 +27,12 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" translate="no" className="dark" suppressHydrationWarning>
+    <html
+      lang="en"
+      translate="no"
+      className={`dark ${inter.variable}`}
+      suppressHydrationWarning
+    >
       <head>
         {/* Brand colour before first paint — see themeBootScript. */}
         <script dangerouslySetInnerHTML={{ __html: themeBootScript() }} />

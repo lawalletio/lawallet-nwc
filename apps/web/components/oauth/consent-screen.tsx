@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useSearchParams } from 'next/navigation'
+import dynamic from 'next/dynamic'
 import {
   AlertTriangle,
   CircleCheck,
@@ -16,7 +17,6 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Spinner } from '@/components/ui/spinner'
 import { useAuth } from '@/components/admin/auth-context'
-import { LoginModal } from '@/components/admin/login-modal'
 import { Role } from '@/lib/auth/permissions'
 import { npubInitials, truncateNpub } from '@/lib/client/format'
 import { useNostrProfile } from '@/lib/client/nostr-profile'
@@ -46,6 +46,12 @@ import {
   parseSpendLimit,
   spendLimitValid
 } from '@/components/oauth/spend-limit-field'
+
+// Only shown when the visitor is signed out and chooses to sign in.
+const LoginModal = dynamic(
+  () => import('@/components/admin/login-modal').then(m => m.LoginModal),
+  { ssr: false }
+)
 
 const SWITCH_ACCOUNT_CONFIRM =
   'Sign out to use a different account? If you signed in with a secret key, make sure you have a copy: it is removed from this browser.'
@@ -108,6 +114,12 @@ export function ConsentScreen() {
   const { status, logout } = useAuth()
   const [check, setCheck] = useState<AuthorizeRequestCheck | null>(null)
   const [loginOpen, setLoginOpen] = useState(false)
+  // Mount on first open and keep it mounted so closes still animate out.
+  const [loginMounted, setLoginMounted] = useState(false)
+  const openLogin = () => {
+    setLoginMounted(true)
+    setLoginOpen(true)
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -122,7 +134,7 @@ export function ConsentScreen() {
   function switchAccount() {
     if (!window.confirm(SWITCH_ACCOUNT_CONFIRM)) return
     logout()
-    setLoginOpen(true)
+    openLogin()
   }
 
   let content: ReactNode = <Loading />
@@ -131,9 +143,7 @@ export function ConsentScreen() {
       <InvalidRequest error={check.error} description={check.description} />
     )
   } else if (check?.ok && status === 'unauthenticated') {
-    content = (
-      <SignedOut details={check.details} onSignIn={() => setLoginOpen(true)} />
-    )
+    content = <SignedOut details={check.details} onSignIn={openLogin} />
   } else if (check?.ok && status === 'authenticated') {
     content = (
       <ConsentForm
@@ -150,10 +160,12 @@ export function ConsentScreen() {
       details={check?.ok ? check.details : undefined}
     >
       {content}
-      <LoginModal
-        open={loginOpen && status === 'unauthenticated'}
-        onOpenChange={setLoginOpen}
-      />
+      {loginMounted && (
+        <LoginModal
+          open={loginOpen && status === 'unauthenticated'}
+          onOpenChange={setLoginOpen}
+        />
+      )}
     </ConsentCard>
   )
 }
