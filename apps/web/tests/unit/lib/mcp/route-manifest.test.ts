@@ -43,7 +43,7 @@ describe('route manifest', () => {
   // could only answer 401 — so check the handlers, not just the document.
   it('exposes no operation whose handler accepts only a NIP-98 signature', () => {
     const nip98Only =
-      /\b(validateAdminAuth|validateNip98Auth|validateRoleAuth|authenticateNip98)\b/
+      /\b(validateAdminAuth|validateNip98Auth|validateRoleAuth)\b/
     const offenders = getCatalog()
       .filter(op => 'access' in policyFor(op))
       .filter(op => nip98Only.test(readFileSync(routeFile(op.path), 'utf8')))

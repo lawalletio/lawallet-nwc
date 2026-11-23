@@ -274,14 +274,15 @@
 ```
 
 **Category Badge Colors:**
-| Category | Color |
-|----------|-------|
-| USER | red-500 |
-| ADDRESS | green-500 |
-| NWC | yellow-500 |
-| INVOICE | yellow-500 |
-| CARD | red-500 |
-| SERVER | red-500 |
+
+| Category | Color      |
+| -------- | ---------- |
+| USER     | red-500    |
+| ADDRESS  | green-500  |
+| NWC      | yellow-500 |
+| INVOICE  | yellow-500 |
+| CARD     | red-500    |
+| SERVER   | red-500    |
 
 **Components:** `Topbar`, `Input` (search), `Select` x2, `Table` (with colored left border), `Badge` (colored), `Pagination`
 
@@ -412,13 +413,13 @@ Full-page flow (no sidebar) shown after first login when domain is not configure
 | Stat cards (no icon)   | Custom `StatCard`                         | `components/admin/stat-card.tsx`             | Redesigned: title + value + description + optional Badge + unit |
 | Search input with icon | `InputGroup` + `Input`                    | `components/ui/input-group.tsx`              | Search icon prefix                                              |
 | Data tables            | `Table`                                   | `components/ui/table.tsx`                    | Plain shadcn Table (no @tanstack/react-table)                   |
-| Table pagination       | `Pagination` wrapper                      | `components/admin/data-table-pagination.tsx` | Wraps `components/ui/pagination.tsx`                            |
+| Table pagination       | `DataTablePagination`                     | `components/admin/data-table-pagination.tsx` | Built on `Button`; the shadcn `Pagination` was removed (unused) |
 | Filter dropdowns       | `Select`                                  | `components/ui/select.tsx`                   | Category/status/design filters                                  |
 | Row action menus       | `DropdownMenu`                            | `components/ui/dropdown-menu.tsx`            | MoreHorizontal trigger                                          |
 | Category badges        | `Badge` with color classes                | `components/ui/badge.tsx`                    | Custom className for colors                                     |
 | Toggle settings        | `Switch` + `Label`                        | `components/ui/switch.tsx`                   | With description text                                           |
 | Prefix inputs          | `InputGroup` + `InputGroupText`           | `components/ui/input-group.tsx`              | wss://, https://, $, wa.me/ etc.                                |
-| Rounded selector       | `ButtonGroup`                             | `components/ui/button-group.tsx`             | None/Small/Medium/Full                                          |
+| Rounded selector       | `Button` row                              | `components/admin/settings/branding-tab.tsx` | None/Small/Medium/Full; `ButtonGroup` was removed (unused)      |
 | Alert bar              | `Topbar` alert prop                       | `components/ui/topbar.tsx`                   | Destructive background                                          |
 | Tab navigation         | `Topbar` tabs prop                        | `components/ui/topbar.tsx`                   | Settings page tabs                                              |
 | Settings sub-items     | `SidebarMenuSub`                          | `components/ui/sidebar.tsx`                  | Collapsible sub-navigation                                      |
