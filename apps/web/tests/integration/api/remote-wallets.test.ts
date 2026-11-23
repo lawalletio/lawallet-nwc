@@ -114,21 +114,20 @@ describe('GET /api/remote-wallets', () => {
       name: 'Disabled',
       status: 'DISABLED'
     })
-    const revoked = createRemoteWalletFixture({
-      userId: user.id,
-      name: 'Revoked',
-      status: 'REVOKED'
-    })
     vi.mocked(prismaMock.remoteWallet.findMany).mockResolvedValue([
       active,
-      disabled,
-      revoked
+      disabled
     ] as never)
 
     const res = await listHandler(createNextRequest('/api/remote-wallets'))
     const body = (await assertResponse(res, 200)) as Array<{ name: string }>
 
     expect(body.map(w => w.name)).toEqual(['Active', 'Disabled'])
+    expect(prismaMock.remoteWallet.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: user.id, status: { notIn: ['REVOKED', 'DEAD'] } }
+      })
+    )
   })
 
   it('returns REVOKED wallets when explicitly requested via ?status=REVOKED', async () => {
@@ -168,20 +167,17 @@ describe('GET /api/remote-wallets', () => {
       name: 'Active',
       status: 'ACTIVE'
     })
-    const dead = createRemoteWalletFixture({
-      userId: user.id,
-      name: 'Dead',
-      status: 'DEAD'
-    })
     vi.mocked(prismaMock.remoteWallet.findMany).mockResolvedValue([
-      active,
-      dead
+      active
     ] as never)
 
     const res = await listHandler(createNextRequest('/api/remote-wallets'))
     const body = (await assertResponse(res, 200)) as Array<{ name: string }>
 
     expect(body.map(w => w.name)).toEqual(['Active'])
+    const where = vi.mocked(prismaMock.remoteWallet.findMany).mock.calls[0][0]
+      ?.where as { status: { notIn: string[] } }
+    expect(where.status.notIn).toContain('DEAD')
   })
 
   it('returns DEAD wallets (with diedAt) via ?status=DEAD', async () => {
