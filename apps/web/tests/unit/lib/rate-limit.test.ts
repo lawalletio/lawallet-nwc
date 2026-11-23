@@ -308,7 +308,7 @@ describe('checkRateLimit with Upstash', () => {
   it('logs only the type of a non-Error rejection', async () => {
     vi.mocked(logger.warn).mockClear()
     vi.useFakeTimers({ toFake: ['Date'] })
-    vi.setSystemTime(Date.now() + 1_200_000) // past any earlier warning
+    vi.setSystemTime(Date.now() + 2_400_000) // past any earlier warning
     try {
       fetchMock.mockRejectedValue('boom')
       await checkRateLimit(requestFrom(ip()), RateLimitPresets.public)
