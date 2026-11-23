@@ -1,7 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
-import Image from 'next/image'
+import { useState, useEffect, useRef } from 'react'
 import { Zap, ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
@@ -42,45 +41,70 @@ const techItems = [
   'Next.js'
 ]
 
-function useScrambleText(words: string[], interval = 3000) {
+/**
+ * Cycles through `words` every `interval` ms with a scramble transition.
+ * Lives in its own component so the 35ms scramble ticks re-render only this
+ * span, not the whole hero. Reduced-motion users get a plain word swap.
+ */
+function ScrambleText({
+  words,
+  interval = 3000
+}: {
+  words: string[]
+  interval?: number
+}) {
   const [display, setDisplay] = useState(words[0])
-  const indexRef = useRef(0)
+  const displayRef = useRef(words[0])
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      indexRef.current = (indexRef.current + 1) % words.length
-      const target = words[indexRef.current]
-      const maxLen = Math.max(display.length, target.length)
-      let iteration = 0
-      const totalSteps = maxLen + 6
+    const reduceMotion = window.matchMedia(
+      '(prefers-reduced-motion: reduce)'
+    ).matches
+    const show = (text: string) => {
+      displayRef.current = text
+      setDisplay(text)
+    }
+    let index = 0
+    let scramble: ReturnType<typeof setInterval> | undefined
 
-      const scramble = setInterval(() => {
+    const timer = setInterval(() => {
+      index = (index + 1) % words.length
+      const target = words[index]
+      clearInterval(scramble)
+      if (reduceMotion) return show(target)
+
+      const from = displayRef.current.length
+      const totalSteps = Math.max(from, target.length) + 6
+      let iteration = 0
+
+      scramble = setInterval(() => {
         const result = target.split('').map((char, i) => {
           if (i < iteration - 3) return char
           return SCRAMBLE_CHARS[
             Math.floor(Math.random() * SCRAMBLE_CHARS.length)
           ]
         })
-
-        // Trim or pad to animate length transition
+        // Trim or pad to animate the length transition.
         const currentLen = Math.round(
-          display.length +
-            (target.length - display.length) * (iteration / totalSteps)
+          from + (target.length - from) * (iteration / totalSteps)
         )
         setDisplay(result.slice(0, Math.max(currentLen, 1)).join(''))
 
         iteration++
         if (iteration > totalSteps) {
-          setDisplay(target)
           clearInterval(scramble)
+          show(target)
         }
       }, 35)
     }, interval)
 
-    return () => clearInterval(timer)
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+    return () => {
+      clearInterval(timer)
+      clearInterval(scramble)
+    }
+  }, [words, interval])
 
-  return display
+  return <span className="text-foreground">{display}</span>
 }
 
 export function HeroSection({
@@ -90,7 +114,6 @@ export function HeroSection({
   domain,
   loading
 }: HeroSectionProps) {
-  const scrambledUser = useScrambleText(usernames, 3000)
   const displayDomain = domain || 'domain.com'
 
   return (
@@ -166,8 +189,7 @@ export function HeroSection({
           />
           <span className="relative z-10 font-mono text-xl md:text-2xl tracking-wide text-muted-foreground">
             <span style={{ color: 'var(--theme-400)' }}>&#9889;</span>{' '}
-            <span className="text-foreground">{scrambledUser}</span>@
-            {displayDomain}{' '}
+            <ScrambleText words={usernames} />@{displayDomain}{' '}
             <span style={{ color: 'var(--theme-400)' }}>&#9889;</span>
           </span>
         </div>

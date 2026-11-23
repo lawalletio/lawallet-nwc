@@ -284,7 +284,12 @@ function Body({
   return (
     <div className="flex flex-col gap-5">
       {groups.map(group => (
-        <section key={group.label} className="flex flex-col gap-2">
+        <section
+          key={group.label}
+          // Off-screen day groups skip layout/paint until scrolled near;
+          // `auto` remembers each group's real height once rendered.
+          className="flex flex-col gap-2 [contain-intrinsic-size:auto_0_auto_320px] [content-visibility:auto]"
+        >
           <h2 className="px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
             {group.label}
           </h2>

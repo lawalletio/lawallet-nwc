@@ -49,10 +49,11 @@ export interface AddressCounts {
 }
 
 /**
- * Fetch all lightning addresses.
+ * Fetch all lightning addresses (admin-only endpoint). Pass `enabled: false`
+ * to skip the request, e.g. for non-admins who would just get a 403.
  */
-export function useAddresses() {
-  return useApi<AddressData[]>('/api/lightning-addresses')
+export function useAddresses(enabled = true) {
+  return useApi<AddressData[]>(enabled ? '/api/lightning-addresses' : null)
 }
 
 /**

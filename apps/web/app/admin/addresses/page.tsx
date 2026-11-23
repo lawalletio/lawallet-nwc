@@ -115,7 +115,7 @@ export default function AdminAddressesPage() {
   const adminView = isAdmin && showAllUsers
 
   const mine = useMyAddresses()
-  const all = useAddresses()
+  const all = useAddresses(adminView)
   const { data, loading, refetch } = adminView ? all : mine
 
   const { setAsPrimary, settingPrimary } = useAddressMutations()

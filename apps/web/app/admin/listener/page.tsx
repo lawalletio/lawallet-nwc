@@ -32,6 +32,7 @@ import type {
   ListenerStatusProxyResponse,
   ListenerStatusResponse
 } from '@lawallet-nwc/shared'
+import { useVisibleInterval } from '@/lib/client/hooks/use-visible-interval'
 
 const STATE_BADGE: Record<
   ListenerConnection['state'],
@@ -101,7 +102,13 @@ function useLiveUptimeSeconds(startedAt: string | undefined): number | null {
     ? null
     : Math.max(0, Math.floor((now - startedMs) / 1000))
   const tickMs =
-    seconds === null ? null : seconds < 60 ? 1000 : seconds < 86400 ? 60000 : 3600000
+    seconds === null
+      ? null
+      : seconds < 60
+        ? 1000
+        : seconds < 86400
+          ? 60000
+          : 3600000
   // Keyed on tickMs, so crossing a unit boundary swaps the timer instead of
   // leaving a 1s interval running for the rest of the process's life.
   useEffect(() => {
@@ -346,10 +353,8 @@ function ListenerContent() {
   // so between payments the view goes stale and a single slow/timed-out fetch
   // would blank the whole feed — the cause of "events sometimes vanish". Poll
   // to stay current and recover from transient blips.
-  useEffect(() => {
-    const id = setInterval(() => void refetch(), POLL_MS)
-    return () => clearInterval(id)
-  }, [refetch])
+  // Paused while the tab is hidden; refetches once on return.
+  useVisibleInterval(() => void refetch(), POLL_MS)
 
   const current = data?.state === 'ok' ? data.status : null
 

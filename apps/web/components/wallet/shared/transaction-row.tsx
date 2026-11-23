@@ -1,5 +1,6 @@
 'use client'
 
+import { memo } from 'react'
 import Link from 'next/link'
 import { ArrowUpRight, ArrowDownLeft } from 'lucide-react'
 import { useLocale, useT, type Dict } from '@/lib/client/i18n'
@@ -19,7 +20,13 @@ interface TransactionRowProps {
   className?: string
 }
 
-export function TransactionRow({ tx, href, className }: TransactionRowProps) {
+// Memoized: activity lists re-render on every poll / page append, but a
+// row only changes when its own transaction does.
+export const TransactionRow = memo(function TransactionRow({
+  tx,
+  href,
+  className
+}: TransactionRowProps) {
   const t = useT()
   const locale = useLocale()
   const incoming = tx.type === 'incoming'
@@ -125,7 +132,7 @@ export function TransactionRow({ tx, href, className }: TransactionRowProps) {
   }
 
   return <div className={classNames}>{body}</div>
-}
+})
 
 function formatRelative(ms: number, t: Dict, locale: string): string {
   const s = t.shared.tx

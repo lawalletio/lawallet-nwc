@@ -2,11 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { ArrowDownToLine, Wallet } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import { ClaimCelebration } from '@/components/wallet/withdraw/claim-celebration'
 import { useWalletNwcOptional } from '@/components/wallet/nwc-provider'
 import { unlockClaimSound } from '@/lib/client/claim-sound'
 import { preloadTreasureChest } from '@/lib/client/treasure-chest-cache'
@@ -38,6 +38,14 @@ interface UserMeResponse {
 // How long to watch the minted invoice for the incoming withdraw before we
 // stop blocking and tell the user it's on the way (LNURL-withdraw settles
 // asynchronously — the service pays our invoice out-of-band).
+// The celebration (and its animation code) only plays after a claim; the
+// screen warms this same import on mount so it is ready by then.
+const loadClaimCelebration = () =>
+  import('@/components/wallet/withdraw/claim-celebration').then(
+    m => m.ClaimCelebration
+  )
+const ClaimCelebration = dynamic(loadClaimCelebration, { ssr: false })
+
 const SETTLE_TIMEOUT_MS = 45_000
 const SETTLE_POLL_MS = 3_000
 
@@ -84,6 +92,9 @@ export function WithdrawScreen() {
   useEffect(() => {
     void preloadTreasureChest().catch(() => {
       // TreasureChest retries the same loader when it mounts.
+    })
+    void loadClaimCelebration().catch(() => {
+      // next/dynamic retries the import when the celebration mounts.
     })
   }, [])
 

@@ -51,6 +51,10 @@ const nextConfig = {
     }
   },
   allowedDevOrigins,
+  experimental: {
+    // Barrel-heavy packages: import only the modules actually used.
+    optimizePackageImports: ['nostr-tools', '@nostrify/nostrify']
+  },
   async headers() {
     return [
       {
@@ -106,7 +110,13 @@ export default withSentryConfig(nextConfig, {
   org: 'la-crypta',
   project: 'lawallet-web',
   silent: !process.env.CI,
-  bundleSizeOptimizations: { excludeDebugStatements: true },
+  // Session Replay is never enabled, so drop its iframe/shadow-DOM/worker code.
+  bundleSizeOptimizations: {
+    excludeDebugStatements: true,
+    excludeReplayIframe: true,
+    excludeReplayShadowDom: true,
+    excludeReplayWorker: true
+  },
   // Also upload maps for node_modules / Next internals, so framework frames
   // (React DOM errors) resolve instead of showing minified chunks.
   widenClientFileUpload: true,

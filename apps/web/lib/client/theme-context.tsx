@@ -5,7 +5,8 @@ import React, {
   useContext,
   useEffect,
   useState,
-  useCallback
+  useCallback,
+  useMemo
 } from 'react'
 import { useSettings } from '@/lib/client/hooks/use-settings'
 import {
@@ -149,18 +150,17 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     } catch {}
   }, [])
 
-  return (
-    <ThemeContext.Provider
-      value={{
-        activePreset,
-        setTheme,
-        presets: THEME_PRESETS,
-        rounding,
-        setRounding,
-        roundingOptions: ROUNDING_OPTIONS
-      }}
-    >
-      {children}
-    </ThemeContext.Provider>
+  const value = useMemo(
+    () => ({
+      activePreset,
+      setTheme,
+      presets: THEME_PRESETS,
+      rounding,
+      setRounding,
+      roundingOptions: ROUNDING_OPTIONS
+    }),
+    [activePreset, setTheme, rounding, setRounding]
   )
+
+  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
 }

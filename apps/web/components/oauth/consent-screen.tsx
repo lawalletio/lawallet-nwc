@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useSearchParams } from 'next/navigation'
+import dynamic from 'next/dynamic'
 import {
   AlertTriangle,
   CircleCheck,
@@ -16,7 +17,6 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Spinner } from '@/components/ui/spinner'
 import { useAuth } from '@/components/admin/auth-context'
-import { LoginModal } from '@/components/admin/login-modal'
 import { Role } from '@/lib/auth/permissions'
 import { npubInitials, truncateNpub } from '@/lib/client/format'
 import { useNostrProfile } from '@/lib/client/nostr-profile'
@@ -45,6 +45,12 @@ import {
   parseSpendLimit,
   spendLimitValid
 } from '@/components/oauth/spend-limit-field'
+
+// Only shown when the visitor is signed out and chooses to sign in.
+const LoginModal = dynamic(
+  () => import('@/components/admin/login-modal').then(m => m.LoginModal),
+  { ssr: false }
+)
 
 const SWITCH_ACCOUNT_CONFIRM =
   'Sign out to use a different account? If you signed in with a secret key, make sure you have a copy: it is removed from this browser.'
@@ -118,10 +124,9 @@ export function ConsentScreen() {
   return (
     <ConsentCard wide={check?.ok === true && status === 'authenticated'}>
       {content}
-      <LoginModal
-        open={loginOpen && status === 'unauthenticated'}
-        onOpenChange={setLoginOpen}
-      />
+      {loginOpen && status === 'unauthenticated' && (
+        <LoginModal open onOpenChange={setLoginOpen} />
+      )}
     </ConsentCard>
   )
 }

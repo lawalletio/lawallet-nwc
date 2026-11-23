@@ -3,16 +3,22 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { AlertTriangle, Database, RefreshCw } from 'lucide-react'
 import { usePathname, useRouter } from 'next/navigation'
+import dynamic from 'next/dynamic'
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/components/admin/auth-context'
 import { AdminSidebar } from '@/components/admin/admin-sidebar'
 import { MobileTabBar } from '@/components/admin/mobile-tab-bar'
-import { LoginModal } from '@/components/admin/login-modal'
 import { MaintenanceGate } from '@/components/admin/maintenance-gate'
 import { SetupBanner } from '@/components/admin/setup-banner'
 import { useVisibleInterval } from '@/lib/client/hooks/use-visible-interval'
+
+// Only rendered for signed-out visitors; signed-in admins never load it.
+const LoginModal = dynamic(
+  () => import('@/components/admin/login-modal').then(m => m.LoginModal),
+  { ssr: false }
+)
 
 interface DatabaseStatus {
   checking: boolean

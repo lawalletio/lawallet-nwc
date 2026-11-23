@@ -164,6 +164,8 @@ export function CardNode({ id, data }: NodeProps) {
           // and avoids next/image's remote-pattern requirement.
           <img
             src={d.designImage}
+            loading="lazy"
+            decoding="async"
             alt={d.designName ?? 'Card design'}
             className="aspect-8/5 w-full rounded-sm border border-border object-cover"
           />
