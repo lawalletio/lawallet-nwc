@@ -3,6 +3,32 @@ import { z } from 'zod'
 const emptyEnvToUndefined = (value: unknown): unknown =>
   typeof value === 'string' && value.trim() === '' ? undefined : value
 
+const upstashRestUrl = (name: string) =>
+  z.preprocess(
+    emptyEnvToUndefined,
+    z
+      .string()
+      .url(`${name} must be a valid URL`)
+      .refine(value => {
+        const url = new URL(value)
+        return url.protocol === 'https:' && !url.username && !url.password
+      }, `${name} must be the https REST URL, without credentials`)
+      .optional()
+      .describe(
+        'Upstash Redis REST URL (https) for distributed rate limiting (optional)'
+      )
+  )
+
+const upstashRestToken = (name: string) =>
+  z.preprocess(
+    emptyEnvToUndefined,
+    z
+      .string()
+      .min(1, `${name} must not be empty`)
+      .optional()
+      .describe('Upstash Redis REST token (optional)')
+  )
+
 /**
  * Environment variable schema with validation
  * This ensures all required environment variables are present and valid
@@ -160,29 +186,12 @@ const envSchema = z.object({
   // The REST URL, not the `rediss://default:<password>@…` connection string
   // the Upstash console shows next to it: that one carries the password, and
   // fetch would echo it in its error message.
-  UPSTASH_REDIS_URL: z.preprocess(
-    emptyEnvToUndefined,
-    z
-      .string()
-      .url('UPSTASH_REDIS_URL must be a valid URL')
-      .refine(value => {
-        const url = new URL(value)
-        return url.protocol === 'https:' && !url.username && !url.password
-      }, 'UPSTASH_REDIS_URL must be the https REST URL, without credentials')
-      .optional()
-      .describe(
-        'Upstash Redis REST URL (https) for distributed rate limiting (optional)'
-      )
-  ),
-
-  UPSTASH_REDIS_TOKEN: z.preprocess(
-    emptyEnvToUndefined,
-    z
-      .string()
-      .min(1, 'UPSTASH_REDIS_TOKEN must not be empty')
-      .optional()
-      .describe('Upstash Redis REST token (optional)')
-  ),
+  UPSTASH_REDIS_URL: upstashRestUrl('UPSTASH_REDIS_URL'),
+  UPSTASH_REDIS_TOKEN: upstashRestToken('UPSTASH_REDIS_TOKEN'),
+  // Names the Vercel Marketplace "Upstash for Redis" integration injects;
+  // read as fallbacks so connecting the integration needs no extra vars.
+  KV_REST_API_URL: upstashRestUrl('KV_REST_API_URL'),
+  KV_REST_API_TOKEN: upstashRestToken('KV_REST_API_TOKEN'),
 
   LOG_PRETTY: z
     .string()

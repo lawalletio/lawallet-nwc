@@ -209,9 +209,12 @@ export function getConfig(strict: boolean = true): AppConfig {
       maxRequests: env.RATE_LIMIT_MAX_REQUESTS,
       maxRequestsAuth: env.RATE_LIMIT_MAX_REQUESTS_AUTH,
       upstash: {
-        url: env.UPSTASH_REDIS_URL,
-        token: env.UPSTASH_REDIS_TOKEN,
-        enabled: !!(env.UPSTASH_REDIS_URL && env.UPSTASH_REDIS_TOKEN)
+        url: env.UPSTASH_REDIS_URL ?? env.KV_REST_API_URL,
+        token: env.UPSTASH_REDIS_TOKEN ?? env.KV_REST_API_TOKEN,
+        enabled: !!(
+          (env.UPSTASH_REDIS_URL ?? env.KV_REST_API_URL) &&
+          (env.UPSTASH_REDIS_TOKEN ?? env.KV_REST_API_TOKEN)
+        )
       }
     }
   }

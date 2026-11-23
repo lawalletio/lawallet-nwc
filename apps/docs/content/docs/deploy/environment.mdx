@@ -152,6 +152,12 @@ with traffic. Set both variables to share one counter across instances through
 | `UPSTASH_REDIS_URL`   | Web     | Optional      | Upstash REST URL (`https://<name>.upstash.io`).            |
 | `UPSTASH_REDIS_TOKEN` | Web     | With the URL  | Upstash REST token. Both must be set to enable Redis mode. |
 
+On Vercel, connecting the **Upstash for Redis** Marketplace integration is
+enough: the app also reads the `KV_REST_API_URL` / `KV_REST_API_TOKEN` names it
+injects. `UPSTASH_REDIS_*` wins when both are set.
+
+Each rate-limit check costs two Upstash commands (`INCR` + `PEXPIREAT`).
+
 If Redis errors or takes longer than 300 ms, that request falls back to the
 in-memory counter and a warning is logged (at most once a minute). Requests
 are never blocked by a Redis outage.
