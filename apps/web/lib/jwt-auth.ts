@@ -6,12 +6,7 @@ import {
   AuthorizationError,
   InternalServerError
 } from '@/types/server/errors'
-import {
-  Role,
-  Permission,
-  hasPermission,
-  isValidRole
-} from '@/lib/auth/permissions'
+import { Role, isValidRole } from '@/lib/auth/permissions'
 
 export interface JwtAuthOptions {
   algorithms?: string[]
@@ -162,19 +157,4 @@ export function getRoleFromRequest(request: AuthenticatedRequest): Role {
     return role
   }
   return Role.USER
-}
-
-/**
- * Checks if the authenticated user's role grants a specific permission.
- */
-export function hasPermissionFromRequest(
-  request: AuthenticatedRequest,
-  permission: Permission
-): boolean {
-  try {
-    const role = getRoleFromRequest(request)
-    return hasPermission(role, permission)
-  } catch {
-    return false
-  }
 }

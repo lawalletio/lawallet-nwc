@@ -37,8 +37,6 @@ apps/
   listener/   NWC Payment Listener — live NWC pool + webhooks
   cli/        Installer CLI behind the curl|bash bootstrap
 packages/
-  sdk/        @lawallet-nwc/sdk — typed API client, NIP-98-signed
-  react/      @lawallet-nwc/react — provider + hooks over the SDK
   shared/     Zod schemas + shared types (source of truth)
   openapi/    Zod → OpenAPI 3.1 document generation
 ```
@@ -424,8 +422,8 @@ Next.js App Router params.
   (`ValidationError`, `AuthenticationError`, etc.) — don't return ad-hoc JSON.
 - Validate request bodies / queries / params with Zod via
   [`apps/web/lib/validation/middleware.ts`](./apps/web/lib/validation/middleware.ts).
-- Authenticated routes go through `lib/auth/unified-auth.ts` (NIP-98 + JWT)
-  or the `withAdminAuth()` wrapper for admin-only handlers.
+- Authenticated routes go through `lib/auth/unified-auth.ts` (NIP-98 + JWT):
+  `authenticateWithRole()` / `authenticateWithPermission()` for gated handlers.
 - Logging uses the Pino instance in [`apps/web/lib/logger.ts`](./apps/web/lib/logger.ts).
   Don't `console.log`.
 

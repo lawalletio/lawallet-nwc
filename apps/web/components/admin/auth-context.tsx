@@ -33,6 +33,7 @@ import {
   waitForSessionCacheCleanup
 } from '@/lib/client/cache/session-cache'
 import { trackEvent } from '@/lib/analytics/gtag'
+import { closeAllNwcClients } from '@/lib/client/nwc/nwc-client'
 import { AnalyticsEvent } from '@/lib/analytics/events'
 
 const JWT_STORAGE_KEY = 'lawallet-jwt'
@@ -325,6 +326,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Synchronous stores are gone before this returns. IndexedDB and browser
     // CacheStorage continue behind a barrier that the next login awaits.
     void clearSessionCaches()
+    // Drop pooled relay subscriptions so the next account never reuses them.
+    closeAllNwcClients()
     signerRef.current = null
     setState({
       status: 'unauthenticated',

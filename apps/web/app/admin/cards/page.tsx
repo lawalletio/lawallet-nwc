@@ -423,6 +423,8 @@ export default function CardsPage() {
                             {card.design?.image ? (
                               <img
                                 src={card.design.image}
+                                loading="lazy"
+                                decoding="async"
                                 alt={card.design.description || 'Design'}
                                 className="size-10 rounded object-cover"
                               />

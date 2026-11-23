@@ -1,4 +1,3 @@
-import { NextRequest, NextResponse } from 'next/server'
 import { validateNip98 } from '@/lib/nip98'
 import { validateJwtFromRequest, JwtValidationResult } from '@/lib/jwt'
 import { getConfig } from '@/lib/config'
@@ -247,45 +246,4 @@ export async function authenticateWithPermission(
   }
 
   return auth
-}
-
-/**
- * Wraps a route handler with unified auth (Nostr or JWT) and forwards the
- * resolved {@link AuthResult} as the second argument.
- *
- * @param handler - The handler to invoke after a successful auth.
- * @param options - Optional gate. `requireNip98` forces Nostr-only auth (used
- *   by endpoints that mint JWTs); otherwise checks `requiredPermission` first,
- *   then `requiredRole`, then plain authentication.
- */
-export function withAuth<T extends any[]>(
-  handler: (
-    request: Request,
-    auth: AuthResult,
-    ...args: T
-  ) => Promise<NextResponse>,
-  options?: {
-    requiredRole?: Role
-    requiredPermission?: Permission
-    requireNip98?: boolean
-  }
-) {
-  return async (request: Request, ...args: T): Promise<NextResponse> => {
-    let auth: AuthResult
-
-    if (options?.requireNip98) {
-      auth = await authenticateNip98(request)
-    } else if (options?.requiredPermission) {
-      auth = await authenticateWithPermission(
-        request,
-        options.requiredPermission
-      )
-    } else if (options?.requiredRole) {
-      auth = await authenticateWithRole(request, options.requiredRole)
-    } else {
-      auth = await authenticate(request)
-    }
-
-    return handler(request, auth, ...args)
-  }
 }

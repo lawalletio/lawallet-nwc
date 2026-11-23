@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import dynamic from 'next/dynamic'
 import { LandingNavbar } from '@/components/landing/landing-navbar'
 import { HeroSection } from '@/components/landing/hero-section'
 import { FeaturesSection } from '@/components/landing/features-section'
@@ -9,12 +10,21 @@ import { ShowcaseSection } from '@/components/landing/showcase-section'
 import { CtaSection } from '@/components/landing/cta-section'
 import { DomainCta } from '@/components/landing/domain-cta'
 import { Footer } from '@/components/landing/footer'
-import { ClaimDialog } from '@/components/landing/claim-dialog'
-import { LoginModal } from '@/components/admin/login-modal'
 import { Spinner } from '@/components/ui/spinner'
 import { useAuth } from '@/components/admin/auth-context'
 import { useSettings } from '@/lib/client/hooks/use-settings'
 import { Role } from '@/lib/auth/permissions'
+
+// Both dialogs are opened on demand: keep them (and the signer/passkey code
+// behind the login modal) out of the landing page's first-load JS.
+const ClaimDialog = dynamic(
+  () => import('@/components/landing/claim-dialog').then(m => m.ClaimDialog),
+  { ssr: false }
+)
+const LoginModal = dynamic(
+  () => import('@/components/admin/login-modal').then(m => m.LoginModal),
+  { ssr: false }
+)
 
 export default function HomePage() {
   const router = useRouter()
@@ -23,6 +33,10 @@ export default function HomePage() {
   const [claimOpen, setClaimOpen] = useState(false)
   const [loginOpen, setLoginOpen] = useState(false)
   const [redirecting, setRedirecting] = useState(false)
+  // Mount each dialog on first open and keep it mounted, so its chunk only
+  // loads when needed and later closes still animate out.
+  const [claimMounted, setClaimMounted] = useState(false)
+  const [loginMounted, setLoginMounted] = useState(false)
   const [browserHostname, setBrowserHostname] = useState('')
 
   useEffect(() => {
@@ -47,8 +61,14 @@ export default function HomePage() {
       router.push(homePath)
     }
   }, [loginOpen, status, router, homePath])
-  const openLogin = () => setLoginOpen(true)
-  const openClaim = () => setClaimOpen(true)
+  const openLogin = () => {
+    setLoginMounted(true)
+    setLoginOpen(true)
+  }
+  const openClaim = () => {
+    setClaimMounted(true)
+    setClaimOpen(true)
+  }
 
   return (
     <main className="min-h-screen bg-background text-foreground">
@@ -70,20 +90,24 @@ export default function HomePage() {
       <DomainCta />
       <Footer />
 
-      <ClaimDialog
-        open={claimOpen}
-        onOpenChange={setClaimOpen}
-        domain={domain}
-      />
-      <LoginModal
-        open={loginOpen}
-        onOpenChange={setLoginOpen}
-        onSuccess={() => {
-          setRedirecting(true)
-          setLoginOpen(false)
-          router.push(homePath)
-        }}
-      />
+      {claimMounted && (
+        <ClaimDialog
+          open={claimOpen}
+          onOpenChange={setClaimOpen}
+          domain={domain}
+        />
+      )}
+      {loginMounted && (
+        <LoginModal
+          open={loginOpen}
+          onOpenChange={setLoginOpen}
+          onSuccess={() => {
+            setRedirecting(true)
+            setLoginOpen(false)
+            router.push(homePath)
+          }}
+        />
+      )}
 
       {redirecting && (
         <div className="fixed inset-0 z-60 flex flex-col items-center justify-center gap-4 bg-background/95 backdrop-blur-xs">

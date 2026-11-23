@@ -248,13 +248,9 @@ describe('POST /api/mcp', () => {
 
   it('serves a REST read through the real handler with an internal session', async () => {
     grant(['read'])
+    // The route excludes REVOKED/DEAD in its WHERE, so the DB returns only Main.
     vi.mocked(prismaMock.remoteWallet.findMany).mockResolvedValue([
-      createRemoteWalletFixture({ userId: user.id, name: 'Main' }),
-      createRemoteWalletFixture({
-        userId: user.id,
-        name: 'Old',
-        status: 'REVOKED'
-      })
+      createRemoteWalletFixture({ userId: user.id, name: 'Main' })
     ] as never)
 
     const result = await callTool(mcpPost, 'list_wallets', {}, oauth)
@@ -264,7 +260,9 @@ describe('POST /api/mcp', () => {
     expect(wallets.map((w: { name: string }) => w.name)).toEqual(['Main'])
     expect(result.text).not.toContain('walletconnect')
     expect(prismaMock.remoteWallet.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { userId: user.id } })
+      expect.objectContaining({
+        where: { userId: user.id, status: { notIn: ['REVOKED', 'DEAD'] } }
+      })
     )
   })
 

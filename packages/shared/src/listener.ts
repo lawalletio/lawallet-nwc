@@ -28,17 +28,6 @@ export const NWC_WEBHOOK_TIMESTAMP_HEADER = 'x-lawallet-timestamp'
 export const NWC_WEBHOOK_SIGNATURE_PREFIX = 'sha256='
 export const NWC_WEBHOOK_MAX_SKEW_MS = 5 * 60 * 1000
 
-/**
- * Notification kinds forwarded by the listener. `hold_invoice_accepted`
- * exists in NIP-47 / @getalby/sdk and is reserved here so enabling it later
- * isn't a contract break — v1 only subscribes to the first two.
- */
-export const nwcNotificationTypeSchema = z.enum([
-  'payment_received',
-  'payment_sent',
-  'hold_invoice_accepted'
-])
-
 const hex64 = z
   .string()
   .regex(/^[0-9a-f]{64}$/i, 'Must be a 64-char hex string')
@@ -229,7 +218,6 @@ export type ZapSettleAck = z.infer<typeof zapSettleAckSchema>
  * `pending` says whether any cash-out swap is still being followed, so the
  * listener ticks fast while one is and backs off while none is.
  */
-export const swapReconcileAckSchema = zapSettleAckSchema
 export type SwapReconcileAck = ZapSettleAck
 
 // ── POST {listener}/nwc/request — proxy NWC calls over the live pool ────────

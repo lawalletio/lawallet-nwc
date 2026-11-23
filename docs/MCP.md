@@ -524,11 +524,13 @@ See [Payments](#payments) for how the limit is enforced.
 | Credential                    | Lifetime                            |
 | ----------------------------- | ----------------------------------- |
 | Authorization code (`lwac_…`) | 5 minutes, single use               |
-| Access token (`lwat_…`)       | 1 hour                              |
+| Access token (`lwat_…`)       | 24 hours                            |
 | Refresh token (`lwrt_…`)      | 30 days, restarted by every refresh |
 
-- Clients refresh automatically. Every refresh replaces both tokens, and the
-  previous ones stop working at once.
+- Clients refresh automatically. Every refresh replaces both tokens and the
+  previous access token stops working at once. The previous refresh token
+  replays that same rotation for one more hour, so an app whose sessions
+  share one token (Claude Code) is not signed out when two of them refresh.
 - A connection unused for 30 days expires and disappears from Connected apps.
   Connect the app again.
 - The instance stores only SHA-256 hashes of codes and tokens; reading the

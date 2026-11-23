@@ -1,4 +1,3 @@
-import type { WebAuthnCredential } from '@simplewebauthn/server'
 import type { PasskeyCredential, WebAuthnFlow } from '@/lib/generated/prisma'
 import { prisma } from '@/lib/prisma'
 import { resolveApiUrl } from '@/lib/public-url'
@@ -145,35 +144,6 @@ export async function consumeWebAuthnChallenge(
   }
 
   return row
-}
-
-/** JSON round-trip for `PasskeyCredential.transports`. */
-export function parseTransports(raw: string | null): string[] | undefined {
-  if (!raw) return undefined
-  try {
-    const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) ? parsed : undefined
-  } catch {
-    return undefined
-  }
-}
-
-export function serializeTransports(
-  transports: readonly string[] | undefined
-): string | null {
-  return transports && transports.length ? JSON.stringify(transports) : null
-}
-
-/** Maps a stored credential row to SimpleWebAuthn's verification input. */
-export function toWebAuthnCredential(
-  row: PasskeyCredential
-): WebAuthnCredential {
-  return {
-    id: row.id,
-    publicKey: new Uint8Array(row.publicKey),
-    counter: Number(row.counter),
-    transports: parseTransports(row.transports)
-  }
 }
 
 /** Shape returned to clients when listing a user's passkeys. Never includes key material. */

@@ -417,7 +417,10 @@ describe('GET /api/users/me', () => {
     const res = await GET(createNextRequest('/api/users/me'))
     const body: any = await assertResponse(res, 200)
 
-    expect(reviveDeadCourtesyWallet).toHaveBeenCalledWith(user.id)
+    expect(reviveDeadCourtesyWallet).toHaveBeenCalledWith(
+      user.id,
+      expect.objectContaining({ isPrimary: true })
+    )
     expect(body.primaryAddressMode).toBe('CUSTOM_NWC')
     expect(body.nwcString).toBe(freshUri)
     expect(body.effectiveNwcString).toBe(freshUri)
@@ -496,7 +499,10 @@ describe('GET /api/users/me', () => {
     const res = await GET(createNextRequest('/api/users/me'))
     const body: any = await assertResponse(res, 200)
 
-    expect(reviveDeadCourtesyWallet).toHaveBeenCalledWith(user.id)
+    expect(reviveDeadCourtesyWallet).toHaveBeenCalledWith(
+      user.id,
+      expect.objectContaining({ isPrimary: true })
+    )
     // The dead row is gone from the response: the address now points at the
     // replacement, so neither the raw nor the effective string is the corpse.
     expect(body.primaryAddressMode).toBe('CUSTOM_NWC')

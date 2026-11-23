@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { listTransactions, type NwcTransaction } from '@/lib/client/nwc'
+import { useVisibleInterval } from '@/lib/client/hooks/use-visible-interval'
 
 interface TransactionsState {
   data: NwcTransaction[] | null
@@ -76,12 +77,13 @@ export function useNwcTransactions(
   }, [connectionString, load])
 
   // Live polling so the feed (and the balance chart derived from it) stay
-  // current while the page is open.
-  useEffect(() => {
-    if (!connectionString || !pollMs) return
-    const interval = setInterval(() => void load(true), pollMs)
-    return () => clearInterval(interval)
-  }, [connectionString, pollMs, load])
+  // current while the page is open (paused in hidden tabs).
+  useVisibleInterval(
+    () => void load(true),
+    pollMs,
+    Boolean(connectionString) && pollMs > 0
+  )
 
-  return { ...state, refetch: () => load() }
+  const refetch = useCallback(() => load(), [load])
+  return { ...state, refetch }
 }

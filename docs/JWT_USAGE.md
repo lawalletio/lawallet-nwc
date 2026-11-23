@@ -117,30 +117,6 @@ export async function DELETE(request: Request) {
 }
 ```
 
-### Higher-Order Function (withAuth)
-
-```typescript
-import { withAuth } from '@/lib/auth/unified-auth'
-import { Role } from '@/lib/auth/permissions'
-import type { AuthResult } from '@/lib/auth/unified-auth'
-
-async function handler(request: Request, auth: AuthResult) {
-  return NextResponse.json({ pubkey: auth.pubkey, role: auth.role })
-}
-
-// Basic auth
-export const GET = withAuth(handler)
-
-// Require admin role
-export const POST = withAuth(handler, { requiredRole: Role.ADMIN })
-
-// Require specific permission
-export const DELETE = withAuth(handler, { requiredPermission: 'manage_cards' })
-
-// Force NIP-98 only (rejects Bearer tokens)
-export const PUT = withAuth(handler, { requireNip98: true })
-```
-
 ### JWT-Only Routes
 
 For routes that only accept JWT (like the protected example endpoint):

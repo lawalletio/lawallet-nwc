@@ -16,9 +16,8 @@ Consumer documentation lives at [`/docs/sdk`](../apps/docs/content/docs/sdk/),
 including a [full usage example](../apps/docs/content/docs/sdk/usage-example.mdx).
 The runnable apps and the agent skills are in the SDK repo.
 
-**This repo still contains `packages/sdk` and `packages/react`** — the
-pre-split originals, now duplicated by the published package. They are pending
-removal; new work belongs in lawalletio/sdk.
+The pre-split `packages/sdk` and `packages/react` workspaces have been removed
+from this repo; all SDK work belongs in lawalletio/sdk.
 
 The notes below describe the surface this instance exposes to that SDK, which
 is what matters when changing the API here.

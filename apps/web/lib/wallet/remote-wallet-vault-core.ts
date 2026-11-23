@@ -6,8 +6,6 @@ import {
 } from 'node:crypto'
 
 export const NWC_VAULT_ENVELOPE_PREFIX = 'lwrw1:'
-/** @deprecated Use {@link NWC_VAULT_ENVELOPE_PREFIX}. */
-export const REMOTE_WALLET_ENVELOPE_PREFIX = NWC_VAULT_ENVELOPE_PREFIX
 export const NWC_CONNECTION_STRING_FIELD = 'connection-string'
 
 const MAGIC = Buffer.from('LWRW01', 'utf8')

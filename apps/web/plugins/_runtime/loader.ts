@@ -16,7 +16,9 @@ export async function isPluginEnabled(id: string): Promise<boolean> {
   const plugin = getPlugin(id)
   if (!plugin) return false
 
-  const settings = await getSettings([settingKey(id)])
+  // Hot snapshot: this runs on every plugin route and every hook dispatch
+  // (e.g. each paid invoice); setPluginEnabled invalidates it.
+  const settings = await getSettings([settingKey(id)], { cache: 'hot' })
   const stored = settings[settingKey(id)]
   if (stored === undefined) return plugin.defaultEnabled ?? false
   return stored === 'true'
@@ -27,7 +29,10 @@ export async function listPluginStates(): Promise<PluginState[]> {
   const plugins = listPlugins()
   if (plugins.length === 0) return []
 
-  const settings = await getSettings(plugins.map(p => settingKey(p.id)))
+  const settings = await getSettings(
+    plugins.map(p => settingKey(p.id)),
+    { cache: 'hot' }
+  )
 
   return plugins.map(p => {
     const stored = settings[settingKey(p.id)]

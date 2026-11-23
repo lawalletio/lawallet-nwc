@@ -68,6 +68,7 @@ import {
 } from '@/lib/client/format'
 import type { PollResults } from '@/lib/polls'
 import { cn } from '@/lib/utils'
+import { useVisibleInterval } from '@/lib/client/hooks/use-visible-interval'
 
 const REFRESH_MS = 10_000
 
@@ -127,17 +128,18 @@ export default function PollDashboardPage({
   const { mutate } = useMutation<unknown, AdminPoll>(['/api/admin/polls'])
   const [editOpen, setEditOpen] = useState(false)
 
-  // Live view: re-pull results (and the poll header) every 10 s.
+  // Live view: re-pull results (and the poll header) every 10 s while the
+  // tab is visible.
   const { refetch: refetchResults } = results
   const { refetch: refetchPoll } = poll
-  useEffect(() => {
-    if (!allowed) return
-    const timer = setInterval(() => {
+  useVisibleInterval(
+    () => {
       void refetchResults()
       void refetchPoll()
-    }, REFRESH_MS)
-    return () => clearInterval(timer)
-  }, [allowed, refetchResults, refetchPoll])
+    },
+    REFRESH_MS,
+    allowed
+  )
 
   const p = poll.data
   const r = results.data

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ApiClientError } from '@/lib/client/api-client'
+import type { AuthorizeRequestDetails } from '@/lib/client/oauth-api'
 import { clearApiCache } from '@/lib/client/hooks/use-api'
 
 const mocks = vi.hoisted(() => ({
@@ -42,7 +43,7 @@ vi.mock('@/lib/client/nostr-profile', () => ({
   })
 }))
 
-import { ConsentScreen } from '@/components/oauth/consent-screen'
+import { ConsentScreen, clientIconSrc } from '@/components/oauth/consent-screen'
 
 const OAUTH_PARAMS = {
   client_id: 'client-1',
@@ -467,5 +468,39 @@ describe('ConsentScreen', () => {
     expect(
       await screen.findByRole('dialog', { name: 'Sign in' })
     ).toBeInTheDocument()
+  })
+})
+
+describe('clientIconSrc', () => {
+  const base: AuthorizeRequestDetails = {
+    ...DETAILS,
+    scopes: [],
+    client: { id: 'c', name: 'Some app' }
+  }
+
+  it("uses a web redirect's own favicon, whatever the app calls itself", () => {
+    expect(
+      clientIconSrc({
+        ...base,
+        redirectUri: 'https://evil.example/cb',
+        redirectHost: 'evil.example',
+        client: { id: 'c', name: 'Claude' }
+      })
+    ).toBe('https://evil.example/favicon.ico')
+  })
+
+  it('matches local and native-app clients by name', () => {
+    const local = {
+      ...base,
+      redirectUri: 'http://localhost:3118/callback',
+      redirectHost: 'localhost:3118'
+    }
+    expect(
+      clientIconSrc({
+        ...local,
+        client: { id: 'c', name: 'Claude Code (lawallet)' }
+      })
+    ).toBe('https://claude.ai/favicon.ico')
+    expect(clientIconSrc(local)).toBeNull()
   })
 })

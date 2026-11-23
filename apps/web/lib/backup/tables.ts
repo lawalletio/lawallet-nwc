@@ -39,13 +39,6 @@ export const CATEGORY_TABLES: Record<BackupCategory, BackupTableName[]> = {
   nostrCache: ['nostrProfileCache', 'nostrProfileImageCache']
 }
 
-/** Categories pre-selected in the export wizard. */
-export const DEFAULT_EXPORT_CATEGORIES: BackupCategory[] = [
-  'core',
-  'settings',
-  'plugins'
-]
-
 export interface SecondaryUnique {
   /** Columns that together form the UNIQUE constraint. */
   fields: string[]

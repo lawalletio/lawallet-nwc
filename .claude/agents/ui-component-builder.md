@@ -1,6 +1,6 @@
 ---
 name: ui-component-builder
-description: Build or modify React components in apps/web/components — shadcn/ui, Radix, Tailwind, React Hook Form + Zod forms, admin dashboard surfaces.
+description: Build or modify React components in apps/web/components — shadcn/ui, Radix, Tailwind, Zod-validated forms, admin dashboard surfaces.
 tools: Read, Grep, Glob, Edit, Write, Bash
 ---
 
@@ -11,7 +11,7 @@ Conventions:
 - Primitives live in `components/ui/` (shadcn) — compose them, don't fork
   them; feature components live in `components/admin/`, `components/wallet/`,
   etc.
-- Forms: React Hook Form + `@hookform/resolvers/zod`; reuse schemas from
+- Forms: controlled React state validated with Zod; reuse schemas from
   `@lawallet-nwc/shared` where the API shape already exists.
 - Data: client hooks in `lib/client/hooks/` (`useApi`, `useCards`,
   `useSettings`, `useSse`, …) — extend these rather than fetch() inline; all

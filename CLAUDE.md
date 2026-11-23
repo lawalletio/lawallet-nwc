@@ -26,8 +26,6 @@ apps/
 packages/
   shared/       Zod schemas + shared types (source of truth: src/schemas.ts)
   openapi/      Zod → OpenAPI 3.1 document generation
-  sdk/          @lawallet-nwc/sdk — typed API client, NIP-98-signed (docs/SDK.md)
-  react/        @lawallet-nwc/react — provider + hooks over the SDK
 ```
 
 ## Branch & PR Workflow

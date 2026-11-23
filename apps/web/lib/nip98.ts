@@ -88,7 +88,7 @@ async function resolveCandidateOrigins(request: Request): Promise<Set<string>> {
  * So the hash is computed here over the exact bytes received, and the tag is
  * **required** for any request that carries a body. NIP-98 says the tag SHOULD
  * be present when there is one; accepting its absence is the same as not
- * checking. Our own SDK already signs it (`packages/sdk/src/nip98.ts`), and
+ * checking. Our own SDK already signs it (lawalletio/sdk), and
  * empty-body requests are unaffected.
  */
 function assertPayloadBinding(event: NostrEvent, requestBody: string): void {

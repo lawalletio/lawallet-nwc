@@ -13,6 +13,7 @@ import {
   setPluginEnabled
 } from '@/plugins/_runtime/loader'
 import { dispatchHook } from '@/plugins/_runtime/hooks'
+import { invalidateHotSettingsCache } from '@/lib/settings'
 import { putRecord, getRecord, listRecords } from '@/plugins/_runtime/records'
 import type { LawalletPlugin } from '@/plugins/_runtime/types'
 
@@ -39,6 +40,8 @@ const settingsRows = (rows: Array<{ name: string; value: string }>) => {
 
 beforeEach(() => {
   resetPrismaMock()
+  // Plugin state reads the shared hot settings snapshot.
+  invalidateHotSettingsCache()
   unregisterPlugin('test-plugin')
   unregisterPlugin('other-plugin')
 })

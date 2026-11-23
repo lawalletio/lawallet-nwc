@@ -64,6 +64,41 @@ describe('remote wallet notification configuration', () => {
 })
 
 describe('enqueueRemoteWalletNotificationEvent', () => {
+  const input = {
+    walletId: 'wallet-1',
+    action: 'RECEIVED' as const,
+    eventKey: 'listener:event:1',
+    payload: {}
+  }
+
+  it('skips the wallet read when the wallet has no matching channel', async () => {
+    vi.mocked(prismaMock.remoteWalletNotification.findMany).mockResolvedValue(
+      []
+    )
+
+    await expect(enqueueRemoteWalletNotificationEvent(input)).resolves.toEqual(
+      []
+    )
+    expect(prismaMock.remoteWallet.findUnique).not.toHaveBeenCalled()
+  })
+
+  it('journals nothing for an inactive wallet with channels', async () => {
+    vi.mocked(prismaMock.remoteWalletNotification.findMany).mockResolvedValue([
+      { id: 'notification-1' }
+    ] as never)
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue({
+      ...wallet,
+      status: 'DISABLED'
+    } as never)
+
+    await expect(enqueueRemoteWalletNotificationEvent(input)).resolves.toEqual(
+      []
+    )
+    expect(
+      prismaMock.remoteWalletNotificationDelivery.createMany
+    ).not.toHaveBeenCalled()
+  })
+
   it('journals one idempotent delivery per enabled matching channel', async () => {
     vi.mocked(prismaMock.remoteWalletNotification.findMany).mockResolvedValue([
       { id: 'notification-1' },

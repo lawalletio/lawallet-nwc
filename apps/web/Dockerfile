@@ -18,7 +18,6 @@ COPY apps/web/package.json ./apps/web/package.json
 COPY apps/web/prisma ./apps/web/prisma
 COPY packages/openapi/package.json ./packages/openapi/package.json
 COPY packages/shared/package.json ./packages/shared/package.json
-COPY packages/sdk/package.json ./packages/sdk/package.json
 
 RUN pnpm install --frozen-lockfile --filter=@lawallet-nwc/web...
 

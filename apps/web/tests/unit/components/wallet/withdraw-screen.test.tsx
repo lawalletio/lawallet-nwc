@@ -110,11 +110,14 @@ describe('WithdrawScreen', () => {
     expect(screen.queryByRole('heading', { name: 'You won!' })).toBeNull()
   })
 
-  it('shows success instead of confirm when the voucher was already claimed', () => {
+  it('shows success instead of confirm when the voucher was already claimed', async () => {
     seedClaimed()
     render(<WithdrawScreen />)
 
-    expect(screen.getByRole('heading', { name: 'You won!' })).toBeTruthy()
+    // The celebration is a next/dynamic chunk, so it mounts asynchronously.
+    expect(
+      await screen.findByRole('heading', { name: 'You won!' })
+    ).toBeTruthy()
     expect(screen.queryByRole('button', { name: /withdraw/i })).toBeNull()
     // Replay is a dev-preview affordance; real claims play once.
     expect(screen.queryByRole('button', { name: /replay/i })).toBeNull()

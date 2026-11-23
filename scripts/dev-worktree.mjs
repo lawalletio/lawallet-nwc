@@ -214,19 +214,7 @@ function launchConfig(env) {
         'pnpm --filter @lawallet-nwc/listener dev',
         Number(env.LISTENER_PORT)
       ),
-      app('docs', 'pnpm --filter @lawallet-nwc/docs dev', 3001, true),
-      app(
-        'example-onboarding',
-        'pnpm --filter lawallet-example-onboarding dev',
-        5173,
-        true
-      ),
-      app(
-        'example-admin-provisioning',
-        'pnpm --filter lawallet-example-admin-provisioning dev',
-        5174,
-        true
-      )
+      app('docs', 'pnpm --filter @lawallet-nwc/docs dev', 3001, true)
     ]
   }
 }

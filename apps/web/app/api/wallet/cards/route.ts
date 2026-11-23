@@ -26,69 +26,69 @@ export const GET = withErrorHandling(async (request: Request) => {
   const { pubkey } = await authenticate(request)
 
   const account = await resolveAccountByPubkey(pubkey)
-  const user = account
-    ? await prisma.user.findUnique({
-        where: { id: account.id },
-        select: {
-          id: true,
-          remoteWallets: {
-            where: { isDefault: true, status: 'ACTIVE' },
-            take: 1,
-            select: { id: true }
+  if (!account) throw new NotFoundError('User not found')
+
+  // Cards are scoped by the resolved account id, so the owner read and the
+  // card read run together. Every card here belongs to the caller, so the
+  // owner's pubkey and primary address are read once, not per card.
+  const [user, cards] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: account.id },
+      select: {
+        id: true,
+        pubkey: true,
+        remoteWallets: {
+          where: { isDefault: true, status: 'ACTIVE' },
+          take: 1,
+          select: { id: true }
+        },
+        // The card's identity is the owner's primary lightning address — NOT
+        // the denormalized `Card.username` (which no flow ever writes).
+        lightningAddresses: {
+          where: { isPrimary: true },
+          take: 1,
+          select: { username: true }
+        }
+      }
+    }),
+    prisma.card.findMany({
+      where: { userId: account.id },
+      select: {
+        id: true,
+        createdAt: true,
+        title: true,
+        lastUsedAt: true,
+        username: true,
+        otc: true,
+        remoteWalletId: true,
+        kind: true,
+        blockedAt: true,
+        disabledAt: true,
+        design: {
+          select: {
+            id: true,
+            imageUrl: true,
+            description: true,
+            createdAt: true
+          }
+        },
+        ntag424: {
+          select: {
+            cid: true,
+            ctr: true,
+            createdAt: true
           }
         }
-      })
-    : null
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    })
+  ])
   if (!user) throw new NotFoundError('User not found')
 
   const defaultRemoteWalletId = user.remoteWallets?.[0]?.id ?? null
-
-  const cards = await prisma.card.findMany({
-    where: { userId: user.id },
-    select: {
-      id: true,
-      createdAt: true,
-      title: true,
-      lastUsedAt: true,
-      username: true,
-      otc: true,
-      remoteWalletId: true,
-      kind: true,
-      blockedAt: true,
-      disabledAt: true,
-      design: {
-        select: {
-          id: true,
-          imageUrl: true,
-          description: true,
-          createdAt: true
-        }
-      },
-      ntag424: {
-        select: {
-          cid: true,
-          ctr: true,
-          createdAt: true
-        }
-      },
-      user: {
-        select: {
-          pubkey: true,
-          // The card's identity is the owner's primary lightning address,
-          // resolved through the `userId` relation — NOT the denormalized
-          // `Card.username` (which no flow ever writes).
-          lightningAddresses: {
-            where: { isPrimary: true },
-            take: 1,
-            select: { username: true }
-          }
-        }
-      }
-    },
-    orderBy: {
-      createdAt: 'desc'
-    }
-  })
+  const ownerUsername = user.lightningAddresses?.[0]?.username || undefined
 
   // One designation per holder, so a single value covers the whole list.
   const masterCardId = cards.find(card => card.kind === 'MASTER')?.id ?? null
@@ -105,8 +105,8 @@ export const GET = withErrorHandling(async (request: Request) => {
     createdAt: card.createdAt,
     title: card.title || undefined,
     lastUsedAt: card.lastUsedAt || undefined,
-    pubkey: card.user?.pubkey,
-    username: card.user?.lightningAddresses?.[0]?.username || undefined,
+    pubkey: user.pubkey,
+    username: ownerUsername,
     otc: card.otc || undefined,
     remoteWalletId: card.remoteWalletId ?? null,
     defaultRemoteWalletId,

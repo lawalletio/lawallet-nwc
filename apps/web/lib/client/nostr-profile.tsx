@@ -6,7 +6,8 @@ import React, {
   useCallback,
   useRef,
   useState,
-  useEffect
+  useEffect,
+  useMemo
 } from 'react'
 import { useAuth } from '@/components/admin/auth-context'
 import {
@@ -394,12 +395,10 @@ export function NostrProfileProvider({
     [fetchProfilesFromApi, status]
   )
 
-  const value: NostrProfileContextValue = {
-    getProfile,
-    fetchProfile,
-    fetchProfiles,
-    updateProfile
-  }
+  const value = useMemo<NostrProfileContextValue>(
+    () => ({ getProfile, fetchProfile, fetchProfiles, updateProfile }),
+    [getProfile, fetchProfile, fetchProfiles, updateProfile]
+  )
 
   return (
     <NostrProfileContext.Provider value={value}>
