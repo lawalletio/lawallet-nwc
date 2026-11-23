@@ -17,7 +17,8 @@ const mocks = vi.hoisted(() => ({
   trackEvent: vi.fn(),
   clearSessionCaches: vi.fn(() => Promise.resolve()),
   waitForSessionCacheCleanup: vi.fn(() => Promise.resolve()),
-  unlockDialogLoaded: vi.fn()
+  unlockDialogLoaded: vi.fn(),
+  closeAllNwcClients: vi.fn()
 }))
 
 vi.mock('@/lib/client/auth-api', () => ({
@@ -50,6 +51,9 @@ vi.mock('@/components/admin/signer-unlock-dialog', () => {
 })
 vi.mock('@/lib/analytics/gtag', () => ({
   trackEvent: mocks.trackEvent
+}))
+vi.mock('@/lib/client/nwc/nwc-client', () => ({
+  closeAllNwcClients: mocks.closeAllNwcClients
 }))
 
 import {
@@ -285,6 +289,7 @@ describe('AuthProvider passkey sessions (PRF model)', () => {
       expect(localStorage.getItem(METHOD_KEY)).toBeNull()
       expect(localStorage.getItem(SECRET_KEY)).toBeNull()
       expect(mocks.clearSessionCaches).toHaveBeenCalledOnce()
+      expect(mocks.closeAllNwcClients).toHaveBeenCalledOnce()
     })
   })
 })

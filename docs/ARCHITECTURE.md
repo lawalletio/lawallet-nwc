@@ -224,7 +224,6 @@ Higher-level wrappers:
 
 - `authenticateWithRole(request, requiredRole)` — enforces role hierarchy
 - `authenticateWithPermission(request, permission)` — enforces granular permission
-- `withAuth(handler, { role?, permission? })` — HOF for route handlers
 
 ---
 

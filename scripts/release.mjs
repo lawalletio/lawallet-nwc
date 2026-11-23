@@ -15,7 +15,7 @@
 //      tag v0.10.1 vs package.json 0.10.0).
 //   2. Bumps the lockstep packages: root, @lawallet-nwc/web, @lawallet-nwc/cli,
 //      @lawallet-nwc/listener.
-//      (shared/openapi/sdk are versioned independently and untouched.)
+//      (shared/openapi are versioned independently and untouched.)
 //   3. Scaffolds docs/changelogs/v<new>.md in the house format, pre-filled
 //      with the merged PRs since the last tag as raw material for the
 //      narrative Summary/Highlights sections.

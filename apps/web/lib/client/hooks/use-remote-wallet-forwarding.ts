@@ -187,17 +187,6 @@ export function useRemoteWalletForwardActivity(
   )
 }
 
-export function useRemoteWalletForwardReceipt(
-  walletId: string | null,
-  receiptId: string | null
-) {
-  return useApi<ForwardReceiptData>(
-    walletId && receiptId
-      ? `/api/remote-wallets/${walletId}/forwarding-receipts/${receiptId}`
-      : null
-  )
-}
-
 export function useRemoteWalletPayment(
   walletId: string | null,
   paymentHash: string | null

@@ -156,14 +156,6 @@ export function createLogger(context?: Record<string, unknown>) {
 }
 
 /**
- * Convenience for logging an error with optional structured context. Uses Pino's
- * standard `err` serializer so stack traces render cleanly in JSON output.
- */
-export function logError(err: unknown, context?: Record<string, unknown>) {
-  logger.error({ err, ...context }, 'error')
-}
-
-/**
  * Wrap a Next.js App Router `app/api/<route>/route.ts` handler with:
  * - correlation/request IDs (`reqId`) via AsyncLocalStorage (auto-included in all logs)
  * - request start/end logs + duration

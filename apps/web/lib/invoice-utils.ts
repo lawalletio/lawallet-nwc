@@ -219,18 +219,3 @@ export function extractExpiry(bolt11: string): Date {
     return new Date(Date.now() + 10 * 60 * 1000)
   }
 }
-
-/**
- * Status enum values stored in `Invoice.status`.
- */
-export type InvoiceStatusValue = 'PENDING' | 'PAID' | 'EXPIRED'
-
-/**
- * Returns true if an invoice can still be settled (PENDING and not past expiry).
- */
-export function isInvoiceActive(invoice: {
-  status: InvoiceStatusValue
-  expiresAt: Date
-}): boolean {
-  return invoice.status === 'PENDING' && invoice.expiresAt >= new Date()
-}

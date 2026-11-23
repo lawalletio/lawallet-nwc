@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { NextResponse } from 'next/server'
 import { Role, Permission } from '@/lib/auth/permissions'
 import { AuthenticationError, AuthorizationError } from '@/types/server/errors'
 
@@ -42,8 +41,7 @@ vi.mock('@/lib/public-url', () => ({
 import {
   authenticate,
   authenticateWithRole,
-  authenticateWithPermission,
-  withAuth
+  authenticateWithPermission
 } from '@/lib/auth/unified-auth'
 import { validateNip98 } from '@/lib/nip98'
 import { validateJwtFromRequest } from '@/lib/jwt'
@@ -325,63 +323,6 @@ describe('authenticateWithPermission', () => {
     await expect(
       authenticateWithPermission(mockNostrRequest(), Permission.SETTINGS_WRITE)
     ).rejects.toThrow(AuthorizationError)
-  })
-})
-
-describe('withAuth', () => {
-  it('calls handler with auth result', async () => {
-    vi.mocked(validateNip98).mockResolvedValue({
-      pubkey: PUBKEY,
-      event: {} as any
-    })
-    vi.mocked(prisma.user.findUnique).mockResolvedValue({
-      role: 'ADMIN'
-    } as any)
-    vi.mocked(getSettings).mockResolvedValue({})
-
-    const handler = vi.fn().mockResolvedValue(NextResponse.json({ ok: true }))
-    const wrapped = withAuth(handler)
-    const response = await wrapped(mockNostrRequest())
-
-    expect(handler).toHaveBeenCalled()
-    const [, auth] = handler.mock.calls[0]
-    expect(auth.pubkey).toBe(PUBKEY)
-    expect(auth.role).toBe(Role.ADMIN)
-    expect(response.status).toBe(200)
-  })
-
-  it('enforces requiredRole option', async () => {
-    vi.mocked(validateNip98).mockResolvedValue({
-      pubkey: PUBKEY,
-      event: {} as any
-    })
-    vi.mocked(prisma.user.findUnique).mockResolvedValue({ role: 'USER' } as any)
-    vi.mocked(getSettings).mockResolvedValue({ root: 'different' })
-
-    const handler = vi.fn()
-    const wrapped = withAuth(handler, { requiredRole: Role.ADMIN })
-
-    await expect(wrapped(mockNostrRequest())).rejects.toThrow(
-      AuthorizationError
-    )
-    expect(handler).not.toHaveBeenCalled()
-  })
-
-  it('enforces requireNip98 option (rejects Bearer)', async () => {
-    // Even though JWT would be valid, requireNip98 forces NIP-98 path
-    // which will fail because the Bearer request doesn't have a Nostr header
-    vi.mocked(validateNip98).mockRejectedValue(
-      new Error('not a Nostr auth header')
-    )
-
-    const handler = vi.fn()
-    const wrapped = withAuth(handler, { requireNip98: true })
-
-    // Bearer request should fail when NIP-98 is required
-    await expect(wrapped(mockBearerRequest())).rejects.toThrow(
-      AuthenticationError
-    )
-    expect(handler).not.toHaveBeenCalled()
   })
 })
 

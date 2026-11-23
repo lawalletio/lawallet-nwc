@@ -357,8 +357,6 @@ export async function reconcilePendingSwaps(): Promise<number> {
   return changed
 }
 
-export const SWAP_PAGE_SIZE_MAX = 50
-
 /** One page of the caller's swaps, newest first. */
 export async function listSwapsPage(
   userId: string,

@@ -13,7 +13,8 @@ Top-level dirs: `app/` (App Router), `lib/`, `components/`, `types/`,
 - `lib/auth/unified-auth.ts` detects the method from the header and resolves
   the role (`lib/auth/resolve-role.ts`: DB + Settings root fallback)
 - **RBAC**: roles USER < VIEWER < OPERATOR < ADMIN with granular permissions in
-  `lib/auth/permissions.ts`; `lib/admin-auth.ts` provides `withAdminAuth()`
+  `lib/auth/permissions.ts`; gate routes with `authenticateWithRole()` /
+  `authenticateWithPermission()` from `lib/auth/unified-auth.ts`
 - Device tokens for QR-paired devices: `lib/auth/device-token.ts`
 
 ## API routes (`app/api/`)
@@ -56,7 +57,7 @@ Migrations run against the per-checkout DB from `.env.local`
 
 ## Frontend
 
-- shadcn/ui + Radix + Tailwind 4 (config lives in `app/globals.css` `@theme`); forms via React Hook Form + Zod
+- shadcn/ui + Radix + Tailwind 4 (config lives in `app/globals.css` `@theme`); forms are plain React state + Zod
 - Provider stack in `app/providers.tsx`: ThemeProvider → AuthProvider →
   NostrProfileProvider → Toaster
 - Auth context: `components/admin/auth-context.tsx` (JWT in memory +

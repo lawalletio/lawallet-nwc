@@ -115,16 +115,17 @@ export const GET = withJwtAuth(protectedHandler, {
 #### Option 3: Accept NIP-98 or JWT
 
 ```typescript
-import { withAuth } from '@/lib/auth/unified-auth'
+import { authenticate } from '@/lib/auth/unified-auth'
 import { NextResponse } from 'next/server'
 
-export const GET = withAuth(async (_request, auth) => {
+export async function GET(request: Request) {
+  const auth = await authenticate(request)
   return NextResponse.json({
     pubkey: auth.pubkey,
     role: auth.role,
     method: auth.method
   })
-})
+}
 ```
 
 ### Working with Authenticated JWT Requests

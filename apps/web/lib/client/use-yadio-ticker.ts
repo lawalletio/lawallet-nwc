@@ -162,15 +162,6 @@ export function convertSats(
   return (sats / 100_000_000) * rate
 }
 
-/**
- * Back-compat wrapper for legacy call sites that only need the BTC/USD rate.
- * New code should prefer `useYadioRates()` directly.
- */
-export function useYadioTicker() {
-  const { btcUsd, fetchedAt, loading, error } = useYadioRates()
-  return { btcUsd, fetchedAt, loading, error }
-}
-
 function readCache(): { rates: BtcRates; fetchedAt: number } | null {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY)
