@@ -423,6 +423,7 @@ model WebAuthnChallenge {
   createdAt DateTime     @default(now())
 
   @@index([expiresAt])
+  @@index([userId])
 }
 
 /// Single-use email magic-link token. Only the SHA-256 of the token is stored;
@@ -1024,7 +1025,8 @@ model Invoice {
   createdAt                DateTime       @default(now())
   proxyPayment             ProxyPayment?
 
-  @@index([userId])
+  /// Per-address invoice history: newest paid first, then newest created.
+  @@index([userId, paidAt(sort: Desc), createdAt(sort: Desc)])
   @@index([remoteWalletId])
   @@index([status, zapReceiptNextRetryAt])
   @@index([status, settlementNextPollAt])
@@ -1082,6 +1084,7 @@ model ProxyInvoiceIntent {
   createdAt              DateTime @default(now())
 
   @@index([expiresAt])
+  @@index([userId])
 }
 
 /// Durable end-to-end state for one payer-facing proxy invoice. The source
@@ -1320,6 +1323,8 @@ model Voucher {
   @@unique([servicePubkey, nonce])
   @@index([userId, status])
   @@index([userId, createdAt])
+  /// Profile resolution matches merchant keys (`OR merchantPubkey IN …`).
+  @@index([merchantPubkey])
 }
 
 /// Write-ahead record of an inbound voucher transfer, on the RECEIVING side.
@@ -1493,6 +1498,8 @@ model Swap {
 
   @@unique([provider, externalId])
   @@index([userId, createdAt])
+  /// Reconcile tick: `status = PENDING ORDER BY updatedAt`.
+  @@index([status, updatedAt])
 }
 
 enum PollType {
