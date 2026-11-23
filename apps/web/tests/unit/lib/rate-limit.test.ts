@@ -123,7 +123,7 @@ describe('checkRateLimit with Upstash', () => {
   let n = 0
   const ip = () => `198.51.100.${++n}`
 
-  /** Stubs one `/pipeline` reply: INCR → count, PEXPIRE → 1, PTTL → pttl. */
+  /** Stubs one `/multi-exec` reply: INCR → count, PEXPIRE → 1, PTTL → pttl. */
   const pipelineReply = (count: number, pttl = 42_000) =>
     new Response(
       JSON.stringify([{ result: count }, { result: 1 }, { result: pttl }]),
@@ -156,7 +156,9 @@ describe('checkRateLimit with Upstash', () => {
       Math.ceil((before + 42_000) / 1000)
     )
     const [url, init] = fetchMock.mock.calls[0]
-    expect(url).toBe('https://redis.example.test/pipeline')
+    expect(url).toBe('https://redis.example.test/multi-exec')
+    // The 300ms budget is enforced by an abort signal on the request.
+    expect(init.signal).toBeInstanceOf(AbortSignal)
     expect(init.headers.Authorization).toBe('Bearer tok')
     const key = `ratelimit:anon:sensitive:${from}`
     expect(JSON.parse(init.body)).toEqual([
@@ -164,6 +166,37 @@ describe('checkRateLimit with Upstash', () => {
       ['PEXPIRE', key, '60000', 'NX'],
       ['PTTL', key]
     ])
+  })
+
+  it('assumes a fresh window when the key reports no TTL', async () => {
+    fetchMock.mockResolvedValueOnce(pipelineReply(1, -1))
+    const before = Date.now()
+
+    const result = await checkRateLimit(
+      requestFrom(ip()),
+      RateLimitPresets.sensitive
+    )
+
+    expect(result.reset).toBeGreaterThanOrEqual(
+      Math.ceil((before + 60_000) / 1000)
+    )
+  })
+
+  it('never logs a fetch error message, which can quote the URL', async () => {
+    vi.mocked(logger.warn).mockClear()
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(Date.now() + 240_000) // past any earlier warning
+    try {
+      fetchMock.mockRejectedValue(
+        new TypeError('cannot fetch rediss://default:SECRET@x/multi-exec')
+      )
+      await checkRateLimit(requestFrom(ip()), RateLimitPresets.public)
+      expect(JSON.stringify(vi.mocked(logger.warn).mock.calls)).not.toContain(
+        'SECRET'
+      )
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('rejects once the shared counter passes the limit', async () => {
@@ -184,6 +217,13 @@ describe('checkRateLimit with Upstash', () => {
       () => Promise.reject(new DOMException('timed out', 'TimeoutError'))
     ],
     ['HTTP 500', () => Promise.resolve(new Response('', { status: 500 }))],
+    [
+      'non-array reply',
+      () =>
+        Promise.resolve(
+          new Response(JSON.stringify({ error: 'nope' }), { status: 200 })
+        )
+    ],
     [
       'command error',
       () =>
@@ -215,7 +255,7 @@ describe('checkRateLimit with Upstash', () => {
   it('throttles the fallback warning', async () => {
     vi.mocked(logger.warn).mockClear()
     vi.useFakeTimers({ toFake: ['Date'] })
-    vi.setSystemTime(Date.now() + 120_000) // past any earlier test's warning
+    vi.setSystemTime(Date.now() + 600_000) // past any earlier test's warning
     try {
       fetchMock.mockRejectedValue(new TypeError('fetch failed'))
       for (let i = 0; i < 3; i++) {

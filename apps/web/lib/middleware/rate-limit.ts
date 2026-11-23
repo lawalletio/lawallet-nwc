@@ -136,11 +136,19 @@ function checkRateLimitInMemory(
 const UPSTASH_TIMEOUT_MS = 300
 const UPSTASH_WARN_INTERVAL_MS = 60_000
 let lastUpstashWarnAt = 0
+let warnedHalfConfig = false
+
+/** A failure this module raised itself: its message is safe to log. */
+class UpstashError extends Error {
+  override name = 'UpstashError'
+}
 
 /**
- * Shared fixed-window limiter over Upstash's REST `/pipeline` endpoint, so
+ * Shared fixed-window limiter over Upstash's REST `/multi-exec` endpoint, so
  * every serverless instance counts against one counter. `PEXPIRE … NX` only
- * arms the TTL on the request that opened the window.
+ * arms the TTL on the request that opened the window; running the three
+ * commands as one transaction keeps PTTL from seeing the key expire after
+ * the INCR.
  *
  * @throws On HTTP failure, a per-command error, or the timeout — the caller
  * falls back to in-memory.
@@ -151,7 +159,7 @@ async function checkRateLimitUpstash(
   maxRequests: number,
   upstash: { url: string; token: string }
 ): Promise<RateLimitResult> {
-  const res = await fetch(`${upstash.url.replace(/\/+$/, '')}/pipeline`, {
+  const res = await fetch(`${upstash.url.replace(/\/+$/, '')}/multi-exec`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${upstash.token}`,
@@ -165,14 +173,15 @@ async function checkRateLimitUpstash(
     signal: AbortSignal.timeout(UPSTASH_TIMEOUT_MS),
     cache: 'no-store'
   })
-  if (!res.ok) throw new Error(`Upstash HTTP ${res.status}`)
+  if (!res.ok) throw new UpstashError(`Upstash HTTP ${res.status}`)
 
-  const replies = (await res.json()) as { result?: unknown; error?: string }[]
-  const failed = replies.find(r => r.error)
-  if (failed) throw new Error(`Upstash: ${failed.error}`)
+  const replies = (await res.json()) as unknown
+  if (!Array.isArray(replies)) throw new UpstashError('Upstash: bad reply')
+  const failed = (replies as { error?: string }[]).find(r => r?.error)
+  if (failed) throw new UpstashError(`Upstash: ${failed.error}`)
 
   const count = Number(replies[0]?.result)
-  if (!Number.isFinite(count)) throw new Error('Upstash: bad INCR reply')
+  if (!Number.isFinite(count)) throw new UpstashError('Upstash: bad INCR reply')
   const pttl = Number(replies[2]?.result)
   // -1/-2 (no TTL / key gone) should not happen after PEXPIRE; assume a fresh window.
   const resetMs = Date.now() + (pttl > 0 ? pttl : windowMs)
@@ -218,6 +227,12 @@ export async function checkRateLimit(
   const key = `ratelimit:${prefix}:${bucket}:${identifier}`
 
   const { upstash } = config.rateLimit
+  if (!upstash.enabled && (upstash.url || upstash.token) && !warnedHalfConfig) {
+    warnedHalfConfig = true
+    logger.warn(
+      'Only one of UPSTASH_REDIS_URL / UPSTASH_REDIS_TOKEN is set; rate limiting stays per-instance'
+    )
+  }
   if (upstash.enabled && upstash.url && upstash.token) {
     try {
       return await checkRateLimitUpstash(key, windowMs, maxRequests, {
@@ -228,9 +243,12 @@ export async function checkRateLimit(
       const now = Date.now()
       if (now - lastUpstashWarnAt >= UPSTASH_WARN_INTERVAL_MS) {
         lastUpstashWarnAt = now
+        // Only our own messages are logged: a fetch TypeError can quote the
+        // whole request URL.
         logger.warn({
           msg: 'Upstash rate limit failed; falling back to in-memory',
-          err: err instanceof Error ? err.message : String(err)
+          errName: err instanceof Error ? err.name : typeof err,
+          ...(err instanceof UpstashError ? { err: err.message } : {})
         })
       }
     }

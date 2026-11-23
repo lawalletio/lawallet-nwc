@@ -157,17 +157,32 @@ const envSchema = z.object({
       'Maximum requests per window for authenticated users (default: 300)'
     ),
 
-  UPSTASH_REDIS_URL: z
-    .string()
-    .url('UPSTASH_REDIS_URL must be a valid URL')
-    .optional()
-    .describe('Upstash Redis URL for distributed rate limiting (optional)'),
+  // The REST URL, not the `rediss://default:<password>@…` connection string
+  // the Upstash console shows next to it: that one carries the password, and
+  // fetch would echo it in its error message.
+  UPSTASH_REDIS_URL: z.preprocess(
+    emptyEnvToUndefined,
+    z
+      .string()
+      .url('UPSTASH_REDIS_URL must be a valid URL')
+      .refine(value => {
+        const url = new URL(value)
+        return url.protocol === 'https:' && !url.username && !url.password
+      }, 'UPSTASH_REDIS_URL must be the https REST URL, without credentials')
+      .optional()
+      .describe(
+        'Upstash Redis REST URL (https) for distributed rate limiting (optional)'
+      )
+  ),
 
-  UPSTASH_REDIS_TOKEN: z
-    .string()
-    .min(1, 'UPSTASH_REDIS_TOKEN must not be empty')
-    .optional()
-    .describe('Upstash Redis token for authentication (optional)'),
+  UPSTASH_REDIS_TOKEN: z.preprocess(
+    emptyEnvToUndefined,
+    z
+      .string()
+      .min(1, 'UPSTASH_REDIS_TOKEN must not be empty')
+      .optional()
+      .describe('Upstash Redis REST token (optional)')
+  ),
 
   LOG_PRETTY: z
     .string()

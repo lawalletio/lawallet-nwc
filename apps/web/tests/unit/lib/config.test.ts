@@ -62,6 +62,30 @@ describe('getEnv', () => {
     expect(env.LISTENER_REQUEST_AUTH_SECRET).toBeUndefined()
   })
 
+  it('treats blank Upstash variables as unconfigured', async () => {
+    process.env.DATABASE_URL = 'postgresql://localhost/test'
+    process.env.UPSTASH_REDIS_URL = ''
+    process.env.UPSTASH_REDIS_TOKEN = ''
+    setNodeEnv('test')
+    const { getEnv } = await import('@/lib/config/env')
+
+    const env = getEnv(true)
+    expect(env.UPSTASH_REDIS_URL).toBeUndefined()
+    expect(env.UPSTASH_REDIS_TOKEN).toBeUndefined()
+  })
+
+  it.each([
+    ['a Redis connection string', 'rediss://default:pw@x.upstash.io:6379'],
+    ['plain http', 'http://x.upstash.io'],
+    ['embedded credentials', 'https://user:pw@x.upstash.io']
+  ])('rejects %s as UPSTASH_REDIS_URL', async (_label, url) => {
+    process.env.DATABASE_URL = 'postgresql://localhost/test'
+    process.env.UPSTASH_REDIS_URL = url
+    setNodeEnv('test')
+    const { getEnv } = await import('@/lib/config/env')
+    expect(() => getEnv(true)).toThrow('Environment variable validation failed')
+  })
+
   it('validates JWT_SECRET min length', async () => {
     process.env.DATABASE_URL = 'postgresql://localhost/test'
     process.env.JWT_SECRET = 'short'
