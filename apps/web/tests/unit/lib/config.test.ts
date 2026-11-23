@@ -203,6 +203,21 @@ describe('getConfig', () => {
     })
   })
 
+  it('never pairs a URL from one variable set with a token from the other', async () => {
+    process.env.DATABASE_URL = 'postgresql://localhost/test'
+    process.env.UPSTASH_REDIS_URL = 'https://own.upstash.io'
+    delete process.env.UPSTASH_REDIS_TOKEN
+    process.env.KV_REST_API_URL = 'https://kv.upstash.io'
+    process.env.KV_REST_API_TOKEN = 'kv-token'
+    setNodeEnv('test')
+    const { getConfig } = await import('@/lib/config')
+    expect(getConfig().rateLimit.upstash).toEqual({
+      url: 'https://kv.upstash.io',
+      token: 'kv-token',
+      enabled: true
+    })
+  })
+
   it('prefers UPSTASH_REDIS_* over the KV_REST_API_* fallbacks', async () => {
     process.env.DATABASE_URL = 'postgresql://localhost/test'
     process.env.UPSTASH_REDIS_URL = 'https://own.upstash.io'
