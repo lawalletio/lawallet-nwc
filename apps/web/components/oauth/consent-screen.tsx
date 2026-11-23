@@ -20,6 +20,7 @@ import { LoginModal } from '@/components/admin/login-modal'
 import { Role } from '@/lib/auth/permissions'
 import { npubInitials, truncateNpub } from '@/lib/client/format'
 import { useNostrProfile } from '@/lib/client/nostr-profile'
+import { useBrandLogotypes } from '@/lib/client/hooks/use-brand'
 import { useRemoteWallets } from '@/lib/client/hooks/use-remote-wallets'
 import {
   WalletAccessPicker,
@@ -52,6 +53,34 @@ const SWITCH_ACCOUNT_CONFIRM =
 const LOOPBACK_HOST = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i
 
 const HEADING = 'text-center text-xl font-semibold text-foreground'
+
+/**
+ * Sites of the MCP hosts we know, matched on the name a local or native-app
+ * client registers (Claude Code redirects to localhost, Claude Desktop to
+ * claude://). Only picks an icon: the name is still a claim, and the redirect
+ * host shown below stays what the user should judge by.
+ */
+const KNOWN_CLIENT_SITES: [RegExp, string][] = [
+  [/claude/i, 'claude.ai'],
+  [/chatgpt|openai|codex/i, 'chatgpt.com'],
+  [/cursor/i, 'cursor.com']
+]
+
+/**
+ * The connecting app's icon. A web redirect names the site the code goes to,
+ * so that site's own favicon is honest; anything else falls back to a known
+ * host by name, else null (the initial is shown instead).
+ */
+export function clientIconSrc(details: AuthorizeRequestDetails): string | null {
+  const host = details.redirectHost
+  if (details.redirectUri.startsWith('https://') && !LOOPBACK_HOST.test(host)) {
+    return `https://${host}/favicon.ico`
+  }
+  const site = KNOWN_CLIENT_SITES.find(([name]) =>
+    name.test(details.client.name)
+  )?.[1]
+  return site ? `https://${site}/favicon.ico` : null
+}
 
 // assign() runs a javascript: URL on this origin, where the session lives.
 // The server only returns registered redirect URIs whose scheme it vetted;
@@ -116,7 +145,10 @@ export function ConsentScreen() {
   }
 
   return (
-    <ConsentCard wide={check?.ok === true && status === 'authenticated'}>
+    <ConsentCard
+      wide={check?.ok === true && status === 'authenticated'}
+      details={check?.ok ? check.details : undefined}
+    >
       {content}
       <LoginModal
         open={loginOpen && status === 'unauthenticated'}
@@ -137,11 +169,14 @@ export function ConsentFallback() {
 
 function ConsentCard({
   children,
-  wide = false
+  wide = false,
+  details
 }: {
   children: ReactNode
   /** The consent form spreads to two columns where the screen allows. */
   wide?: boolean
+  /** A valid request: the header shows this instance and the app side by side. */
+  details?: AuthorizeRequestDetails
 }) {
   return (
     <main className="flex flex-1 flex-col px-4 py-8">
@@ -152,12 +187,67 @@ function ConsentCard({
           wide && 'lg:max-w-4xl lg:p-8'
         )}
       >
-        <div className="flex justify-center">
-          <BrandLogotype width={128} height={28} className="h-7" />
-        </div>
+        {details ? (
+          <ConnectionHeader details={details} />
+        ) : (
+          <div className="flex justify-center">
+            <BrandLogotype width={128} height={28} className="h-7" />
+          </div>
+        )}
         {children}
       </Card>
     </main>
+  )
+}
+
+const ICON_TILE =
+  'flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border bg-background shadow-sm'
+
+/** This instance's mark and the connecting app's icon, linked by dots. */
+function ConnectionHeader({ details }: { details: AuthorizeRequestDetails }) {
+  const { isotypo, loading } = useBrandLogotypes()
+  return (
+    <div className="flex items-center justify-center gap-3" aria-hidden>
+      <span className={ICON_TILE}>
+        {!loading && (
+          // eslint-disable-next-line @next/next/no-img-element -- community logo is an external URL
+          <img src={isotypo} alt="" className="size-9 object-contain" />
+        )}
+      </span>
+      <span className="flex gap-1">
+        {[0, 1, 2].map(i => (
+          <span
+            key={i}
+            className="size-1.5 rounded-full bg-muted-foreground/40"
+          />
+        ))}
+      </span>
+      <ClientIcon details={details} />
+    </div>
+  )
+}
+
+function ClientIcon({ details }: { details: AuthorizeRequestDetails }) {
+  const src = clientIconSrc(details)
+  const [failed, setFailed] = useState(false)
+  const initial = Array.from(details.client.name)[0]?.toUpperCase() ?? '?'
+  return (
+    <span className={ICON_TILE}>
+      {src && !failed ? (
+        // eslint-disable-next-line @next/next/no-img-element -- third-party favicon
+        <img
+          src={src}
+          alt=""
+          referrerPolicy="no-referrer"
+          className="size-9 object-contain"
+          onError={() => setFailed(true)}
+        />
+      ) : (
+        <span className="text-xl font-semibold text-muted-foreground">
+          {initial}
+        </span>
+      )}
+    </span>
   )
 }
 

@@ -154,7 +154,7 @@ describe.skipIf(!runDatabaseTests)('OAuth grants against PostgreSQL', () => {
 
     expect(tokens).toMatchObject({
       token_type: 'Bearer',
-      expires_in: 3600,
+      expires_in: 86400,
       scope: 'read write spend'
     })
     // Only SHA-256 hashes of the credentials are stored.

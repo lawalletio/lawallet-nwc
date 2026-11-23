@@ -165,7 +165,7 @@ describe('POST /api/oauth/token — authorization_code', () => {
     expect(body).toEqual({
       access_token: expect.stringMatching(/^lwat_[A-Za-z0-9_-]{43}$/),
       token_type: 'Bearer',
-      expires_in: 3600,
+      expires_in: 86400,
       refresh_token: expect.stringMatching(/^lwrt_[A-Za-z0-9_-]{43}$/),
       scope: 'read write'
     })
@@ -415,6 +415,11 @@ describe('POST /api/oauth/token — refresh_token', () => {
   it('replays a just-rotated refresh token, then lets it die', async () => {
     const first = await connect()
     const second = await (await token(refreshBody(first.refresh_token))).json()
+    // Claude Code was seen refreshing a shared token 2m10s after another
+    // session had rotated it; the window must cover that comfortably.
+    expect(
+      grant().previousRefreshGraceEndsAt.getTime() - Date.now()
+    ).toBeGreaterThan(30 * 60_000)
 
     // Another process sharing the old token refreshes inside the grace
     // window: it gets the very same pair, and nothing is rotated again.
@@ -423,7 +428,7 @@ describe('POST /api/oauth/token — refresh_token', () => {
     const replayed = await replay.json()
     expect(replayed.access_token).toBe(second.access_token)
     expect(replayed.refresh_token).toBe(second.refresh_token)
-    expect(replayed.expires_in).toBeGreaterThan(3500)
+    expect(replayed.expires_in).toBeGreaterThan(86_000)
     await expect(
       verifyAccessToken(second.access_token, RESOURCE)
     ).resolves.toBeTruthy()
