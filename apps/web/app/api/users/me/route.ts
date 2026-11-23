@@ -65,7 +65,7 @@ export const GET = withErrorHandling(async (request: Request) => {
   // These three reads are independent, so they share one round-trip window.
   const [addressDomain, revived, transferNotice] = await Promise.all([
     resolveAddressDomain(request),
-    reviveDeadCourtesyWallet(user.id),
+    reviveDeadCourtesyWallet(user.id, user.lightningAddresses[0] ?? null),
     getAccountTransferNotice(user.id)
   ])
   let primaryAddress = user.lightningAddresses[0]

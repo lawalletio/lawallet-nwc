@@ -686,6 +686,20 @@ describe('reviveDeadCourtesyWallet', () => {
     expect(prismaMock.remoteWallet.update).not.toHaveBeenCalled()
   })
 
+  it('uses a primary address the caller already loaded instead of re-reading it', async () => {
+    await expect(
+      findCourtesyReviveTarget(USER_ID, {
+        mode: 'CUSTOM_NWC',
+        remoteWallet: deadWallet
+      })
+    ).resolves.toEqual({
+      previousWalletId: 'dead-wallet',
+      serverUrl: 'https://my.lncurl.example'
+    })
+    await expect(findCourtesyReviveTarget(USER_ID, null)).resolves.toBeNull()
+    expect(prismaMock.lightningAddress.findFirst).not.toHaveBeenCalled()
+  })
+
   it('replaces a courtesy wallet after archival left the primary address IDLE', async () => {
     vi.mocked(prismaMock.lightningAddress.findFirst)
       .mockResolvedValueOnce({

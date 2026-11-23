@@ -158,7 +158,20 @@ export function courtesyReviveTarget(
  * courtesy wallet? LUD-16 metadata uses this to promise a callback without
  * minting.
  */
-export async function findCourtesyReviveTarget(userId: string): Promise<{
+/** The primary address as the caller already loaded it (`null` = none). */
+export type PrimaryAddressRef = {
+  mode: LightningAddressMode
+  remoteWallet: {
+    id: string
+    status: RemoteWalletStatus
+    config: unknown
+  } | null
+} | null
+
+export async function findCourtesyReviveTarget(
+  userId: string,
+  primary?: PrimaryAddressRef
+): Promise<{
   previousWalletId: string
   serverUrl: string | undefined
 } | null> {
@@ -175,10 +188,15 @@ export async function findCourtesyReviveTarget(userId: string): Promise<{
     return null
   }
 
-  const address = await prisma.lightningAddress.findFirst({
-    where: { userId, isPrimary: true },
-    include: { remoteWallet: true }
-  })
+  // Callers that already hold the primary address (users/me, LUD-16) pass
+  // it in, sparing the address + wallet re-read.
+  const address =
+    primary !== undefined
+      ? primary
+      : await prisma.lightningAddress.findFirst({
+          where: { userId, isPrimary: true },
+          include: { remoteWallet: true }
+        })
   if (!address) return null
 
   const bound = address.remoteWallet
@@ -234,9 +252,10 @@ export async function findCourtesyReviveTarget(userId: string): Promise<{
  * receives — not only when a payer hits the LUD-16 callback.
  */
 export async function reviveDeadCourtesyWallet(
-  userId: string
+  userId: string,
+  primary?: PrimaryAddressRef
 ): Promise<RemoteWallet | null> {
-  const target = await findCourtesyReviveTarget(userId)
+  const target = await findCourtesyReviveTarget(userId, primary)
   if (!target) return null
 
   const created = await createLncurlRemoteWallet({

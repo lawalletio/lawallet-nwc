@@ -177,7 +177,10 @@ export const GET = withErrorHandling(
       if (route.kind === 'idle') {
         const revivable =
           lightningAddress.isPrimary &&
-          (await findCourtesyReviveTarget(lightningAddress.user.id))
+          (await findCourtesyReviveTarget(
+            lightningAddress.user.id,
+            lightningAddress
+          ))
         if (revivable) {
           logger.info(
             { username, mode: lightningAddress.mode },
