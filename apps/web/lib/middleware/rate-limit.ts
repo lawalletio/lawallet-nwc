@@ -133,9 +133,63 @@ function checkRateLimitInMemory(
   }
 }
 
+const UPSTASH_TIMEOUT_MS = 300
+const UPSTASH_WARN_INTERVAL_MS = 60_000
+let lastUpstashWarnAt = 0
+
 /**
- * Check rate limit for a request
- * Uses in-memory store (Upstash support can be added later)
+ * Shared fixed-window limiter over Upstash's REST `/pipeline` endpoint, so
+ * every serverless instance counts against one counter. `PEXPIRE … NX` only
+ * arms the TTL on the request that opened the window.
+ *
+ * @throws On HTTP failure, a per-command error, or the timeout — the caller
+ * falls back to in-memory.
+ */
+async function checkRateLimitUpstash(
+  key: string,
+  windowMs: number,
+  maxRequests: number,
+  upstash: { url: string; token: string }
+): Promise<RateLimitResult> {
+  const res = await fetch(`${upstash.url.replace(/\/+$/, '')}/pipeline`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${upstash.token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify([
+      ['INCR', key],
+      ['PEXPIRE', key, String(windowMs), 'NX'],
+      ['PTTL', key]
+    ]),
+    signal: AbortSignal.timeout(UPSTASH_TIMEOUT_MS),
+    cache: 'no-store'
+  })
+  if (!res.ok) throw new Error(`Upstash HTTP ${res.status}`)
+
+  const replies = (await res.json()) as { result?: unknown; error?: string }[]
+  const failed = replies.find(r => r.error)
+  if (failed) throw new Error(`Upstash: ${failed.error}`)
+
+  const count = Number(replies[0]?.result)
+  if (!Number.isFinite(count)) throw new Error('Upstash: bad INCR reply')
+  const pttl = Number(replies[2]?.result)
+  // -1/-2 (no TTL / key gone) should not happen after PEXPIRE; assume a fresh window.
+  const resetMs = Date.now() + (pttl > 0 ? pttl : windowMs)
+
+  return {
+    success: count <= maxRequests,
+    limit: maxRequests,
+    remaining: Math.max(0, maxRequests - count),
+    reset: Math.ceil(resetMs / 1000)
+  }
+}
+
+/**
+ * Check rate limit for a request. Uses Upstash Redis when
+ * `UPSTASH_REDIS_URL` + `UPSTASH_REDIS_TOKEN` are set; otherwise, or whenever
+ * Redis errors or times out, the per-instance in-memory store. Never fails
+ * closed on a Redis outage.
  */
 export async function checkRateLimit(
   request: Request,
@@ -162,6 +216,25 @@ export async function checkRateLimit(
   const prefix = options.isAuthenticated ? 'auth' : 'anon'
   const bucket = options.bucket ?? 'default'
   const key = `ratelimit:${prefix}:${bucket}:${identifier}`
+
+  const { upstash } = config.rateLimit
+  if (upstash.enabled && upstash.url && upstash.token) {
+    try {
+      return await checkRateLimitUpstash(key, windowMs, maxRequests, {
+        url: upstash.url,
+        token: upstash.token
+      })
+    } catch (err) {
+      const now = Date.now()
+      if (now - lastUpstashWarnAt >= UPSTASH_WARN_INTERVAL_MS) {
+        lastUpstashWarnAt = now
+        logger.warn({
+          msg: 'Upstash rate limit failed; falling back to in-memory',
+          err: err instanceof Error ? err.message : String(err)
+        })
+      }
+    }
+  }
 
   return checkRateLimitInMemory(key, windowMs, maxRequests)
 }

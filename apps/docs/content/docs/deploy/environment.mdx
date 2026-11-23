@@ -71,6 +71,9 @@ Replace the `DATABASE_URL`, `LISTENER_URL`, and `WEB_ORIGIN` placeholders
 before deploying. Both services must use the same database, NWC vault key, and
 listener authentication values.
 
+For accurate API rate limits across function instances, also set the optional
+[Upstash variables](#shared-rate-limiting-optional) on the web app.
+
 ## What the generator creates
 
 | Variable                       | Where it goes    | Purpose                                                                                                                     |
@@ -135,6 +138,23 @@ and no Sentry code is activated.
 | `NEXT_PUBLIC_SENTRY_DSN` | Web            | Optional      | Enables browser error reporting. Inlined at build time, so set it before building the web app.                                                                                                  |
 | `SENTRY_AUTH_TOKEN`      | Build only     | Optional      | Used only during the build to upload sourcemaps to Sentry. Never needed at runtime.                                                                                                             |
 | `SENTRY_RELEASE`         | Listener       | Optional      | Commit the running image was built from. Baked in by `--build-arg SENTRY_RELEASE=<sha>`; enables release health (crash-free sessions). The web app detects its release automatically on Vercel. |
+
+## Shared rate limiting (optional)
+
+The API rate limiter counts in memory by default, which is exact on a single
+instance (Docker, Umbrel, StartOS, `lawallet install`). On Vercel or Netlify
+every function instance keeps its own counter, so the effective limit grows
+with traffic. Set both variables to share one counter across instances through
+[Upstash Redis](https://upstash.com) (its REST API, no extra dependency).
+
+| Variable              | Service | Required when | Purpose                                                    |
+| --------------------- | ------- | ------------- | ---------------------------------------------------------- |
+| `UPSTASH_REDIS_URL`   | Web     | Optional      | Upstash REST URL (`https://<name>.upstash.io`).            |
+| `UPSTASH_REDIS_TOKEN` | Web     | With the URL  | Upstash REST token. Both must be set to enable Redis mode. |
+
+If Redis errors or takes longer than 300 ms, that request falls back to the
+in-memory counter and a warning is logged (at most once a minute). Requests
+are never blocked by a Redis outage.
 
 ## Native Android wallet (optional)
 
