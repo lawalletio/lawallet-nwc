@@ -13,10 +13,6 @@ export interface DesignData {
   archivedAt: string | null
 }
 
-export interface DesignCount {
-  count: number
-}
-
 // The server emits `imageUrl` and has no `updatedAt`; the admin UI uses
 // `image` and expects `updatedAt`. Reshape once here so every consumer
 // downstream sees the dashboard-native shape.
@@ -55,13 +51,6 @@ export function useDesigns(options?: { enabled?: boolean }) {
     [result.data]
   )
   return { ...result, data }
-}
-
-/**
- * Fetch card design count.
- */
-export function useDesignCount() {
-  return useApi<DesignCount>('/api/card-designs/count')
 }
 
 export interface CreateDesignInput {

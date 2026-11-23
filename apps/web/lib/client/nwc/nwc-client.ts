@@ -41,7 +41,7 @@ export function closeNwcClient(nwcString: string) {
   clients.delete(nwcString)
 }
 
-/** Close every cached client. Wired to auth logout. */
+/** Close every cached client. Called from `logout()` in auth-context. */
 export function closeAllNwcClients() {
   for (const [, client] of clients) {
     try {

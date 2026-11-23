@@ -55,18 +55,6 @@
       "dependsOn": ["^topo", "db:generate"],
       "outputs": ["*.tsbuildinfo", "dist/**/*.tsbuildinfo"]
     },
-    "@lawallet-nwc/react#typecheck": {
-      "dependsOn": ["^build", "db:generate"]
-    },
-    "lawallet-example-onboarding#typecheck": {
-      "dependsOn": ["^build", "db:generate"]
-    },
-    "lawallet-example-admin-provisioning#typecheck": {
-      "dependsOn": ["^build", "db:generate"]
-    },
-    "lawallet-example-admin-provisioning#test": {
-      "dependsOn": ["^build"]
-    },
     "test": {
       "dependsOn": ["^build", "^topo", "db:generate"]
     },

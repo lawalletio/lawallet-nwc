@@ -16,10 +16,9 @@ Non-negotiable conventions (read a neighboring route under
    from `@/lib/validation/middleware`. Schemas live in
    `packages/shared/src/schemas.ts` (import via `@/lib/validation/schemas`)
    — add new schemas there, never inline ad-hoc Zod in the route.
-3. Auth: `authenticateUnified()` from `@/lib/auth/unified-auth` (dual
-   NIP-98/JWT); admin-only routes use `withAdminAuth()` from
-   `@/lib/admin-auth`; check granular permissions from
-   `@/lib/auth/permissions`.
+3. Auth: `authenticate()` / `authenticateWithRole()` /
+   `authenticateWithPermission()` from `@/lib/auth/unified-auth` (dual
+   NIP-98/JWT); granular permissions live in `@/lib/auth/permissions`.
 4. Throw the typed errors from `@/types/server/errors` (NotFoundError,
    ConflictError, …) — never hand-roll status JSON.
 5. DB via `@/lib/prisma`; long operations get logging via

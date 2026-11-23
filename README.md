@@ -93,7 +93,7 @@ for what each value does and where to place it.
 
 - OpenAPI 3.1 spec + interactive [Scalar Playground](https://beta.lawallet.io/api-docs)
 - Remote MCP server at `/api/mcp` — connect Claude, ChatGPT, Cursor or Claude Code to an instance with OAuth sign-in and an opt-in daily spend limit ([guide](https://docs.lawallet.io/docs/guides/mcp))
-- TypeScript SDK + `@lawallet-nwc/react` hooks — package extraction in progress (Month 7)
+- TypeScript SDK + React hooks — [`@lawallet/sdk`](https://github.com/lawalletio/sdk) (separate repo)
 - One-click deploy to Vercel or Netlify; Docker, Umbrel, and Start9 targets available
 
 > The public marketing site lives in [`lawallet-landing`](https://github.com/lawalletio/lawallet-landing). This repo's `/` redirects there; the product entrypoint is `/admin`.

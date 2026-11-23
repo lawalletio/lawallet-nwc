@@ -115,32 +115,6 @@ export function verifyJwtToken(
 }
 
 /**
- * Decodes a JWT *without* verifying its signature — only safe for inspecting
- * a token (e.g. reading `exp` to schedule a refresh) when you don't yet trust it.
- * Never use the returned claims for authorization.
- *
- * @throws {Error} `'Invalid token format'` or a wrapped decoding error.
- */
-export function decodeJwtToken(token: string): JwtValidationResult {
-  try {
-    const decoded = jwt.decode(token, { complete: true })
-
-    if (!decoded) {
-      throw new Error('Invalid token format')
-    }
-
-    return {
-      payload: decoded.payload as JwtPayload,
-      header: decoded.header
-    }
-  } catch (error) {
-    throw new Error(
-      `Token decoding failed: ${error instanceof Error ? error.message : 'Unknown error'}`
-    )
-  }
-}
-
-/**
  * Extracts the bearer token from an `Authorization: Bearer <token>` header.
  *
  * @throws {Error} When the header is missing, lacks the `Bearer ` prefix, or is empty.
@@ -182,25 +156,4 @@ export async function validateJwtFromRequest(
   const token = extractJwtFromHeader(authHeader)
 
   return verifyJwtToken(token, secret, options)
-}
-
-/**
- * Checks whether a decoded payload is past its `exp`.
- *
- * @param clockTolerance - Optional skew, in seconds, applied in the caller's favour.
- */
-export function isTokenExpired(
-  payload: JwtPayload,
-  clockTolerance: number = 0
-): boolean {
-  const now = Math.floor(Date.now() / 1000)
-  return payload.exp < now - clockTolerance
-}
-
-/**
- * @returns Seconds until the payload's `exp` (negative when already expired).
- */
-export function getTimeUntilExpiration(payload: JwtPayload): number {
-  const now = Math.floor(Date.now() / 1000)
-  return payload.exp - now
 }

@@ -67,11 +67,11 @@ Two deliberate exceptions:
 
 ## How a route checks a role
 
-Protected routes use helpers in `lib/auth/`:
+Protected routes use helpers in `lib/auth/unified-auth.ts`:
 
-- `requireRole(req, Role.OPERATOR)` — requires the minimum `OPERATOR` role. Returns 403 with `AuthorizationError` if the caller does not qualify.
-- `requirePermission(req, Permission.CARDS_WRITE)` — performs a granular check against the permission map.
-- `withAdminAuth(handler)` — HOF in `lib/admin-auth.ts` that validates NIP-98 and requires `ADMIN`. Bootstrap endpoints use it.
+- `authenticateWithRole(req, Role.OPERATOR)` — requires the minimum `OPERATOR` role. Returns 403 with `AuthorizationError` if the caller does not qualify.
+- `authenticateWithPermission(req, Permission.CARDS_WRITE)` — performs a granular check against the permission map.
+- `validateAdminAuth(req)` — in `lib/admin-auth.ts`; validates NIP-98 only and requires `ADMIN`.
 
 Routes that accept both methods (NIP-98 or JWT) use `lib/auth/unified-auth.ts`, which detects the `Authorization` header and applies the appropriate flow before resolving the role.
 

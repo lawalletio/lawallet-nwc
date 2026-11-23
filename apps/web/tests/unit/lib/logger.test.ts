@@ -11,7 +11,6 @@ vi.mock('@/lib/config', () => ({
 import {
   getOrCreateRequestId,
   createLogger,
-  logError,
   withRequestLogging,
   logger
 } from '@/lib/logger'
@@ -81,20 +80,6 @@ describe('createLogger', () => {
     const log = createLogger({ module: 'test' })
     expect(log).toBeDefined()
     expect(typeof log.info).toBe('function')
-  })
-})
-
-describe('logError', () => {
-  it('does not throw when called with an Error', () => {
-    expect(() => logError(new Error('test error'))).not.toThrow()
-  })
-
-  it('does not throw when called with string', () => {
-    expect(() => logError('string error')).not.toThrow()
-  })
-
-  it('accepts optional context', () => {
-    expect(() => logError(new Error('oops'), { source: 'test' })).not.toThrow()
   })
 })
 

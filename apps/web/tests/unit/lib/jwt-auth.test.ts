@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { NextRequest, NextResponse } from 'next/server'
-import { Role, Permission } from '@/lib/auth/permissions'
+import { Role } from '@/lib/auth/permissions'
 import {
   AuthenticationError,
   AuthorizationError,
@@ -22,7 +22,6 @@ import {
   getClaimFromRequest,
   hasClaim,
   getRoleFromRequest,
-  hasPermissionFromRequest,
   type AuthenticatedRequest
 } from '@/lib/jwt-auth'
 import { getConfig } from '@/lib/config'
@@ -216,32 +215,5 @@ describe('getRoleFromRequest', () => {
   it('throws AuthenticationError when not authenticated', () => {
     const request = {} as unknown as AuthenticatedRequest
     expect(() => getRoleFromRequest(request)).toThrow(AuthenticationError)
-  })
-})
-
-describe('hasPermissionFromRequest', () => {
-  it('returns true when role has permission', () => {
-    const request = {
-      jwt: { payload: { userId: 'u1', role: 'ADMIN' }, header: {} }
-    } as unknown as AuthenticatedRequest
-    expect(hasPermissionFromRequest(request, Permission.SETTINGS_WRITE)).toBe(
-      true
-    )
-  })
-
-  it('returns false when role lacks permission', () => {
-    const request = {
-      jwt: { payload: { userId: 'u1', role: 'USER' }, header: {} }
-    } as unknown as AuthenticatedRequest
-    expect(hasPermissionFromRequest(request, Permission.SETTINGS_READ)).toBe(
-      false
-    )
-  })
-
-  it('returns false when not authenticated', () => {
-    const request = {} as unknown as AuthenticatedRequest
-    expect(hasPermissionFromRequest(request, Permission.SETTINGS_READ)).toBe(
-      false
-    )
   })
 })

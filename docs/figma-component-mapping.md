@@ -86,51 +86,51 @@
 
 These Figma components map directly to existing shadcn/ui components. Already installed in `components/ui/`.
 
-| #   | Figma Component | Figma Node  | shadcn Component   | File                  | Status    |
-| --- | --------------- | ----------- | ------------------ | --------------------- | --------- |
-| 1   | Accordion       | `3030:195`  | `<Accordion>`      | `accordion.tsx`       | Installed |
-| 2   | Alert Dialog    | `3030:391`  | `<AlertDialog>`    | `alert-dialog.tsx`    | Installed |
-| 3   | Alert           | `3030:510`  | `<Alert>`          | `alert.tsx`           | Installed |
-| 4   | Aspect Ratio    | `3030:530`  | `<AspectRatio>`    | `aspect-ratio.tsx`    | Installed |
-| 5   | Avatar          | `3030:584`  | `<Avatar>`         | `avatar.tsx`          | Installed |
-| 6   | Badge           | `3030:644`  | `<Badge>`          | `badge.tsx`           | Installed |
-| 7   | Breadcrumb      | `3030:713`  | `<Breadcrumb>`     | `breadcrumb.tsx`      | Installed |
-| 8   | Button          | `3030:869`  | `<Button>`         | `button.tsx`          | Installed |
-| 9   | Calendar        | `3030:1690` | `<Calendar>`       | `calendar.tsx`        | Installed |
-| 10  | Card            | `3030:2225` | `<Card>`           | `card.tsx`            | Installed |
-| 11  | Carousel        | `3030:2297` | `<Carousel>`       | `carousel.tsx`        | Installed |
-| 12  | Chart           | `3030:2367` | `<Chart>`          | `chart.tsx`           | Installed |
-| 13  | Checkbox        | `3030:2558` | `<Checkbox>`       | `checkbox.tsx`        | Installed |
-| 14  | Collapsible     | `3030:2623` | `<Collapsible>`    | `collapsible.tsx`     | Installed |
-| 15  | Command         | `3030:2770` | `<Command>`        | `command.tsx`         | Installed |
-| 16  | Context Menu    | `3030:2833` | `<ContextMenu>`    | `context-menu.tsx`    | Installed |
-| 17  | Dialog          | `3030:3297` | `<Dialog>`         | `dialog.tsx`          | Installed |
-| 18  | Drawer          | `3030:3392` | `<Drawer>`         | `drawer.tsx`          | Installed |
-| 19  | Dropdown Menu   | `3030:3481` | `<DropdownMenu>`   | `dropdown-menu.tsx`   | Installed |
-| 20  | Hover Card      | `3030:3788` | `<HoverCard>`      | `hover-card.tsx`      | Installed |
-| 21  | Input           | `3030:4139` | `<Input>`          | `input.tsx`           | Installed |
-| 22  | Input OTP       | `3030:3996` | `<InputOTP>`       | `input-otp.tsx`       | Installed |
-| 23  | Label           | `3030:4430` | `<Label>`          | `label.tsx`           | Installed |
-| 24  | Menubar         | `3030:4485` | `<Menubar>`        | `menubar.tsx`         | Installed |
-| 25  | Navigation Menu | `3030:4624` | `<NavigationMenu>` | `navigation-menu.tsx` | Installed |
-| 26  | Pagination      | `3030:4690` | `<Pagination>`     | `pagination.tsx`      | Installed |
-| 27  | Popover         | `3030:4784` | `<Popover>`        | `popover.tsx`         | Installed |
-| 28  | Progress        | `3030:4873` | `<Progress>`       | `progress.tsx`        | Installed |
-| 29  | Radio Group     | `3030:4927` | `<RadioGroup>`     | `radio-group.tsx`     | Installed |
-| 30  | Scroll Area     | `3030:4981` | `<ScrollArea>`     | `scroll-area.tsx`     | Installed |
-| 31  | Select          | `3030:5074` | `<Select>`         | `select.tsx`          | Installed |
-| 32  | Separator       | `3030:5141` | `<Separator>`      | `separator.tsx`       | Installed |
-| 33  | Sheet           | `3030:5201` | `<Sheet>`          | `sheet.tsx`           | Installed |
-| 34  | Sidebar         | `3030:5293` | `<Sidebar>`        | `sidebar.tsx`         | Installed |
-| 35  | Skeleton        | `3030:5368` | `<Skeleton>`       | `skeleton.tsx`        | Installed |
-| 36  | Slider          | `3030:5475` | `<Slider>`         | `slider.tsx`          | Installed |
-| 37  | Sonner          | `3030:5535` | `<Sonner>`         | `sonner.tsx`          | Installed |
-| 38  | Switch          | `3030:5724` | `<Switch>`         | `switch.tsx`          | Installed |
-| 39  | Table           | `3030:5777` | `<Table>`          | `table.tsx`           | Installed |
-| 40  | Tabs            | `3030:5832` | `<Tabs>`           | `tabs.tsx`            | Installed |
-| 41  | Toggle          | `3030:6177` | `<Toggle>`         | `toggle.tsx`          | Installed |
-| 42  | Toggle Group    | `3030:6065` | `<ToggleGroup>`    | `toggle-group.tsx`    | Installed |
-| 43  | Tooltip         | `3030:6260` | `<Tooltip>`        | `tooltip.tsx`         | Installed |
+| #   | Figma Component | Figma Node  | shadcn Component   | File                  | Status           |
+| --- | --------------- | ----------- | ------------------ | --------------------- | ---------------- |
+| 1   | Accordion       | `3030:195`  | `<Accordion>`      | `accordion.tsx`       | Installed        |
+| 2   | Alert Dialog    | `3030:391`  | `<AlertDialog>`    | `alert-dialog.tsx`    | Installed        |
+| 3   | Alert           | `3030:510`  | `<Alert>`          | `alert.tsx`           | Installed        |
+| 4   | Aspect Ratio    | `3030:530`  | `<AspectRatio>`    | `aspect-ratio.tsx`    | Removed (unused) |
+| 5   | Avatar          | `3030:584`  | `<Avatar>`         | `avatar.tsx`          | Installed        |
+| 6   | Badge           | `3030:644`  | `<Badge>`          | `badge.tsx`           | Installed        |
+| 7   | Breadcrumb      | `3030:713`  | `<Breadcrumb>`     | `breadcrumb.tsx`      | Removed (unused) |
+| 8   | Button          | `3030:869`  | `<Button>`         | `button.tsx`          | Installed        |
+| 9   | Calendar        | `3030:1690` | `<Calendar>`       | `calendar.tsx`        | Removed (unused) |
+| 10  | Card            | `3030:2225` | `<Card>`           | `card.tsx`            | Installed        |
+| 11  | Carousel        | `3030:2297` | `<Carousel>`       | `carousel.tsx`        | Removed (unused) |
+| 12  | Chart           | `3030:2367` | `<Chart>`          | `chart.tsx`           | Installed        |
+| 13  | Checkbox        | `3030:2558` | `<Checkbox>`       | `checkbox.tsx`        | Installed        |
+| 14  | Collapsible     | `3030:2623` | `<Collapsible>`    | `collapsible.tsx`     | Installed        |
+| 15  | Command         | `3030:2770` | `<Command>`        | `command.tsx`         | Installed        |
+| 16  | Context Menu    | `3030:2833` | `<ContextMenu>`    | `context-menu.tsx`    | Removed (unused) |
+| 17  | Dialog          | `3030:3297` | `<Dialog>`         | `dialog.tsx`          | Installed        |
+| 18  | Drawer          | `3030:3392` | `<Drawer>`         | `drawer.tsx`          | Installed        |
+| 19  | Dropdown Menu   | `3030:3481` | `<DropdownMenu>`   | `dropdown-menu.tsx`   | Installed        |
+| 20  | Hover Card      | `3030:3788` | `<HoverCard>`      | `hover-card.tsx`      | Removed (unused) |
+| 21  | Input           | `3030:4139` | `<Input>`          | `input.tsx`           | Installed        |
+| 22  | Input OTP       | `3030:3996` | `<InputOTP>`       | `input-otp.tsx`       | Removed (unused) |
+| 23  | Label           | `3030:4430` | `<Label>`          | `label.tsx`           | Installed        |
+| 24  | Menubar         | `3030:4485` | `<Menubar>`        | `menubar.tsx`         | Removed (unused) |
+| 25  | Navigation Menu | `3030:4624` | `<NavigationMenu>` | `navigation-menu.tsx` | Removed (unused) |
+| 26  | Pagination      | `3030:4690` | `<Pagination>`     | `pagination.tsx`      | Removed (unused) |
+| 27  | Popover         | `3030:4784` | `<Popover>`        | `popover.tsx`         | Installed        |
+| 28  | Progress        | `3030:4873` | `<Progress>`       | `progress.tsx`        | Installed        |
+| 29  | Radio Group     | `3030:4927` | `<RadioGroup>`     | `radio-group.tsx`     | Installed        |
+| 30  | Scroll Area     | `3030:4981` | `<ScrollArea>`     | `scroll-area.tsx`     | Installed        |
+| 31  | Select          | `3030:5074` | `<Select>`         | `select.tsx`          | Installed        |
+| 32  | Separator       | `3030:5141` | `<Separator>`      | `separator.tsx`       | Installed        |
+| 33  | Sheet           | `3030:5201` | `<Sheet>`          | `sheet.tsx`           | Installed        |
+| 34  | Sidebar         | `3030:5293` | `<Sidebar>`        | `sidebar.tsx`         | Installed        |
+| 35  | Skeleton        | `3030:5368` | `<Skeleton>`       | `skeleton.tsx`        | Installed        |
+| 36  | Slider          | `3030:5475` | `<Slider>`         | `slider.tsx`          | Removed (unused) |
+| 37  | Sonner          | `3030:5535` | `<Sonner>`         | `sonner.tsx`          | Installed        |
+| 38  | Switch          | `3030:5724` | `<Switch>`         | `switch.tsx`          | Installed        |
+| 39  | Table           | `3030:5777` | `<Table>`          | `table.tsx`           | Installed        |
+| 40  | Tabs            | `3030:5832` | `<Tabs>`           | `tabs.tsx`            | Installed        |
+| 41  | Toggle          | `3030:6177` | `<Toggle>`         | `toggle.tsx`          | Installed        |
+| 42  | Toggle Group    | `3030:6065` | `<ToggleGroup>`    | `toggle-group.tsx`    | Installed        |
+| 43  | Tooltip         | `3030:6260` | `<Tooltip>`        | `tooltip.tsx`         | Installed        |
 
 ---
 
@@ -324,7 +324,7 @@ These require new component files in `components/ui/`.
 ### 50. Button Group
 
 - **Figma Node:** `3030:895`
-- **File:** `components/ui/button-group.tsx`
+- **File:** `components/ui/button-group.tsx` (removed — unused; re-add with `npx shadcn add button-group`)
 - **Description:** Groups multiple buttons with shared border, overflow-clip, and dividers
 - **Sub-patterns:** Toolbar, vertical orientation, segmented buttons (sizes S/M/L), pagination, split button, input group, dropdown split, select split, popover split
 - **Styling:** `flex overflow-hidden rounded-md border border-border`, children separated by `border-r`
@@ -388,7 +388,7 @@ These require new component files in `components/ui/`.
 ### 53. Kbd (Keyboard Shortcut)
 
 - **Figma Node:** `3030:4363`
-- **File:** `components/ui/kbd.tsx`
+- **File:** `components/ui/kbd.tsx` (removed — unused; re-add with `npx shadcn add kbd`)
 - **Description:** Keyboard shortcut badges (20x20px, `bg-muted rounded-sm`)
 - **Sub-patterns:**
   - Standalone keys: ⌘, ⇧, ⌥, ⌃
@@ -594,10 +594,10 @@ These require new component files in `components/ui/`.
 
 - [x] Topbar (`components/ui/topbar.tsx`)
 - [x] Topbar Mobile (`components/ui/topbar-mobile.tsx`)
-- [x] Button Group (`components/ui/button-group.tsx`)
+- [ ] Button Group (`components/ui/button-group.tsx`) — removed (unused)
 - [x] Spinner (`components/ui/spinner.tsx`)
 - [x] Swipe Button (`components/ui/swipe-button.tsx`)
-- [x] Kbd (`components/ui/kbd.tsx`)
+- [ ] Kbd (`components/ui/kbd.tsx`) — removed (unused)
 - [x] Input Group (`components/ui/input-group.tsx`)
 - [x] Field (`components/ui/field.tsx`)
 - [x] Checkbox Card (`components/ui/checkbox-card.tsx`)

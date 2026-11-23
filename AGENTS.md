@@ -84,7 +84,7 @@ The platform consists of 3 independent services with no shared infrastructure:
 - **JWT**: `Authorization: Bearer <jwt>` — Web-friendly tokens exchanged via POST /api/jwt
 - **Unified auth**: `lib/auth/unified-auth.ts` detects method from header, resolves role via DB + Settings fallback
 - **RBAC**: 4 roles (USER < VIEWER < OPERATOR < ADMIN) with granular permissions in `lib/auth/permissions.ts`
-- **Admin wrappers**: `lib/admin-auth.ts` provides `withAdminAuth()` HOF for route handlers
+- **Route gates**: `authenticateWithRole()` / `authenticateWithPermission()` in `lib/auth/unified-auth.ts`; `lib/admin-auth.ts` keeps the NIP-98-only `validateAdminAuth()`
 
 ### API Routes (apps/web/app/api/)
 
@@ -110,7 +110,7 @@ PostgreSQL via Prisma. Schema at `apps/web/prisma/schema.prisma`. Models include
 ### Frontend
 
 - shadcn/ui + Radix UI + Tailwind CSS 4
-- React Hook Form + Zod for forms
+- Controlled React state + Zod for forms
 - Provider hierarchy: ThemeProvider → AuthProvider → NostrProfileProvider → Toaster
 - Auth context at `components/admin/auth-context.tsx` — JWT management, Nostr signer integration
 - Custom hooks in `lib/client/hooks/` — `useApi`, `useCards`, `useAddresses`, `useDesigns`, `useSettings`, `useActivity`, `useHomeStats`, `useSse`; plus `useNwcBalance` in `lib/client/`
