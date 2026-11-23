@@ -217,11 +217,8 @@ export async function enqueueRemoteWalletNotificationEvent(input: {
   eventKey: string
   payload: unknown
 }): Promise<string[]> {
-  const wallet = await prisma.remoteWallet.findUnique({
-    where: { id: input.walletId },
-    select: { id: true, userId: true, status: true, name: true }
-  })
-  if (!wallet || wallet.status !== 'ACTIVE') return []
+  // Subscriptions first: most wallets have none, and then the wallet row is
+  // never needed (one statement per payment instead of two).
   const notifications = await prisma.remoteWalletNotification.findMany({
     where: {
       remoteWalletId: input.walletId,
@@ -231,6 +228,11 @@ export async function enqueueRemoteWalletNotificationEvent(input: {
     select: { id: true }
   })
   if (notifications.length === 0) return []
+  const wallet = await prisma.remoteWallet.findUnique({
+    where: { id: input.walletId },
+    select: { id: true, userId: true, status: true, name: true }
+  })
+  if (!wallet || wallet.status !== 'ACTIVE') return []
   const payload = toJsonValue({
     version: 1,
     action: input.action,

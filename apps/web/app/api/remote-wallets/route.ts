@@ -29,6 +29,8 @@ import {
 } from '@/lib/wallet/primary-wallet'
 import { encryptRemoteWalletConfig } from '@/lib/wallet/remote-wallet-vault'
 
+const HIDDEN_STATUSES: RemoteWalletStatus[] = ['REVOKED', 'DEAD']
+
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
@@ -105,34 +107,19 @@ export const GET = withErrorHandling(async (request: Request) => {
 
   const query = validateQuery(request.url, remoteWalletListQuerySchema)
 
-  const where: {
-    userId: string
-    status?: RemoteWalletStatus
-    type?: RemoteWallet['type']
-  } = {
-    userId
-  }
-  if (query.status) {
-    where.status = query.status
-  } else {
-    // Default: anything except the terminal/hidden states (REVOKED manual
-    // soft-delete, DEAD archived disposable wallet) so the UI shows ACTIVE +
-    // DISABLED. The archived "graveyard" is fetched explicitly via
-    // `?status=DEAD`. Prisma doesn't let us inline `NOT IN (...)` cleanly
-    // without a typed workaround, so we fall through and filter in memory.
-  }
-  if (query.type) where.type = query.type
-
   const rows = await prisma.remoteWallet.findMany({
-    where,
+    where: {
+      userId,
+      // Default: anything except the terminal/hidden states (REVOKED manual
+      // soft-delete, DEAD archived disposable wallet) so the UI shows ACTIVE +
+      // DISABLED. The archived "graveyard" is fetched via `?status=DEAD`.
+      status: query.status ?? { notIn: HIDDEN_STATUSES },
+      ...(query.type ? { type: query.type } : {})
+    },
     orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }]
   })
 
-  const filtered = query.status
-    ? rows
-    : rows.filter(r => r.status !== 'REVOKED' && r.status !== 'DEAD')
-
-  return NextResponse.json(filtered.map(toDto))
+  return NextResponse.json(rows.map(toDto))
 })
 
 /**

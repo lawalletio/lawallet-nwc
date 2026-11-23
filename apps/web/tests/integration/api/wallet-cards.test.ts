@@ -80,9 +80,6 @@ function makeCardRow(overrides: Partial<any> = {}) {
       ctr: 3,
       createdAt: new Date('2026-01-01T00:00:00Z')
     },
-    // Identity resolves from the owner's primary lightning address (via the
-    // userId relation), NOT the dead Card.username column.
-    user: { pubkey: mockPubkey, lightningAddresses: [{ username: 'alice' }] },
     ...overrides
   }
 }
@@ -98,7 +95,10 @@ describe('GET /api/wallet/cards', () => {
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
       id: 'user-1',
       pubkey: mockPubkey,
-      remoteWallets: [{ id: 'wallet-default' }]
+      remoteWallets: [{ id: 'wallet-default' }],
+      // Identity resolves from the owner's primary lightning address, NOT
+      // the dead Card.username column.
+      lightningAddresses: [{ username: 'alice' }]
     } as any)
     vi.mocked(prismaMock.card.findMany).mockResolvedValue([
       makeCardRow()
@@ -176,6 +176,24 @@ describe('GET /api/wallet/cards', () => {
 
     expect(res.status).toBe(404)
     expect(prismaMock.card.findMany).not.toHaveBeenCalled()
+  })
+
+  it('404s when the account vanishes between resolution and the owner read', async () => {
+    mockAuth()
+    // The account resolves (by User.pubkey), then the owner row is gone.
+    vi.mocked(prismaMock.user.findUnique)
+      .mockResolvedValueOnce({
+        id: 'user-1',
+        pubkey: mockPubkey,
+        role: 'USER'
+      } as any)
+      .mockResolvedValueOnce(null)
+    vi.mocked(prismaMock.card.findMany).mockResolvedValue([] as any)
+
+    const req = createNextRequest('/api/wallet/cards')
+    const res = await ListGet(req)
+
+    expect(res.status).toBe(404)
   })
 
   it('propagates an authentication failure', async () => {
