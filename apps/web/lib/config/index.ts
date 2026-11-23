@@ -108,6 +108,30 @@ export interface AppConfig {
   }
 }
 
+/**
+ * Picks the Upstash URL + token as a PAIR: `UPSTASH_REDIS_*` when both are
+ * set, else the `KV_REST_API_*` names the Vercel Marketplace integration
+ * injects. Mixing one name from each set would pair a URL with another
+ * database's token, so a half-set pair only surfaces as "half configured"
+ * (the limiter warns and stays in-memory).
+ */
+function upstashCredentials(env: {
+  UPSTASH_REDIS_URL?: string
+  UPSTASH_REDIS_TOKEN?: string
+  KV_REST_API_URL?: string
+  KV_REST_API_TOKEN?: string
+}): AppConfig['rateLimit']['upstash'] {
+  const own = { url: env.UPSTASH_REDIS_URL, token: env.UPSTASH_REDIS_TOKEN }
+  const kv = { url: env.KV_REST_API_URL, token: env.KV_REST_API_TOKEN }
+  if (own.url && own.token) return { ...own, enabled: true }
+  if (kv.url && kv.token) return { ...kv, enabled: true }
+  return {
+    url: own.url ?? kv.url,
+    token: own.token ?? kv.token,
+    enabled: false
+  }
+}
+
 let strictConfig: AppConfig | null = null
 let relaxedConfig: AppConfig | null = null
 
@@ -208,14 +232,7 @@ export function getConfig(strict: boolean = true): AppConfig {
       windowMs: env.RATE_LIMIT_WINDOW_MS,
       maxRequests: env.RATE_LIMIT_MAX_REQUESTS,
       maxRequestsAuth: env.RATE_LIMIT_MAX_REQUESTS_AUTH,
-      upstash: {
-        url: env.UPSTASH_REDIS_URL ?? env.KV_REST_API_URL,
-        token: env.UPSTASH_REDIS_TOKEN ?? env.KV_REST_API_TOKEN,
-        enabled: !!(
-          (env.UPSTASH_REDIS_URL ?? env.KV_REST_API_URL) &&
-          (env.UPSTASH_REDIS_TOKEN ?? env.KV_REST_API_TOKEN)
-        )
-      }
+      upstash: upstashCredentials(env)
     }
   }
 
