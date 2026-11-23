@@ -85,6 +85,12 @@ export function ConsentScreen() {
   const { status, logout } = useAuth()
   const [check, setCheck] = useState<AuthorizeRequestCheck | null>(null)
   const [loginOpen, setLoginOpen] = useState(false)
+  // Mount on first open and keep it mounted so closes still animate out.
+  const [loginMounted, setLoginMounted] = useState(false)
+  const openLogin = () => {
+    setLoginMounted(true)
+    setLoginOpen(true)
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -99,7 +105,7 @@ export function ConsentScreen() {
   function switchAccount() {
     if (!window.confirm(SWITCH_ACCOUNT_CONFIRM)) return
     logout()
-    setLoginOpen(true)
+    openLogin()
   }
 
   let content: ReactNode = <Loading />
@@ -108,9 +114,7 @@ export function ConsentScreen() {
       <InvalidRequest error={check.error} description={check.description} />
     )
   } else if (check?.ok && status === 'unauthenticated') {
-    content = (
-      <SignedOut details={check.details} onSignIn={() => setLoginOpen(true)} />
-    )
+    content = <SignedOut details={check.details} onSignIn={openLogin} />
   } else if (check?.ok && status === 'authenticated') {
     content = (
       <ConsentForm
@@ -124,8 +128,11 @@ export function ConsentScreen() {
   return (
     <ConsentCard wide={check?.ok === true && status === 'authenticated'}>
       {content}
-      {loginOpen && status === 'unauthenticated' && (
-        <LoginModal open onOpenChange={setLoginOpen} />
+      {loginMounted && (
+        <LoginModal
+          open={loginOpen && status === 'unauthenticated'}
+          onOpenChange={setLoginOpen}
+        />
       )}
     </ConsentCard>
   )

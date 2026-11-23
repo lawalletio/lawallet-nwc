@@ -12,12 +12,21 @@ import { AdminSidebar } from '@/components/admin/admin-sidebar'
 import { MobileTabBar } from '@/components/admin/mobile-tab-bar'
 import { MaintenanceGate } from '@/components/admin/maintenance-gate'
 import { SetupBanner } from '@/components/admin/setup-banner'
+import { Spinner } from '@/components/ui/spinner'
 import { useVisibleInterval } from '@/lib/client/hooks/use-visible-interval'
 
 // Only rendered for signed-out visitors; signed-in admins never load it.
+// The spinner covers the chunk download so the page is never blank.
 const LoginModal = dynamic(
   () => import('@/components/admin/login-modal').then(m => m.LoginModal),
-  { ssr: false }
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex min-h-dvh items-center justify-center">
+        <Spinner />
+      </div>
+    )
+  }
 )
 
 interface DatabaseStatus {

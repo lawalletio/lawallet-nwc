@@ -115,7 +115,9 @@ export default function AdminAddressesPage() {
   const adminView = isAdmin && showAllUsers
 
   const mine = useMyAddresses()
-  const all = useAddresses(adminView)
+  // Prefetched for admins so the "all users" toggle switches instantly;
+  // non-admins (who'd get a 403) never request it.
+  const all = useAddresses(isAdmin)
   const { data, loading, refetch } = adminView ? all : mine
 
   const { setAsPrimary, settingPrimary } = useAddressMutations()
