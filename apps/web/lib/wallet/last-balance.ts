@@ -1,3 +1,4 @@
+import { after } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { driverForWallet } from '@/lib/wallet/drivers'
@@ -42,6 +43,10 @@ export async function holdsProtectedBalance(
 /**
  * Read a wallet's live balance through its driver and remember it, so a later
  * automatic archive can see what the wallet held. Driver errors propagate.
+ *
+ * The reading is returned without waiting for the write (this backs the 15s
+ * balance poll); inside a request `after()` keeps a serverless function alive
+ * until it lands. Outside one `after` throws and the write runs untracked.
  */
 export async function readWalletBalance(wallet: {
   id: string
@@ -50,7 +55,12 @@ export async function readWalletBalance(wallet: {
 }): Promise<number> {
   const { driver, config } = driverForWallet(wallet)
   const { balanceSats } = await driver.getBalance(config)
-  await recordWalletBalance(wallet.id, balanceSats)
+  const write = recordWalletBalance(wallet.id, balanceSats)
+  try {
+    after(write)
+  } catch {
+    // Not in a request scope — the write is already running.
+  }
   return balanceSats
 }
 
@@ -58,6 +68,10 @@ export async function readWalletBalance(wallet: {
  * Raw SQL so `updatedAt` stays put — together with the trigger's WHEN clause
  * that keeps balance polls from waking the listener's reconcile. Best effort:
  * a failed write never fails the balance read.
+ *
+ * An unchanged reading only re-stamps `lastBalanceAt` every 5 minutes, so the
+ * 15s poll stops rewriting the row. A staler stamp is safe: it only widens the
+ * receipt window {@link holdsProtectedBalance} adds on top, i.e. over-protects.
  */
 export async function recordWalletBalance(
   walletId: string,
@@ -69,6 +83,11 @@ export async function recordWalletBalance(
       UPDATE "RemoteWallet"
       SET "lastBalanceSats" = ${balanceSats}, "lastBalanceAt" = NOW()
       WHERE id = ${walletId}
+        AND (
+          "lastBalanceSats" IS DISTINCT FROM ${balanceSats}
+          OR "lastBalanceAt" IS NULL
+          OR "lastBalanceAt" < NOW() - INTERVAL '5 minutes'
+        )
     `
   } catch (err) {
     logger.warn({ err, walletId }, 'wallet.last_balance_write_failed')

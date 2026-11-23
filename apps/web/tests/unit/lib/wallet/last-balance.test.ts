@@ -71,6 +71,16 @@ describe('recordWalletBalance', () => {
     expect(prismaMock.$executeRaw).not.toHaveBeenCalled()
   })
 
+  it('skips the write when the reading is unchanged and recent', async () => {
+    vi.mocked(prismaMock.$executeRaw).mockResolvedValue(0 as never)
+    await recordWalletBalance('w', 100)
+    const sql = (
+      vi.mocked(prismaMock.$executeRaw).mock.calls[0][0] as unknown as string[]
+    ).join('?')
+    expect(sql).toContain('"lastBalanceSats" IS DISTINCT FROM ?')
+    expect(sql).toContain(`"lastBalanceAt" < NOW() - INTERVAL '5 minutes'`)
+  })
+
   it('swallows a failed write so the balance read still succeeds', async () => {
     vi.mocked(prismaMock.$executeRaw).mockRejectedValue(new Error('db down'))
     await expect(recordWalletBalance('w', 100)).resolves.toBeUndefined()
