@@ -419,7 +419,7 @@ describe('GET /api/users/me', () => {
 
     expect(reviveDeadCourtesyWallet).toHaveBeenCalledWith(
       user.id,
-      user.lightningAddresses[0]
+      expect.objectContaining({ isPrimary: true })
     )
     expect(body.primaryAddressMode).toBe('CUSTOM_NWC')
     expect(body.nwcString).toBe(freshUri)
@@ -501,7 +501,7 @@ describe('GET /api/users/me', () => {
 
     expect(reviveDeadCourtesyWallet).toHaveBeenCalledWith(
       user.id,
-      user.lightningAddresses[0]
+      expect.objectContaining({ isPrimary: true })
     )
     // The dead row is gone from the response: the address now points at the
     // replacement, so neither the raw nor the effective string is the corpse.
