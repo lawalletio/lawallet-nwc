@@ -178,6 +178,24 @@ describe('GET /api/wallet/cards', () => {
     expect(prismaMock.card.findMany).not.toHaveBeenCalled()
   })
 
+  it('404s when the account vanishes between resolution and the owner read', async () => {
+    mockAuth()
+    // The account resolves (by User.pubkey), then the owner row is gone.
+    vi.mocked(prismaMock.user.findUnique)
+      .mockResolvedValueOnce({
+        id: 'user-1',
+        pubkey: mockPubkey,
+        role: 'USER'
+      } as any)
+      .mockResolvedValueOnce(null)
+    vi.mocked(prismaMock.card.findMany).mockResolvedValue([] as any)
+
+    const req = createNextRequest('/api/wallet/cards')
+    const res = await ListGet(req)
+
+    expect(res.status).toBe(404)
+  })
+
   it('propagates an authentication failure', async () => {
     vi.mocked(authenticate).mockRejectedValue(
       new AuthenticationError('no auth')
