@@ -188,6 +188,33 @@ describe('getConfig', () => {
     expect(config.jwt.enabled).toBe(true)
   })
 
+  it('reads the Vercel Marketplace KV_REST_API_* names as Upstash fallbacks', async () => {
+    process.env.DATABASE_URL = 'postgresql://localhost/test'
+    delete process.env.UPSTASH_REDIS_URL
+    delete process.env.UPSTASH_REDIS_TOKEN
+    process.env.KV_REST_API_URL = 'https://kv.upstash.io'
+    process.env.KV_REST_API_TOKEN = 'kv-token'
+    setNodeEnv('test')
+    const { getConfig } = await import('@/lib/config')
+    expect(getConfig().rateLimit.upstash).toEqual({
+      url: 'https://kv.upstash.io',
+      token: 'kv-token',
+      enabled: true
+    })
+  })
+
+  it('prefers UPSTASH_REDIS_* over the KV_REST_API_* fallbacks', async () => {
+    process.env.DATABASE_URL = 'postgresql://localhost/test'
+    process.env.UPSTASH_REDIS_URL = 'https://own.upstash.io'
+    process.env.UPSTASH_REDIS_TOKEN = 'own-token'
+    process.env.KV_REST_API_URL = 'https://kv.upstash.io'
+    process.env.KV_REST_API_TOKEN = 'kv-token'
+    setNodeEnv('test')
+    const { getConfig } = await import('@/lib/config')
+    expect(getConfig().rateLimit.upstash.url).toBe('https://own.upstash.io')
+    expect(getConfig().rateLimit.upstash.token).toBe('own-token')
+  })
+
   it('caches config and returns same reference', async () => {
     process.env.DATABASE_URL = 'postgresql://localhost/test'
     setNodeEnv('test')

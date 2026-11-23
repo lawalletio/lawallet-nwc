@@ -123,12 +123,11 @@ describe('checkRateLimit with Upstash', () => {
   let n = 0
   const ip = () => `198.51.100.${++n}`
 
-  /** Stubs one `/multi-exec` reply: INCR → count, PEXPIRE → 1, PTTL → pttl. */
-  const pipelineReply = (count: number, pttl = 42_000) =>
-    new Response(
-      JSON.stringify([{ result: count }, { result: 1 }, { result: pttl }]),
-      { status: 200 }
-    )
+  /** Stubs one `/pipeline` reply: INCR → count, PEXPIREAT → 1. */
+  const pipelineReply = (count: number) =>
+    new Response(JSON.stringify([{ result: count }, { result: 1 }]), {
+      status: 200
+    })
 
   beforeEach(() => {
     upstash = { url: UPSTASH_URL, token: 'tok', enabled: true }
@@ -141,45 +140,39 @@ describe('checkRateLimit with Upstash', () => {
     vi.unstubAllGlobals()
   })
 
-  it('counts in Redis with INCR + PEXPIRE NX + PTTL', async () => {
+  it('counts in a window-indexed key with INCR + PEXPIREAT', async () => {
     fetchMock.mockResolvedValueOnce(pipelineReply(1))
     const from = ip()
-    const before = Date.now()
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(Date.UTC(2026, 0, 1, 0, 0, 30))) // mid-window
+    try {
+      const result = await checkRateLimit(
+        requestFrom(from),
+        RateLimitPresets.sensitive
+      )
 
-    const result = await checkRateLimit(
-      requestFrom(from),
-      RateLimitPresets.sensitive
-    )
-
-    expect(result).toMatchObject({ success: true, limit: 5, remaining: 4 })
-    expect(result.reset).toBeGreaterThanOrEqual(
-      Math.ceil((before + 42_000) / 1000)
-    )
-    const [url, init] = fetchMock.mock.calls[0]
-    expect(url).toBe('https://redis.example.test/multi-exec')
-    // The 300ms budget is enforced by an abort signal on the request.
-    expect(init.signal).toBeInstanceOf(AbortSignal)
-    expect(init.headers.Authorization).toBe('Bearer tok')
-    const key = `ratelimit:anon:sensitive:${from}`
-    expect(JSON.parse(init.body)).toEqual([
-      ['INCR', key],
-      ['PEXPIRE', key, '60000', 'NX'],
-      ['PTTL', key]
-    ])
-  })
-
-  it('assumes a fresh window when the key reports no TTL', async () => {
-    fetchMock.mockResolvedValueOnce(pipelineReply(1, -1))
-    const before = Date.now()
-
-    const result = await checkRateLimit(
-      requestFrom(ip()),
-      RateLimitPresets.sensitive
-    )
-
-    expect(result.reset).toBeGreaterThanOrEqual(
-      Math.ceil((before + 60_000) / 1000)
-    )
+      const window = Math.floor(Date.now() / 60_000)
+      const resetMs = (window + 1) * 60_000
+      expect(result).toEqual({
+        success: true,
+        limit: 5,
+        remaining: 4,
+        reset: resetMs / 1000
+      })
+      const [url, init] = fetchMock.mock.calls[0]
+      expect(url).toBe('https://redis.example.test/pipeline')
+      // The 300ms budget is enforced by an abort signal on the request.
+      expect(init.signal).toBeInstanceOf(AbortSignal)
+      expect(init.headers.Authorization).toBe('Bearer tok')
+      const key = `ratelimit:anon:sensitive:${from}:${window}`
+      // Two commands per check: the billed cost on Upstash pay-as-you-go.
+      expect(JSON.parse(init.body)).toEqual([
+        ['INCR', key],
+        ['PEXPIREAT', key, String(resetMs + 1000)]
+      ])
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('never logs a fetch error message, which can quote the URL', async () => {
@@ -188,7 +181,7 @@ describe('checkRateLimit with Upstash', () => {
     vi.setSystemTime(Date.now() + 240_000) // past any earlier warning
     try {
       fetchMock.mockRejectedValue(
-        new TypeError('cannot fetch rediss://default:SECRET@x/multi-exec')
+        new TypeError('cannot fetch rediss://default:SECRET@x/pipeline')
       )
       await checkRateLimit(requestFrom(ip()), RateLimitPresets.public)
       expect(JSON.stringify(vi.mocked(logger.warn).mock.calls)).not.toContain(
