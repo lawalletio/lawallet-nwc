@@ -77,7 +77,8 @@ describe('getEnv', () => {
   it.each([
     ['a Redis connection string', 'rediss://default:pw@x.upstash.io:6379'],
     ['plain http', 'http://x.upstash.io'],
-    ['embedded credentials', 'https://user:pw@x.upstash.io']
+    ['embedded credentials', 'https://user:pw@x.upstash.io'],
+    ['an embedded password', 'https://:pw@x.upstash.io']
   ])('rejects %s as UPSTASH_REDIS_URL', async (_label, url) => {
     process.env.DATABASE_URL = 'postgresql://localhost/test'
     process.env.UPSTASH_REDIS_URL = url

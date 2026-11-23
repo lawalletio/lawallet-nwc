@@ -218,6 +218,15 @@ describe('checkRateLimit with Upstash', () => {
     ],
     ['HTTP 500', () => Promise.resolve(new Response('', { status: 500 }))],
     [
+      'non-numeric INCR reply',
+      () =>
+        Promise.resolve(
+          new Response(JSON.stringify([{ result: 'x' }, {}, {}]), {
+            status: 200
+          })
+        )
+    ],
+    [
       'non-array reply',
       () =>
         Promise.resolve(
@@ -262,6 +271,50 @@ describe('checkRateLimit with Upstash', () => {
         await checkRateLimit(requestFrom(ip()), RateLimitPresets.public)
       }
       expect(logger.warn).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('warns once and stays in-memory when only one variable is set', async () => {
+    vi.mocked(logger.warn).mockClear()
+    upstash = { url: UPSTASH_URL, token: undefined, enabled: false }
+
+    await checkRateLimit(requestFrom(ip()), RateLimitPresets.public)
+    await checkRateLimit(requestFrom(ip()), RateLimitPresets.public)
+
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(logger.warn).toHaveBeenCalledTimes(1)
+  })
+
+  it('logs its own error messages, e.g. an HTTP failure', async () => {
+    vi.mocked(logger.warn).mockClear()
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(Date.now() + 1_800_000) // past any earlier warning
+    try {
+      fetchMock.mockResolvedValue(new Response('', { status: 503 }))
+      await checkRateLimit(requestFrom(ip()), RateLimitPresets.public)
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          errName: 'UpstashError',
+          err: 'Upstash HTTP 503'
+        })
+      )
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('logs only the type of a non-Error rejection', async () => {
+    vi.mocked(logger.warn).mockClear()
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(Date.now() + 1_200_000) // past any earlier warning
+    try {
+      fetchMock.mockRejectedValue('boom')
+      await checkRateLimit(requestFrom(ip()), RateLimitPresets.public)
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({ errName: 'string' })
+      )
     } finally {
       vi.useRealTimers()
     }

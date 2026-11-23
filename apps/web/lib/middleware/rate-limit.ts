@@ -226,18 +226,12 @@ export async function checkRateLimit(
   const bucket = options.bucket ?? 'default'
   const key = `ratelimit:${prefix}:${bucket}:${identifier}`
 
-  const { upstash } = config.rateLimit
-  if (!upstash.enabled && (upstash.url || upstash.token) && !warnedHalfConfig) {
-    warnedHalfConfig = true
-    logger.warn(
-      'Only one of UPSTASH_REDIS_URL / UPSTASH_REDIS_TOKEN is set; rate limiting stays per-instance'
-    )
-  }
-  if (upstash.enabled && upstash.url && upstash.token) {
+  const { url, token } = config.rateLimit.upstash
+  if (url && token) {
     try {
       return await checkRateLimitUpstash(key, windowMs, maxRequests, {
-        url: upstash.url,
-        token: upstash.token
+        url,
+        token
       })
     } catch (err) {
       const now = Date.now()
@@ -252,6 +246,11 @@ export async function checkRateLimit(
         })
       }
     }
+  } else if ((url || token) && !warnedHalfConfig) {
+    warnedHalfConfig = true
+    logger.warn(
+      'Only one of UPSTASH_REDIS_URL / UPSTASH_REDIS_TOKEN is set; rate limiting stays per-instance'
+    )
   }
 
   return checkRateLimitInMemory(key, windowMs, maxRequests)
