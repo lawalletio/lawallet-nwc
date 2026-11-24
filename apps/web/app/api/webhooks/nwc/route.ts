@@ -423,6 +423,21 @@ async function handlePaymentReceived(
     : new Date()
   const preimage = event.payment.preimage ?? null
 
+  // The reporting wallet can be the address owner's own NWC service, so a
+  // notification only proves payment when it carries the preimage of this
+  // hash. Without it the invoice stays PENDING; the LUD-21 verify poll or the
+  // settlement sweep (which apply the same rule) can still settle it later.
+  if (!preimage || !preimageMatchesPaymentHash(preimage, paymentHash)) {
+    logger.warn(
+      { paymentHash, walletId: event.walletId, hasPreimage: !!preimage },
+      'nwc.payment_received_unproven_preimage'
+    )
+    if (invoice.proxyPayment && preimage) {
+      reportError('nwc.proxy_payment_received_preimage_mismatch', 'nwc-webhook')
+    }
+    return null
+  }
+
   // New LUD-16 rows retain the issuing RemoteWallet. A listener event from a
   // different wallet must never settle it or publish its zap receipt; legacy
   // invoices without this link keep their established compatibility path.
@@ -458,14 +473,6 @@ async function handlePaymentReceived(
         'nwc.proxy_payment_received_amount_mismatch'
       )
       reportError('nwc.proxy_payment_received_amount_mismatch', 'nwc-webhook')
-      return null
-    }
-    if (preimage && !preimageMatchesPaymentHash(preimage, paymentHash)) {
-      logger.error(
-        { paymentHash, walletId: event.walletId },
-        'nwc.proxy_payment_received_preimage_mismatch'
-      )
-      reportError('nwc.proxy_payment_received_preimage_mismatch', 'nwc-webhook')
       return null
     }
     if (invoice.status === 'PAID') {

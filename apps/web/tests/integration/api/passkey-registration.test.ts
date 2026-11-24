@@ -113,6 +113,7 @@ import { createNewUser } from '@/lib/user'
 import { getSettings } from '@/lib/settings'
 import { Role } from '@/lib/auth/permissions'
 import { logger } from '@/lib/logger'
+import { proofContent } from '@/lib/account/proof-format'
 
 const CHALLENGE = 'x'.repeat(43)
 
@@ -127,7 +128,7 @@ function proofFor(nonce: string, signWith = sk) {
           kind: 22242,
           created_at: Math.floor(Date.now() / 1000),
           tags: [['challenge', nonce]],
-          content: ''
+          content: proofContent('passkey-registration')
         },
         signWith
       )

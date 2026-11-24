@@ -38,13 +38,15 @@ export async function loadViewableRemoteWallet(
   walletId: string,
   request: Request
 ): Promise<{ wallet: RemoteWallet; isOwner: boolean; userId: string | null }> {
-  const auth = await authenticate(request)
+  // A device token may view a wallet only through REMOTE_WALLETS_READ; it
+  // never counts as the owner, whose view includes wallet controls.
+  const auth = await authenticate(request, { allowDeviceToken: true })
   const userId = await resolveAccountId(auth.pubkey)
   const wallet = await prisma.remoteWallet.findUnique({
     where: { id: walletId }
   })
   if (!wallet) throw new NotFoundError('Wallet not found')
-  if (userId && wallet.userId === userId) {
+  if (!auth.deviceToken && userId && wallet.userId === userId) {
     return { wallet, isOwner: true, userId }
   }
   if (!authHasPermission(auth, Permission.REMOTE_WALLETS_READ)) {

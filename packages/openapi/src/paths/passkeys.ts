@@ -73,7 +73,8 @@ registry.registerPath({
     'minted by `registration/options`, plus the PRF proof: the client derived ' +
     'this credential’s Nostr key via the WebAuthn PRF extension and proves it ' +
     'with a NIP-42 (kind 22242) event signed by that key, carrying the ' +
-    'WebAuthn challenge in a `challenge` tag. The server then only RECORDS ' +
+    'WebAuthn challenge in a `challenge` tag and content ' +
+    '`lawallet:register-passkey`. The server then only RECORDS ' +
     'the credential — it never generates or stores a key. Branches on the ' +
     'caller: UNAUTHENTICATED (signup) — an unowned derived pubkey creates the ' +
     'account; an already-owned pubkey (the same passkey re-registered) just ' +

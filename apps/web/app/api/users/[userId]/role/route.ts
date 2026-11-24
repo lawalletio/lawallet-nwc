@@ -31,7 +31,8 @@ export const GET = withErrorHandling(
     request: Request,
     { params }: { params: Promise<{ userId: string }> }
   ) => {
-    const auth = await authenticate(request)
+    // Device tokens may read roles only through USERS_READ — never as "self".
+    const auth = await authenticate(request, { allowDeviceToken: true })
     const { userId } = await params
 
     const targetUser = await prisma.user.findUnique({
@@ -46,7 +47,7 @@ export const GET = withErrorHandling(
     // Allow if caller is the target user or has USERS_READ permission.
     // Compared by account id so a secondary-pubkey session still counts.
     const me = await resolveAccountByPubkey(auth.pubkey)
-    const isSelf = me?.id === targetUser.id
+    const isSelf = !auth.deviceToken && me?.id === targetUser.id
     if (!isSelf && !authHasPermission(auth, Permission.USERS_READ)) {
       throw new AuthorizationError("Not authorized to view this user's role")
     }
@@ -64,7 +65,7 @@ export const PUT = withErrorHandling(
     { params }: { params: Promise<{ userId: string }> }
   ) => {
     await checkRequestLimits(request, 'json')
-    const auth = await authenticate(request)
+    const auth = await authenticate(request, { allowDeviceToken: true })
     const { userId } = await params
 
     if (!authHasPermission(auth, Permission.USERS_MANAGE_ROLES)) {

@@ -28,7 +28,8 @@ const bodySchema = z.object({
  * a wallet user can't make the server fan out 200 relay queries per request.
  */
 export const POST = withErrorHandling(async (request: Request) => {
-  const auth = await authenticate(request)
+  // Read-only and public data; `force` stays behind USERS_READ.
+  const auth = await authenticate(request, { allowDeviceToken: true })
   const body = await validateBody(request, bodySchema)
   const force =
     (body.force ?? false) && authHasPermission(auth, Permission.USERS_READ)

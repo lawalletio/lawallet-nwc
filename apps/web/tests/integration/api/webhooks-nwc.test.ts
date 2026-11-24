@@ -95,7 +95,11 @@ import { POST } from '@/app/api/webhooks/nwc/route'
 import { eventBus } from '@/lib/events/event-bus'
 import { reportError } from '@/lib/observability/report'
 
-const HASH = 'a'.repeat(64)
+// A payment_received only settles with a preimage of the hash, so HASH is the
+// real sha256 of the preimage `paymentReceived` carries.
+const HASH = createHash('sha256')
+  .update(Buffer.from('b'.repeat(64), 'hex'))
+  .digest('hex')
 const SENT_PREIMAGE = '11'.repeat(32)
 const SENT_HASH = createHash('sha256')
   .update(Buffer.from(SENT_PREIMAGE, 'hex'))
@@ -314,6 +318,32 @@ describe('POST /api/webhooks/nwc', () => {
       expect.objectContaining({ remoteWalletId: 'wallet-1', recovered: false })
     )
   })
+
+  // The reporting wallet can be the address owner's own NWC service: a
+  // notification without a preimage of this hash proves no payment.
+  it.each([
+    ['a preimage that does not hash to the payment hash', 'f'.repeat(64)],
+    ['no preimage at all', undefined]
+  ])(
+    'does not settle a LUD-16 invoice on %s',
+    async (_label, preimage) => {
+      vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue({
+        ...pendingInvoice,
+        remoteWalletId: 'wallet-1'
+      } as never)
+
+      const res = await POST(
+        signedRequest({
+          ...paymentReceived,
+          payment: { ...paymentReceived.payment, preimage }
+        })
+      )
+
+      await assertResponse(res, 200)
+      expect(prismaMock.invoice.update).not.toHaveBeenCalled()
+      expect(prismaMock.invoice.updateMany).not.toHaveBeenCalled()
+    }
+  )
 
   it('does not settle an invoice from a different RemoteWallet', async () => {
     vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue({

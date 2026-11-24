@@ -88,6 +88,7 @@ import {
   unlinkIdentity
 } from '@/lib/account/merge'
 import { mintMergeTicket, LINK_PROOF_EVENT_KIND } from '@/lib/account/proof'
+import { proofContent } from '@/lib/account/proof-format'
 import { Role } from '@/lib/auth/permissions'
 
 const PK_A = 'a'.repeat(64)
@@ -204,7 +205,7 @@ describe('POST /api/account/identities/link — nostr proof', () => {
             kind: LINK_PROOF_EVENT_KIND,
             created_at: Math.floor(Date.now() / 1000),
             tags: [['challenge', nonce]],
-            content: ''
+            content: proofContent('link')
           },
           sk
         )

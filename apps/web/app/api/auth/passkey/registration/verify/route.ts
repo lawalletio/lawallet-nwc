@@ -116,6 +116,7 @@ export const POST = withErrorHandling(async (request: Request) => {
   verifySignedChallengeEvent(
     body.proof as NostrEvent,
     row.challenge,
+    'passkey-registration',
     body.pubkey
   )
 

@@ -42,7 +42,8 @@ export const GET = withErrorHandling(
     request: Request,
     { params }: { params: Promise<{ userId: string }> }
   ) => {
-    const auth = await authenticate(request)
+    // Device tokens may read users only through USERS_READ — never as "self".
+    const auth = await authenticate(request, { allowDeviceToken: true })
 
     const { userId } = await params
 
@@ -79,7 +80,7 @@ export const GET = withErrorHandling(
     // 403 vs 404. Compared by account id so a secondary-pubkey session
     // still counts as "me".
     const me = await resolveAccountByPubkey(auth.pubkey)
-    const isSelf = me?.id === user.id
+    const isSelf = !auth.deviceToken && me?.id === user.id
     if (!isSelf && !authHasPermission(auth, Permission.USERS_READ)) {
       throw new AuthorizationError('Not authorized to view this user')
     }
