@@ -6,6 +6,7 @@ import {
   loadOwnedRemoteWallet,
   loadViewableRemoteWallet
 } from '@/lib/remote-wallets/owned'
+import { toRemoteWalletDto } from '@/lib/remote-wallets/dto'
 import { withErrorHandling } from '@/types/server/error-handler'
 import {
   ConflictError,
@@ -16,7 +17,6 @@ import { idParam, updateRemoteWalletSchema } from '@/lib/validation/schemas'
 import { validateBody, validateParams } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { eventBus } from '@/lib/events/event-bus'
-import type { RemoteWallet, RemoteWalletStatus } from '@/lib/generated/prisma'
 import {
   bindPrimaryAddressToWallet,
   clearPrimaryWalletLinkToWallet
@@ -25,48 +25,6 @@ import { getZapReceiptCapability } from '@/lib/nostr/zap-receipts'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
-
-interface RemoteWalletDto {
-  id: string
-  name: string
-  type: RemoteWallet['type']
-  status: RemoteWalletStatus
-  isDefault: boolean
-  createdAt: string
-  updatedAt: string
-  /** Set only for archived (DEAD) wallets — when the wallet was detected dead. */
-  diedAt: string | null
-  /** Why it was archived: `unresponsive`, `idle` or `warmup_failed`. Null unless DEAD. */
-  diedReason: string | null
-  /** `'lncurl'` for a disposable LNCurl-provisioned wallet, else null. Drives the UI tag + countdown. */
-  provider: 'lncurl' | null
-  /** For LNCurl wallets, the server that minted THIS wallet (stored per-wallet, so a later settings change doesn't move it). Null otherwise. */
-  lncurlServerUrl: string | null
-}
-
-function toDto(w: RemoteWallet): RemoteWalletDto {
-  const cfg = w.config as {
-    provider?: unknown
-    lncurlServerUrl?: unknown
-  } | null
-  const isLncurl = cfg?.provider === 'lncurl'
-  return {
-    id: w.id,
-    name: w.name,
-    type: w.type,
-    status: w.status,
-    isDefault: w.isDefault,
-    createdAt: w.createdAt.toISOString(),
-    updatedAt: w.updatedAt.toISOString(),
-    diedAt: w.diedAt ? w.diedAt.toISOString() : null,
-    diedReason: w.diedReason,
-    provider: isLncurl ? 'lncurl' : null,
-    lncurlServerUrl:
-      isLncurl && typeof cfg?.lncurlServerUrl === 'string'
-        ? cfg.lncurlServerUrl
-        : null
-  }
-}
 
 /**
  * `GET /api/remote-wallets/[id]` — fetch a single wallet by id. Readable by
@@ -87,7 +45,7 @@ export const GET = withErrorHandling(
 
     const receiveCapabilities = await getZapReceiptCapability()
     return NextResponse.json({
-      ...toDto(wallet),
+      ...toRemoteWalletDto(wallet),
       receiveCapabilities,
       // Drives view-only mode in the UI. An admin looking at somebody else's
       // wallet gets the same payload minus every affordance that spends.
@@ -206,7 +164,7 @@ export const PATCH = withErrorHandling(
         eventBus.emit({ type: 'users:updated', timestamp: Date.now() })
       }
 
-      return NextResponse.json(toDto(updated))
+      return NextResponse.json(toRemoteWalletDto(updated))
     } catch (err) {
       if (
         err &&

@@ -14,6 +14,7 @@ import { decryptRemoteWalletConfig } from '@/lib/wallet/remote-wallet-vault'
 import { reviveDeadCourtesyWallet } from '@/lib/wallet/lncurl-wallet'
 import { currencyPrefsSchema } from '@/lib/validation/schemas'
 import { getAccountTransferNotice } from '@/lib/account/recover'
+import { revealableConnectionString } from '@/lib/remote-wallets/custody'
 
 export const dynamic = 'force-dynamic'
 
@@ -120,10 +121,13 @@ export const GET = withErrorHandling(async (request: Request) => {
         primaryWallet.config
       )
     : null
-  const primaryWalletConn =
+  // A `backend`-custody wallet's connection string never leaves the server.
+  const primaryWalletConn = revealableConnectionString(
+    primaryWallet,
     typeof primaryWalletConfig?.connectionString === 'string'
       ? primaryWalletConfig.connectionString
       : null
+  )
   const nwcString = primaryWalletConn ?? ''
   const nwcUpdatedAt = primaryWallet?.updatedAt.toISOString() ?? null
 
@@ -142,8 +146,11 @@ export const GET = withErrorHandling(async (request: Request) => {
           remoteWallet: primaryAddress.remoteWallet
         })
         return route.kind === 'wallet'
-          ? ((route.config as { connectionString?: string } | null)
-              ?.connectionString ?? null)
+          ? revealableConnectionString(
+              primaryAddress.remoteWallet,
+              (route.config as { connectionString?: string } | null)
+                ?.connectionString
+            )
           : null
       })()
     : null

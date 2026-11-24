@@ -3,6 +3,8 @@ import { randomUUID } from 'node:crypto'
 import { prisma } from '@/lib/prisma'
 import { authenticate } from '@/lib/auth/unified-auth'
 import { resolveAccountId } from '@/lib/auth/account'
+import { toRemoteWalletDto } from '@/lib/remote-wallets/dto'
+import { fromWireCustody } from '@/lib/remote-wallets/custody'
 import { withErrorHandling } from '@/types/server/error-handler'
 import {
   ConflictError,
@@ -18,11 +20,7 @@ import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { resolveNwcModeForCreate } from '@/lib/wallet/nwc-send-capability'
 import { getDriver } from '@/lib/wallet/drivers'
 import { eventBus } from '@/lib/events/event-bus'
-import type {
-  Prisma,
-  RemoteWallet,
-  RemoteWalletStatus
-} from '@/lib/generated/prisma'
+import type { Prisma, RemoteWalletStatus } from '@/lib/generated/prisma'
 import {
   bindPrimaryAddressToWallet,
   syncPrimaryRemoteWalletFlag
@@ -33,53 +31,6 @@ const HIDDEN_STATUSES: RemoteWalletStatus[] = ['REVOKED', 'DEAD']
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
-
-/**
- * Wire shape returned to the UI. Deliberately **omits** `config` and
- * `userId` — `config` carries secrets (NWC URI) and `userId` is implicit
- * from the authenticated caller. Reveal endpoints live separately.
- */
-interface RemoteWalletDto {
-  id: string
-  name: string
-  type: RemoteWallet['type']
-  status: RemoteWalletStatus
-  isDefault: boolean
-  createdAt: string
-  updatedAt: string
-  /** Set only for archived (DEAD) wallets — when the wallet was detected dead. */
-  diedAt: string | null
-  /** Why it was archived: `unresponsive`, `idle` or `warmup_failed`. Null unless DEAD. */
-  diedReason: string | null
-  /** `'lncurl'` for a disposable LNCurl-provisioned wallet, else null. Drives the UI tag + countdown. */
-  provider: 'lncurl' | null
-  /** For LNCurl wallets, the server that minted THIS wallet (stored per-wallet, so a later settings change doesn't move it). Null otherwise. */
-  lncurlServerUrl: string | null
-}
-
-function toDto(w: RemoteWallet): RemoteWalletDto {
-  const cfg = w.config as {
-    provider?: unknown
-    lncurlServerUrl?: unknown
-  } | null
-  const isLncurl = cfg?.provider === 'lncurl'
-  return {
-    id: w.id,
-    name: w.name,
-    type: w.type,
-    status: w.status,
-    isDefault: w.isDefault,
-    createdAt: w.createdAt.toISOString(),
-    updatedAt: w.updatedAt.toISOString(),
-    diedAt: w.diedAt ? w.diedAt.toISOString() : null,
-    diedReason: w.diedReason,
-    provider: isLncurl ? 'lncurl' : null,
-    lncurlServerUrl:
-      isLncurl && typeof cfg?.lncurlServerUrl === 'string'
-        ? cfg.lncurlServerUrl
-        : null
-  }
-}
 
 async function resolveUserId(pubkey: string): Promise<string> {
   const userId = await resolveAccountId(pubkey)
@@ -119,11 +70,14 @@ export const GET = withErrorHandling(async (request: Request) => {
     orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }]
   })
 
-  return NextResponse.json(rows.map(toDto))
+  return NextResponse.json(rows.map(toRemoteWalletDto))
 })
 
 /**
  * `POST /api/remote-wallets` — create a new wallet for the caller.
+ *
+ * `custody` (default `both`) says whether the credentials may be handed back
+ * to the client later; `backend` means never.
  *
  * Validates the body envelope here, then hands `config` to the driver
  * registry's per-type schema so each driver owns its own shape. The whole
@@ -192,6 +146,9 @@ export const POST = withErrorHandling(async (request: Request) => {
             // JSON-serialisable shapes for our drivers.
             config: storedConfig as Prisma.InputJsonValue,
             nwcConfigEncryptedAt: body.type === 'NWC' ? new Date() : undefined,
+            // `backend` keeps the credentials on the instance for good: no
+            // endpoint will hand the connection string back out.
+            custody: fromWireCustody(body.custody),
             isDefault: false
           }
         })
@@ -217,7 +174,10 @@ export const POST = withErrorHandling(async (request: Request) => {
     }
 
     return NextResponse.json(
-      toDto({ ...created, isDefault: Boolean(boundPrimaryAddress) }),
+      toRemoteWalletDto({
+        ...created,
+        isDefault: Boolean(boundPrimaryAddress)
+      }),
       { status: 201 }
     )
   } catch (err) {

@@ -28,6 +28,7 @@ import {
   syncPrimaryRemoteWalletFlag
 } from '@/lib/wallet/primary-wallet'
 import { getActiveProxyConfig, isProxyEnabled } from '@/lib/proxy/config'
+import { revealableConnectionString } from '@/lib/remote-wallets/custody'
 import { getListenerConfig } from '@/lib/listener-config'
 import {
   assertNoForwardingCycle,
@@ -197,10 +198,15 @@ export const GET = withErrorHandling(
       redirect: address.redirect,
       remoteWallet: address.remoteWallet
     })
+    // Withheld for a `backend`-custody wallet: its credentials never leave
+    // the server.
     const effectiveConnectionString =
       route.kind === 'wallet'
-        ? ((route.config as { connectionString?: string } | null)
-            ?.connectionString ?? null)
+        ? revealableConnectionString(
+            address.remoteWallet,
+            (route.config as { connectionString?: string } | null)
+              ?.connectionString
+          )
         : null
 
     return NextResponse.json({

@@ -243,6 +243,31 @@ describe('GET /api/remote-wallets', () => {
     )
   })
 
+  it('returns custody on every wallet, lowercased', async () => {
+    mockAuth()
+    const user = createUserFixture({ pubkey: USER_PUBKEY })
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
+    vi.mocked(prismaMock.remoteWallet.findMany).mockResolvedValue([
+      createRemoteWalletFixture({ userId: user.id, name: 'Old' }),
+      createRemoteWalletFixture({
+        userId: user.id,
+        name: 'Vaulted',
+        custody: 'BACKEND'
+      })
+    ] as never)
+
+    const res = await listHandler(createNextRequest('/api/remote-wallets'))
+    const body = (await assertResponse(res, 200)) as Array<{
+      name: string
+      custody: string
+    }>
+
+    expect(body.map(w => [w.name, w.custody])).toEqual([
+      ['Old', 'both'],
+      ['Vaulted', 'backend']
+    ])
+  })
+
   it('does NOT leak the config field in the response', async () => {
     mockAuth()
     const user = createUserFixture({ pubkey: USER_PUBKEY })
@@ -415,6 +440,71 @@ describe('POST /api/remote-wallets', () => {
 
     expect(body.name).toBe('My Wallet')
     expect(body.type).toBe('NWC')
+  })
+
+  it('creates with custody both by default and backend when asked', async () => {
+    mockAuth()
+    const user = createUserFixture({ pubkey: USER_PUBKEY })
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
+    vi.mocked(prismaMock.remoteWallet.create).mockImplementation((async ({
+      data
+    }: {
+      data: Record<string, unknown>
+    }) => createRemoteWalletFixture({ ...data })) as never)
+
+    const plain = await createHandler(
+      createNextRequest('/api/remote-wallets', {
+        method: 'POST',
+        body: {
+          name: 'A',
+          type: 'NWC',
+          config: { connectionString: VALID_NWC }
+        }
+      })
+    )
+    expect(
+      ((await assertResponse(plain, 201)) as { custody: string }).custody
+    ).toBe('both')
+
+    const backend = await createHandler(
+      createNextRequest('/api/remote-wallets', {
+        method: 'POST',
+        body: {
+          name: 'B',
+          type: 'NWC',
+          custody: 'backend',
+          config: { connectionString: VALID_NWC }
+        }
+      })
+    )
+    expect(
+      ((await assertResponse(backend, 201)) as { custody: string }).custody
+    ).toBe('backend')
+    expect(prismaMock.remoteWallet.create).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ custody: 'BACKEND' })
+      })
+    )
+  })
+
+  it('rejects custody local — the instance never stores a local wallet', async () => {
+    mockAuth()
+    const user = createUserFixture({ pubkey: USER_PUBKEY })
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
+
+    const res = await createHandler(
+      createNextRequest('/api/remote-wallets', {
+        method: 'POST',
+        body: {
+          name: 'L',
+          type: 'NWC',
+          custody: 'local',
+          config: { connectionString: VALID_NWC }
+        }
+      })
+    )
+    expect(res.status).toBe(400)
+    expect(prismaMock.remoteWallet.create).not.toHaveBeenCalled()
   })
 
   it('persists the mode the server-side capability probe resolved', async () => {

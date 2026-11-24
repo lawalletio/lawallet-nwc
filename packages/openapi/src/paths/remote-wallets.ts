@@ -7,7 +7,7 @@ import {
   withRole
 } from '../helpers'
 import { registry } from '../registry'
-import { responses } from '../responses'
+import { errorResponse, responses } from '../responses'
 import { schemas } from '../schemas'
 
 const TAG = 'Remote Wallets'
@@ -22,6 +22,10 @@ const remoteWalletSchema = z
     type: z.enum(['NWC', 'LND', 'CLN', 'BTCPAY']),
     status: z.enum(['ACTIVE', 'DISABLED', 'REVOKED', 'DEAD']),
     isDefault: z.boolean(),
+    custody: z.enum(['both', 'backend', 'local']).openapi({
+      description:
+        "Where the wallet's credentials (its NWC connection string) are kept. 'both': on the instance and the client, so the owner may fetch the connection string. 'backend': only on the instance and never revealed; `/connection-string` answers 403 `CUSTODY_BACKEND`. 'local': only on the client; the instance holds no copy. Clients should treat a missing or unknown value as 'both'."
+    }),
     createdAt: z.string().datetime(),
     updatedAt: z.string().datetime(),
     diedAt: z.string().datetime().nullable().openapi({
@@ -676,6 +680,30 @@ registry.registerPath({
   responses: {
     200: inlineJsonResponse('Remote wallet.', remoteWalletSchema),
     ...commonErrorResponses,
+    404: responses.notFound
+  }
+})
+
+registry.registerPath({
+  ...withRole('USER'),
+  method: 'get',
+  path: '/api/remote-wallets/{id}/connection-string',
+  tags: [TAG],
+  summary: 'Reveal the NWC connection string of an owned wallet.',
+  description:
+    "Owner only. Only `custody: 'both'` wallets hand out their connection string. A `backend` wallet answers 403 with `code: 'CUSTODY_BACKEND'`: its credentials never leave the instance, and a client holding a cached copy should drop it. Non-NWC wallets answer 400.",
+  operationId: 'remoteWallets.connectionString',
+  security: protectedSecurity,
+  request: { params: schemas.IdParam },
+  responses: {
+    200: inlineJsonResponse(
+      'The wallet connection string. A secret: never cache it outside the owner device.',
+      z.object({ connectionString: z.string() })
+    ),
+    ...commonErrorResponses,
+    403: errorResponse(
+      "Not authorized, or the wallet's custody forbids revealing it (`code: 'CUSTODY_BACKEND'`)."
+    ),
     404: responses.notFound
   }
 })

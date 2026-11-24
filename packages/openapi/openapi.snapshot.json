@@ -872,6 +872,14 @@
             ]
           },
           "config": {},
+          "custody": {
+            "type": "string",
+            "enum": [
+              "both",
+              "backend"
+            ],
+            "default": "both"
+          },
           "isDefault": {
             "type": "boolean",
             "default": false
@@ -15833,6 +15841,15 @@
                       "isDefault": {
                         "type": "boolean"
                       },
+                      "custody": {
+                        "type": "string",
+                        "enum": [
+                          "both",
+                          "backend",
+                          "local"
+                        ],
+                        "description": "Where the wallet's credentials (its NWC connection string) are kept. 'both': on the instance and the client, so the owner may fetch the connection string. 'backend': only on the instance and never revealed; `/connection-string` answers 403 `CUSTODY_BACKEND`. 'local': only on the client; the instance holds no copy. Clients should treat a missing or unknown value as 'both'."
+                      },
                       "createdAt": {
                         "type": "string",
                         "format": "date-time"
@@ -15887,6 +15904,7 @@
                       "type",
                       "status",
                       "isDefault",
+                      "custody",
                       "createdAt",
                       "updatedAt",
                       "diedAt",
@@ -16011,6 +16029,15 @@
                     "isDefault": {
                       "type": "boolean"
                     },
+                    "custody": {
+                      "type": "string",
+                      "enum": [
+                        "both",
+                        "backend",
+                        "local"
+                      ],
+                      "description": "Where the wallet's credentials (its NWC connection string) are kept. 'both': on the instance and the client, so the owner may fetch the connection string. 'backend': only on the instance and never revealed; `/connection-string` answers 403 `CUSTODY_BACKEND`. 'local': only on the client; the instance holds no copy. Clients should treat a missing or unknown value as 'both'."
+                    },
                     "createdAt": {
                       "type": "string",
                       "format": "date-time"
@@ -16065,6 +16092,7 @@
                     "type",
                     "status",
                     "isDefault",
+                    "custody",
                     "createdAt",
                     "updatedAt",
                     "diedAt",
@@ -20072,6 +20100,15 @@
                     "isDefault": {
                       "type": "boolean"
                     },
+                    "custody": {
+                      "type": "string",
+                      "enum": [
+                        "both",
+                        "backend",
+                        "local"
+                      ],
+                      "description": "Where the wallet's credentials (its NWC connection string) are kept. 'both': on the instance and the client, so the owner may fetch the connection string. 'backend': only on the instance and never revealed; `/connection-string` answers 403 `CUSTODY_BACKEND`. 'local': only on the client; the instance holds no copy. Clients should treat a missing or unknown value as 'both'."
+                    },
                     "createdAt": {
                       "type": "string",
                       "format": "date-time"
@@ -20126,6 +20163,7 @@
                     "type",
                     "status",
                     "isDefault",
+                    "custody",
                     "createdAt",
                     "updatedAt",
                     "diedAt",
@@ -20263,6 +20301,15 @@
                     "isDefault": {
                       "type": "boolean"
                     },
+                    "custody": {
+                      "type": "string",
+                      "enum": [
+                        "both",
+                        "backend",
+                        "local"
+                      ],
+                      "description": "Where the wallet's credentials (its NWC connection string) are kept. 'both': on the instance and the client, so the owner may fetch the connection string. 'backend': only on the instance and never revealed; `/connection-string` answers 403 `CUSTODY_BACKEND`. 'local': only on the client; the instance holds no copy. Clients should treat a missing or unknown value as 'both'."
+                    },
                     "createdAt": {
                       "type": "string",
                       "format": "date-time"
@@ -20317,6 +20364,7 @@
                     "type",
                     "status",
                     "isDefault",
+                    "custody",
                     "createdAt",
                     "updatedAt",
                     "diedAt",
@@ -20451,6 +20499,15 @@
                     "isDefault": {
                       "type": "boolean"
                     },
+                    "custody": {
+                      "type": "string",
+                      "enum": [
+                        "both",
+                        "backend",
+                        "local"
+                      ],
+                      "description": "Where the wallet's credentials (its NWC connection string) are kept. 'both': on the instance and the client, so the owner may fetch the connection string. 'backend': only on the instance and never revealed; `/connection-string` answers 403 `CUSTODY_BACKEND`. 'local': only on the client; the instance holds no copy. Clients should treat a missing or unknown value as 'both'."
+                    },
                     "createdAt": {
                       "type": "string",
                       "format": "date-time"
@@ -20505,6 +20562,7 @@
                     "type",
                     "status",
                     "isDefault",
+                    "custody",
                     "createdAt",
                     "updatedAt",
                     "diedAt",
@@ -20631,6 +20689,106 @@
           },
           "403": {
             "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/remote-wallets/{id}/connection-string": {
+      "get": {
+        "x-required-role": "USER",
+        "tags": [
+          "Remote Wallets"
+        ],
+        "summary": "Reveal the NWC connection string of an owned wallet.",
+        "description": "Owner only. Only `custody: 'both'` wallets hand out their connection string. A `backend` wallet answers 403 with `code: 'CUSTODY_BACKEND'`: its credentials never leave the instance, and a client holding a cached copy should drop it. Non-NWC wallets answer 400.",
+        "operationId": "remoteWallets.connectionString",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The wallet connection string. A secret: never cache it outside the owner device.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "connectionString": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "connectionString"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not authorized, or the wallet's custody forbids revealing it (`code: 'CUSTODY_BACKEND'`).",
             "content": {
               "application/json": {
                 "schema": {

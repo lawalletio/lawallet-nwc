@@ -98,6 +98,7 @@ export function createRemoteWalletFixture(
       connectionString: `nostr+walletconnect://${walletPubkey}?relay=${encodeURIComponent('wss://relay.test')}&secret=${secret}`,
       mode: 'RECEIVE' as const
     },
+    custody: 'BOTH' as const,
     status: 'ACTIVE' as const,
     isDefault: false,
     createdAt: faker.date.past(),

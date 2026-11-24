@@ -7,6 +7,10 @@ import { NotFoundError, ValidationError } from '@/types/server/errors'
 import { idParam } from '@/lib/validation/schemas'
 import { validateParams } from '@/lib/validation/middleware'
 import { decryptRemoteWalletConfig } from '@/lib/wallet/remote-wallet-vault'
+import {
+  canRevealCredentials,
+  RemoteWalletCustodyError
+} from '@/lib/remote-wallets/custody'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -28,6 +32,10 @@ export const revalidate = 0
  * URL + macaroon, etc.) which isn't shaped yet. We 400 those types
  * rather than silently returning nothing.
  *
+ * Custody: only `both` wallets hand out their connection string. A `backend`
+ * wallet is refused with 403 `CUSTODY_BACKEND` (its credentials never leave
+ * the instance); clients holding a cached copy should drop it.
+ *
  * The connection string is a SECRET — only the owner of the wallet
  * can fetch it, and the response is `force-dynamic` so it never
  * touches a CDN cache.
@@ -43,6 +51,10 @@ export const GET = withErrorHandling(
     const wallet = await prisma.remoteWallet.findUnique({ where: { id } })
     if (!wallet || wallet.userId !== user.id || wallet.status === 'REVOKED') {
       throw new NotFoundError('Wallet not found')
+    }
+
+    if (!canRevealCredentials(wallet)) {
+      throw new RemoteWalletCustodyError(wallet.custody)
     }
 
     if (wallet.type !== 'NWC') {

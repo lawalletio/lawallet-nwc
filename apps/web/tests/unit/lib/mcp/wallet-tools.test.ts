@@ -105,6 +105,7 @@ function walletRow(overrides: Partial<RemoteWallet> = {}): RemoteWallet {
     type: 'NWC',
     config: { connectionString: 'lwrw1:ciphertext', mode: 'SEND_RECEIVE' },
     nwcConfigEncryptedAt: null,
+    custody: 'BOTH',
     status: 'ACTIVE',
     isDefault: true,
     createdAt: new Date(),
