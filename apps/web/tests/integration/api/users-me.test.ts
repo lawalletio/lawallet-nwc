@@ -462,6 +462,40 @@ describe('GET /api/users/me', () => {
     expect(prismaMock.lightningAddress.findFirst).not.toHaveBeenCalled()
   })
 
+  it('CUSTOM_NWC primary on a backend-custody wallet: no connection string is returned', async () => {
+    mockAuth()
+    const user = createUserFixture({
+      pubkey: mockPubkey,
+      lightningAddresses: [
+        {
+          username: 'alice',
+          isPrimary: true,
+          mode: 'CUSTOM_NWC',
+          redirect: null,
+          remoteWalletId: 'wallet-vaulted',
+          remoteWallet: {
+            id: 'wallet-vaulted',
+            type: 'NWC',
+            custody: 'BACKEND',
+            config: { connectionString: addressConnUri, mode: 'RECEIVE' },
+            status: 'ACTIVE',
+            updatedAt: new Date()
+          }
+        }
+      ]
+    })
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
+    vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com' })
+
+    const res = await GET(createNextRequest('/api/users/me'))
+    const body: any = await assertResponse(res, 200)
+
+    expect(body.primaryAddressMode).toBe('CUSTOM_NWC')
+    expect(body.effectiveNwcString).toBeNull()
+    expect(body.nwcString).toBe('')
+    expect(JSON.stringify(body)).not.toContain(addressConnUri)
+  })
+
   it('returns the replacement when the primary LNCurl wallet is DEAD', async () => {
     mockAuth()
     const freshUri = 'nostr+walletconnect://fresh-lncurl'

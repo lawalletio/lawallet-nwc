@@ -600,6 +600,16 @@ const remoteWalletType = z.enum(['NWC', 'LND', 'CLN', 'BTCPAY'])
 const remoteWalletStatus = z.enum(['ACTIVE', 'DISABLED', 'REVOKED', 'DEAD'])
 
 /**
+ * Where a remote wallet's credentials (its NWC connection string) are kept.
+ * Mirrors the `RemoteWalletCustody` enum in Prisma, lowercased on the wire.
+ *   - `both`    — on the instance and on the client; the owner may fetch the
+ *                 connection string.
+ *   - `backend` — only on the instance, never revealed to any client.
+ *   - `local`   — only on the client; the instance holds no copy.
+ */
+export const remoteWalletCustodySchema = z.enum(['both', 'backend', 'local'])
+
+/**
  * Body for `POST /api/remote-wallets`. `config` is passed through as
  * `unknown` and validated by the driver registry's per-type schema in the
  * route handler — keeping the discriminator + driver schema together in the
@@ -609,6 +619,14 @@ export const createRemoteWalletSchema = z.object({
   name: remoteWalletName,
   type: remoteWalletType,
   config: z.unknown(),
+  /**
+   * `backend` stores the credentials without ever handing them back out.
+   * `local` is not accepted: a wallet the instance stores is never local.
+   */
+  custody: remoteWalletCustodySchema
+    .exclude(['local'])
+    .optional()
+    .default('both'),
   /** Compatibility shortcut: bind the primary address to this wallet. */
   isDefault: z.boolean().optional().default(false)
 })

@@ -123,4 +123,34 @@ describe('GET /api/remote-wallets/[id]/connection-string', () => {
     expect(response.status).toBe(404)
     expect(JSON.stringify(await response.json())).not.toContain('nostr+wallet')
   })
+
+  it('refuses a backend-custody wallet with CUSTODY_BACKEND and never leaks the string', async () => {
+    const user = createUserFixture({ id: 'user-1', pubkey: PUBKEY })
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(
+      createRemoteWalletFixture({
+        id: 'wallet-1',
+        userId: user.id,
+        custody: 'BACKEND',
+        config: {
+          connectionString: encryptRemoteWalletEnvelope(
+            NWC_URI,
+            'wallet-1',
+            'test-reveal-nwc-vault-secret-0123456789abcdef'
+          ),
+          mode: 'SEND_RECEIVE'
+        }
+      }) as never
+    )
+
+    const response = await connectionStringHandler(
+      createNextRequest('/api/remote-wallets/wallet-1/connection-string'),
+      createParamsPromise({ id: 'wallet-1' })
+    )
+
+    expect(response.status).toBe(403)
+    const body = await response.json()
+    expect(body.error.code).toBe('CUSTODY_BACKEND')
+    expect(JSON.stringify(body)).not.toContain('nostr+wallet')
+  })
 })

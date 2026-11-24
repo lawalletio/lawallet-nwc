@@ -43,6 +43,23 @@ enum RemoteWalletType {
   BTCPAY
 }
 
+/// Where a remote wallet's credentials (its NWC connection string) are kept.
+/// Clients read it from the remote wallet responses as lowercase
+/// `both` / `backend` / `local`.
+enum RemoteWalletCustody {
+  /// On the instance and on the client: the owner may fetch the connection
+  /// string (`GET /api/remote-wallets/[id]/connection-string`) and pay with it.
+  BOTH
+  /// Only on the instance, never revealed. The instance can read the balance
+  /// and receive through the wallet, but no endpoint returns its connection
+  /// string, so the client cannot pay from it.
+  BACKEND
+  /// Only on the client; the instance holds no copy. Reserved so the value set
+  /// matches clients that model plugin wallets which never reach the instance.
+  /// The API does not create wallets with this custody.
+  LOCAL
+}
+
 enum RemoteWalletStatus {
   ACTIVE
   DISABLED
@@ -516,9 +533,9 @@ model LightningAddress {
 /// of NWC connection strings at rest is enforced by the application vault
 /// helpers — never persist an NWC `config` here without going through them.
 model RemoteWallet {
-  id                   String             @id @default(cuid())
+  id                   String              @id @default(cuid())
   userId               String
-  user                 User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user                 User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   name                 String
   type                 RemoteWalletType
   config               Json
@@ -526,10 +543,12 @@ model RemoteWallet {
   /// `lwrw1:` inside config.connectionString. Other driver-specific fields
   /// stay queryable.
   nwcConfigEncryptedAt DateTime?
-  status               RemoteWalletStatus @default(ACTIVE)
-  isDefault            Boolean            @default(false)
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime           @updatedAt
+  /// Where the credentials are kept. See `RemoteWalletCustody`.
+  custody              RemoteWalletCustody @default(BOTH)
+  status               RemoteWalletStatus  @default(ACTIVE)
+  isDefault            Boolean             @default(false)
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
   /// When the wallet was archived (status DEAD) — either a disposable LNCurl
   /// wallet detected dead or any wallet idle past the 48h archive window. Null
   /// for every live wallet. Drives the "graveyard" death stats.
@@ -1383,45 +1402,45 @@ model OAuthClient {
 /// stored, and a revoked grant keeps its row (`revokedAt`) so the payment
 /// ledger below stays auditable.
 model OAuthGrant {
-  id               String       @id @default(cuid())
-  clientId         String
-  client           OAuthClient  @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  userId           String
-  user             User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                         String       @id @default(cuid())
+  clientId                   String
+  client                     OAuthClient  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  userId                     String
+  user                       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   /// Granted scopes — a subset of `read`, `write`, `spend`.
-  scopes           String[]
+  scopes                     String[]
   /// RFC 8707 resource the tokens are bound to (this instance's MCP URL).
-  resource         String
+  resource                   String
   /// Rolling 24h spend budget in sats. Null unless `spend` was granted.
-  spendLimitSats   Int?
+  spendLimitSats             Int?
   /// True: every wallet of the account, including ones added later (grants
   /// made before wallet selection existed). False: only `walletIds`.
-  allWallets       Boolean      @default(true)
+  allWallets                 Boolean      @default(true)
   /// RemoteWallet ids the client may use when `allWallets` is false. Not a
   /// relation: a deleted wallet simply stops matching.
-  walletIds        String[]     @default([])
-  codeHash         String?      @unique
-  codeChallenge    String?
-  redirectUri      String?
-  codeExpiresAt    DateTime?
+  walletIds                  String[]     @default([])
+  codeHash                   String?      @unique
+  codeChallenge              String?
+  redirectUri                String?
+  codeExpiresAt              DateTime?
   /// Set when the code is exchanged. A second exchange revokes the grant.
-  codeUsedAt       DateTime?
-  accessTokenHash  String?      @unique
-  accessExpiresAt  DateTime?
-  refreshTokenHash String?      @unique
-  refreshExpiresAt DateTime?
+  codeUsedAt                 DateTime?
+  accessTokenHash            String?      @unique
+  accessExpiresAt            DateTime?
+  refreshTokenHash           String?      @unique
+  refreshExpiresAt           DateTime?
   /// The refresh token that was rotated away last. Presenting it again inside
   /// the grace window replays the same rotation instead of failing, so
   /// clients that share one token and refresh together all converge.
-  previousRefreshTokenHash   String?   @unique
+  previousRefreshTokenHash   String?      @unique
   previousRefreshGraceEndsAt DateTime?
   /// Server-only HMAC key that derives each rotation's token pair from the
   /// presented refresh token. Never leaves the database.
-  rotationKey      String?
-  revokedAt        DateTime?
-  lastUsedAt       DateTime?
-  createdAt        DateTime     @default(now())
-  payments         McpPayment[]
+  rotationKey                String?
+  revokedAt                  DateTime?
+  lastUsedAt                 DateTime?
+  createdAt                  DateTime     @default(now())
+  payments                   McpPayment[]
 
   @@index([userId])
   @@index([clientId])

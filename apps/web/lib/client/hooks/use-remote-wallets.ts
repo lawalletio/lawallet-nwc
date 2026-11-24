@@ -19,6 +19,11 @@ export interface RemoteWalletData {
   type: 'NWC' | 'LND' | 'CLN' | 'BTCPAY'
   status: 'ACTIVE' | 'DISABLED' | 'REVOKED' | 'DEAD'
   isDefault: boolean
+  /**
+   * Where the credentials are kept. `backend` wallets never hand out their
+   * connection string. Absent on older responses (treat as `both`).
+   */
+  custody?: 'both' | 'backend' | 'local'
   createdAt: string
   updatedAt: string
   /** Always present; non-null only for archived (DEAD) wallets — when it was detected dead. */

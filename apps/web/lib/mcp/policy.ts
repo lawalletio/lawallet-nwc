@@ -248,6 +248,9 @@ export const OPERATION_POLICY: Record<string, OperationPolicy> = {
 
   // Remote wallets
   'remoteWallets.list': READ,
+  'remoteWallets.connectionString': exclude(
+    'reveals the wallet’s NWC connection string; whoever holds it can spend from the wallet outside wallet_pay_invoice and its budget'
+  ),
   'remoteWallets.create': exclude(
     'registers any external wallet and can bind the primary address to it (isDefault), redirecting incoming payments'
   ),

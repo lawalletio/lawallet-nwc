@@ -7,7 +7,6 @@
   "DELETE /api/dev/cards",
   "GET /api/openapi.json",
   "GET /api/remote-wallets/{id}/balance",
-  "GET /api/remote-wallets/{id}/connection-string",
   "POST /api/webhooks/nwc",
   "POST /api/admin/backup/export",
   "POST /api/admin/backup/analyze",

@@ -7,6 +7,7 @@ import {
   createLncurlRemoteWallet,
   mintLncurlWallet
 } from '@/lib/wallet/lncurl-wallet'
+import { toRemoteWalletDto } from '@/lib/remote-wallets/dto'
 import { withErrorHandling } from '@/types/server/error-handler'
 import {
   ConflictError,
@@ -19,56 +20,9 @@ import { validateBody } from '@/lib/validation/middleware'
 import { createLncurlWalletSchema } from '@/lib/validation/schemas'
 import { logger } from '@/lib/logger'
 import { eventBus } from '@/lib/events/event-bus'
-import type { RemoteWallet, RemoteWalletStatus } from '@/lib/generated/prisma'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
-
-/**
- * Wire shape returned to the UI — same envelope as `/api/remote-wallets`.
- * Deliberately omits `config` (carries the NWC URI) and `userId`.
- */
-interface RemoteWalletDto {
-  id: string
-  name: string
-  type: RemoteWallet['type']
-  status: RemoteWalletStatus
-  isDefault: boolean
-  createdAt: string
-  updatedAt: string
-  /** Set only for archived (DEAD) wallets — when the wallet was detected dead. */
-  diedAt: string | null
-  /** Why it was archived: `unresponsive`, `idle` or `warmup_failed`. Null unless DEAD. */
-  diedReason: string | null
-  /** `'lncurl'` for a disposable LNCurl-provisioned wallet, else null. Drives the UI tag + countdown. */
-  provider: 'lncurl' | null
-  /** For LNCurl wallets, the server that minted THIS wallet (stored per-wallet, so a later settings change doesn't move it). Null otherwise. */
-  lncurlServerUrl: string | null
-}
-
-function toDto(w: RemoteWallet): RemoteWalletDto {
-  const cfg = w.config as {
-    provider?: unknown
-    lncurlServerUrl?: unknown
-  } | null
-  const isLncurl = cfg?.provider === 'lncurl'
-  return {
-    id: w.id,
-    name: w.name,
-    type: w.type,
-    status: w.status,
-    isDefault: w.isDefault,
-    createdAt: w.createdAt.toISOString(),
-    updatedAt: w.updatedAt.toISOString(),
-    diedAt: w.diedAt ? w.diedAt.toISOString() : null,
-    diedReason: w.diedReason,
-    provider: isLncurl ? 'lncurl' : null,
-    lncurlServerUrl:
-      isLncurl && typeof cfg?.lncurlServerUrl === 'string'
-        ? cfg.lncurlServerUrl
-        : null
-  }
-}
 
 async function resolveUserId(pubkey: string): Promise<string> {
   const userId = await resolveAccountId(pubkey)
@@ -134,7 +88,7 @@ export const POST = withErrorHandling(async (request: Request) => {
       eventBus.emit({ type: 'users:updated', timestamp: Date.now() })
     }
 
-    return NextResponse.json(toDto(created), { status: 201 })
+    return NextResponse.json(toRemoteWalletDto(created), { status: 201 })
   } catch (err) {
     // Prisma maps the `(userId, name)` unique index to P2002. Surface as a
     // 409 so the UI can prompt for a different name without parsing error
