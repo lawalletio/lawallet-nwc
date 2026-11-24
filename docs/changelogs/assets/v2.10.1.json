@@ -1,0 +1,36 @@
+{
+  "headline": ["Umbrel.", "Fixed.", "Guarded."],
+  "tagline": "Umbrel nodes running BTCPay load again.",
+  "cards": [
+    {
+      "dot": "red",
+      "title": "500 → 200",
+      "text": "No more Internal Server Error after updating"
+    },
+    {
+      "dot": "green",
+      "title": "Own database",
+      "text": "Reaches Postgres by its container name"
+    },
+    {
+      "dot": "yellow",
+      "title": "BTCPay-safe",
+      "text": "Shares the node with any app that has a postgres"
+    },
+    {
+      "dot": "green",
+      "title": "Release gate",
+      "text": "Blocks a package that uses the shared host"
+    },
+    {
+      "dot": "yellow",
+      "title": "No data change",
+      "text": "Same database, only the address changed"
+    },
+    {
+      "dot": "red",
+      "title": "Same app",
+      "text": "Identical to 2.10.0 everywhere else"
+    }
+  ]
+}

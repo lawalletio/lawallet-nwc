@@ -64,6 +64,14 @@ const UMBREL_PERSISTED_SECRET_CONTRACT = {
       expected: 2,
       label:
         'must pass the domain-separated request-auth secret to web and listener'
+    },
+    {
+      // Every Umbrel app shares one Docker network, so a bare `postgres` host
+      // also resolves to other apps' databases (BTCPay's) and round-robins.
+      value: '@lawallet-nwc_postgres_1:5432/lawallet"',
+      expected: 2,
+      label:
+        'must reach Postgres by its container name, not the shared `postgres` alias'
     }
   ],
   'test/docker-compose.regtest.yml': [
