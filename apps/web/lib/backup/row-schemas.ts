@@ -24,6 +24,7 @@ const lightningAddressMode = z.enum([
 ])
 const remoteWalletType = z.enum(['NWC', 'LND', 'CLN', 'BTCPAY'])
 const remoteWalletStatus = z.enum(['ACTIVE', 'DISABLED', 'REVOKED', 'DEAD'])
+const remoteWalletCustody = z.enum(['BOTH', 'BACKEND', 'LOCAL'])
 const cardKind = z.enum(['SIMPLE', 'MASTER'])
 const activationQrKind = z.enum(['ONE_TIME', 'FOREVER'])
 const activationTokenStatus = z.enum([
@@ -101,6 +102,10 @@ const remoteWalletRow = z.object({
   updatedAt: date,
   // Optional keeps archives from before the vault migration importable.
   nwcConfigEncryptedAt: nullableDate.optional().default(null),
+  // Must survive a restore: dropping it would fall back to the column default
+  // (BOTH) and let a BACKEND wallet's connection string be revealed. Archives
+  // from before custody existed hold only BOTH wallets.
+  custody: remoteWalletCustody.optional().default('BOTH'),
   diedAt: nullableDate
 })
 

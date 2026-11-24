@@ -179,6 +179,40 @@ describe('backup row-schemas', () => {
     }
   })
 
+  describe('remoteWallets custody', () => {
+    const wallet = {
+      id: 'w-1',
+      userId: 'user-1',
+      name: 'Vault',
+      type: 'NWC',
+      config: { connectionString: 'nostr+walletconnect://x' },
+      status: 'ACTIVE',
+      isDefault: false,
+      createdAt: '2026-07-06T12:00:00.000Z',
+      updatedAt: '2026-07-06T12:00:00.000Z',
+      diedAt: null
+    }
+
+    it('keeps BACKEND custody through a restore', () => {
+      const row = ROW_SCHEMAS.remoteWallets.parse({
+        ...wallet,
+        custody: 'BACKEND'
+      })
+      expect(row.custody).toBe('BACKEND')
+    })
+
+    it('defaults archives from before custody to BOTH', () => {
+      expect(ROW_SCHEMAS.remoteWallets.parse(wallet).custody).toBe('BOTH')
+    })
+
+    it('rejects an unknown custody value', () => {
+      expect(
+        ROW_SCHEMAS.remoteWallets.safeParse({ ...wallet, custody: 'NONE' })
+          .success
+      ).toBe(false)
+    })
+  })
+
   describe('toPrismaData', () => {
     const invoiceBase = {
       id: 'inv-1',
