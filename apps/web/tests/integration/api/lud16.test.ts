@@ -1100,6 +1100,76 @@ describe('GET /api/lud16/[username]/cb', () => {
       expect(prismaMock.invoice.create).not.toHaveBeenCalled()
     })
 
+    it('503s when the wallet returns a bolt11 that does not decode', async () => {
+      vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(
+        ALICE as any
+      )
+      const bolt11 = (await import('bolt11')).default
+      vi.mocked(bolt11.decode).mockImplementationOnce(() => {
+        throw new Error('Invalid checksum')
+      })
+
+      const res = await callAlice()
+
+      expect(res.status).toBe(503)
+      expect(prismaMock.invoice.create).not.toHaveBeenCalled()
+    })
+
+    it('503s when a duplicate hash vanishes before it can be checked', async () => {
+      vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(
+        ALICE as any
+      )
+      vi.mocked(prismaMock.invoice.create).mockRejectedValueOnce(
+        uniqueViolation
+      )
+      vi.mocked(prismaMock.invoice.findUnique).mockResolvedValueOnce(null)
+
+      const res = await callAlice()
+
+      expect(res.status).toBe(503)
+      expect(prismaMock.invoice.updateMany).not.toHaveBeenCalled()
+    })
+
+    it('503s when the matching invoice changed state before the refresh', async () => {
+      // The conditional refresh re-checks owner, wallet and PENDING; a row
+      // that was settled (or repointed) in between updates nothing.
+      vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(
+        ALICE as any
+      )
+      vi.mocked(prismaMock.invoice.create).mockRejectedValueOnce(
+        uniqueViolation
+      )
+      vi.mocked(prismaMock.invoice.findUnique).mockResolvedValueOnce({
+        id: 'invoice-1',
+        paymentHash: 'a'.repeat(64),
+        purpose: 'LUD16_PAYMENT',
+        status: 'PENDING',
+        userId: 'user-1',
+        remoteWalletId: DEFAULT_WALLET.id
+      } as any)
+      vi.mocked(prismaMock.invoice.updateMany).mockResolvedValueOnce({
+        count: 0
+      } as any)
+
+      const res = await callAlice()
+
+      expect(res.status).toBe(503)
+    })
+
+    it('rethrows a non-unique database error instead of swallowing it', async () => {
+      vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(
+        ALICE as any
+      )
+      vi.mocked(prismaMock.invoice.create).mockRejectedValueOnce(
+        new Error('connection reset')
+      )
+
+      const res = await callAlice()
+
+      expect(res.status).toBe(500)
+      expect(prismaMock.invoice.findUnique).not.toHaveBeenCalled()
+    })
+
     it('503s when the wallet-reported hash disagrees with the bolt11', async () => {
       vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(
         ALICE as any

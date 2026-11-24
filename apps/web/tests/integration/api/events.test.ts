@@ -209,6 +209,19 @@ describe('GET /api/events — JWT trust rules', () => {
     await res.body!.cancel()
   })
 
+  it('answers 503 (not 401) when the role lookup for a JWT fails', async () => {
+    vi.mocked(verifyJwtToken).mockReturnValue({
+      payload: { userId: 'u1', pubkey: 'a'.repeat(64), role: 'ADMIN' },
+      header: {}
+    } as any)
+    vi.mocked(resolveRole).mockRejectedValue(new Error('db down'))
+
+    const res = await GET(makeRequest('/api/events?token=va.li.d'))
+
+    expect(res.status).toBe(503)
+    expect(addClientMock).not.toHaveBeenCalled()
+  })
+
   it('refuses a single-purpose token (merge ticket) as a stream credential', async () => {
     vi.mocked(verifyJwtToken).mockReturnValue({
       payload: {
