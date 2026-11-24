@@ -21,12 +21,19 @@ import {
   LINK_PROOF_EVENT_KIND
 } from '@/lib/account/proof'
 import { AuthenticationError, ValidationError } from '@/types/server/errors'
+import { proofContent } from '@/lib/account/proof-format'
+import { verifyJwtToken } from '@/lib/jwt'
 
 const ACCOUNT = 'account-1'
 
 function signProof(
   nonce: string,
-  overrides?: Partial<{ kind: number; created_at: number; tags: string[][] }>
+  overrides?: Partial<{
+    kind: number
+    created_at: number
+    tags: string[][]
+    content: string
+  }>
 ) {
   const sk = generateSecretKey()
   const event = finalizeEvent(
@@ -34,7 +41,7 @@ function signProof(
       kind: overrides?.kind ?? LINK_PROOF_EVENT_KIND,
       created_at: overrides?.created_at ?? Math.floor(Date.now() / 1000),
       tags: overrides?.tags ?? [['challenge', nonce]],
-      content: ''
+      content: overrides?.content ?? proofContent('link')
     },
     sk
   )
@@ -121,6 +128,40 @@ describe('nostr link proof', () => {
     ).toThrow(AuthenticationError)
   })
 
+  // A relay asks clients to sign exactly this shape (kind 22242, a
+  // `challenge` tag, empty content) — often silently. Accepting it would let
+  // any relay operator turn a victim's AUTH reply into a link/merge proof.
+  it('rejects a bare NIP-42 relay AUTH event (empty content)', () => {
+    const { challenge, nonce } = mintNostrLinkChallenge(ACCOUNT)
+    const { event } = signProof(nonce, { content: '' })
+    expect(() =>
+      verifyNostrLinkProof({ challenge, event, accountId: ACCOUNT })
+    ).toThrow(AuthenticationError)
+  })
+
+  it('rejects a proof carrying a NIP-42 relay tag', () => {
+    const { challenge, nonce } = mintNostrLinkChallenge(ACCOUNT)
+    const { event } = signProof(nonce, {
+      tags: [
+        ['relay', 'wss://relay.attacker.example'],
+        ['challenge', nonce]
+      ]
+    })
+    expect(() =>
+      verifyNostrLinkProof({ challenge, event, accountId: ACCOUNT })
+    ).toThrow(AuthenticationError)
+  })
+
+  it('rejects a passkey-registration proof replayed as a link proof', () => {
+    const { challenge, nonce } = mintNostrLinkChallenge(ACCOUNT)
+    const { event } = signProof(nonce, {
+      content: proofContent('passkey-registration')
+    })
+    expect(() =>
+      verifyNostrLinkProof({ challenge, event, accountId: ACCOUNT })
+    ).toThrow(AuthenticationError)
+  })
+
   it('rejects a garbage challenge token', () => {
     const { event } = signProof('n')
     expect(() =>
@@ -156,6 +197,22 @@ describe('merge ticket', () => {
     expect(() => verifyMergeTicket(ticket, ACCOUNT)).toThrow(
       AuthenticationError
     )
+  })
+
+  // The ticket's `pubkey` is the *proven* (absorbed) key. If session checks
+  // accepted it, the ticket would authenticate as that key for 10 minutes.
+  it('is not verifiable with the session audience', () => {
+    const ticket = mintMergeTicket({
+      survivorId: ACCOUNT,
+      absorbedId: 'account-2',
+      provenPubkey: 'f'.repeat(64)
+    })
+    expect(() =>
+      verifyJwtToken(ticket, 'a'.repeat(48), {
+        issuer: 'lawallet-nwc',
+        audience: 'lawallet-users'
+      })
+    ).toThrow()
   })
 
   it('rejects a link challenge passed as a merge ticket (kind confusion)', () => {

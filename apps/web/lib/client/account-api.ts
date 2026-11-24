@@ -6,9 +6,7 @@ import type {
 } from '@/lib/validation/schemas'
 import { createNsecSigner } from '@/lib/client/nostr-signer'
 import { derivePrfNsecHex, getPrfAssertion } from '@/lib/client/passkey-prf'
-
-/** NIP-42 client-authentication kind; the server accepts it as link proof. */
-const LINK_PROOF_EVENT_KIND = 22242
+import { buildProofEventTemplate } from '@/lib/account/proof-format'
 
 async function request<T>(
   path: string,
@@ -53,12 +51,9 @@ export async function proveNostrKey(
     { body: { method: 'nostr' } }
   )
 
-  const event = await signer.signEvent({
-    kind: LINK_PROOF_EVENT_KIND,
-    created_at: Math.floor(Date.now() / 1000),
-    tags: [['challenge', begin.nonce]],
-    content: ''
-  })
+  const event = await signer.signEvent(
+    buildProofEventTemplate('link', begin.nonce)
+  )
 
   return request<AccountLinkVerifyResponse>(
     '/api/account/identities/link/verify',

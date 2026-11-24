@@ -7,9 +7,23 @@ import {
   InternalServerError,
   ValidationError
 } from '@/types/server/errors'
+import {
+  PROOF_EVENT_KIND,
+  proofContent,
+  type ProofPurpose
+} from '@/lib/account/proof-format'
 
 /** NIP-42 client-authentication event kind, reused as the link-proof format. */
-export const LINK_PROOF_EVENT_KIND = 22242
+export const LINK_PROOF_EVENT_KIND = PROOF_EVENT_KIND
+
+/**
+ * Audiences of the single-purpose tokens minted here. They are signed with
+ * the session secret, so each needs an audience no session check accepts —
+ * otherwise a merge ticket (whose `pubkey` is the *proven* key) would pass as
+ * a Bearer session for that key.
+ */
+const LINK_CHALLENGE_AUDIENCE = 'lawallet-link-challenge'
+const MERGE_TICKET_AUDIENCE = 'lawallet-merge-ticket'
 
 const LINK_CHALLENGE_EXPIRES_IN = 300 // seconds
 const MERGE_TICKET_EXPIRES_IN = 600 // seconds
@@ -46,7 +60,7 @@ export function mintNostrLinkChallenge(accountId: string): {
     {
       expiresIn: LINK_CHALLENGE_EXPIRES_IN,
       issuer: 'lawallet-nwc',
-      audience: 'lawallet-users'
+      audience: LINK_CHALLENGE_AUDIENCE
     }
   )
   return { challenge, nonce, expiresIn: LINK_CHALLENGE_EXPIRES_IN }
@@ -69,7 +83,7 @@ export function verifyNostrLinkProof(params: {
   try {
     payload = verifyJwtToken(challenge, jwtSecret(), {
       issuer: 'lawallet-nwc',
-      audience: 'lawallet-users'
+      audience: LINK_CHALLENGE_AUDIENCE
     }).payload
   } catch {
     throw new AuthenticationError('Link challenge is invalid or expired')
@@ -78,22 +92,38 @@ export function verifyNostrLinkProof(params: {
     throw new AuthenticationError('Link challenge is invalid or expired')
   }
 
-  return verifySignedChallengeEvent(event, String(payload.nonce))
+  return verifySignedChallengeEvent(event, String(payload.nonce), 'link')
 }
 
 /**
- * Core NIP-42 proof check, shared by the link flow (JWT-embedded nonce) and
+ * Core proof check, shared by the link flow (JWT-embedded nonce) and
  * passkey registration (the WebAuthn challenge string is the nonce): the
- * event must be kind 22242, carry `nonce` in a `challenge` tag, be fresh,
- * and carry a valid Schnorr signature. Returns the proven pubkey.
+ * event must be kind 22242, carry `nonce` in a `challenge` tag, carry the
+ * `purpose` marker as its content and no NIP-42 `relay` tag, be fresh, and
+ * carry a valid Schnorr signature. Returns the proven pubkey.
+ *
+ * The purpose marker is what stops a relay AUTH response (same kind, same
+ * `challenge` tag, empty content) from being replayed here as a proof — see
+ * `proof-format.ts`.
  */
 export function verifySignedChallengeEvent(
   event: NostrEvent,
   nonce: string,
+  purpose: ProofPurpose,
   expectedPubkey?: string
 ): string {
   if (event.kind !== LINK_PROOF_EVENT_KIND) {
     throw new ValidationError('Proof event must be kind 22242 (NIP-42 auth)')
+  }
+  if (event.content !== proofContent(purpose)) {
+    throw new AuthenticationError(
+      'Proof event is not a LaWallet proof for this action'
+    )
+  }
+  if (event.tags.some(t => t[0] === 'relay')) {
+    throw new AuthenticationError(
+      'Proof event is a relay authentication, not a LaWallet proof'
+    )
   }
   const challengeTag = event.tags.find(t => t[0] === 'challenge')?.[1]
   if (!challengeTag || challengeTag !== nonce) {
@@ -157,7 +187,7 @@ export function mintMergeTicket(claims: MergeTicketClaims): string {
     {
       expiresIn: MERGE_TICKET_EXPIRES_IN,
       issuer: 'lawallet-nwc',
-      audience: 'lawallet-users'
+      audience: MERGE_TICKET_AUDIENCE
     }
   )
 }
@@ -171,7 +201,7 @@ export function verifyMergeTicket(
   try {
     payload = verifyJwtToken(ticket, jwtSecret(), {
       issuer: 'lawallet-nwc',
-      audience: 'lawallet-users'
+      audience: MERGE_TICKET_AUDIENCE
     }).payload
   } catch {
     throw new AuthenticationError('Merge ticket is invalid or expired')

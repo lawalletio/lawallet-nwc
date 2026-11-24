@@ -13,34 +13,34 @@ PUBLIC  →  USER  <  VIEWER  <  OPERATOR  <  ADMIN
 
 A higher role **includes** everything a lower role can do. Guards use `hasRole(actual, required)`, which compares positions in the hierarchy.
 
-| Role | Who it is | Privilege summary |
-| ---- | --------- | ----------------- |
-| **PUBLIC** | Unauthenticated caller | Open endpoints: LUD-16 payRequest/callback, `/.well-known/verify`, `/api/setup/status`, and `POST /api/jwt` token exchange. |
-| **USER** | Any authenticated `pubkey` with no additional permissions | Reads and edits its own data (LUD-16 and its own NWC). Cannot access the admin panel. |
-| **VIEWER** | Auditor or observer | Read-only access to cards, designs, addresses, ntags, users, settings, and the activity log. |
-| **OPERATOR** | Day-to-day operator | VIEWER access plus write access to cards, designs, addresses, and ntags. **Cannot** change settings or other users' roles. |
-| **ADMIN** | System root | Every permission, without exception. Automatically assigned to the first pubkey that claims the bootstrap endpoint (`POST /api/admin/assign`). |
+| Role         | Who it is                                                 | Privilege summary                                                                                                                              |
+| ------------ | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| **PUBLIC**   | Unauthenticated caller                                    | Open endpoints: LUD-16 payRequest/callback, `/.well-known/verify`, `/api/setup/status`, and `POST /api/jwt` token exchange.                    |
+| **USER**     | Any authenticated `pubkey` with no additional permissions | Reads and edits its own data (LUD-16 and its own NWC). Cannot access the admin panel.                                                          |
+| **VIEWER**   | Auditor or observer                                       | Read-only access to cards, designs, addresses, ntags, users, settings, and the activity log.                                                   |
+| **OPERATOR** | Day-to-day operator                                       | VIEWER access plus write access to cards, designs, addresses, and ntags. **Cannot** change settings or other users' roles.                     |
+| **ADMIN**    | System root                                               | Every permission, without exception. Automatically assigned to the first pubkey that claims the bootstrap endpoint (`POST /api/admin/assign`). |
 
 ## Permission matrix
 
 Permissions are defined as an enum in [`lib/auth/permissions.ts`](https://github.com/lawalletio/lawallet-nwc/blob/main/apps/web/lib/auth/permissions.ts), and each role maps to a fixed permission list.
 
-| Permission | USER | VIEWER | OPERATOR | ADMIN |
-| ---------- | :--: | :----: | :------: | :---: |
-| `settings:read` | | ✓ | | ✓ |
-| `settings:write` | | | | ✓ |
-| `users:read` | | ✓ | ✓ | ✓ |
-| `users:write` | | | | ✓ |
-| `users:manage_roles` | | | | ✓ |
-| `cards:read` | | ✓ | ✓ | ✓ |
-| `cards:write` | | | ✓ | ✓ |
-| `card_designs:read` | | ✓ | ✓ | ✓ |
-| `card_designs:write` | | | ✓ | ✓ |
-| `addresses:read` | | ✓ | ✓ | ✓ |
-| `addresses:write` | | | ✓ | ✓ |
-| `ntags:read` | | ✓ | ✓ | ✓ |
-| `ntags:write` | | | ✓ | ✓ |
-| `activity:read` | | ✓ | ✓ | ✓ |
+| Permission           | USER | VIEWER | OPERATOR | ADMIN |
+| -------------------- | :--: | :----: | :------: | :---: |
+| `settings:read`      |      |   ✓    |          |   ✓   |
+| `settings:write`     |      |        |          |   ✓   |
+| `users:read`         |      |   ✓    |    ✓     |   ✓   |
+| `users:write`        |      |        |          |   ✓   |
+| `users:manage_roles` |      |        |          |   ✓   |
+| `cards:read`         |      |   ✓    |    ✓     |   ✓   |
+| `cards:write`        |      |        |    ✓     |   ✓   |
+| `card_designs:read`  |      |   ✓    |    ✓     |   ✓   |
+| `card_designs:write` |      |        |    ✓     |   ✓   |
+| `addresses:read`     |      |   ✓    |    ✓     |   ✓   |
+| `addresses:write`    |      |        |    ✓     |   ✓   |
+| `ntags:read`         |      |   ✓    |    ✓     |   ✓   |
+| `ntags:write`        |      |        |    ✓     |   ✓   |
+| `activity:read`      |      |   ✓    |    ✓     |   ✓   |
 
 `USER` has none of these platform permissions. It is the default role for authenticated pubkeys operating only on their own identity.
 
@@ -54,10 +54,13 @@ Every authenticated request (NIP-98 or Bearer JWT) passes through `resolveRole(p
 
 The JWT embeds the role when it is issued, but that claim is only a hint: session tokens are stateless and cannot be revoked, so `resolveRole(pubkey)` re-runs on **every** request and the freshly resolved role is what authorizes it. **Demoting or deleting a user takes effect immediately**, without waiting for the token to expire.
 
-Two deliberate exceptions:
+**Device tokens** (`kind: 'device'`) follow stricter rules:
 
-- **Device tokens** (`kind: 'device'`) keep the role they were minted with. Their `scopes` claim is the authoritative restriction — an explicit subset of the minting admin's permissions — so re-resolving the owner's role would widen, not narrow, what the token can do.
-- Session lifetimes are capped at **24 hours** (`MAX_SESSION_JWT_SECONDS`), since a leaked stateless token stays valid until it expires.
+- Their `scopes` claim is the authoritative permission set — an explicit subset of the minting admin's permissions. A token with no usable `scopes` claim gets no permissions, never the role's full map.
+- Their role is the **lower** of the minted claim and the owner's current DB role, so a demoted owner's token can't carry the old role.
+- They only reach **permission-gated** routes (`authenticateWithPermission`, or a handler that opts in with `authenticate(request, { allowDeviceToken: true })` and checks every branch with `authHasPermission`). Role gates (`authenticateWithRole` — backups, polls) and owner-scoped routes (wallet secrets, account changes, `requireUserId`) refuse them with `403`, and a device token never counts as the resource owner.
+
+Session lifetimes are capped at **24 hours** (`MAX_SESSION_JWT_SECONDS`), since a leaked stateless token stays valid until it expires. Other tokens signed with the same secret — merge tickets and link challenges — use their own audiences and are never accepted as API credentials.
 
 ## How a role is assigned
 

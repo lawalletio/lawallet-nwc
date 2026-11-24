@@ -123,7 +123,8 @@ async function oauthCaller(
 }
 
 async function jwtCaller(request: Request, apiUrl: string): Promise<McpCaller> {
-  const auth = await authenticate(request)
+  // Let a device token through only to refuse it below with the MCP error.
+  const auth = await authenticate(request, { allowDeviceToken: true })
   // A device token is narrowed to a few permissions for one device. The
   // wallet tools never consult those permissions, so on this endpoint it would
   // read balances and mint invoices it cannot touch over REST.

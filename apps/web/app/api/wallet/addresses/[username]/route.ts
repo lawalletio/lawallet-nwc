@@ -109,7 +109,8 @@ export const GET = withErrorHandling(
     request: Request,
     { params }: { params: Promise<{ username: string }> }
   ) => {
-    const auth = await authenticate(request)
+    // Device tokens see addresses only through ADDRESSES_READ, never as owner.
+    const auth = await authenticate(request, { allowDeviceToken: true })
     const { username } = validateParams(
       await params,
       walletAddressUsernameParam
@@ -137,7 +138,8 @@ export const GET = withErrorHandling(
     }
 
     const caller = await resolveAccountByPubkey(auth.pubkey)
-    const isOwner = !!caller && caller.id === address.userId
+    const isOwner =
+      !auth.deviceToken && !!caller && caller.id === address.userId
 
     if (!isOwner) {
       // Scope-aware check (device tokens included) via the shared helper.

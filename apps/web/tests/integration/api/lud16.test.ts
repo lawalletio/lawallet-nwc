@@ -120,13 +120,43 @@ vi.mock('@/lib/wallet/last-balance', () => ({
 // `getServerNwcClient` → `@getalby/sdk` NWCClient.makeInvoice. Mock the
 // NWCClient so we never touch a relay; the response shape mirrors NIP-47
 // `make_invoice` (msats, expiry in unix seconds).
-const makeInvoiceMock = vi.fn().mockResolvedValue({
-  invoice: 'lnbc100n1test',
-  payment_hash: 'a'.repeat(64),
-  amount: 100_000,
-  description: '',
-  expires_at: 1_700_000_600
-})
+// The callback decodes the returned bolt11 and requires it to be exactly the
+// invoice it asked for, so the fake wallet remembers what it was asked and the
+// `bolt11` decoder mock below reports that amount / description hash back.
+const minted = vi.hoisted(() => ({
+  amountMsats: 100_000,
+  descriptionHash: undefined as string | undefined
+}))
+const makeInvoiceMock = vi
+  .fn()
+  .mockImplementation(
+    async (args: { amount: number; description_hash?: string }) => {
+      minted.amountMsats = args.amount
+      minted.descriptionHash = args.description_hash
+      return {
+        invoice: 'lnbc100n1test',
+        payment_hash: 'a'.repeat(64),
+        amount: args.amount,
+        description: '',
+        expires_at: 1_700_000_600
+      }
+    }
+  )
+
+vi.mock('bolt11', () => ({
+  default: {
+    decode: vi.fn(() => ({
+      millisatoshis: String(minted.amountMsats),
+      timeExpireDate: 1_700_000_600,
+      tagsObject: {
+        payment_hash: 'a'.repeat(64),
+        ...(minted.descriptionHash
+          ? { purpose_commit_hash: minted.descriptionHash }
+          : {})
+      }
+    }))
+  }
+}))
 const nwcCtorMock = vi.fn()
 
 vi.mock('@getalby/sdk', () => {
@@ -900,7 +930,7 @@ describe('GET /api/lud16/[username]/cb', () => {
       remoteWallet: DEFAULT_WALLET,
       user: { id: 'user-1', remoteWallets: [DEFAULT_WALLET] }
     } as any)
-    vi.mocked(prismaMock.invoice.upsert).mockResolvedValue({
+    vi.mocked(prismaMock.invoice.create).mockResolvedValue({
       id: 'invoice-1',
       paymentHash: 'a'.repeat(64)
     } as any)
@@ -1007,7 +1037,7 @@ describe('GET /api/lud16/[username]/cb', () => {
       remoteWallet: DEFAULT_WALLET,
       user: { id: 'user-1', remoteWallets: [DEFAULT_WALLET] }
     } as any)
-    vi.mocked(prismaMock.invoice.upsert).mockResolvedValue({
+    vi.mocked(prismaMock.invoice.create).mockResolvedValue({
       id: 'invoice-1',
       paymentHash: 'a'.repeat(64)
     } as any)
@@ -1017,11 +1047,10 @@ describe('GET /api/lud16/[username]/cb', () => {
     })
     await Lud16CbGet(req, createParamsPromise({ username: 'alice' }))
 
-    expect(prismaMock.invoice.upsert).toHaveBeenCalledTimes(1)
-    expect(prismaMock.invoice.upsert).toHaveBeenCalledWith(
+    expect(prismaMock.invoice.create).toHaveBeenCalledTimes(1)
+    expect(prismaMock.invoice.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { paymentHash: 'a'.repeat(64) },
-        create: expect.objectContaining({
+        data: expect.objectContaining({
           bolt11: 'lnbc100n1test',
           paymentHash: 'a'.repeat(64),
           amountSats: 10,
@@ -1032,6 +1061,199 @@ describe('GET /api/lud16/[username]/cb', () => {
         })
       })
     )
+  })
+
+  describe('wallet-returned invoice is never trusted', () => {
+    const ALICE = {
+      username: 'alice',
+      mode: 'CUSTOM_NWC',
+      redirect: null,
+      nwcConnection: null,
+      remoteWallet: DEFAULT_WALLET,
+      user: { id: 'user-1', remoteWallets: [DEFAULT_WALLET] }
+    }
+    const uniqueViolation = Object.assign(new Error('Unique constraint'), {
+      code: 'P2002'
+    })
+
+    async function callAlice() {
+      const req = createNextRequest('/api/lud16/alice/cb', {
+        searchParams: { amount: '10000' }
+      })
+      return Lud16CbGet(req, createParamsPromise({ username: 'alice' }))
+    }
+
+    it('503s when the bolt11 amount differs from the requested amount', async () => {
+      vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(
+        ALICE as any
+      )
+      const bolt11 = (await import('bolt11')).default
+      vi.mocked(bolt11.decode).mockReturnValueOnce({
+        millisatoshis: '999000',
+        timeExpireDate: 1_700_000_600,
+        tagsObject: { payment_hash: 'a'.repeat(64) }
+      } as any)
+
+      const res = await callAlice()
+
+      expect(res.status).toBe(503)
+      expect(prismaMock.invoice.create).not.toHaveBeenCalled()
+    })
+
+    it('503s when the wallet returns a bolt11 that does not decode', async () => {
+      vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(
+        ALICE as any
+      )
+      const bolt11 = (await import('bolt11')).default
+      vi.mocked(bolt11.decode).mockImplementationOnce(() => {
+        throw new Error('Invalid checksum')
+      })
+
+      const res = await callAlice()
+
+      expect(res.status).toBe(503)
+      expect(prismaMock.invoice.create).not.toHaveBeenCalled()
+    })
+
+    it('503s when a duplicate hash vanishes before it can be checked', async () => {
+      vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(
+        ALICE as any
+      )
+      vi.mocked(prismaMock.invoice.create).mockRejectedValueOnce(
+        uniqueViolation
+      )
+      vi.mocked(prismaMock.invoice.findUnique).mockResolvedValueOnce(null)
+
+      const res = await callAlice()
+
+      expect(res.status).toBe(503)
+      expect(prismaMock.invoice.updateMany).not.toHaveBeenCalled()
+    })
+
+    it('503s when the matching invoice changed state before the refresh', async () => {
+      // The conditional refresh re-checks owner, wallet and PENDING; a row
+      // that was settled (or repointed) in between updates nothing.
+      vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(
+        ALICE as any
+      )
+      vi.mocked(prismaMock.invoice.create).mockRejectedValueOnce(
+        uniqueViolation
+      )
+      vi.mocked(prismaMock.invoice.findUnique).mockResolvedValueOnce({
+        id: 'invoice-1',
+        paymentHash: 'a'.repeat(64),
+        purpose: 'LUD16_PAYMENT',
+        status: 'PENDING',
+        userId: 'user-1',
+        remoteWalletId: DEFAULT_WALLET.id
+      } as any)
+      vi.mocked(prismaMock.invoice.updateMany).mockResolvedValueOnce({
+        count: 0
+      } as any)
+
+      const res = await callAlice()
+
+      expect(res.status).toBe(503)
+    })
+
+    it('rethrows a non-unique database error instead of swallowing it', async () => {
+      vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(
+        ALICE as any
+      )
+      vi.mocked(prismaMock.invoice.create).mockRejectedValueOnce(
+        new Error('connection reset')
+      )
+
+      const res = await callAlice()
+
+      expect(res.status).toBe(500)
+      expect(prismaMock.invoice.findUnique).not.toHaveBeenCalled()
+    })
+
+    it('503s when the wallet-reported hash disagrees with the bolt11', async () => {
+      vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(
+        ALICE as any
+      )
+      makeInvoiceMock.mockImplementationOnce(async (args: any) => {
+        minted.amountMsats = args.amount
+        return {
+          invoice: 'lnbc100n1test',
+          payment_hash: 'b'.repeat(64),
+          amount: args.amount,
+          expires_at: 1_700_000_600
+        }
+      })
+
+      const res = await callAlice()
+
+      expect(res.status).toBe(503)
+      expect(prismaMock.invoice.create).not.toHaveBeenCalled()
+    })
+
+    it("refuses a payment hash already recorded for another user's invoice", async () => {
+      vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(
+        ALICE as any
+      )
+      vi.mocked(prismaMock.invoice.create).mockRejectedValueOnce(
+        uniqueViolation
+      )
+      vi.mocked(prismaMock.invoice.findUnique).mockResolvedValueOnce({
+        id: 'victim-invoice',
+        paymentHash: 'a'.repeat(64),
+        purpose: 'LUD16_PAYMENT',
+        status: 'PENDING',
+        userId: 'victim',
+        remoteWalletId: 'victim-wallet'
+      } as any)
+
+      const res = await callAlice()
+
+      expect(res.status).toBe(503)
+      // The victim's row — owner, wallet, bolt11 — is left untouched.
+      expect(prismaMock.invoice.update).not.toHaveBeenCalled()
+      expect(prismaMock.invoice.updateMany).not.toHaveBeenCalled()
+      expect(prismaMock.invoice.upsert).not.toHaveBeenCalled()
+    })
+
+    it('refreshes a re-issued invoice from the same owner and wallet', async () => {
+      vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(
+        ALICE as any
+      )
+      const existing = {
+        id: 'invoice-1',
+        paymentHash: 'a'.repeat(64),
+        purpose: 'LUD16_PAYMENT',
+        status: 'PENDING',
+        userId: 'user-1',
+        remoteWalletId: DEFAULT_WALLET.id
+      }
+      vi.mocked(prismaMock.invoice.create).mockRejectedValueOnce(
+        uniqueViolation
+      )
+      vi.mocked(prismaMock.invoice.findUnique).mockResolvedValueOnce(
+        existing as any
+      )
+      vi.mocked(prismaMock.invoice.updateMany).mockResolvedValueOnce({
+        count: 1
+      } as any)
+      vi.mocked(prismaMock.invoice.findUniqueOrThrow).mockResolvedValueOnce(
+        existing as any
+      )
+
+      const res = await callAlice()
+
+      expect(res.status).toBe(200)
+      expect(prismaMock.invoice.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            id: 'invoice-1',
+            status: 'PENDING',
+            userId: 'user-1',
+            remoteWalletId: DEFAULT_WALLET.id
+          }
+        })
+      )
+    })
   })
 
   it('returns 404 for nonexistent username', async () => {
@@ -1046,7 +1268,7 @@ describe('GET /api/lud16/[username]/cb', () => {
     )
 
     expect(res.status).toBe(404)
-    expect(prismaMock.invoice.upsert).not.toHaveBeenCalled()
+    expect(prismaMock.invoice.create).not.toHaveBeenCalled()
   })
 
   it('rejects missing amount parameter', async () => {
@@ -1079,7 +1301,7 @@ describe('GET /api/lud16/[username]/cb', () => {
     )
 
     expect(res.status).toBe(404)
-    expect(prismaMock.invoice.upsert).not.toHaveBeenCalled()
+    expect(prismaMock.invoice.create).not.toHaveBeenCalled()
   })
 
   // ─── LUD-12 (comment) ─────────────────────────────────────────────────
@@ -1093,7 +1315,7 @@ describe('GET /api/lud16/[username]/cb', () => {
       remoteWallet: DEFAULT_WALLET,
       user: { id: 'user-1', remoteWallets: [DEFAULT_WALLET] }
     } as any)
-    vi.mocked(prismaMock.invoice.upsert).mockResolvedValue({
+    vi.mocked(prismaMock.invoice.create).mockResolvedValue({
       id: 'invoice-1',
       paymentHash: 'a'.repeat(64)
     } as any)
@@ -1111,9 +1333,9 @@ describe('GET /api/lud16/[username]/cb', () => {
     )
 
     // Metadata persisted with comment
-    expect(prismaMock.invoice.upsert).toHaveBeenCalledWith(
+    expect(prismaMock.invoice.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        create: expect.objectContaining({
+        data: expect.objectContaining({
           description: 'Payment to @alice: Thanks for the coffee!',
           metadata: { username: 'alice', comment: 'Thanks for the coffee!' }
         })
@@ -1140,7 +1362,7 @@ describe('GET /api/lud16/[username]/cb', () => {
     )
 
     expect(res.status).toBe(400)
-    expect(prismaMock.invoice.upsert).not.toHaveBeenCalled()
+    expect(prismaMock.invoice.create).not.toHaveBeenCalled()
   })
 
   it('omits comment from description when not provided', async () => {
@@ -1152,7 +1374,7 @@ describe('GET /api/lud16/[username]/cb', () => {
       remoteWallet: DEFAULT_WALLET,
       user: { id: 'user-1', remoteWallets: [DEFAULT_WALLET] }
     } as any)
-    vi.mocked(prismaMock.invoice.upsert).mockResolvedValue({
+    vi.mocked(prismaMock.invoice.create).mockResolvedValue({
       id: 'invoice-1',
       paymentHash: 'a'.repeat(64)
     } as any)
@@ -1165,9 +1387,9 @@ describe('GET /api/lud16/[username]/cb', () => {
     expect(makeInvoiceMock).toHaveBeenCalledWith(
       expect.objectContaining({ description: 'Payment to @alice' })
     )
-    expect(prismaMock.invoice.upsert).toHaveBeenCalledWith(
+    expect(prismaMock.invoice.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        create: expect.objectContaining({
+        data: expect.objectContaining({
           metadata: { username: 'alice' }
         })
       })
@@ -1221,7 +1443,7 @@ describe('GET /api/lud16/[username]/cb', () => {
         nwcConnections: []
       }
     } as any)
-    vi.mocked(prismaMock.invoice.upsert).mockResolvedValue({
+    vi.mocked(prismaMock.invoice.create).mockResolvedValue({
       id: 'invoice-1',
       paymentHash: 'a'.repeat(64)
     } as any)
@@ -1271,7 +1493,7 @@ describe('GET /api/lud16/[username]/cb', () => {
         nwcConnections: []
       }
     } as any)
-    vi.mocked(prismaMock.invoice.upsert).mockResolvedValue({
+    vi.mocked(prismaMock.invoice.create).mockResolvedValue({
       id: 'invoice-1',
       paymentHash: 'a'.repeat(64)
     } as any)
@@ -1312,7 +1534,7 @@ describe('GET /api/lud16/[username]/cb', () => {
     expect(res.status).toBe(503)
     const body = (await res.json()) as { error: { message: string } }
     expect(body.error.message).toBe('Wallet is currently unavailable')
-    expect(prismaMock.invoice.upsert).not.toHaveBeenCalled()
+    expect(prismaMock.invoice.create).not.toHaveBeenCalled()
   })
 
   it('returns 503 when the bound wallet vault config cannot be decrypted', async () => {
@@ -1347,7 +1569,7 @@ describe('GET /api/lud16/[username]/cb', () => {
       'LUD16 wallet route resolution failed'
     )
     expect(makeInvoiceMock).not.toHaveBeenCalled()
-    expect(prismaMock.invoice.upsert).not.toHaveBeenCalled()
+    expect(prismaMock.invoice.create).not.toHaveBeenCalled()
   })
 
   it('does not map non-driver route errors to a 503', async () => {
@@ -1396,7 +1618,7 @@ describe('GET /api/lud16/[username]/cb', () => {
     )
 
     expect(res.status).toBe(404)
-    expect(prismaMock.invoice.upsert).not.toHaveBeenCalled()
+    expect(prismaMock.invoice.create).not.toHaveBeenCalled()
   })
 
   // ─── LNCurl self-heal ─────────────────────────────────────────────────
@@ -1432,7 +1654,7 @@ describe('GET /api/lud16/[username]/cb', () => {
       lncurl_auto_recreate: 'true',
       lncurl_server_url: 'https://my.lncurl.example'
     })
-    vi.mocked(prismaMock.invoice.upsert).mockResolvedValue({
+    vi.mocked(prismaMock.invoice.create).mockResolvedValue({
       id: 'invoice-1',
       paymentHash: 'a'.repeat(64)
     } as any)
@@ -1492,7 +1714,7 @@ describe('GET /api/lud16/[username]/cb', () => {
       lncurl_auto_recreate: 'true',
       lncurl_server_url: 'https://my.lncurl.example'
     })
-    vi.mocked(prismaMock.invoice.upsert).mockResolvedValue({
+    vi.mocked(prismaMock.invoice.create).mockResolvedValue({
       id: 'invoice-1',
       paymentHash: 'a'.repeat(64)
     } as any)
@@ -1540,7 +1762,7 @@ describe('GET /api/lud16/[username]/cb', () => {
       lncurl_auto_recreate: 'true',
       lncurl_server_url: 'https://my.lncurl.example'
     })
-    vi.mocked(prismaMock.invoice.upsert).mockResolvedValue({
+    vi.mocked(prismaMock.invoice.create).mockResolvedValue({
       id: 'invoice-1',
       paymentHash: 'a'.repeat(64)
     } as any)
@@ -1589,7 +1811,7 @@ describe('GET /api/lud16/[username]/cb', () => {
       lncurl_auto_recreate: 'true',
       lncurl_server_url: 'https://my.lncurl.example'
     })
-    vi.mocked(prismaMock.invoice.upsert).mockResolvedValue({
+    vi.mocked(prismaMock.invoice.create).mockResolvedValue({
       id: 'invoice-1',
       paymentHash: 'a'.repeat(64)
     } as any)
@@ -1616,7 +1838,7 @@ describe('GET /api/lud16/[username]/cb', () => {
       expect.objectContaining({ userId: 'user-1', revokePrevious: false })
     )
     expect(makeInvoiceMock).toHaveBeenCalledTimes(1)
-    expect(prismaMock.invoice.upsert).toHaveBeenCalled()
+    expect(prismaMock.invoice.create).toHaveBeenCalled()
   })
 
   it('reads the primary wallet only when an unbound LNCurl mint fails', async () => {
@@ -1634,7 +1856,7 @@ describe('GET /api/lud16/[username]/cb', () => {
       lncurl_enabled: 'true',
       lncurl_auto_recreate: 'true'
     })
-    vi.mocked(prismaMock.invoice.upsert).mockResolvedValue({
+    vi.mocked(prismaMock.invoice.create).mockResolvedValue({
       id: 'invoice-1',
       paymentHash: 'a'.repeat(64)
     } as any)
@@ -1682,7 +1904,7 @@ describe('GET /api/lud16/[username]/cb', () => {
       lncurl_enabled: 'true',
       lncurl_auto_recreate: 'true'
     })
-    vi.mocked(prismaMock.invoice.upsert).mockResolvedValue({
+    vi.mocked(prismaMock.invoice.create).mockResolvedValue({
       id: 'invoice-1',
       paymentHash: 'a'.repeat(64)
     } as any)
@@ -1744,7 +1966,7 @@ describe('GET /api/lud16/[username]/cb', () => {
 
     expect(res.status).toBe(503)
     expect(createLncurlRemoteWallet).not.toHaveBeenCalled()
-    expect(prismaMock.invoice.upsert).not.toHaveBeenCalled()
+    expect(prismaMock.invoice.create).not.toHaveBeenCalled()
   })
 
   it('does NOT self-heal a non-LNCurl wallet → 503 (unchanged behaviour)', async () => {
@@ -1805,7 +2027,7 @@ describe('GET /api/lud16/[username]/cb', () => {
     )
 
     expect(res.status).toBe(503)
-    expect(prismaMock.invoice.upsert).not.toHaveBeenCalled()
+    expect(prismaMock.invoice.create).not.toHaveBeenCalled()
   })
 
   it('replaces an archived courtesy wallet before minting the payer invoice', async () => {
@@ -1850,7 +2072,7 @@ describe('GET /api/lud16/[username]/cb', () => {
       },
       status: 'ACTIVE'
     } as any)
-    vi.mocked(prismaMock.invoice.upsert).mockResolvedValue({
+    vi.mocked(prismaMock.invoice.create).mockResolvedValue({
       id: 'invoice-1',
       paymentHash: 'a'.repeat(64)
     } as any)
@@ -1891,7 +2113,7 @@ describe('GET /api/lud16/[username]/cb', () => {
     )
 
     expect(res.status).toBe(503)
-    expect(prismaMock.invoice.upsert).not.toHaveBeenCalled()
+    expect(prismaMock.invoice.create).not.toHaveBeenCalled()
   })
 
   it('returns 404 when an IDLE primary cannot be replaced', async () => {

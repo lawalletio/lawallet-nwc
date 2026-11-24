@@ -29,6 +29,11 @@ vi.mock('@/lib/auth/resolve-role', () => ({
   resolveRole: vi.fn()
 }))
 
+// Device tokens read `endpoint` for their apiUrl binding.
+vi.mock('@/lib/settings', () => ({
+  getSettings: vi.fn(async () => ({ endpoint: 'https://app.test.com' }))
+}))
+
 vi.mock('@/lib/auth/account', () => ({
   resolveAccountByPubkey: vi.fn(async () => ({ id: 'acct-1' }))
 }))
@@ -59,6 +64,9 @@ function makeRequest(url: string): NextRequest {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // JWT roles are re-resolved from the DB, never read off the claim.
+  vi.mocked(resolveRole).mockReset()
+  vi.mocked(resolveRole).mockResolvedValue('USER' as any)
 })
 
 afterEach(() => {
@@ -112,6 +120,7 @@ describe('GET /api/events', () => {
       },
       header: {}
     } as any)
+    vi.mocked(resolveRole).mockResolvedValue('ADMIN' as any)
 
     const res = await GET(makeRequest('/api/events?token=va.li.d'))
 
@@ -173,6 +182,7 @@ describe('GET /api/events', () => {
       },
       header: {}
     } as any)
+    vi.mocked(resolveRole).mockResolvedValue('NOT_A_REAL_ROLE' as any)
 
     const res = await GET(makeRequest('/api/events?token=va.li.d'))
     expect(res.status).toBe(200)
@@ -184,11 +194,78 @@ describe('GET /api/events', () => {
   })
 })
 
+describe('GET /api/events — JWT trust rules', () => {
+  it('takes the role from the database, not the JWT role claim', async () => {
+    vi.mocked(verifyJwtToken).mockReturnValue({
+      payload: { userId: 'u1', pubkey: 'a'.repeat(64), role: 'ADMIN' },
+      header: {}
+    } as any)
+    vi.mocked(resolveRole).mockResolvedValue('USER' as any)
+
+    const res = await GET(makeRequest('/api/events?token=va.li.d'))
+    expect(res.status).toBe(200)
+
+    expect(addClientMock.mock.calls[0][0].permissions).toEqual([])
+    await res.body!.cancel()
+  })
+
+  it('answers 503 (not 401) when the role lookup for a JWT fails', async () => {
+    vi.mocked(verifyJwtToken).mockReturnValue({
+      payload: { userId: 'u1', pubkey: 'a'.repeat(64), role: 'ADMIN' },
+      header: {}
+    } as any)
+    vi.mocked(resolveRole).mockRejectedValue(new Error('db down'))
+
+    const res = await GET(makeRequest('/api/events?token=va.li.d'))
+
+    expect(res.status).toBe(503)
+    expect(addClientMock).not.toHaveBeenCalled()
+  })
+
+  it('refuses a single-purpose token (merge ticket) as a stream credential', async () => {
+    vi.mocked(verifyJwtToken).mockReturnValue({
+      payload: {
+        userId: 'u1',
+        pubkey: 'a'.repeat(64),
+        kind: 'merge-ticket',
+        absorbedId: 'u2'
+      },
+      header: {}
+    } as any)
+
+    const res = await GET(makeRequest('/api/events?token=va.li.d'))
+
+    expect(res.status).toBe(401)
+    expect(addClientMock).not.toHaveBeenCalled()
+  })
+
+  it('gives a device token exactly its delegated scopes, never the role map', async () => {
+    vi.mocked(verifyJwtToken).mockReturnValue({
+      payload: {
+        userId: 'a'.repeat(64),
+        pubkey: 'a'.repeat(64),
+        role: 'ADMIN',
+        kind: 'device',
+        apiUrl: 'https://app.test.com',
+        scopes: ['cards:read']
+      },
+      header: {}
+    } as any)
+    vi.mocked(resolveRole).mockResolvedValue('ADMIN' as any)
+
+    const res = await GET(makeRequest('/api/events?token=va.li.d'))
+    expect(res.status).toBe(200)
+
+    expect(addClientMock.mock.calls[0][0].permissions).toEqual(['cards:read'])
+    await res.body!.cancel()
+  })
+})
+
 describe('GET /api/events stream lifetime', () => {
   it('recycles the stream before maxDuration with a `recycle` event', async () => {
     vi.useFakeTimers()
     vi.mocked(verifyJwtToken).mockReturnValue({
-      payload: { userId: 'u1', role: 'USER' },
+      payload: { userId: 'u1', pubkey: 'a'.repeat(64), role: 'USER' },
       header: {}
     } as any)
 
@@ -210,7 +287,7 @@ describe('GET /api/events stream lifetime', () => {
   it('drops the client when a heartbeat can no longer be sent', async () => {
     vi.useFakeTimers()
     vi.mocked(verifyJwtToken).mockReturnValue({
-      payload: { userId: 'u1', role: 'USER' },
+      payload: { userId: 'u1', pubkey: 'a'.repeat(64), role: 'USER' },
       header: {}
     } as any)
 

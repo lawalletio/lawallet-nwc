@@ -364,8 +364,9 @@ export const schemas = {
         '`RegistrationResponseJSON` produced by @simplewebauthn/browser ' +
         '`startRegistration()`, the PRF-derived Nostr `pubkey` this credential ' +
         'IS, and `proof` — a NIP-42 (kind 22242) event signed by the derived ' +
-        'key with the WebAuthn challenge in a `challenge` tag, proving the ' +
-        'client actually controls the pubkey it claims.'
+        'key with the WebAuthn challenge in a `challenge` tag and content ' +
+        '`lawallet:register-passkey` (no `relay` tag), proving the client ' +
+        'actually controls the pubkey it claims.'
     })
   ),
   PasskeyCredentialUpdateRequest: registry.register(
@@ -395,7 +396,9 @@ export const schemas = {
       description:
         'Proof of control of another Nostr key: the challenge from link/begin ' +
         'plus a kind-22242 event signed by the key being linked (nonce echoed ' +
-        'in a `challenge` tag). For a passkey-held key the client derives the ' +
+        'in a `challenge` tag, content `lawallet:link-identity`, no `relay` ' +
+        'tag — a plain relay AUTH event is refused). For a passkey-held key ' +
+        'the client derives the ' +
         'signing key via the WebAuthn PRF extension and produces this same ' +
         'proof client-side.'
     })

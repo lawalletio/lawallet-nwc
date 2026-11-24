@@ -327,25 +327,30 @@ describe('authenticateWithPermission', () => {
 })
 
 describe('device-token scopes (B.0)', () => {
-  function mockDeviceToken(role: string, scopes: unknown) {
+  function mockDeviceToken(role: string, scopes: unknown, dbRole = role) {
     vi.mocked(getConfig).mockReturnValue({
       jwt: { enabled: true, secret: 'a'.repeat(32) }
     } as any)
-    // The device-token branch now reads `endpoint` to fail closed when it's
+    // The device-token branch reads `endpoint` to fail closed when it's
     // unset (see the apiUrl guard). Pin a configured endpoint matching the
-    // mocked `resolveApiUrl` so the scopes-focused tests stay decoupled from
-    // the binding check.
+    // token's apiUrl so the scopes-focused tests stay decoupled from the
+    // binding check.
     vi.mocked(getSettings).mockResolvedValue({
       endpoint: 'https://app.example.com'
     })
+    // The owner's role today, which caps the token's minted role.
+    vi.mocked(prisma.nostrIdentity.findUnique).mockResolvedValue(null)
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      id: 'user-1',
+      pubkey: PUBKEY,
+      role: dbRole
+    } as any)
     vi.mocked(validateJwtFromRequest).mockResolvedValue({
       payload: {
         pubkey: PUBKEY,
         role,
         scopes,
-        // kind: 'device' + matching apiUrl mark this as a device token —
-        // without them the payload is a session JWT and the role gets
-        // re-resolved from the DB instead of read from the claim.
+        // kind: 'device' + matching apiUrl mark this as a device token.
         kind: 'device',
         apiUrl: 'https://app.example.com',
         iat: 1000,
@@ -355,22 +360,42 @@ describe('device-token scopes (B.0)', () => {
     } as any)
   }
 
-  it('keeps the minted role without a DB role lookup', async () => {
-    mockDeviceToken('OPERATOR', undefined)
+  const allowDevice = { allowDeviceToken: true }
 
-    const result = await authenticate(mockBearerRequest())
-    expect(result.role).toBe(Role.OPERATOR)
-    expect(prisma.nostrIdentity.findUnique).not.toHaveBeenCalled()
-    expect(prisma.user.findUnique).not.toHaveBeenCalled()
-    // Device tokens now read `endpoint` for the instance binding (the guard
-    // before the apiUrl comparison), but still skip the DB role lookup.
-    expect(getSettings).toHaveBeenCalled()
+  it('is refused by plain authenticate() — owner routes never accept it', async () => {
+    mockDeviceToken('ADMIN', ['cards:read'])
+
+    await expect(authenticate(mockBearerRequest())).rejects.toThrow(
+      AuthorizationError
+    )
+  })
+
+  it('is refused by authenticateWithRole even when the role would pass', async () => {
+    // A role gate says nothing about which permissions were delegated: an
+    // ADMIN's cards-only token must not reach admin-role routes (backups).
+    mockDeviceToken('ADMIN', ['cards:read'])
+
+    await expect(
+      authenticateWithRole(mockBearerRequest(), Role.ADMIN)
+    ).rejects.toThrow(AuthorizationError)
+  })
+
+  it('caps the minted role at the owner role in the DB', async () => {
+    mockDeviceToken('ADMIN', ['cards:read'], 'OPERATOR')
+    const demoted = await authenticate(mockBearerRequest(), allowDevice)
+    expect(demoted.role).toBe(Role.OPERATOR)
+    expect(demoted.deviceToken).toBe(true)
+
+    // …and never raises it: a later promotion doesn't widen the token.
+    mockDeviceToken('OPERATOR', ['cards:read'], 'ADMIN')
+    const promoted = await authenticate(mockBearerRequest(), allowDevice)
+    expect(promoted.role).toBe(Role.OPERATOR)
   })
 
   it('surfaces a valid scopes array on the AuthResult', async () => {
     mockDeviceToken('OPERATOR', ['cards:read', 'cards:write'])
 
-    const result = await authenticate(mockBearerRequest())
+    const result = await authenticate(mockBearerRequest(), allowDevice)
     expect(result.scopes).toEqual([
       Permission.CARDS_READ,
       Permission.CARDS_WRITE
@@ -401,23 +426,48 @@ describe('device-token scopes (B.0)', () => {
     ).resolves.toMatchObject({ pubkey: PUBKEY })
   })
 
-  it('ignores a malformed scopes claim and falls back to the role map', async () => {
-    // Not an array → ignored; ADMIN role still grants everything.
+  it('treats a malformed scopes claim as no permissions, never the role map', async () => {
+    // Not an array → nothing is delegated, even though the role is ADMIN.
     mockDeviceToken('ADMIN', 'cards:read')
 
-    const result = await authenticate(mockBearerRequest())
-    expect(result.scopes).toBeUndefined()
+    const result = await authenticate(mockBearerRequest(), allowDevice)
+    expect(result.scopes).toEqual([])
     await expect(
       authenticateWithPermission(mockBearerRequest(), Permission.SETTINGS_WRITE)
-    ).resolves.toMatchObject({ pubkey: PUBKEY })
+    ).rejects.toThrow(AuthorizationError)
   })
 
   it('drops unknown scope strings so a bad claim cannot widen access', async () => {
     mockDeviceToken('ADMIN', ['cards:read', 'not:a:permission'])
 
-    const result = await authenticate(mockBearerRequest())
+    const result = await authenticate(mockBearerRequest(), allowDevice)
     expect(result.scopes).toEqual([Permission.CARDS_READ])
   })
+})
+
+describe('single-purpose JWTs are not API credentials', () => {
+  it.each(['merge-ticket', 'link-challenge', 'something-else'])(
+    'rejects a token of kind %s',
+    async kind => {
+      vi.mocked(getConfig).mockReturnValue({
+        jwt: { enabled: true, secret: 'a'.repeat(32) }
+      } as any)
+      vi.mocked(validateJwtFromRequest).mockResolvedValue({
+        payload: {
+          userId: 'attacker-account',
+          pubkey: PUBKEY,
+          kind,
+          iat: 1000,
+          exp: 2000
+        },
+        header: { alg: 'HS256' }
+      } as any)
+
+      await expect(authenticate(mockBearerRequest())).rejects.toThrow(
+        AuthenticationError
+      )
+    }
+  )
 })
 
 describe('device-token apiUrl enforcement (B.0)', () => {
@@ -447,7 +497,9 @@ describe('device-token apiUrl enforcement (B.0)', () => {
   it('authenticates when apiUrl matches the serving instance', async () => {
     mockDeviceTokenWithApiUrl('https://app.example.com')
 
-    const result = await authenticate(mockBearerRequest())
+    const result = await authenticate(mockBearerRequest(), {
+      allowDeviceToken: true
+    })
     expect(result.pubkey).toBe(PUBKEY)
     expect(result.method).toBe('jwt')
   })
@@ -455,7 +507,9 @@ describe('device-token apiUrl enforcement (B.0)', () => {
   it('matches despite trailing slash and case differences', async () => {
     mockDeviceTokenWithApiUrl('https://app.example.com/')
 
-    await expect(authenticate(mockBearerRequest())).resolves.toMatchObject({
+    await expect(
+      authenticate(mockBearerRequest(), { allowDeviceToken: true })
+    ).resolves.toMatchObject({
       pubkey: PUBKEY
     })
   })

@@ -1462,7 +1462,7 @@
           "pubkey",
           "proof"
         ],
-        "description": "Attestation result of a WebAuthn registration ceremony under the PRF model: the `challenge` echoed from the options step, the browser `RegistrationResponseJSON` produced by @simplewebauthn/browser `startRegistration()`, the PRF-derived Nostr `pubkey` this credential IS, and `proof` — a NIP-42 (kind 22242) event signed by the derived key with the WebAuthn challenge in a `challenge` tag, proving the client actually controls the pubkey it claims."
+        "description": "Attestation result of a WebAuthn registration ceremony under the PRF model: the `challenge` echoed from the options step, the browser `RegistrationResponseJSON` produced by @simplewebauthn/browser `startRegistration()`, the PRF-derived Nostr `pubkey` this credential IS, and `proof` — a NIP-42 (kind 22242) event signed by the derived key with the WebAuthn challenge in a `challenge` tag and content `lawallet:register-passkey` (no `relay` tag), proving the client actually controls the pubkey it claims."
       },
       "PasskeyCredentialUpdateRequest": {
         "type": "object",
@@ -1560,7 +1560,7 @@
           "challenge",
           "event"
         ],
-        "description": "Proof of control of another Nostr key: the challenge from link/begin plus a kind-22242 event signed by the key being linked (nonce echoed in a `challenge` tag). For a passkey-held key the client derives the signing key via the WebAuthn PRF extension and produces this same proof client-side."
+        "description": "Proof of control of another Nostr key: the challenge from link/begin plus a kind-22242 event signed by the key being linked (nonce echoed in a `challenge` tag, content `lawallet:link-identity`, no `relay` tag — a plain relay AUTH event is refused). For a passkey-held key the client derives the signing key via the WebAuthn PRF extension and produces this same proof client-side."
       },
       "AccountMergePreviewRequest": {
         "type": "object",
@@ -3353,7 +3353,7 @@
           "Passkeys"
         ],
         "summary": "Complete creating a passkey (signup or add-to-account).",
-        "description": "Verifies the authenticator’s attestation against the single-use challenge minted by `registration/options`, plus the PRF proof: the client derived this credential’s Nostr key via the WebAuthn PRF extension and proves it with a NIP-42 (kind 22242) event signed by that key, carrying the WebAuthn challenge in a `challenge` tag. The server then only RECORDS the credential — it never generates or stores a key. Branches on the caller: UNAUTHENTICATED (signup) — an unowned derived pubkey creates the account; an already-owned pubkey (the same passkey re-registered) just attaches the new credential to its account. AUTHENTICATED (Bearer JWT or NIP-98; add a passkey) — the derived pubkey is linked to the caller’s account as a secondary identity. No token is minted here: the client follows up with a normal NIP-98 login using the derived key.",
+        "description": "Verifies the authenticator’s attestation against the single-use challenge minted by `registration/options`, plus the PRF proof: the client derived this credential’s Nostr key via the WebAuthn PRF extension and proves it with a NIP-42 (kind 22242) event signed by that key, carrying the WebAuthn challenge in a `challenge` tag and content `lawallet:register-passkey`. The server then only RECORDS the credential — it never generates or stores a key. Branches on the caller: UNAUTHENTICATED (signup) — an unowned derived pubkey creates the account; an already-owned pubkey (the same passkey re-registered) just attaches the new credential to its account. AUTHENTICATED (Bearer JWT or NIP-98; add a passkey) — the derived pubkey is linked to the caller’s account as a secondary identity. No token is minted here: the client follows up with a normal NIP-98 login using the derived key.",
         "operationId": "passkey.registration.verify",
         "security": [
           {},
@@ -4313,7 +4313,7 @@
           "Account"
         ],
         "summary": "Start proving control of another Nostr key.",
-        "description": "First leg of linking another Nostr key (or merging another account) into the caller’s account. `method` is always `nostr`: the response carries a challenge token plus a nonce; the other key signs a NIP-42-style kind-22242 event carrying the nonce in a `challenge` tag, and the pair goes to `link/verify`. Passkey-held accounts are proven the same way — the client derives the passkey’s key via the WebAuthn PRF extension and signs the event client-side, so there is no server-side passkey arm.",
+        "description": "First leg of linking another Nostr key (or merging another account) into the caller’s account. `method` is always `nostr`: the response carries a challenge token plus a nonce; the other key signs a NIP-42-style kind-22242 event carrying the nonce in a `challenge` tag and the content `lawallet:link-identity` (a plain relay AUTH event is refused), and the pair goes to `link/verify`. Passkey-held accounts are proven the same way — the client derives the passkey’s key via the WebAuthn PRF extension and signs the event client-side, so there is no server-side passkey arm.",
         "operationId": "account.link.begin",
         "security": [
           {

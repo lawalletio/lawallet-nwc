@@ -40,6 +40,7 @@ import { authenticate } from '@/lib/auth/unified-auth'
 import { mintDeviceToken } from '@/lib/auth/device-token'
 import { createJwtToken } from '@/lib/jwt'
 import { getSettings } from '@/lib/settings'
+import { prisma } from '@/lib/prisma'
 
 const PUBKEY = 'a'.repeat(64)
 
@@ -47,6 +48,10 @@ let consoleErrorSpy: ReturnType<typeof vi.spyOn>
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // JWT roles (device ones included) are re-resolved from the DB; default to
+  // "no account" so a role pinned by one test can't leak into the next.
+  vi.mocked(prisma.nostrIdentity.findUnique).mockResolvedValue(null)
+  vi.mocked(prisma.user.findUnique).mockResolvedValue(null)
   consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 })
 
@@ -139,8 +144,17 @@ describe('device-token apiUrl binding — Host-header spoofing (real resolveApiU
       endpoint: 'https://a.example.com'
     })
     const token = mintDeviceTokenFor('https://a.example.com')
+    // The owner is still an ADMIN in the DB, so the minted role stands.
+    vi.mocked(prisma.nostrIdentity.findUnique).mockResolvedValue(null)
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      id: 'user-1',
+      pubkey: PUBKEY,
+      role: 'ADMIN'
+    } as any)
 
-    const auth = await authenticate(bearerRequest(token, 'a.example.com'))
+    const auth = await authenticate(bearerRequest(token, 'a.example.com'), {
+      allowDeviceToken: true
+    })
     expect(auth.role).toBe(Role.ADMIN)
     expect(auth.scopes).toContain(Permission.SETTINGS_WRITE)
     expect(auth.method).toBe('jwt')
@@ -162,7 +176,9 @@ describe('device-token apiUrl binding — Host-header spoofing (real resolveApiU
       secret: TEST_SECRET
     })
 
-    const auth = await authenticate(bearerRequest(token, 'a.example.com'))
+    const auth = await authenticate(bearerRequest(token, 'a.example.com'), {
+      allowDeviceToken: true
+    })
     expect(auth.scopes).toEqual([Permission.CARDS_READ])
     expect(auth.scopes).not.toContain(Permission.SETTINGS_WRITE)
   })

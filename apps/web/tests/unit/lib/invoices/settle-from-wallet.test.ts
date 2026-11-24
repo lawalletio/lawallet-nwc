@@ -47,6 +47,10 @@ import { ActivityEvent, logActivity } from '@/lib/activity-log'
 import { eventBus } from '@/lib/events/event-bus'
 
 const PREIMAGE = 'a'.repeat(64)
+/** The hash `PREIMAGE` proves: every invoice now requires a matching pair. */
+const PREIMAGE_HASH = createHash('sha256')
+  .update(Buffer.from(PREIMAGE, 'hex'))
+  .digest('hex')
 /** A real preimage/hash pair — the proxy branch verifies the relationship. */
 const REAL_PREIMAGE = 'b'.repeat(64)
 const REAL_HASH = createHash('sha256')
@@ -64,7 +68,7 @@ function invoice(overrides: Record<string, unknown> = {}) {
   return {
     id: 'invoice-1',
     bolt11: 'lnbc100n1zap',
-    paymentHash: 'c'.repeat(64),
+    paymentHash: PREIMAGE_HASH,
     amountSats: 21,
     description: 'zap',
     purpose: 'LUD16',
@@ -151,7 +155,7 @@ describe('settleInvoiceFromWallet', () => {
     })
     // Guarded so a listener webhook that won the race keeps its own paidAt.
     expect(prismaMock.invoice.updateMany).toHaveBeenCalledWith({
-      where: { paymentHash: 'c'.repeat(64), status: 'PENDING' },
+      where: { paymentHash: PREIMAGE_HASH, status: 'PENDING' },
       data: {
         status: 'PAID',
         preimage: PREIMAGE,
@@ -161,6 +165,24 @@ describe('settleInvoiceFromWallet', () => {
     expect(eventBus.emit).toHaveBeenCalledWith(
       expect.objectContaining({ type: 'invoices:updated' })
     )
+  })
+
+  // The answering wallet can belong to the address owner, so a bare
+  // "settled: true" proves nothing — only a preimage of this hash does.
+  it('stays pending when a non-proxy wallet reports a preimage that does not match', async () => {
+    lookupInvoiceMock.mockResolvedValue({
+      settled: true,
+      preimage: 'f'.repeat(64),
+      settledAt: 1_700_000_000_000
+    })
+
+    const result = await settleInvoiceFromWallet(invoice(), {
+      source: 'lud21_verify'
+    })
+
+    expect(result).toEqual({ outcome: 'pending' })
+    expect(prismaMock.invoice.updateMany).not.toHaveBeenCalled()
+    expect(publishReceiptMock).not.toHaveBeenCalled()
   })
 
   it('stamps settlement now when the wallet omits settled_at', async () => {

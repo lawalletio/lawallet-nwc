@@ -1,7 +1,13 @@
 import { NextRequest } from 'next/server'
 import { verifyJwtToken } from '@/lib/jwt'
 import { getConfig } from '@/lib/config'
-import { getRolePermissions, isValidRole } from '@/lib/auth/permissions'
+import {
+  getRolePermissions,
+  isValidRole,
+  type Permission
+} from '@/lib/auth/permissions'
+import { resolveJwtAuth } from '@/lib/auth/unified-auth'
+import { ApiError } from '@/types/server/errors'
 import { validateNip98QueryToken } from '@/lib/nip98'
 import { resolveRole } from '@/lib/auth/resolve-role'
 import { resolveAccountByPubkey } from '@/lib/auth/account'
@@ -34,6 +40,7 @@ export async function GET(request: NextRequest) {
   // token cannot commit to a URL containing itself.
   let role: string
   let userId: string | undefined
+  let scopes: Permission[] | undefined
   if (token.split('.').length === 3) {
     const config = getConfig()
     if (!config.jwt.secret) {
@@ -43,24 +50,34 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    let payload
+    // Same rules as every REST route: only session/device JWTs, role
+    // re-resolved from the DB, device scopes honoured. The role claim baked
+    // into the token is never trusted on its own.
     try {
-      const result = verifyJwtToken(token, config.jwt.secret, {
+      const { payload } = verifyJwtToken(token, config.jwt.secret, {
         issuer: 'lawallet-nwc',
         audience: 'lawallet-users'
       })
-      payload = result.payload
-    } catch {
+      const auth = await resolveJwtAuth(payload)
+      role = auth.role
+      scopes = auth.scopes
+      userId = auth.deviceToken
+        ? (await resolveAccountByPubkey(auth.pubkey))?.id
+        : payload.userId
+    } catch (error) {
+      const unavailable = error instanceof ApiError && error.statusCode === 503
       return new Response(
-        JSON.stringify({ error: 'Invalid or expired token' }),
+        JSON.stringify({
+          error: unavailable
+            ? 'Role resolution unavailable'
+            : 'Invalid or expired token'
+        }),
         {
-          status: 401,
+          status: unavailable ? 503 : 401,
           headers: { 'Content-Type': 'application/json' }
         }
       )
     }
-    role = payload.role as string
-    userId = payload.userId
   } else {
     let pubkey: string
     try {
@@ -92,7 +109,8 @@ export async function GET(request: NextRequest) {
   }
 
   // Resolve permissions from role
-  const permissions = isValidRole(role) ? getRolePermissions(role) : []
+  const permissions =
+    scopes ?? (isValidRole(role) ? getRolePermissions(role) : [])
 
   // Create SSE stream
   const clientId = crypto.randomUUID()

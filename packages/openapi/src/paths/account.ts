@@ -100,7 +100,8 @@ registry.registerPath({
     'First leg of linking another Nostr key (or merging another account) into ' +
     'the caller’s account. `method` is always `nostr`: the response carries a ' +
     'challenge token plus a nonce; the other key signs a NIP-42-style ' +
-    'kind-22242 event carrying the nonce in a `challenge` tag, and the pair ' +
+    'kind-22242 event carrying the nonce in a `challenge` tag and the content ' +
+    '`lawallet:link-identity` (a plain relay AUTH event is refused), and the pair ' +
     'goes to `link/verify`. Passkey-held accounts are proven the same way — ' +
     'the client derives the passkey’s key via the WebAuthn PRF extension and ' +
     'signs the event client-side, so there is no server-side passkey arm.',

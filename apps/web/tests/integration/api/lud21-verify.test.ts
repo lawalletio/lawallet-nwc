@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createNextRequest, assertResponse } from '@/tests/helpers/api-helpers'
 import { prismaMock, resetPrismaMock } from '@/tests/helpers/prisma-mock'
@@ -79,7 +80,11 @@ import { rateLimit } from '@/lib/middleware/rate-limit'
 import { shouldLookupInvoice } from '@/lib/invoices/lookup-throttle'
 import { TooManyRequestsError } from '@/types/server/errors'
 
-const VALID_HASH = 'a'.repeat(64)
+// A wallet's "settled" only counts with a preimage of the hash, so the hash
+// under test is the real sha256 of the preimage the fake wallet reports.
+const VALID_HASH = createHash('sha256')
+  .update(Buffer.from('c'.repeat(64), 'hex'))
+  .digest('hex')
 const FUTURE = new Date(Date.now() + 60 * 60 * 1000)
 const PAST = new Date(Date.now() - 60 * 60 * 1000)
 

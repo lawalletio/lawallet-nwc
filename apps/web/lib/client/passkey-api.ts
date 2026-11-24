@@ -3,6 +3,7 @@ import {
   startRegistration
 } from '@simplewebauthn/browser'
 import { finalizeEvent } from 'nostr-tools/pure'
+import { buildProofEventTemplate } from '@/lib/account/proof-format'
 import type { PasskeyCredentialSummary } from '@/lib/validation/schemas'
 import { getPublicKeyFromPrivate, hexToNsec } from '@/lib/nostr'
 import {
@@ -269,12 +270,7 @@ async function runRegistrationCeremony(
 
   // Prove the derived key: kind-22242 answering the WebAuthn challenge.
   const proof = finalizeEvent(
-    {
-      kind: 22242,
-      created_at: Math.floor(Date.now() / 1000),
-      tags: [['challenge', options.challenge]],
-      content: ''
-    },
+    buildProofEventTemplate('passkey-registration', options.challenge),
     hexToBytes(identity.secretHex)
   )
 

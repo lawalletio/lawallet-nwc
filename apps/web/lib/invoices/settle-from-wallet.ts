@@ -30,8 +30,8 @@ import {
  * payer-driven LUD-21 verify poll, and the NIP-57 settlement sweep that covers
  * wallets which don't implement NIP-47 notifications. The preimage checks below
  * are the reason it lives in one place — a second copy that skipped
- * {@link preimageMatchesPaymentHash} would let a wallet mark a proxy payment
- * forwardable with a preimage that proves nothing.
+ * {@link preimageMatchesPaymentHash} would let a wallet mark an invoice paid
+ * (or a proxy payment forwardable) with a preimage that proves nothing.
  */
 
 export type SettlementSource = 'lud21_verify' | 'zap_settlement_sweep'
@@ -171,13 +171,15 @@ export async function settleInvoiceFromWallet(
     return { outcome: 'unavailable' }
   }
 
-  // A proxy invoice's preimage is about to make the payment forwardable, so it
-  // has to actually hash to this payment hash.
+  // The answering wallet may be controlled by the address owner, so its
+  // "settled" is only believed with proof: a preimage that hashes to this
+  // payment hash. For a proxy invoice that preimage also makes the payment
+  // forwardable; for any other it is what a LUD-21 verifier and the zap
+  // receipt rely on.
   const trustworthy =
     lookup.settled &&
     !!lookup.preimage &&
-    (!invoice.proxyPayment ||
-      preimageMatchesPaymentHash(lookup.preimage, invoice.paymentHash))
+    preimageMatchesPaymentHash(lookup.preimage, invoice.paymentHash)
   if (!trustworthy || !lookup.preimage) return { outcome: 'pending' }
 
   const preimage = lookup.preimage
