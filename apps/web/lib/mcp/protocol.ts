@@ -45,6 +45,24 @@ const MAX_BATCH = 20
 
 const SERVER_INFO = { name: 'lawallet-nwc', version: packageJson.version }
 
+/**
+ * `serverInfo` for initialize (2025-11-25 `icons` / `websiteUrl`): hosts such
+ * as Claude show the icon next to the connector. Absolute URLs on the caller's
+ * own origin, the bundled PWA icons.
+ */
+function describeServer(apiUrl: string) {
+  return {
+    ...SERVER_INFO,
+    title: 'LaWallet',
+    websiteUrl: apiUrl,
+    icons: [192, 512].map(size => ({
+      src: `${apiUrl}/icons/icon-${size}.png`,
+      mimeType: 'image/png',
+      sizes: [`${size}x${size}`]
+    }))
+  }
+}
+
 // Hosts truncate server instructions; the essentials fit in 500 characters.
 export const INSTRUCTIONS =
   'This server operates one LaWallet instance: its lightning addresses, ' +
@@ -267,7 +285,7 @@ async function execute(
           ? requested
           : LEGACY_PROTOCOL_VERSIONS[0],
         capabilities: { tools: { listChanged: false } },
-        serverInfo: { ...SERVER_INFO, title: 'LaWallet' },
+        serverInfo: describeServer(caller.apiUrl),
         instructions: INSTRUCTIONS
       })
     }
