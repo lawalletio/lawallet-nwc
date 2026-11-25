@@ -578,6 +578,19 @@
           "mode"
         ]
       },
+      "WalletSilentPaymentRequest": {
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "string",
+            "maxLength": 1023,
+            "pattern": "^t?sp1[a-z0-9]+$"
+          }
+        },
+        "required": [
+          "address"
+        ]
+      },
       "WalletAliasProbeRequest": {
         "type": "object",
         "properties": {
@@ -10724,6 +10737,12 @@
                           },
                           "isPrimary": {
                             "type": "boolean"
+                          },
+                          "silentPaymentAddress": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
                           }
                         },
                         "required": [
@@ -10841,6 +10860,12 @@
                     },
                     "isPrimary": {
                       "type": "boolean"
+                    },
+                    "silentPaymentAddress": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     }
                   },
                   "required": [
@@ -11873,6 +11898,12 @@
                     },
                     "isPrimary": {
                       "type": "boolean"
+                    },
+                    "silentPaymentAddress": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     }
                   },
                   "required": [
@@ -12007,6 +12038,12 @@
                     },
                     "isPrimary": {
                       "type": "boolean"
+                    },
+                    "silentPaymentAddress": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     }
                   },
                   "required": [
@@ -12157,6 +12194,249 @@
           },
           "404": {
             "description": "Resource not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/wallet/addresses/{username}/silent-payment": {
+      "put": {
+        "x-required-role": "USER",
+        "tags": [
+          "Wallet"
+        ],
+        "summary": "Set the address’s BIP-352 silent payment address and publish its BIP-353 DNS record.",
+        "operationId": "wallet.addresses.silentPayment.set",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 16,
+              "pattern": "^[a-z0-9]+$"
+            },
+            "required": true,
+            "name": "username",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WalletSilentPaymentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Published.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "username": {
+                      "type": "string"
+                    },
+                    "silentPaymentAddress": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "username",
+                    "silentPaymentAddress"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request conflicts with current resource state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "x-required-role": "USER",
+        "tags": [
+          "Wallet"
+        ],
+        "summary": "Remove the address’s silent payment address and its DNS record.",
+        "operationId": "wallet.addresses.silentPayment.remove",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 16,
+              "pattern": "^[a-z0-9]+$"
+            },
+            "required": true,
+            "name": "username",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Removed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "username": {
+                      "type": "string"
+                    },
+                    "silentPaymentAddress": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "username",
+                    "silentPaymentAddress"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request conflicts with current resource state.",
             "content": {
               "application/json": {
                 "schema": {
@@ -26162,7 +26442,9 @@
                             "enum": [
                               "bullbitcoin",
                               "wapu",
-                              "alias"
+                              "alias",
+                              "vercel_dns",
+                              "cloudflare_dns"
                             ]
                           },
                           "name": {
@@ -26175,7 +26457,8 @@
                             "type": "string",
                             "enum": [
                               "swap",
-                              "lookup"
+                              "lookup",
+                              "dns"
                             ]
                           },
                           "website": {
@@ -26323,7 +26606,9 @@
               "enum": [
                 "bullbitcoin",
                 "wapu",
-                "alias"
+                "alias",
+                "vercel_dns",
+                "cloudflare_dns"
               ]
             },
             "required": true,
@@ -26435,7 +26720,9 @@
               "enum": [
                 "bullbitcoin",
                 "wapu",
-                "alias"
+                "alias",
+                "vercel_dns",
+                "cloudflare_dns"
               ]
             },
             "required": true,

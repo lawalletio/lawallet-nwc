@@ -72,6 +72,7 @@ import {
   updateUserCurrencyPrefsSchema,
   updateWalletCardSchema,
   updateWalletAddressSchema,
+  setSilentPaymentSchema,
   userIdParam,
   walletAddressUsernameParam,
   createSwapSchema,
@@ -195,6 +196,10 @@ export const schemas = {
   WalletAddressUpdateRequest: registry.register(
     'WalletAddressUpdateRequest',
     updateWalletAddressSchema
+  ),
+  WalletSilentPaymentRequest: registry.register(
+    'WalletSilentPaymentRequest',
+    setSilentPaymentSchema
   ),
   WalletAliasProbeRequest: registry.register(
     'WalletAliasProbeRequest',

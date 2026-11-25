@@ -13,7 +13,13 @@ import { LISTENER_HMAC } from '../security'
 const ADMIN_TAG = 'Integrations'
 const WALLET_TAG = 'Cash-out'
 
-const integrationIdSchema = z.enum(['bullbitcoin', 'wapu', 'alias'])
+const integrationIdSchema = z.enum([
+  'bullbitcoin',
+  'wapu',
+  'alias',
+  'vercel_dns',
+  'cloudflare_dns'
+])
 const swapProviderSchema = z.enum(['bullbitcoin', 'wapu'])
 
 const integrationSchema = z
@@ -21,7 +27,7 @@ const integrationSchema = z
     id: integrationIdSchema,
     name: z.string(),
     description: z.string(),
-    kind: z.enum(['swap', 'lookup']),
+    kind: z.enum(['swap', 'lookup', 'dns']),
     website: z.string(),
     fields: z.array(
       z.object({

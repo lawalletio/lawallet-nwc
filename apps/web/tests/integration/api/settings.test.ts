@@ -731,3 +731,55 @@ describe('email settings', () => {
     expect(enabled.email_login_enabled).toBe('true')
   })
 })
+
+describe('POST /api/settings — BIP-353 silent payments', () => {
+  const post = (body: Record<string, string>) =>
+    POST(createNextRequest('/api/settings', { method: 'POST', body }))
+
+  beforeEach(() => {
+    vi.mocked(validateNip98Auth).mockResolvedValue(mockPubkey)
+    vi.mocked(prismaMock.settings.upsert).mockResolvedValue({} as any)
+  })
+
+  it('rejects a provider that is not a DNS integration', async () => {
+    vi.mocked(getSettings).mockResolvedValue({ root: mockPubkey })
+    const res = await post({ silent_payments_dns_provider: 'wapu' })
+    expect(res.status).toBe(400)
+  })
+
+  it('saves a provider choice without enabling the feature', async () => {
+    vi.mocked(getSettings).mockResolvedValue({ root: mockPubkey })
+    const res = await post({ silent_payments_dns_provider: 'cloudflare_dns' })
+    expect(res.status).toBe(200)
+  })
+
+  it('refuses to enable while the chosen integration is unavailable', async () => {
+    vi.mocked(getSettings).mockResolvedValue({ root: mockPubkey })
+    const res = await post({
+      silent_payments_enabled: 'true',
+      silent_payments_dns_provider: 'cloudflare_dns'
+    })
+    expect(res.status).toBe(400)
+    expect(prismaMock.settings.upsert).not.toHaveBeenCalled()
+  })
+
+  it('enables once the integration is enabled and configured', async () => {
+    vi.mocked(getSettings).mockResolvedValue({
+      root: mockPubkey,
+      cloudflare_dns_enabled: 'true',
+      cloudflare_dns_token: 'tok',
+      cloudflare_dns_zone_id: 'zone'
+    })
+    const res = await post({
+      silent_payments_enabled: 'true',
+      silent_payments_dns_provider: 'cloudflare_dns'
+    })
+    await assertResponse(res, 200)
+  })
+
+  it('allows turning the feature off without a provider', async () => {
+    vi.mocked(getSettings).mockResolvedValue({ root: mockPubkey })
+    const res = await post({ silent_payments_enabled: 'false' })
+    await assertResponse(res, 200)
+  })
+})

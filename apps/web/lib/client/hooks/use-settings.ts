@@ -58,6 +58,12 @@ export interface SettingsData {
   integration_bullbitcoin?: string
   integration_wapu?: string
   integration_alias?: string
+  integration_vercel_dns?: string
+  integration_cloudflare_dns?: string
+  /** BIP-353 silent payments: 'true' | 'false'. */
+  silent_payments_enabled?: string
+  /** BIP-353: the DNS integration id that publishes records. */
+  silent_payments_dns_provider?: string
   /** Feature toggles persisted as the strings 'true' / 'false'. */
   maintenance_enabled?: string
   /** Whether non-admin users can create Lightning Addresses. Defaults to true when absent. */

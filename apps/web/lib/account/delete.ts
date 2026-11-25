@@ -2,6 +2,8 @@ import { prisma } from '@/lib/prisma'
 import { AuthorizationError, NotFoundError } from '@/types/server/errors'
 import { ActivityEvent, logActivity } from '@/lib/activity-log'
 import { forgetResolvedAccounts } from '@/lib/auth/account'
+import { logger } from '@/lib/logger'
+import { unpublishSilentPayment } from '@/lib/silent-payments'
 
 export interface DeleteAccountResult {
   deletedAddresses: number
@@ -35,7 +37,7 @@ export interface DeleteAccountResult {
 export async function deleteAccount(
   userId: string
 ): Promise<DeleteAccountResult> {
-  const result = await prisma.$transaction(async tx => {
+  const { result, published } = await prisma.$transaction(async tx => {
     const user = await tx.user.findUnique({
       where: { id: userId },
       select: {
@@ -86,6 +88,10 @@ export async function deleteAccount(
       where: { OR: [{ userId }, { wallet: { userId } }] }
     })
     const wallets = await tx.remoteWallet.deleteMany({ where: { userId } })
+    const published = await tx.lightningAddress.findMany({
+      where: { userId, silentPaymentAddress: { not: null } },
+      select: { username: true }
+    })
     const addresses = await tx.lightningAddress.deleteMany({
       where: { userId }
     })
@@ -96,13 +102,22 @@ export async function deleteAccount(
     await tx.user.delete({ where: { id: userId } })
 
     return {
-      deletedAddresses: addresses.count,
-      deletedWallets: wallets.count,
-      unpairedCards: cards.count
+      result: {
+        deletedAddresses: addresses.count,
+        deletedWallets: wallets.count,
+        unpairedCards: cards.count
+      },
+      published
     }
   })
 
   forgetResolvedAccounts()
+  // Best effort, after commit: stale BIP-353 records never block a delete.
+  for (const { username } of published) {
+    unpublishSilentPayment(username).catch(err =>
+      logger.warn({ err, username }, 'BIP-353 record cleanup failed')
+    )
+  }
   // No `userId`: the row is gone and the FK would reject the insert.
   logActivity.fireAndForget({
     category: 'USER',

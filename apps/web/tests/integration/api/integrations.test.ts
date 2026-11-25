@@ -34,7 +34,25 @@ vi.mock('@/lib/activity-log', () => ({
   logActivity: { fireAndForget: vi.fn() }
 }))
 
+vi.mock('@/lib/middleware/rate-limit', () => ({
+  rateLimit: vi.fn(),
+  RateLimitPresets: { sensitive: {} }
+}))
+vi.mock('@/lib/silent-payments', () => ({
+  buildDnsProvider: vi.fn(async () => ({
+    test: async () => 'DNSSEC is active'
+  }))
+}))
+
+vi.mock('@/lib/integrations/bullbitcoin', () => ({
+  bullBitcoinProvider: vi.fn(() => ({ test: async () => 'Bull Bitcoin OK' }))
+}))
+
 import { GET } from '@/app/api/integrations/route'
+import { POST as TestPost } from '@/app/api/integrations/[id]/test/route'
+import { sealSecret } from '@/lib/integrations/server'
+import { invalidateHotSettingsCache } from '@/lib/settings'
+import { buildDnsProvider } from '@/lib/silent-payments'
 import { PUT } from '@/app/api/integrations/[id]/route'
 import { authenticateWithPermission } from '@/lib/auth/unified-auth'
 import { AuthorizationError } from '@/types/server/errors'
@@ -126,5 +144,52 @@ describe('PUT /api/integrations/[id]', () => {
       config: { alias_api_url: 'javascript:alert(1)' }
     })
     expect(res.status).toBe(400)
+  })
+})
+
+describe('POST /api/integrations/[id]/test', () => {
+  it('runs the DNS provider check for dns integrations', async () => {
+    invalidateHotSettingsCache()
+    vi.mocked(prismaMock.settings.findMany).mockResolvedValue(
+      rows({
+        cloudflare_dns_token: sealSecret('cloudflare_dns_token', 'tok'),
+        cloudflare_dns_zone_id: 'z1'
+      }) as any
+    )
+    const res = await TestPost(
+      createNextRequest(
+        'http://localhost:3000/api/integrations/cloudflare_dns/test',
+        {
+          method: 'POST'
+        }
+      ),
+      createParamsPromise({ id: 'cloudflare_dns' })
+    )
+    expect(await res.json()).toEqual({ ok: true, detail: 'DNSSEC is active' })
+    expect(buildDnsProvider).toHaveBeenCalledWith(
+      'cloudflare_dns',
+      expect.objectContaining({
+        cloudflare_dns_token: 'tok',
+        cloudflare_dns_zone_id: 'z1'
+      })
+    )
+  })
+
+  it('runs the provider check for non-DNS integrations', async () => {
+    invalidateHotSettingsCache()
+    vi.mocked(prismaMock.settings.findMany).mockResolvedValue(
+      rows({
+        bullbitcoin_api_key: sealSecret('bullbitcoin_api_key', 'key')
+      }) as any
+    )
+    const res = await TestPost(
+      createNextRequest(
+        'http://localhost:3000/api/integrations/bullbitcoin/test',
+        { method: 'POST' }
+      ),
+      createParamsPromise({ id: 'bullbitcoin' })
+    )
+    expect(await res.json()).toEqual({ ok: true, detail: 'Bull Bitcoin OK' })
+    expect(buildDnsProvider).not.toHaveBeenCalled()
   })
 })

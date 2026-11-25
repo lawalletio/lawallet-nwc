@@ -409,6 +409,18 @@ export const updateWalletAddressSchema = z.object({
   remoteWalletId: z.string().min(1).nullish()
 })
 
+/**
+ * BIP-352 silent payment address for BIP-353 publishing. Shape check only;
+ * the server verifies the bech32m checksum and payload length.
+ */
+export const setSilentPaymentSchema = z.object({
+  address: z
+    .string()
+    .trim()
+    .max(1023)
+    .regex(/^t?sp1[a-z0-9]+$/i, 'Must be a silent payment address (sp1…)')
+})
+
 /** URL parameters for commands against one deferred proxy settlement. */
 export const proxyForwardingCommandParams = walletAddressUsernameParam.extend({
   invoiceId: z.string().min(1).max(128)
@@ -1993,7 +2005,13 @@ export type OAuthGrantUpdate = z.infer<typeof oauthGrantUpdateSchema>
 
 // ── Integrations ────────────────────────────────────────────────────────────
 
-export const integrationIdSchema = z.enum(['bullbitcoin', 'wapu', 'alias'])
+export const integrationIdSchema = z.enum([
+  'bullbitcoin',
+  'wapu',
+  'alias',
+  'vercel_dns',
+  'cloudflare_dns'
+])
 export type IntegrationId = z.infer<typeof integrationIdSchema>
 
 export const integrationIdParam = z.object({ id: integrationIdSchema })

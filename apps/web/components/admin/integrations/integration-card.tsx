@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import { ArrowLeftRight, ExternalLink, Search } from 'lucide-react'
+import { ArrowLeftRight, ExternalLink, Globe, Search } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -24,6 +24,12 @@ interface Props {
   integration: IntegrationState
   onSaved: () => void
 }
+
+const KIND_DISPLAY = {
+  swap: { Icon: ArrowLeftRight, label: 'Cash-out' },
+  lookup: { Icon: Search, label: 'Lookup' },
+  dns: { Icon: Globe, label: 'DNS' }
+} as const
 
 export function IntegrationCard({ integration: it, onSaved }: Props) {
   // Secrets start blank (write-only); plain fields start from the server.
@@ -86,7 +92,7 @@ export function IntegrationCard({ integration: it, onSaved }: Props) {
     }
   }
 
-  const Icon = it.kind === 'swap' ? ArrowLeftRight : Search
+  const { Icon, label } = KIND_DISPLAY[it.kind]
 
   return (
     <div
@@ -102,9 +108,7 @@ export function IntegrationCard({ integration: it, onSaved }: Props) {
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-sm font-semibold">{it.name}</h3>
-            <Badge variant="outline">
-              {it.kind === 'swap' ? 'Cash-out' : 'Lookup'}
-            </Badge>
+            <Badge variant="outline">{label}</Badge>
             <Badge variant={it.configured ? 'default' : 'secondary'}>
               {it.configured ? 'Configured' : 'Not configured'}
             </Badge>

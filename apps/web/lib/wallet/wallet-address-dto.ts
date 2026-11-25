@@ -14,6 +14,8 @@ export interface WalletAddressDto {
   isPrimary: boolean
   /** Server-derived effective capability for this address. */
   nwcMode: EffectiveNwcMode
+  /** BIP-352 address published via BIP-353 DNS, or null. */
+  silentPaymentAddress: string | null
   createdAt: string
   updatedAt: string
 }
@@ -73,6 +75,7 @@ export function toWalletAddressDto(
     remoteWalletName: address.remoteWallet?.name ?? null,
     isPrimary: address.isPrimary,
     nwcMode: deriveEffectiveNwcMode(address),
+    silentPaymentAddress: address.silentPaymentAddress ?? null,
     createdAt: address.createdAt.toISOString(),
     updatedAt: address.updatedAt.toISOString()
   }
