@@ -144,6 +144,22 @@ const envSchema = z.object({
     'Default timeout for proxied /nwc/request calls'
   ),
 
+  RELAY_COOLDOWN_BASE_MS: intEnv(5000).describe(
+    'First pause on a relay host after a 429 / failed connect; doubles per failed probe. Shared by every wallet on that host'
+  ),
+
+  RELAY_COOLDOWN_MAX_MS: intEnv(300000).describe(
+    'Ceiling for the per-relay-host cooldown'
+  ),
+
+  RELAY_MAX_SUBS_PER_SOCKET: intEnv(100).describe(
+    'Subscriptions per shared relay WebSocket before another socket is opened to the same relay (relay-nwc.rizful.com allows 100)'
+  ),
+
+  CONNECT_STAGGER_MS: intEnv(200, { min: 0 }).describe(
+    'Minimum gap between wallet connect starts, so boot does not open every socket at once'
+  ),
+
   WEBHOOK_MAX_ATTEMPTS: intEnv(5).describe(
     'Inline webhook delivery attempts before deferring to the sweep'
   ),
