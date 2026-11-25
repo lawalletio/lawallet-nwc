@@ -309,3 +309,93 @@ describe('listenerNwcRequest circuit', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 })
+
+describe('listenerNwcRequest circuit edges', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('opens on a JSON body that is not a proxy response', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(Response.json({ hello: 1 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(listenerNwcRequest(BRIDGE, INPUT)).rejects.toThrow(
+      'malformed response'
+    )
+    await expect(listenerNwcRequest(BRIDGE, INPUT)).rejects.toThrow(
+      'Listener bridge circuit open'
+    )
+  })
+
+  it('a passing probe leaves a circuit that was replaced meanwhile alone', async () => {
+    vi.useFakeTimers()
+    let releaseProbe!: (r: Response) => void
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('aborted'))
+      .mockReturnValueOnce(new Promise<Response>(r => (releaseProbe = r)))
+      .mockResolvedValue(Response.json({ ok: true, result: {} }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(listenerNwcRequest(BRIDGE, INPUT)).rejects.toThrow()
+    vi.advanceTimersByTime(30_001)
+    const pending = listenerNwcRequest(BRIDGE, INPUT)
+    resetListenerPaymentCircuit()
+    releaseProbe(Response.json({ status: 'ok' }))
+    await expect(pending).resolves.toEqual({})
+  })
+
+  it('re-opens when the health probe itself cannot connect', async () => {
+    vi.useFakeTimers()
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('aborted'))
+      .mockRejectedValueOnce(new Error('ECONNREFUSED'))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(listenerNwcRequest(BRIDGE, INPUT)).rejects.toThrow()
+    vi.advanceTimersByTime(30_001)
+    await expect(listenerNwcRequest(BRIDGE, INPUT)).rejects.toThrow(
+      'Listener bridge failed its health probe'
+    )
+  })
+
+  it('ignores a circuit opened for a different listener URL', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('aborted'))
+      .mockResolvedValueOnce(Response.json({ ok: true, result: {} }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(listenerNwcRequest(BRIDGE, INPUT)).rejects.toThrow()
+    await expect(
+      listenerNwcRequest({ ...BRIDGE, url: 'http://other.test:4100' }, INPUT)
+    ).resolves.toEqual({})
+  })
+
+  it('lets concurrent half-open callers share one probe, and a newer failure win', async () => {
+    vi.useFakeTimers()
+    let releaseProbe!: (r: Response) => void
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('aborted'))
+      .mockReturnValueOnce(new Promise<Response>(r => (releaseProbe = r)))
+      .mockRejectedValue(new Error('aborted'))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(listenerNwcRequest(BRIDGE, INPUT)).rejects.toThrow()
+    vi.advanceTimersByTime(30_001)
+    const a = listenerNwcRequest(BRIDGE, INPUT)
+    const b = listenerNwcRequest(BRIDGE, INPUT)
+    // A reset (the settings test button) lands while the probe is in flight.
+    resetListenerPaymentCircuit()
+    releaseProbe(new Response('down', { status: 503 }))
+    await expect(a).rejects.toThrow('Listener bridge failed its health probe')
+    await expect(b).rejects.toThrow('Listener bridge failed its health probe')
+    // The stale probe must not re-open a circuit that was reset meanwhile.
+    await expect(listenerNwcRequest(BRIDGE, INPUT)).rejects.toThrow(
+      'Listener bridge request failed'
+    )
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+  })
+})
