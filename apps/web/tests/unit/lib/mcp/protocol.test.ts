@@ -53,7 +53,11 @@ import { logger } from '@/lib/logger'
 import { TooManyRequestsError } from '@/types/server/errors'
 import type { McpCaller } from '@/lib/mcp/types'
 
-const theCaller = { user: null, scopes: new Set() } as unknown as McpCaller
+const theCaller = {
+  user: null,
+  scopes: new Set(),
+  apiUrl: 'https://wallet.example'
+} as unknown as McpCaller
 
 const endpoint: McpEndpoint = {
   resolveCaller: vi.fn(async () => theCaller),
@@ -123,7 +127,23 @@ describe('legacy era', () => {
       result: {
         resultType: 'complete',
         capabilities: { tools: { listChanged: false } },
-        serverInfo: { name: 'lawallet-nwc', title: 'LaWallet' },
+        serverInfo: {
+          name: 'lawallet-nwc',
+          title: 'LaWallet',
+          websiteUrl: 'https://wallet.example',
+          icons: [
+            {
+              src: 'https://wallet.example/icons/icon-192.png',
+              mimeType: 'image/png',
+              sizes: ['192x192']
+            },
+            {
+              src: 'https://wallet.example/icons/icon-512.png',
+              mimeType: 'image/png',
+              sizes: ['512x512']
+            }
+          ]
+        },
         instructions: INSTRUCTIONS
       }
     })
