@@ -41,6 +41,8 @@ type WalletState =
 
 interface WalletConnection {
   wallet: DesiredWallet
+  /** Relay hosts from the connection string — the cooldown key. */
+  hosts: string[]
   client: NWCClient | null
   unsub: (() => void) | null
   state: WalletState
@@ -109,6 +111,11 @@ const METHOD_MAP: Record<
 
 export interface NwcPoolDeps {
   log: Logger
+  /** Per-relay-host cooldown (env RELAY_COOLDOWN_BASE_MS / _MAX_MS). */
+  relayCooldownBaseMs?: number
+  relayCooldownMaxMs?: number
+  /** Min gap between connect starts (env CONNECT_STAGGER_MS). */
+  connectStaggerMs?: number
   onNotification: (
     wallet: DesiredWallet,
     notification: Nip47Notification
@@ -163,6 +170,20 @@ const WARMUP_TIMEOUT_MS = 15000
  * consecutive attempts) are worth alerting on.
  */
 const WARMUP_RETRY_SENTRY_THRESHOLD = 3
+/** A cooldown probe that never reports back (wallet removed mid-connect) frees the slot after this. */
+const PROBE_STALE_MS = 60000
+
+/**
+ * Shared backoff for one relay host. Every wallet on the host waits it out;
+ * once it expires exactly one connect (the probe) may try. Probe success
+ * clears it, probe failure doubles it.
+ */
+interface HostCooldown {
+  until: number
+  attempt: number
+  prober: string | null
+  probeAt: number
+}
 
 /**
  * Holds one live NWCClient per ACTIVE NWC RemoteWallet for the process
@@ -183,9 +204,24 @@ export class NwcPool {
   >()
   private connectQueue: WalletConnection[] = []
   private activeConnects = 0
+  /**
+   * relay.getalby.com 429s a single IP opening ~94 sockets (2026-11-25). The
+   * per-wallet backoff can't help there — N wallets on one host keep dialing
+   * it — so failures to connect are tracked per HOST and every wallet on it
+   * pauses together.
+   */
+  private readonly hostCooldowns = new Map<string, HostCooldown>()
+  private readonly cooldownBaseMs: number
+  private readonly cooldownMaxMs: number
+  private readonly connectStaggerMs: number
+  private nextConnectAt = 0
+  private drainTimer: NodeJS.Timeout | null = null
 
   constructor(deps: NwcPoolDeps) {
     this.deps = deps
+    this.cooldownBaseMs = deps.relayCooldownBaseMs ?? 5000
+    this.cooldownMaxMs = deps.relayCooldownMaxMs ?? 300000
+    this.connectStaggerMs = deps.connectStaggerMs ?? 0
     // State accuracy matters to the payment fast path even when missed-event
     // catch-up is disabled, so the relay watcher always runs. onReconnected
     // remains optional.
@@ -205,9 +241,15 @@ export class NwcPool {
         continue
       }
       const connected = isConnectedSafe(conn.client)
+      if (!connected && this.isHostCooling(conn)) {
+        this.suspendForCooldown(conn)
+        continue
+      }
       if (!connected) {
         conn.state = 'disconnected'
       } else if (!conn.wasConnected || conn.state === 'disconnected') {
+        // The SDK completed a fresh handshake on its own: the host is back.
+        this.clearHostCooldowns(connectedHosts(conn.client))
         conn.state = 'ready'
         this.resolveReadyWaiters(conn.wallet.id, true)
         this.deps.onReconnected?.(conn.wallet, conn.client)
@@ -305,6 +347,8 @@ export class NwcPool {
       }
       // Relays down → unreachable is a transport fault, NOT wallet death.
       if (!isConnectedSafe(conn.client)) continue
+      // A probe's reply subscription would reconnect into the cooling host.
+      if (this.isHostCooling(conn)) continue
       if (!conn.lastResponsiveAt) continue
       const unresponsiveMs = now - conn.lastResponsiveAt.getTime()
       if (unresponsiveMs >= thresholdMs) {
@@ -418,6 +462,7 @@ export class NwcPool {
   private addWallet(wallet: DesiredWallet, priority = false): void {
     const conn: WalletConnection = {
       wallet: { ...wallet },
+      hosts: relayHosts(wallet.connectionString),
       client: null,
       unsub: null,
       state: 'connecting',
@@ -453,14 +498,158 @@ export class NwcPool {
       this.activeConnects < MAX_CONCURRENT_NEGOTIATIONS &&
       this.connectQueue.length > 0
     ) {
+      const staggerWait = this.nextConnectAt - Date.now()
+      if (staggerWait > 0) {
+        this.scheduleDrain(staggerWait)
+        return
+      }
       const conn = this.connectQueue.shift()!
       if (this.connections.get(conn.wallet.id) !== conn) continue
+      const hostWait = this.hostWaitMs(conn)
+      if (hostWait > 0) {
+        this.deferConnect(conn, hostWait)
+        continue
+      }
+      this.nextConnectAt = Date.now() + this.connectStaggerMs
       this.activeConnects++
       void this.connect(conn).finally(() => {
         this.activeConnects--
         this.drainConnectQueue()
       })
     }
+  }
+
+  private scheduleDrain(ms: number): void {
+    if (this.drainTimer) return
+    this.drainTimer = setTimeout(() => {
+      this.drainTimer = null
+      this.drainConnectQueue()
+    }, ms)
+    this.drainTimer.unref()
+  }
+
+  /** Re-queue after the host cooldown, spread by up to 25% so the herd thins. */
+  private deferConnect(conn: WalletConnection, ms: number): void {
+    if (conn.retryTimer) clearTimeout(conn.retryTimer)
+    conn.retryTimer = setTimeout(
+      () => {
+        conn.retryTimer = null
+        this.enqueueConnect(conn, false)
+      },
+      Math.round(ms * (1 + Math.random() * 0.25))
+    )
+    conn.retryTimer.unref()
+  }
+
+  /** True while EVERY relay host of the wallet is inside an active cooldown. */
+  isRelayCoolingDown(walletId: string): boolean {
+    const conn = this.connections.get(walletId)
+    return !!conn && this.isHostCooling(conn)
+  }
+
+  private isHostCooling(conn: WalletConnection): boolean {
+    const now = Date.now()
+    return (
+      conn.hosts.length > 0 &&
+      conn.hosts.every(host => (this.hostCooldowns.get(host)?.until ?? 0) > now)
+    )
+  }
+
+  /**
+   * 0 = this connect may dial now (some host is open, or this connect is the
+   * probe for an expired cooldown). Otherwise how long to wait.
+   */
+  private hostWaitMs(conn: WalletConnection): number {
+    if (conn.hosts.length === 0) return 0
+    const now = Date.now()
+    let wait = Infinity
+    for (const host of conn.hosts) {
+      const cd = this.hostCooldowns.get(host)
+      if (!cd) return 0
+      if (cd.until > now) {
+        wait = Math.min(wait, cd.until - now)
+      } else if (!cd.prober || now - cd.probeAt > PROBE_STALE_MS) {
+        cd.prober = conn.wallet.id
+        cd.probeAt = now
+        return 0
+      } else {
+        // Another wallet is probing — check back once it has had time to land.
+        wait = Math.min(wait, this.cooldownBaseMs)
+      }
+    }
+    return wait
+  }
+
+  /**
+   * A 429 / failed handshake: open (or extend) the cooldown on each of the
+   * wallet's hosts. Failures that land while a cooldown is already active
+   * are the same outage seen by concurrent connects — they don't escalate.
+   */
+  private noteHostFailure(conn: WalletConnection, error: Error): void {
+    const now = Date.now()
+    let opened = false
+    for (const host of conn.hosts) {
+      const cd = this.hostCooldowns.get(host)
+      if (cd && cd.until > now) continue
+      const attempt = cd ? cd.attempt + 1 : 0
+      const base = Math.min(
+        this.cooldownBaseMs * 2 ** attempt,
+        this.cooldownMaxMs
+      )
+      const cooldownMs = Math.round(base * (1 + Math.random() * 0.25))
+      this.hostCooldowns.set(host, {
+        until: now + cooldownMs,
+        attempt,
+        prober: null,
+        probeAt: 0
+      })
+      opened = true
+      this.deps.log.warn(
+        { host, cooldownMs, attempt, error: error.message },
+        'pool.relay_host_cooldown'
+      )
+    }
+    if (!opened) return
+    for (const other of this.connections.values()) {
+      if (
+        (other.state === 'ready' || other.state === 'disconnected') &&
+        other.client &&
+        !isConnectedSafe(other.client) &&
+        this.isHostCooling(other)
+      ) {
+        this.suspendForCooldown(other)
+      }
+    }
+  }
+
+  private clearHostCooldowns(hosts: string[]): void {
+    for (const host of hosts) {
+      if (this.hostCooldowns.delete(host)) {
+        this.deps.log.info({ host }, 'pool.relay_host_recovered')
+      }
+    }
+  }
+
+  /** A probe that ended without a verdict lets the next wallet probe. */
+  private releaseProbe(conn: WalletConnection): void {
+    for (const host of conn.hosts) {
+      const cd = this.hostCooldowns.get(host)
+      if (cd?.prober === conn.wallet.id) cd.prober = null
+    }
+  }
+
+  /**
+   * A disconnected client's SDK subscription runs its own reconnect loop
+   * (1s → 5min, per wallet), which is exactly the storm the cooldown exists
+   * to stop. Drop the client and let the gated connect queue bring it back.
+   */
+  private suspendForCooldown(conn: WalletConnection): void {
+    this.teardownClient(conn)
+    conn.state = 'error'
+    conn.wasConnected = false
+    conn.lastErrorAt = new Date()
+    conn.lastError = 'relay host cooling down'
+    this.enqueueConnect(conn, false)
   }
 
   private removeWallet(walletId: string): void {
@@ -501,9 +690,10 @@ export class NwcPool {
     const generation = conn.generation
     const { log } = this.deps
     conn.state = 'connecting'
+    let client: NWCClient | null = null
 
     try {
-      const client = new NWCClient({
+      client = new NWCClient({
         nostrWalletConnectUrl: conn.wallet.connectionString
       })
       const unsub = await client.subscribeNotifications(notification => {
@@ -562,6 +752,7 @@ export class NwcPool {
         return
       }
 
+      this.clearHostCooldowns(connectedHosts(client))
       conn.state = 'ready'
       conn.retryAttempt = 0
       conn.errorNotified = false
@@ -586,7 +777,15 @@ export class NwcPool {
       conn.state = 'error'
       conn.lastErrorAt = new Date()
       conn.lastError = error.message
+      // Read before teardown: a relay that took the handshake isn't throttling.
+      const reachedHosts = client ? connectedHosts(client) : []
       this.teardownClient(conn)
+      if (isRelayThrottleError(error)) {
+        this.noteHostFailure(conn, error)
+      } else {
+        this.clearHostCooldowns(reachedHosts)
+        this.releaseProbe(conn)
+      }
 
       const isRetryable = isRetryableWarmupError(error)
       if (conn.retryAttempt === 0) {
@@ -708,24 +907,11 @@ export class NwcPool {
       ])
       // A wallet that answered a proxied call is demonstrably alive.
       this.noteResponsive(conn)
+      this.clearHostCooldowns(connectedHosts(client))
       return result
     } catch (err) {
       if (err instanceof NwcPoolError) throw err
-      conn.lastErrorAt = new Date()
-      conn.lastError = err instanceof Error ? err.message : String(err)
-      if (err instanceof Nip47WalletError) {
-        throw new NwcPoolError('wallet_error', err.message, err.code)
-      }
-      if (err instanceof Nip47TimeoutError) {
-        throw new NwcPoolError('timeout', err.message)
-      }
-      if (err instanceof Nip47Error) {
-        throw new NwcPoolError('relay_error', err.message)
-      }
-      throw new NwcPoolError(
-        'relay_error',
-        err instanceof Error ? err.message : 'Unknown NWC transport error'
-      )
+      throw this.mapSdkError(conn, err)
     } finally {
       if (timer) clearTimeout(timer)
     }
@@ -818,7 +1004,7 @@ export class NwcPool {
     walletId: string,
     invoice: string
   ): Promise<unknown> {
-    const conn = this.requireReady(walletId)
+    const conn = this.requireReady(walletId, 'wallet_not_connected')
     const client = conn.client as NWCClient
     conn.foregroundPayments++
     try {
@@ -837,7 +1023,7 @@ export class NwcPool {
     walletId: string,
     paymentHash: string
   ): Promise<unknown> {
-    const conn = this.requireReady(walletId)
+    const conn = this.requireReady(walletId, 'wallet_not_connected')
     try {
       const result = await conn.client!.lookupInvoice({
         payment_hash: paymentHash
@@ -912,6 +1098,10 @@ export class NwcPool {
       clearInterval(this.watcherTimer)
       this.watcherTimer = null
     }
+    if (this.drainTimer) {
+      clearTimeout(this.drainTimer)
+      this.drainTimer = null
+    }
     for (const conn of this.connections.values()) {
       conn.generation++
       conn.state = 'closed'
@@ -930,13 +1120,27 @@ export class NwcPool {
     this.deps.onLiveness?.(conn.wallet.id, conn.lastResponsiveAt, false)
   }
 
-  private requireReady(walletId: string): WalletConnection {
+  /**
+   * `coolingCode`: payments pass `wallet_not_connected` because payments.ts
+   * reads only that (and `wallet_not_found`) as "never dispatched, safe to
+   * fall back"; a `relay_error` there would mark the payment ambiguous.
+   */
+  private requireReady(
+    walletId: string,
+    coolingCode: NwcProxyErrorCode = 'relay_error'
+  ): WalletConnection {
     const conn = this.connections.get(walletId)
     if (!conn) {
       throw new NwcPoolError(
         'wallet_not_found',
         'No pooled connection for this wallet'
       )
+    }
+    // ponytail: the SDK's reply subscription can't be cancelled from outside
+    // (it reconnects until its own replyTimeout, publish failure or not), so
+    // the only way to keep requests out of a relay storm is not to start them.
+    if (this.isHostCooling(conn)) {
+      throw new NwcPoolError(coolingCode, 'Relay host is cooling down')
     }
     if (
       conn.state !== 'ready' ||
@@ -958,6 +1162,9 @@ export class NwcPool {
   private mapSdkError(conn: WalletConnection, err: unknown): NwcPoolError {
     conn.lastErrorAt = new Date()
     conn.lastError = err instanceof Error ? err.message : String(err)
+    if (err instanceof Error && isRelayThrottleError(err)) {
+      this.noteHostFailure(conn, err)
+    }
     if (err instanceof Nip47WalletError) {
       return new NwcPoolError('wallet_error', err.message, err.code)
     }
@@ -978,6 +1185,40 @@ export class NwcPool {
     if (!waiters) return
     for (const resolve of [...waiters]) resolve(ready)
   }
+}
+
+/** Relay hosts a wallet dials, read from its connection string. */
+export function relayHosts(connectionString: string): string[] {
+  try {
+    const relays = new URL(connectionString).searchParams.getAll('relay')
+    return [...new Set(relays.map(r => new URL(r).host.toLowerCase()))]
+  } catch {
+    return []
+  }
+}
+
+/** Hosts whose socket the client currently holds open. */
+function connectedHosts(client: NWCClient): string[] {
+  try {
+    const hosts: string[] = []
+    for (const [url, up] of client.pool.listConnectionStatus()) {
+      if (up) hosts.push(new URL(url).host.toLowerCase())
+    }
+    return hosts
+  } catch {
+    return []
+  }
+}
+
+/**
+ * The relay refused or never completed the handshake. The SDK hides the 429
+ * itself behind `Failed to connect to <relays>` (`_checkConnected`) or
+ * `connection failure: …` (publish); relays that do answer say `rate-limited`.
+ */
+export function isRelayThrottleError(err: Error): boolean {
+  return /\b429\b|failed to connect|connection failure|rate.?limit/i.test(
+    err.message
+  )
 }
 
 /**

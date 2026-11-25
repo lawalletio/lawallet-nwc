@@ -326,6 +326,8 @@ async function main(): Promise<void> {
   // (it catches internally), the .catch is belt-and-suspenders.
   const runCatchup = (wallet: DesiredWallet, client: NWCClient): void => {
     if (nwcPool.hasForegroundPayment(wallet.id)) return
+    // list_transactions on a disconnected client re-handshakes the relay.
+    if (nwcPool.isRelayCoolingDown(wallet.id)) return
     void catchup
       .runForWallet(wallet, client)
       .then(() => {
@@ -396,6 +398,9 @@ async function main(): Promise<void> {
 
   const nwcPool = new NwcPool({
     log: createLogger({ module: 'pool' }),
+    relayCooldownBaseMs: env.RELAY_COOLDOWN_BASE_MS,
+    relayCooldownMaxMs: env.RELAY_COOLDOWN_MAX_MS,
+    connectStaggerMs: env.CONNECT_STAGGER_MS,
     onNotification,
     onWalletError: (wallet, error) => {
       captureException(error, { tags: { walletId: wallet.id } })
