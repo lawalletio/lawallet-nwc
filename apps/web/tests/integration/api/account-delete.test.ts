@@ -41,6 +41,10 @@ vi.mock('@/lib/activity-log', () => ({
 
 vi.mock('@/lib/events/event-bus', () => ({ eventBus: { emit: vi.fn() } }))
 
+vi.mock('@/lib/silent-payments', () => ({
+  unpublishSilentPayment: vi.fn(async () => {})
+}))
+
 import { DELETE } from '@/app/api/account/route'
 import { authenticate } from '@/lib/auth/unified-auth'
 import { resolveAccountByPubkey } from '@/lib/auth/account'
@@ -48,6 +52,7 @@ import { logActivity } from '@/lib/activity-log'
 import { eventBus } from '@/lib/events/event-bus'
 import { AuthenticationError } from '@/types/server/errors'
 import { Role } from '@/lib/auth/permissions'
+import { unpublishSilentPayment } from '@/lib/silent-payments'
 
 const PK_A = 'a'.repeat(64)
 const USER_ID = 'user-a'
@@ -85,6 +90,7 @@ function authedAs(role: 'USER' | 'ADMIN' = 'USER') {
     vi.mocked(model.updateMany).mockResolvedValue({ count: 1 } as any)
     vi.mocked(model.deleteMany).mockResolvedValue({ count: 1 } as any)
   }
+  vi.mocked(prismaMock.lightningAddress.findMany).mockResolvedValue([])
 }
 
 const del = (body?: unknown) =>
@@ -96,6 +102,18 @@ beforeEach(() => {
 })
 
 describe('DELETE /api/account', () => {
+  it('removes published BIP-353 records after the delete commits', async () => {
+    authedAs()
+    vi.mocked(prismaMock.lightningAddress.findMany).mockResolvedValue([
+      { username: 'alice' }
+    ] as any)
+
+    const response = await del({ confirm: 'DELETE' })
+
+    expect(response.status).toBe(200)
+    expect(unpublishSilentPayment).toHaveBeenCalledWith('alice')
+  })
+
   it('deletes the account, scoped to the caller, and returns { deleted: true }', async () => {
     authedAs()
 

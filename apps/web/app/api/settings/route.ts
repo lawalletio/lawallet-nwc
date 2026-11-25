@@ -23,8 +23,18 @@ import { ActivityEvent, logActivity } from '@/lib/activity-log'
 import { EMAIL_SECRET_KEYS, isEmailProviderType } from '@/lib/email/providers'
 import { isEmailConfigured } from '@/lib/email/send'
 import { isVaultConfigured } from '@/lib/auth/key-vault'
-import { INTEGRATION_SECRET_KEYS } from '@/lib/integrations/catalog'
-import { publicIntegrationFlags } from '@/lib/integrations/server'
+import type { IntegrationId } from '@lawallet-nwc/shared'
+import {
+  DNS_INTEGRATION_IDS,
+  INTEGRATION_SECRET_KEYS,
+  SP_ENABLED_KEY,
+  SP_PROVIDER_KEY
+} from '@/lib/integrations/catalog'
+import {
+  getAllIntegrationSettings,
+  isAvailable,
+  publicIntegrationFlags
+} from '@/lib/integrations/server'
 
 /**
  * Settings keys that must NEVER be serialized to clients, regardless of role.
@@ -305,6 +315,34 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       throw new ValidationError(
         'Email login requires KEY_VAULT_SECRET or JWT_SECRET (it custodies new users’ keys)'
       )
+    }
+  }
+
+  // BIP-353 silent payments: the provider must be a DNS integration, and the
+  // feature can only be on while that integration is enabled + configured.
+  const spProvider = body[SP_PROVIDER_KEY]
+  if (
+    spProvider !== undefined &&
+    spProvider !== '' &&
+    !DNS_INTEGRATION_IDS.includes(spProvider as IntegrationId)
+  ) {
+    throw new ValidationError('Unknown DNS provider')
+  }
+  if (body[SP_ENABLED_KEY] === 'true' || spProvider !== undefined) {
+    const merged = {
+      ...(await getSettings([SP_ENABLED_KEY, SP_PROVIDER_KEY])),
+      ...body
+    }
+    if (merged[SP_ENABLED_KEY] === 'true') {
+      const id = merged[SP_PROVIDER_KEY] as IntegrationId
+      if (
+        !DNS_INTEGRATION_IDS.includes(id) ||
+        !isAvailable(id, await getAllIntegrationSettings())
+      ) {
+        throw new ValidationError(
+          'Silent payments need an enabled and configured DNS integration'
+        )
+      }
     }
   }
 

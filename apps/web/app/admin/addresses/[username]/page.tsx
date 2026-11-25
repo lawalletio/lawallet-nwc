@@ -62,6 +62,7 @@ import { WalletBalanceInline } from '@/components/wallet/wallet-balance-inline'
 import { ProxyPendingBalanceCard } from '@/components/wallet/proxy-pending-balance-card'
 import { AddressInvoicesCard } from '@/components/wallet/address-invoices-card'
 import { AddressReceiveProtocols } from '@/components/wallet/address-receive-protocols'
+import { SilentPaymentCard } from '@/components/wallet/silent-payment-card'
 import { ProxyAddressWorkspace } from '@/components/wallet/proxy-address-workspace'
 import { ProxyForwardingActivity } from '@/components/wallet/proxy-forwarding-activity'
 import { CreateRemoteWalletDialog } from '@/components/admin/create-remote-wallet-dialog'
@@ -1004,6 +1005,15 @@ export default function AdminAddressEditPage({ params }: PageProps) {
                   )}
                 </div>
               </ProxyAddressWorkspace>
+
+              <SilentPaymentCard
+                key={data.address.silentPaymentAddress ?? ''}
+                username={username}
+                domain={domain}
+                current={data.address.silentPaymentAddress ?? null}
+                enabled={data.silentPaymentsEnabled === true}
+                isOwner={isOwner}
+              />
 
               {/* The delete danger zone is owner-only. */}
               {isOwner && (

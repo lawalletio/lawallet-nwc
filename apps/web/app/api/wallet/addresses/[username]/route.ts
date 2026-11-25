@@ -36,6 +36,11 @@ import {
 } from '@/lib/proxy/forwarding-graph'
 import { getZapReceiptCapability } from '@/lib/nostr/zap-receipts'
 import {
+  isSilentPaymentsActive,
+  unpublishSilentPayment
+} from '@/lib/silent-payments'
+import { logger } from '@/lib/logger'
+import {
   aliasProtocolsFromProbe,
   resolveAddressProtocols,
   type StoredAliasProtocols
@@ -140,6 +145,7 @@ export const GET = withErrorHandling(
     const caller = await resolveAccountByPubkey(auth.pubkey)
     const isOwner =
       !auth.deviceToken && !!caller && caller.id === address.userId
+    const silentPaymentsEnabled = await isSilentPaymentsActive()
 
     if (!isOwner) {
       // Scope-aware check (device tokens included) via the shared helper.
@@ -171,6 +177,7 @@ export const GET = withErrorHandling(
         effectiveConnectionString: null,
         deferredProxyEnabled,
         protocols,
+        silentPaymentsEnabled,
         isOwner: false,
         ownerPubkey: address.user.pubkey
       })
@@ -217,6 +224,7 @@ export const GET = withErrorHandling(
       effectiveConnectionString,
       deferredProxyEnabled,
       protocols,
+      silentPaymentsEnabled,
       isOwner: true,
       ownerPubkey: auth.pubkey
     })
@@ -454,6 +462,13 @@ export const DELETE = withErrorHandling(
         await syncPrimaryRemoteWalletFlag(user.id, tx)
       }
     })
+
+    // Best effort: a stale TXT record must never block the delete.
+    if (existing.silentPaymentAddress) {
+      unpublishSilentPayment(username).catch(err =>
+        logger.warn({ err, username }, 'BIP-353 record cleanup failed')
+      )
+    }
 
     eventBus.emit({ type: 'addresses:updated', timestamp: Date.now() })
     if (existing.isPrimary) {

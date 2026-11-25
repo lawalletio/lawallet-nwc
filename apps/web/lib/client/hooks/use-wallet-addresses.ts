@@ -24,6 +24,8 @@ export interface WalletAddress {
   isPrimary: boolean
   /** Effective NWC mode derived server-side; mirrors what users actually get. */
   nwcMode: EffectiveNwcMode
+  /** BIP-352 silent payment address published via BIP-353, or null. */
+  silentPaymentAddress?: string | null
   createdAt: string
   updatedAt: string
   /** Protocols this address exposes to a payer. */
@@ -60,6 +62,8 @@ export interface WalletAddressDetail {
   effectiveConnectionString: string | null
   /** Whether operators currently allow deferred Lightning Address forwarding. */
   deferredProxyEnabled: boolean
+  /** Server can publish BIP-353 records (feature on + DNS provider ready). */
+  silentPaymentsEnabled?: boolean
   /**
    * Whether the authenticated caller owns this address. `false` when an admin
    * (ADDRESSES_READ) is viewing another user's address — the detail page then
@@ -311,6 +315,10 @@ export function useAddressMutations() {
     undefined,
     { success: boolean; username: string }
   >()
+  const silentPayment = useMutation<
+    { address: string } | undefined,
+    { username: string; silentPaymentAddress: string | null }
+  >()
 
   function invalidateAddressState(detailUsername?: string) {
     invalidateApiPath('/api/wallet/addresses')
@@ -365,6 +373,16 @@ export function useAddressMutations() {
       invalidateAddressState(username)
       return result
     },
+    /** Set/replace (address) or remove (null) the BIP-353 record. */
+    setSilentPayment: async (username: string, address: string | null) => {
+      const path = `/api/wallet/addresses/${encodeURIComponent(username)}/silent-payment`
+      const result = address
+        ? await silentPayment.mutate('put', path, { address })
+        : await silentPayment.mutate('del', path, undefined)
+      invalidateAddressState(username)
+      return result
+    },
+    savingSilentPayment: silentPayment.loading,
     creating: create.loading,
     updating: update.loading,
     probingAlias: probe.loading,
@@ -375,6 +393,7 @@ export function useAddressMutations() {
       update.error ??
       probe.error ??
       setPrimary.error ??
-      remove.error
+      remove.error ??
+      silentPayment.error
   }
 }

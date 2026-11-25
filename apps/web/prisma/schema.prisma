@@ -521,6 +521,10 @@ model LightningAddress {
   /// otherwise fetch every alias target's payRequest on each page load, and
   /// confirming LUD-21 means asking that target to issue an invoice.
   aliasProtocols Json?
+  /// BIP-352 silent payment address (`sp1…`) published as a BIP-353 DNS TXT
+  /// record at `<username>.user._bitcoin-payment.<domain>`. The DB is the
+  /// source of truth; the DNS record is derived from it.
+  silentPaymentAddress String?
   createdAt      DateTime             @default(now())
   updatedAt      DateTime             @updatedAt
 

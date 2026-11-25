@@ -219,6 +219,8 @@ export const routeManifest: Record<string, () => Promise<RouteModule>> = {
     import('@/app/api/wallet/addresses/[username]/primary/route'),
   '/api/wallet/addresses/{username}/proxy-balance': () =>
     import('@/app/api/wallet/addresses/[username]/proxy-balance/route'),
+  '/api/wallet/addresses/{username}/silent-payment': () =>
+    import('@/app/api/wallet/addresses/[username]/silent-payment/route'),
   '/api/wallet/alias/{query}': () =>
     import('@/app/api/wallet/alias/[query]/route'),
   '/api/wallet/cards': () => import('@/app/api/wallet/cards/route'),

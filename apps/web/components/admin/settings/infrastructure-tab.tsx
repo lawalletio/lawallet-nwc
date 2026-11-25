@@ -46,6 +46,7 @@ import { buildPublicUrl } from '@/lib/public-url-utils'
 import { cn } from '@/lib/utils'
 import { DomainOnboardingWizard } from '@/components/admin/settings/domain-onboarding-wizard'
 import { EmailSettingsSection } from '@/components/admin/settings/email-settings-section'
+import { SilentPaymentsSection } from '@/components/admin/settings/silent-payments-section'
 import type { DomainProbeResult } from '@/lib/domain-onboarding'
 
 const IS_DEV = process.env.NODE_ENV !== 'production'
@@ -803,6 +804,14 @@ export function InfrastructureTab() {
       <Separator />
 
       <EmailSettingsSection settings={settings} saveSetting={saveSetting} />
+
+      <Separator />
+
+      <SilentPaymentsSection
+        key={`${settings?.silent_payments_enabled}:${settings?.silent_payments_dns_provider}`}
+        settings={settings}
+        saveSetting={saveSetting}
+      />
 
       <Separator />
 

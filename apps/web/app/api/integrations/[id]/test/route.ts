@@ -9,6 +9,8 @@ import { getIntegrationConfig } from '@/lib/integrations/server'
 import { bullBitcoinProvider } from '@/lib/integrations/bullbitcoin'
 import { wapuProvider } from '@/lib/integrations/wapu'
 import { testAliasApi } from '@/lib/integrations/alias'
+import { INTEGRATIONS } from '@/lib/integrations/catalog'
+import { buildDnsProvider } from '@/lib/silent-payments'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -31,7 +33,9 @@ export const POST = withErrorHandling(async (request: Request, ctx: Ctx) => {
   try {
     const v = cfg.values
     const detail =
-      id === 'bullbitcoin'
+      INTEGRATIONS[id].kind === 'dns'
+        ? await (await buildDnsProvider(id, v)).test()
+        : id === 'bullbitcoin'
         ? await bullBitcoinProvider(v.bullbitcoin_api_key).test()
         : id === 'wapu'
           ? await wapuProvider(v.wapu_api_key).test()

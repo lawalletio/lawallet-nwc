@@ -173,6 +173,10 @@ export const OPERATION_POLICY: Record<string, OperationPolicy> = {
   ),
   'wallet.addresses.delete': exclude(ADDRESS_RELEASE),
   'wallet.addresses.setPrimary': WRITE,
+  'wallet.addresses.silentPayment.set': exclude(
+    'repoints where on-chain payments to ₿user@domain go (BIP-353 DNS record)'
+  ),
+  'wallet.addresses.silentPayment.remove': WRITE,
   'wallet.addresses.invoices': READ,
 
   // Users

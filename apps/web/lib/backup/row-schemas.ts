@@ -116,6 +116,8 @@ const lightningAddressRow = z.object({
   redirect: z.string().nullable(),
   remoteWalletId: z.string().nullable(),
   isPrimary: z.boolean(),
+  // Optional keeps archives from before BIP-353 support importable.
+  silentPaymentAddress: z.string().nullable().optional().default(null),
   createdAt: date,
   updatedAt: date
 })

@@ -17,7 +17,8 @@ const walletAddressSchema = z
     mode: z.enum(['IDLE', 'ALIAS', 'CUSTOM_NWC']),
     redirect: z.string().nullable().optional(),
     remoteWalletId: z.string().nullable().optional(),
-    isPrimary: z.boolean().optional()
+    isPrimary: z.boolean().optional(),
+    silentPaymentAddress: z.string().nullable().optional()
   })
   .passthrough()
   .openapi({ description: 'Per-user wallet lightning address record.' })
@@ -331,6 +332,53 @@ registry.registerPath({
     ),
     ...commonErrorResponses,
     404: responses.notFound
+  }
+})
+
+const silentPaymentResultSchema = z.object({
+  username: z.string(),
+  silentPaymentAddress: z.string().nullable()
+})
+
+registry.registerPath({
+  ...withRole('USER'),
+  method: 'put',
+  path: '/api/wallet/addresses/{username}/silent-payment',
+  tags: [TAG],
+  summary:
+    'Set the address’s BIP-352 silent payment address and publish its BIP-353 DNS record.',
+  operationId: 'wallet.addresses.silentPayment.set',
+  security: protectedSecurity,
+  request: {
+    params: schemas.WalletAddressUsernameParam,
+    body: {
+      content: {
+        'application/json': { schema: schemas.WalletSilentPaymentRequest }
+      }
+    }
+  },
+  responses: {
+    200: inlineJsonResponse('Published.', silentPaymentResultSchema),
+    ...commonErrorResponses,
+    404: responses.notFound,
+    409: responses.conflict
+  }
+})
+
+registry.registerPath({
+  ...withRole('USER'),
+  method: 'delete',
+  path: '/api/wallet/addresses/{username}/silent-payment',
+  tags: [TAG],
+  summary: 'Remove the address’s silent payment address and its DNS record.',
+  operationId: 'wallet.addresses.silentPayment.remove',
+  security: protectedSecurity,
+  request: { params: schemas.WalletAddressUsernameParam },
+  responses: {
+    200: inlineJsonResponse('Removed.', silentPaymentResultSchema),
+    ...commonErrorResponses,
+    404: responses.notFound,
+    409: responses.conflict
   }
 })
 
