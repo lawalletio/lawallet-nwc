@@ -185,6 +185,14 @@ still proves the transport is alive. Relay loss changes the state to
 backoff. Startup warm-ups are concurrency-limited, while a targeted reconcile
 for a newly requested wallet is prioritized.
 
+All pooled clients share **one WebSocket per relay URL** (`src/nwc/shared-relays.ts`
+swaps each `NWCClient`'s private `ReconnectingPool` for a shared-socket one),
+so 94 wallets on one relay hold one socket, and a dropped socket is redialed
+once rather than once per wallet. A client's teardown only closes its own
+subscriptions; the socket closes when its last client leaves. Past
+`RELAY_MAX_SUBS_PER_SOCKET` REQs on one socket, another socket to the same
+relay is opened (relay-nwc.rizful.com allows 100 per connection).
+
 Connect failures that look like relay throttling (`Failed to connect`, 429,
 `rate-limited`) open a cooldown on the relay **host**, shared by every wallet
 on it: no wallet dials that host until it expires, then exactly one connect
@@ -546,6 +554,7 @@ Upgrading into a release that adds one never means editing a deployment —
 | `NWC_REQUEST_TIMEOUT_MS`        | Default /nwc/request timeout                                                                   | `30000`                              |
 | `RELAY_COOLDOWN_BASE_MS`        | First per-relay-host pause after a 429 / failed connect (doubles per failed probe)             | `5000`                               |
 | `RELAY_COOLDOWN_MAX_MS`         | Per-relay-host cooldown ceiling                                                                | `300000`                             |
+| `RELAY_MAX_SUBS_PER_SOCKET`     | REQs per shared relay socket before another socket to that relay is opened                     | `100`                                |
 | `CONNECT_STAGGER_MS`            | Minimum gap between wallet connect starts (0 disables)                                         | `200`                                |
 | `WEBHOOK_MAX_ATTEMPTS`          | Inline delivery attempts                                                                       | `5`                                  |
 | `EVENT_RETENTION_DAYS`          | Dedup/feed retention                                                                           | `30`                                 |

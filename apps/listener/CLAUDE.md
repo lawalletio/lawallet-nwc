@@ -77,6 +77,9 @@ handshake per call. Full contract + ops doc: `docs/services/NWC-LISTENER.md`.
 - `nwc/reconcile.ts` — pure `diffWallets` (add/remove/rotate)
 - `nwc/pool.ts` — NWCClient lifecycle, backoff, `request()` method map,
   onSubscribed/onReconnected hooks + 30s connectivity watcher
+- `nwc/shared-relays.ts` — one relay WebSocket per relay URL for all
+  clients (replaces each `NWCClient.pool`); per-client close never kills a
+  shared socket; per-socket REQ cap spills to a second socket
 - `nwc/catchup.ts` — downtime recovery: pure `planCatchupWindow` +
   `CatchupRunner` (list_transactions pagination primary, relay `since`-replay
   best-effort), anchored on `listener.wallet_cursors`

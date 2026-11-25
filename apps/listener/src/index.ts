@@ -401,6 +401,7 @@ async function main(): Promise<void> {
     relayCooldownBaseMs: env.RELAY_COOLDOWN_BASE_MS,
     relayCooldownMaxMs: env.RELAY_COOLDOWN_MAX_MS,
     connectStaggerMs: env.CONNECT_STAGGER_MS,
+    relayMaxSubsPerSocket: env.RELAY_MAX_SUBS_PER_SOCKET,
     onNotification,
     onWalletError: (wallet, error) => {
       captureException(error, { tags: { walletId: wallet.id } })

@@ -13,6 +13,7 @@ import type {
 } from '@lawallet-nwc/shared'
 import type { DesiredWallet } from '../db'
 import { diffWallets, type CurrentWallet } from './reconcile'
+import { SharedRelayHub } from './shared-relays'
 
 const SUBSCRIBED_TYPES: Nip47NotificationType[] = [
   'payment_received',
@@ -116,6 +117,8 @@ export interface NwcPoolDeps {
   relayCooldownMaxMs?: number
   /** Min gap between connect starts (env CONNECT_STAGGER_MS). */
   connectStaggerMs?: number
+  /** REQs per shared relay socket before spilling to another (env RELAY_MAX_SUBS_PER_SOCKET). */
+  relayMaxSubsPerSocket?: number
   onNotification: (
     wallet: DesiredWallet,
     notification: Nip47Notification
@@ -216,12 +219,15 @@ export class NwcPool {
   private readonly connectStaggerMs: number
   private nextConnectAt = 0
   private drainTimer: NodeJS.Timeout | null = null
+  /** One WebSocket per relay for every pooled client, not one per client. */
+  private readonly relayHub: SharedRelayHub
 
   constructor(deps: NwcPoolDeps) {
     this.deps = deps
     this.cooldownBaseMs = deps.relayCooldownBaseMs ?? 5000
     this.cooldownMaxMs = deps.relayCooldownMaxMs ?? 300000
     this.connectStaggerMs = deps.connectStaggerMs ?? 0
+    this.relayHub = new SharedRelayHub(deps.relayMaxSubsPerSocket ?? 100)
     // State accuracy matters to the payment fast path even when missed-event
     // catch-up is disabled, so the relay watcher always runs. onReconnected
     // remains optional.
@@ -696,6 +702,7 @@ export class NwcPool {
       client = new NWCClient({
         nostrWalletConnectUrl: conn.wallet.connectionString
       })
+      this.relayHub.adopt(client as unknown as { pool: unknown })
       const unsub = await client.subscribeNotifications(notification => {
         // A synchronous throw here would escape into the SDK's relay event
         // dispatch (unhandled). Isolate it. A received notification is also

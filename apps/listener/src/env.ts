@@ -152,6 +152,10 @@ const envSchema = z.object({
     'Ceiling for the per-relay-host cooldown'
   ),
 
+  RELAY_MAX_SUBS_PER_SOCKET: intEnv(100).describe(
+    'Subscriptions per shared relay WebSocket before another socket is opened to the same relay (relay-nwc.rizful.com allows 100)'
+  ),
+
   CONNECT_STAGGER_MS: intEnv(200, { min: 0 }).describe(
     'Minimum gap between wallet connect starts, so boot does not open every socket at once'
   ),
