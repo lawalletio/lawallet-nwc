@@ -53,6 +53,7 @@ import { eventBus } from '@/lib/events/event-bus'
 import { AuthenticationError } from '@/types/server/errors'
 import { Role } from '@/lib/auth/permissions'
 import { unpublishSilentPayment } from '@/lib/silent-payments'
+import { logger } from '@/lib/logger'
 
 const PK_A = 'a'.repeat(64)
 const USER_ID = 'user-a'
@@ -112,6 +113,25 @@ describe('DELETE /api/account', () => {
 
     expect(response.status).toBe(200)
     expect(unpublishSilentPayment).toHaveBeenCalledWith('alice')
+  })
+
+  it('logs, and still succeeds, when the DNS cleanup fails', async () => {
+    authedAs()
+    vi.mocked(prismaMock.lightningAddress.findMany).mockResolvedValue([
+      { username: 'alice' }
+    ] as any)
+    vi.mocked(unpublishSilentPayment).mockRejectedValueOnce(
+      new Error('dns down')
+    )
+
+    const response = await del({ confirm: 'DELETE' })
+    await new Promise(r => setTimeout(r, 0))
+
+    expect(response.status).toBe(200)
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ username: 'alice' }),
+      'BIP-353 record cleanup failed'
+    )
   })
 
   it('deletes the account, scoped to the caller, and returns { deleted: true }', async () => {

@@ -46,7 +46,11 @@ describe('vercelDns', () => {
         new URL(request.url).searchParams.get('until')
           ? HttpResponse.json({
               records: [
-                { id: 'rec_9', name: 'alice.user._bitcoin-payment', type: 'TXT' }
+                {
+                  id: 'rec_9',
+                  name: 'alice.user._bitcoin-payment',
+                  type: 'TXT'
+                }
               ],
               pagination: { next: null }
             })
@@ -80,6 +84,59 @@ describe('vercelDns', () => {
       )
     )
     await expect(dns.deleteTxt(FQDN)).rejects.toThrow('Vercel: Not authorized')
+  })
+
+  it('falls back to the HTTP status when the error body is not JSON', async () => {
+    server.use(
+      http.get(
+        `${VC}/v4/domains/example.com/records`,
+        () => new HttpResponse('nope', { status: 502 })
+      )
+    )
+    await expect(dns.test()).rejects.toThrow('Vercel: HTTP 502')
+  })
+
+  it('deletes an existing record (no team id → no query string)', async () => {
+    const solo = vercelDns({ token: 't', zone: 'Example.com' })
+    let deleted = ''
+    server.use(
+      http.get(`${VC}/v4/domains/example.com/records`, ({ request }) => {
+        expect(new URL(request.url).searchParams.has('teamId')).toBe(false)
+        return HttpResponse.json({
+          records: [
+            { id: 'rec_2', name: 'alice.user._bitcoin-payment', type: 'TXT' }
+          ],
+          pagination: { next: null }
+        })
+      }),
+      http.delete(
+        `${VC}/v2/domains/example.com/records/:id`,
+        ({ request, params }) => {
+          deleted = `${params.id}${new URL(request.url).search}`
+          return HttpResponse.json({})
+        }
+      )
+    )
+    await solo.deleteTxt(FQDN)
+    expect(deleted).toBe('rec_2')
+  })
+
+  it('skips the delete when no record exists', async () => {
+    server.use(
+      http.get(`${VC}/v4/domains/example.com/records`, () =>
+        HttpResponse.json({ records: [], pagination: { next: null } })
+      )
+    )
+    await expect(dns.deleteTxt(FQDN)).resolves.toBeUndefined()
+  })
+
+  it('test() warns that Vercel has no DNSSEC', async () => {
+    server.use(
+      http.get(`${VC}/v4/domains/example.com/records`, () =>
+        HttpResponse.json({ records: [], pagination: { next: null } })
+      )
+    )
+    expect(await dns.test()).toMatch(/does not sign zones with DNSSEC/)
   })
 })
 
@@ -138,5 +195,31 @@ describe('cloudflareDns', () => {
       )
     )
     expect(await dns.test()).toMatch(/DNSSEC is disabled/)
+  })
+
+  it.each([
+    [{ status: 'active' }, /DNSSEC is active/],
+    [undefined, /DNSSEC is unknown/]
+  ])('test() reports DNSSEC %j', async (result, expected) => {
+    server.use(
+      http.get(`${CF}/dnssec`, () =>
+        HttpResponse.json({ success: true, result })
+      )
+    )
+    expect(await dns.test()).toMatch(expected)
+  })
+
+  it('surfaces errors[] from a success:false body', async () => {
+    server.use(
+      http.get(`${CF}/dns_records`, () =>
+        HttpResponse.json({
+          success: false,
+          errors: [{ message: 'Invalid zone' }]
+        })
+      )
+    )
+    await expect(dns.deleteTxt(FQDN)).rejects.toThrow(
+      'Cloudflare: Invalid zone'
+    )
   })
 })

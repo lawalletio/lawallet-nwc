@@ -49,6 +49,11 @@ vi.mock('@/lib/user', () => ({
   createNewUser: vi.fn()
 }))
 
+vi.mock('@/lib/silent-payments', async importOriginal => ({
+  ...(await importOriginal<typeof import('@/lib/silent-payments')>()),
+  unpublishSilentPayment: vi.fn(async () => {})
+}))
+
 import {
   GET as ListGet,
   POST as ListPost
@@ -64,6 +69,8 @@ import { authenticate } from '@/lib/auth/unified-auth'
 import { eventBus } from '@/lib/events/event-bus'
 import { getSettings } from '@/lib/settings'
 import { createNewUser } from '@/lib/user'
+import { unpublishSilentPayment } from '@/lib/silent-payments'
+import { logger } from '@/lib/logger'
 
 const mockPubkey = 'a'.repeat(64)
 const otherPubkey = 'b'.repeat(64)
@@ -999,6 +1006,34 @@ describe('DELETE /api/wallet/addresses/[username]', () => {
       expect.objectContaining({ where: { username: 'alice' } })
     )
     expect(prismaMock.lightningAddress.update).not.toHaveBeenCalled()
+  })
+
+  it('removes the BIP-353 record, logging a failed cleanup', async () => {
+    mockAuth()
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
+      id: 'user-1'
+    } as any)
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(
+      makeAddress({
+        isPrimary: false,
+        silentPaymentAddress: 'sp1qexample'
+      }) as any
+    )
+    vi.mocked(unpublishSilentPayment).mockRejectedValueOnce(
+      new Error('dns down')
+    )
+
+    const res = await DetailDelete(
+      createNextRequest('/api/wallet/addresses/alice', { method: 'DELETE' }),
+      createParamsPromise({ username: 'alice' })
+    )
+    await new Promise(r => setTimeout(r, 0))
+    await assertResponse(res, 200)
+    expect(unpublishSilentPayment).toHaveBeenCalledWith('alice')
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ username: 'alice' }),
+      'BIP-353 record cleanup failed'
+    )
   })
 
   it('returns 404 when the address is not owned by caller', async () => {

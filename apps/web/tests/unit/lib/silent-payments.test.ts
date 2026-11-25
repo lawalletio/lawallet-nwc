@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect, vi } from 'vitest'
+import { bech32m } from 'bech32'
 
 vi.mock('@/lib/config', () => ({
   getConfig: vi.fn(() => ({ isTest: true, isDevelopment: false }))
@@ -42,7 +43,19 @@ describe('parseSilentPaymentAddress', () => {
   it.each([
     ['bad checksum', SP.slice(0, -1) + (SP.endsWith('q') ? 'p' : 'q')],
     ['wrong prefix', 'bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq'],
-    ['garbage', 'sp1notanaddress']
+    ['garbage', 'sp1notanaddress'],
+    [
+      'bech32m with another prefix',
+      bech32m.encode('bc', [0, ...bech32m.toWords(new Uint8Array(66))], 1023)
+    ],
+    [
+      'unknown version',
+      bech32m.encode('sp', [1, ...bech32m.toWords(new Uint8Array(66))], 1023)
+    ],
+    [
+      'wrong payload length',
+      bech32m.encode('sp', [0, ...bech32m.toWords(new Uint8Array(33))], 1023)
+    ]
   ])('rejects %s', (_, input) => {
     expect(() => parseSilentPaymentAddress(input)).toThrow(
       /Not a valid silent payment address/

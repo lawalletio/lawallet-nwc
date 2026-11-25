@@ -2,10 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createNextRequest, assertResponse } from '@/tests/helpers/api-helpers'
 import { createParamsPromise } from '@/tests/helpers/route-helpers'
 import { prismaMock, resetPrismaMock } from '@/tests/helpers/prisma-mock'
-import {
-  ConflictError,
-  ServiceUnavailableError
-} from '@/types/server/errors'
+import { ConflictError, ServiceUnavailableError } from '@/types/server/errors'
 
 vi.mock('@/lib/config', () => ({
   getConfig: vi.fn(() => ({ maintenance: { enabled: false } }))
@@ -86,6 +83,12 @@ describe('PUT /api/wallet/addresses/[username]/silent-payment', () => {
       where: { username: 'alice' },
       data: { silentPaymentAddress: SP }
     })
+  })
+
+  it('401s when the caller has no account', async () => {
+    vi.mocked(resolveAccountByPubkey).mockResolvedValue(null)
+    await assertResponse(await put(SP), 401)
+    expect(publishSilentPayment).not.toHaveBeenCalled()
   })
 
   it('404s for an address the caller does not own', async () => {
