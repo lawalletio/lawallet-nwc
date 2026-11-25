@@ -747,6 +747,12 @@ describe('POST /api/settings — BIP-353 silent payments', () => {
     expect(res.status).toBe(400)
   })
 
+  it('saves a provider choice without enabling the feature', async () => {
+    vi.mocked(getSettings).mockResolvedValue({ root: mockPubkey })
+    const res = await post({ silent_payments_dns_provider: 'cloudflare_dns' })
+    expect(res.status).toBe(200)
+  })
+
   it('refuses to enable while the chosen integration is unavailable', async () => {
     vi.mocked(getSettings).mockResolvedValue({ root: mockPubkey })
     const res = await post({

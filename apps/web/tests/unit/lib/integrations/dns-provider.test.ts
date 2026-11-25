@@ -209,6 +209,24 @@ describe('cloudflareDns', () => {
     expect(await dns.test()).toMatch(expected)
   })
 
+  it('treats a null JSON body as an error without details', async () => {
+    server.use(
+      http.get(`${CF}/dns_records`, () =>
+        HttpResponse.json(null, { status: 500 })
+      )
+    )
+    await expect(dns.deleteTxt(FQDN)).rejects.toThrow('Cloudflare: HTTP 500')
+  })
+
+  it('skips the delete when no record exists', async () => {
+    server.use(
+      http.get(`${CF}/dns_records`, () =>
+        HttpResponse.json({ success: true, result: [] })
+      )
+    )
+    await expect(dns.deleteTxt(FQDN)).resolves.toBeUndefined()
+  })
+
   it('surfaces errors[] from a success:false body', async () => {
     server.use(
       http.get(`${CF}/dns_records`, () =>

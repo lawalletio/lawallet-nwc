@@ -44,6 +44,10 @@ vi.mock('@/lib/silent-payments', () => ({
   }))
 }))
 
+vi.mock('@/lib/integrations/bullbitcoin', () => ({
+  bullBitcoinProvider: vi.fn(() => ({ test: async () => 'Bull Bitcoin OK' }))
+}))
+
 import { GET } from '@/app/api/integrations/route'
 import { POST as TestPost } from '@/app/api/integrations/[id]/test/route'
 import { sealSecret } from '@/lib/integrations/server'
@@ -169,5 +173,23 @@ describe('POST /api/integrations/[id]/test', () => {
         cloudflare_dns_zone_id: 'z1'
       })
     )
+  })
+
+  it('runs the provider check for non-DNS integrations', async () => {
+    invalidateHotSettingsCache()
+    vi.mocked(prismaMock.settings.findMany).mockResolvedValue(
+      rows({
+        bullbitcoin_api_key: sealSecret('bullbitcoin_api_key', 'key')
+      }) as any
+    )
+    const res = await TestPost(
+      createNextRequest(
+        'http://localhost:3000/api/integrations/bullbitcoin/test',
+        { method: 'POST' }
+      ),
+      createParamsPromise({ id: 'bullbitcoin' })
+    )
+    expect(await res.json()).toEqual({ ok: true, detail: 'Bull Bitcoin OK' })
+    expect(buildDnsProvider).not.toHaveBeenCalled()
   })
 })
