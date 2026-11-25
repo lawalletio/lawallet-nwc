@@ -68,8 +68,64 @@ function openPaymentCircuit(bridge?: ResolvedListenerConfig): void {
   halfOpenProbe.unref?.()
 }
 
+/**
+ * Circuit for the generic `/nwc/request` proxy. A listener that is down or
+ * wedged doesn't refuse connections — it hangs until our abort, so every
+ * LUD-16 mint and LUD-21 lookup used to wait the full request timeout (10s)
+ * before falling back to direct NWC. After a transport failure the bridge is
+ * skipped for REQUEST_CIRCUIT_MS; after that, one cheap `/health` probe decides
+ * whether the next call may try it again.
+ *
+ * ponytail: per-instance state, so a cold serverless instance pays the full
+ * timeout once before it learns; share it (Redis/DB) if that ever matters.
+ */
+const REQUEST_CIRCUIT_MS = 30_000
+const HEALTH_PROBE_TIMEOUT_MS = 1500
+let requestCircuit: {
+  url: string
+  openUntil: number
+  probe: Promise<boolean> | null
+} | null = null
+
+function openRequestCircuit(url: string): void {
+  requestCircuit = {
+    url,
+    openUntil: Date.now() + REQUEST_CIRCUIT_MS,
+    probe: null
+  }
+}
+
+/** Throws when the bridge recently failed and hasn't proven itself since. */
+async function assertRequestCircuitClosed(url: string): Promise<void> {
+  const circuit = requestCircuit
+  if (!circuit || circuit.url !== url) return
+  if (Date.now() < circuit.openUntil) {
+    throw new ListenerUnavailableError('Listener bridge circuit open')
+  }
+  // Half-open: concurrent callers share one probe.
+  circuit.probe ??= fetch(new URL('/health', url), {
+    signal: AbortSignal.timeout(HEALTH_PROBE_TIMEOUT_MS),
+    cache: 'no-store'
+  }).then(
+    res => res.ok,
+    () => false
+  )
+  if (await circuit.probe) {
+    if (requestCircuit === circuit) requestCircuit = null
+    return
+  }
+  if (requestCircuit === circuit) openRequestCircuit(url)
+  throw new ListenerUnavailableError('Listener bridge failed its health probe')
+}
+
+/** Test hook; also the settings "test listener" button's way to retry now. */
+export function resetListenerRequestCircuit(): void {
+  requestCircuit = null
+}
+
 /** Test/health-probe hook. A successful listener call also closes the circuit. */
 export function resetListenerPaymentCircuit(): void {
+  resetListenerRequestCircuit()
   closePaymentCircuit()
   capabilityProbe = null
   paymentCapabilityUrl = null
@@ -157,6 +213,7 @@ export async function listenerNwcRequest<T>(
   if (!bridge.enabled || !bridge.url) {
     throw new ListenerUnavailableError('Listener bridge not configured')
   }
+  await assertRequestCircuitClosed(bridge.url)
 
   let res: Response
   try {
@@ -179,6 +236,7 @@ export async function listenerNwcRequest<T>(
       cache: 'no-store'
     })
   } catch (err) {
+    openRequestCircuit(bridge.url)
     throw new ListenerUnavailableError('Listener bridge request failed', {
       cause: err
     })
@@ -188,6 +246,7 @@ export async function listenerNwcRequest<T>(
   try {
     body = await res.json()
   } catch (err) {
+    openRequestCircuit(bridge.url)
     throw new ListenerUnavailableError(
       `Listener bridge returned unparseable response (HTTP ${res.status})`,
       { cause: err }
@@ -196,6 +255,7 @@ export async function listenerNwcRequest<T>(
 
   const parsed = nwcProxyResponseSchema.safeParse(body)
   if (!parsed.success) {
+    openRequestCircuit(bridge.url)
     throw new ListenerUnavailableError(
       `Listener bridge returned malformed response (HTTP ${res.status})`
     )

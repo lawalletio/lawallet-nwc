@@ -224,3 +224,88 @@ describe('listenerNwcRequest', () => {
     expect((err as Error).message).toContain('INSUFFICIENT_BALANCE')
   })
 })
+
+describe('listenerNwcRequest circuit', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  const ok = () => Response.json({ ok: true, result: { balance: 1 } })
+
+  it('skips the listener without a request while the circuit is open', async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new Error('aborted'))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(listenerNwcRequest(BRIDGE, INPUT)).rejects.toThrow(
+      'Listener bridge request failed'
+    )
+    await expect(listenerNwcRequest(BRIDGE, INPUT)).rejects.toThrow(
+      'Listener bridge circuit open'
+    )
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not open on a listener {ok:false} answer', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json(
+          { ok: false, error: { code: 'wallet_not_connected', message: 'x' } },
+          { status: 502 }
+        )
+      )
+      .mockResolvedValueOnce(ok())
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(listenerNwcRequest(BRIDGE, INPUT)).rejects.toMatchObject({
+      code: 'wallet_not_connected'
+    })
+    await expect(listenerNwcRequest(BRIDGE, INPUT)).resolves.toEqual({
+      balance: 1
+    })
+  })
+
+  it('probes /health once the window lapses and closes on success', async () => {
+    vi.useFakeTimers()
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('aborted'))
+      .mockResolvedValueOnce(Response.json({ status: 'ok' }))
+      .mockResolvedValueOnce(ok())
+      .mockResolvedValueOnce(ok())
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(listenerNwcRequest(BRIDGE, INPUT)).rejects.toThrow()
+    vi.advanceTimersByTime(30_001)
+    await expect(listenerNwcRequest(BRIDGE, INPUT)).resolves.toEqual({
+      balance: 1
+    })
+    await listenerNwcRequest(BRIDGE, INPUT)
+
+    expect(fetchMock.mock.calls.map(c => String(c[0]))).toEqual([
+      'http://listener.test:4100/nwc/request',
+      'http://listener.test:4100/health',
+      'http://listener.test:4100/nwc/request',
+      'http://listener.test:4100/nwc/request'
+    ])
+  })
+
+  it('re-opens when the half-open health probe fails', async () => {
+    vi.useFakeTimers()
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('aborted'))
+      .mockResolvedValueOnce(new Response('down', { status: 503 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(listenerNwcRequest(BRIDGE, INPUT)).rejects.toThrow()
+    vi.advanceTimersByTime(30_001)
+    await expect(listenerNwcRequest(BRIDGE, INPUT)).rejects.toThrow(
+      'Listener bridge failed its health probe'
+    )
+    await expect(listenerNwcRequest(BRIDGE, INPUT)).rejects.toThrow(
+      'Listener bridge circuit open'
+    )
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+})

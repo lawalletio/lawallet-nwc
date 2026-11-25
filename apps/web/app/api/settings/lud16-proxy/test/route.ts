@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateSettingsWriteRequest } from '@/lib/settings-auth'
 import { getListenerConfig } from '@/lib/listener-config'
-import { listenerNwcRequest } from '@/lib/wallet/drivers/listener-transport'
+import {
+  listenerNwcRequest,
+  resetListenerRequestCircuit
+} from '@/lib/wallet/drivers/listener-transport'
 import { getServerNwcClient } from '@/lib/wallet/drivers/nwc-client-cache'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { getProxyConfig } from '@/lib/proxy/config'
@@ -35,6 +38,8 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     let info: { methods?: string[]; notifications?: string[] }
     let balance: { balance: number }
     if (config.enabled && listener.enabled) {
+      // An explicit test must reach the listener, not a cached "it was down".
+      resetListenerRequestCircuit()
       ;[info, balance] = await Promise.all([
         listenerNwcRequest<{
           methods?: string[]
