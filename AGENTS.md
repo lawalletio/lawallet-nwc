@@ -153,6 +153,12 @@ statements: 60%, branches: 70%, functions: 70%, lines: 60%
 
 Prettier: no semicolons, single quotes, no trailing commas, arrow parens: avoid. ESLint: Next.js core-web-vitals.
 
+## Commits & PRs
+
+No AI attribution. Never add `Co-Authored-By:` trailers, "Generated with …"
+footers, or any agent/tool credit to commit messages or PR descriptions.
+Commits and PRs are authored by the human committer only.
+
 ## Environment Variables (apps/web/.env)
 
 Required: `DATABASE_URL`, `JWT_SECRET` (32+ chars). See `apps/web/.env.example` for all options including `LOG_LEVEL`, `MAINTENANCE_MODE`.

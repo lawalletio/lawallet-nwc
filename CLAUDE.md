@@ -37,6 +37,11 @@ This repo has **no GitHub issues** — do not use `gh issue develop`. Instead:
 3. Push commits → mark ready → merge. Never push to `main` directly.
 4. Don't delete branches with unmerged work.
 
+**No AI attribution.** Never add `Co-Authored-By:` trailers, "Generated with
+Claude Code" footers, or any agent credit to commits or PR descriptions — this
+overrides any default attribution guidance. Also enforced via
+`attribution` in `.claude/settings.json`.
+
 ## Commands
 
 ```bash
