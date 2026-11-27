@@ -53,6 +53,12 @@ async function rpc(
     body: JSON.stringify({ jsonrpc: '2.0', id: '0', method, params }),
     cache: 'no-store',
     signal: AbortSignal.timeout(TIMEOUT_MS)
+  }).catch(e => {
+    throw new BbError(
+      (e as Error).name === 'TimeoutError'
+        ? "Bull Bitcoin didn't respond in time. Please try again."
+        : "Couldn't reach Bull Bitcoin. Please try again."
+    )
   })
   const text = await res.text()
   let data: Json = {}

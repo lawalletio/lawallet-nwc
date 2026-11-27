@@ -109,6 +109,19 @@ describe('handleApiError Sentry forwarding', () => {
     expect(captureException).not.toHaveBeenCalled()
   })
 
+  it('maps an outbound fetch timeout to a 503 with a retry hint', async () => {
+    const response = handleApiError(
+      new DOMException(
+        'The operation was aborted due to timeout',
+        'TimeoutError'
+      )
+    )
+    await flushSentryImport()
+
+    expect(response.status).toBe(503)
+    expect((await response.json()).error.message).toMatch(/try again/)
+  })
+
   it('skips 4xx client errors', async () => {
     handleApiError(new NotFoundError())
     handleApiError(new AuthenticationError())
