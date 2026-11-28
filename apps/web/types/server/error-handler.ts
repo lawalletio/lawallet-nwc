@@ -73,6 +73,16 @@ export const toApiError = (error: unknown): ApiError => {
     return new InternalServerError('Database error', { cause: error })
   }
 
+  // An outbound fetch hit its AbortSignal.timeout(): the upstream is slow,
+  // not us. 503 with a retry hint instead of a bare 500.
+  if (error instanceof Error && error.name === 'TimeoutError') {
+    const e = new ServiceUnavailableError(
+      "An external service didn't respond in time. Please try again."
+    )
+    ;(e as any).cause = error
+    return e
+  }
+
   if (error instanceof Error) {
     // Fixed message: a plain Error's text describes internals (library
     // messages, file paths, SQL) and must not reach the client.

@@ -353,6 +353,22 @@ describe('Bull Bitcoin', () => {
     ).rejects.toThrow(/CBU/)
   })
 
+  it('turns a timeout or network failure into a clear 503', async () => {
+    const spy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValueOnce(new DOMException('aborted', 'TimeoutError'))
+      .mockRejectedValueOnce(new TypeError('fetch failed'))
+    await expect(bullBitcoinProvider('k').quote(1000)).rejects.toMatchObject({
+      statusCode: 503,
+      message: "Bull Bitcoin didn't respond in time. Please try again."
+    })
+    await expect(bullBitcoinProvider('k').quote(1000)).rejects.toMatchObject({
+      statusCode: 503,
+      message: "Couldn't reach Bull Bitcoin. Please try again."
+    })
+    spy.mockRestore()
+  })
+
   it('surfaces min/max limits as a validation error', async () => {
     server.use(
       http.post(`${BB}/ak/api-orders`, () =>
